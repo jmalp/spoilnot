@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "977467444046",
+    "project_id": "spoilnot-prod",
+    "storage_bucket": "spoilnot-prod.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:977467444046:android:2e84de68984d0dd33cec1f",
+        "android_client_info": {
+          "package_name": "com.parcha.spoilnot"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAs19NmSmnUIfaMJM_XGRHcRxVOpc2EBb8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

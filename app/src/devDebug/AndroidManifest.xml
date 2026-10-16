@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dev debug only. Android 17 blocks apps targeting API 37 from private-network addresses such as the
+     emulator host 10.0.2.2 unless this permission is granted. Release and prod builds never declare it. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+</manifest>

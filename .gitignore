@@ -1,0 +1,32 @@
+# Build output
+build/
+.gradle/
+.kotlin/
+captures/
+*.apk
+*.aab
+
+# IDE and OS
+.idea/
+*.iml
+.DS_Store
+
+# Local and secret files (DESIGN 12.2)
+local.properties
+keystore.properties
+*.jks
+*.keystore
+service-account*.json
+.env*
+
+# Firebase and Node
+node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+.firebase/
+
+# Local emulator data
+firebase/.emulator-data/

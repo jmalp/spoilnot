@@ -1,0 +1,15 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.{kt,kts}]
+# ktlint settings live in the root build.gradle.kts (Spotless editorConfigOverride).
+max_line_length = 120
+
+[*.{json,yml,yaml,rules,js,mjs,ts}]
+indent_size = 2
