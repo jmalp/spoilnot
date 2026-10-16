@@ -2,11 +2,14 @@ package com.parcha.spoilnot.core.designsystem.component
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -19,9 +22,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.navigation.LocalJoinRequestCount
 
 /** Content never grows wider than this on tablets and landscape (DESIGN 6.2). */
 val MaxContentWidth = 640.dp
@@ -42,8 +47,16 @@ fun TabScaffold(
             LargeTopAppBar(
                 title = { Text(title) },
                 actions = {
+                    val requests = LocalJoinRequestCount.current
+                    val description = if (requests > 0) {
+                        pluralStringResource(R.plurals.open_settings_with_requests, requests, requests)
+                    } else {
+                        stringResource(R.string.open_settings)
+                    }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Rounded.AccountCircle, contentDescription = stringResource(R.string.open_settings))
+                        BadgedBox(badge = { if (requests > 0) Badge { Text(requests.toString()) } }) {
+                            Icon(Icons.Rounded.AccountCircle, contentDescription = description)
+                        }
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -59,10 +72,13 @@ fun DetailScaffold(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
         modifier = modifier,
+        snackbarHost = snackbarHost,
         topBar = {
             TopAppBar(
                 title = { Text(title) },
@@ -71,6 +87,7 @@ fun DetailScaffold(
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
+                actions = actions,
             )
         },
     ) { padding -> CenteredContent(padding, content) }

@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.core.firebase.RequestEmulatorNetworkAccess
-import com.parcha.spoilnot.core.navigation.AppShell
+import com.parcha.spoilnot.core.navigation.SpoilNotRoot
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             SpoilNotTheme {
                 RequestEmulatorNetworkAccess()
-                AppShell()
+                SpoilNotRoot()
             }
         }
     }

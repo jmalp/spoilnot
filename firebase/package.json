@@ -8,7 +8,7 @@
   },
   "scripts": {
     "emulators": "firebase emulators:start --project demo-spoilnot --import .emulator-data --export-on-exit .emulator-data",
-    "test": "firebase emulators:exec --project demo-spoilnot --only firestore \"node --test 'test/**/*.test.js'\"",
+    "test": "firebase emulators:exec --project demo-spoilnot --only firestore \"node --test --test-concurrency=1 'test/**/*.test.js'\"",
     "test:watch": "node --test --watch 'test/**/*.test.js'"
   },
   "devDependencies": {

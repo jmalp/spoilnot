@@ -21,3 +21,7 @@ data object GroceriesRoute : NavKey
  */
 @Serializable
 data class SettingsRoute(val tab: TopLevelDestination) : NavKey
+
+/** Settings > Household, pushed on the same tab as Settings. */
+@Serializable
+data class HouseholdSettingsRoute(val tab: TopLevelDestination) : NavKey

@@ -16,10 +16,15 @@
 
 ## Emulators
 - `./scripts/emulators.sh` starts Auth (9099), Firestore (8080) and the UI (http://127.0.0.1:4000) with the emulator-only project `demo-spoilnot`.
-- Dev debug builds connect to them at 10.0.2.2 (`-Pspoilnot.emulatorHost=<LAN IP>` for a physical phone). All other builds use real Firebase.
+- Dev debug builds connect to them at 10.0.2.2 (`-Pspoilnot.emulatorHost=<LAN IP>` for a physical phone) with project ID `demo-spoilnot` from `app/src/dev/debug/google-services.json`. All other builds use real Firebase.
 - On Android 17+ dev debug builds need ACCESS_LOCAL_NETWORK to reach 10.0.2.2; the app asks once and tests grant it.
+
+## Patterns
+- Repositories read `FirestoreProvider.current` or collect `.instance`; never keep a `FirebaseFirestore` reference (it is replaced when local data is cleared).
+- Household-scoped listeners use `snapshotFlow().retryAfterOwnWrites(db)`.
+- Session state (signed out, gate, joining, in household) comes only from `SessionManager`.
 
 ## Before finishing a task
 - `./gradlew spotlessApply` then `./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug`
 - `cd firebase && npm test` (rules tests in the Firestore emulator)
-- With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest`
+- With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest` (includes the two-user household tests)

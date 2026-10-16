@@ -1,8 +1,6 @@
 package com.parcha.spoilnot.core.firebase
 
-import android.os.Build
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
@@ -10,12 +8,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
 import com.parcha.spoilnot.BuildConfig
+import com.parcha.spoilnot.EmulatorSupport
 import java.util.UUID
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assume.assumeTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,14 +33,14 @@ class FirebaseEmulatorTest {
     }
 
     @Test
-    fun firestoreEmulatorEnforcesDenyAllRules() {
+    fun firestoreEmulatorEnforcesRules() {
         val error = try {
-            await(firestore.document("config/app").get(Source.SERVER))
+            await(firestore.document("households/not-a-member").get(Source.SERVER))
             null
         } catch (e: ExecutionException) {
             e.cause as? FirebaseFirestoreException
         }
-        // PERMISSION_DENIED (not UNAVAILABLE) shows the emulator answered with the M0 rules loaded.
+        // PERMISSION_DENIED (not UNAVAILABLE) shows the emulator answered with the rules loaded.
         assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, error?.code)
     }
 
@@ -55,17 +53,11 @@ class FirebaseEmulatorTest {
         @JvmStatic
         @BeforeClass
         fun connect() {
-            assumeTrue("Only dev debug builds use the emulators", BuildConfig.FIREBASE_EMULATOR_HOST.isNotBlank())
-            if (Build.VERSION.SDK_INT >= 37) {
-                val instrumentation = InstrumentationRegistry.getInstrumentation()
-                instrumentation.uiAutomation.grantRuntimePermission(
-                    instrumentation.targetContext.packageName,
-                    ACCESS_LOCAL_NETWORK,
-                )
-            }
+            EmulatorSupport.requireEmulatorAndNetworkAccess()
             auth = FirebaseAuth.getInstance()
             firestore = FirebaseFirestore.getInstance()
-            FirebaseEmulators.configure(auth, firestore, BuildConfig.FIREBASE_EMULATOR_HOST)
+            FirebaseEmulators.configureAuth(auth, BuildConfig.FIREBASE_EMULATOR_HOST)
+            FirebaseEmulators.configureFirestore(firestore, BuildConfig.FIREBASE_EMULATOR_HOST)
         }
     }
 }
