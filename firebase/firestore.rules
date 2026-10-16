@@ -1,10 +1,173 @@
 rules_version = '2';
 
-// M0: deny everything. The real rules (DESIGN 12.3) and their full test matrix (12.4) arrive in M1.
+// Spoil Not security rules. Based on DESIGN 12.3; deviations are listed in docs/DECISIONS.md.
+// Correctness is defined by the test matrix in firebase/test (DESIGN 12.4). Deny by default.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function hhPath(hid) { return /databases/$(database)/documents/households/$(hid); }
+    function memberPath(hid, u) { return /databases/$(database)/documents/households/$(hid)/members/$(u); }
+    function requestPath(hid, u) { return /databases/$(database)/documents/households/$(hid)/joinRequests/$(u); }
+    function codePath(c) { return /databases/$(database)/documents/inviteCodes/$(c); }
+    function isMember(hid) { return signedIn() && exists(memberPath(hid, me())); }
+    function isOwner(hid) {
+      return isMember(hid) && get(memberPath(hid, me())).data.role == 'owner';
+    }
+    function s(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi; }
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function stamped() {
+      return request.resource.data.updatedBy == me()
+          && request.resource.data.updatedAt == request.time;
+    }
+    function codeOk(c) { return c is string && c.matches('^[A-HJ-NP-Z2-9]{10}$'); }
+
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      // pendingJoin (deviation): the household a waiting join request was sent to, so any device can resume it.
+      function pendingJoinOk() {
+        return !('pendingJoin' in request.resource.data)
+          || request.resource.data.pendingJoin == null
+          || (request.resource.data.pendingJoin is map
+              && request.resource.data.pendingJoin.keys().hasOnly(['householdId', 'householdName', 'code']));
+      }
+      allow read, delete: if signedIn() && me() == uid;
+      allow create: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['displayName', 'householdId', 'pendingJoin', 'timezone',
+             'locale', 'units', 'notificationPrefs', 'createdAt', 'updatedAt'])
+        && s(request.resource.data.displayName, 1, 40)
+        && request.resource.data.householdId == null
+        && pendingJoinOk();
+      allow update: if signedIn() && me() == uid
+        && onlyChanges(['displayName', 'householdId', 'pendingJoin', 'timezone', 'locale', 'units',
+             'notificationPrefs', 'updatedAt'])
+        && s(request.resource.data.displayName, 1, 40)
+        && pendingJoinOk()
+        && (request.resource.data.householdId == null
+            || existsAfter(memberPath(request.resource.data.householdId, me())));
+      match /devices/{id} {
+        allow read, delete: if signedIn() && me() == uid;
+        allow create, update: if signedIn() && me() == uid
+          && s(request.resource.data.token, 20, 4096)
+          && request.resource.data.platform == 'android';
+      }
+    }
+
+    match /inviteCodes/{code} {
+      allow get: if signedIn() && codeOk(code);
+      allow list: if false;
+      allow create: if signedIn() && codeOk(code)
+        && request.resource.data.keys().hasOnly(['householdId', 'householdName', 'active', 'createdBy', 'createdAt'])
+        && request.resource.data.createdBy == me()
+        && request.resource.data.active is bool
+        && getAfter(hhPath(request.resource.data.householdId)).data.ownerUid == me()
+        && getAfter(hhPath(request.resource.data.householdId)).data.inviteCode == code;
+      allow update: if isOwner(resource.data.householdId)
+        && onlyChanges(['active', 'householdName'])
+        && request.resource.data.active is bool;
+      allow delete: if isOwner(resource.data.householdId);
+    }
+
+    match /households/{hid} {
+      allow read: if isMember(hid);
+      allow create: if signedIn() && request.resource.data.ownerUid == me()
+        && s(request.resource.data.name, 1, 60)
+        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'inviteCode', 'schemaVersion', 'createdAt', 'updatedAt'])
+        && existsAfter(memberPath(hid, me()));
+      allow update: if isOwner(hid) && s(request.resource.data.name, 1, 60) && (
+           onlyChanges(['name', 'inviteCode', 'updatedAt'])
+        || (onlyChanges(['ownerUid', 'updatedAt'])                       // ownership transfer
+            && getAfter(memberPath(hid, request.resource.data.ownerUid)).data.role == 'owner'));
+      allow delete: if isOwner(hid);
+
+      match /members/{uid} {
+        allow read: if isMember(hid);
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['role', 'displayName', 'joinedAt'])
+          && s(request.resource.data.displayName, 1, 40)
+          && request.resource.data.joinedAt == request.time
+          && (
+            // the creator becomes the owner (same batch as the household)
+            (me() == uid && request.resource.data.role == 'owner'
+              && !exists(hhPath(hid))
+              && getAfter(hhPath(hid)).data.ownerUid == me())
+            // the owner approves a join request (same batch that sets it to approved)
+            || (isOwner(hid) && me() != uid && request.resource.data.role == 'member'
+              && get(requestPath(hid, uid)).data.status == 'pending'
+              && getAfter(requestPath(hid, uid)).data.status == 'approved'
+              && get(requestPath(hid, uid)).data.displayName == request.resource.data.displayName));
+        allow update: if signedIn() && (
+             (me() == uid && onlyChanges(['displayName']) && s(request.resource.data.displayName, 1, 40))
+          || (isOwner(hid) && onlyChanges(['role'])                        // ownership transfer only
+              && request.resource.data.role in ['owner', 'member']
+              && (request.resource.data.role == 'owner') == (getAfter(hhPath(hid)).data.ownerUid == uid)));
+        allow delete: if signedIn() && (
+             (me() == uid && resource.data.role == 'member')
+          || (isOwner(hid) && me() != uid)
+          || (me() == uid && isOwner(hid) && !existsAfter(hhPath(hid))));   // owner deleting the household
+      }
+
+      match /joinRequests/{uid} {
+        allow read: if signedIn() && (me() == uid || isOwner(hid));
+        allow create: if signedIn() && me() == uid
+          && !exists(memberPath(hid, me()))
+          && request.resource.data.keys().hasOnly(['displayName', 'joinCode', 'status', 'requestedAt'])
+          && s(request.resource.data.displayName, 1, 40)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.requestedAt == request.time
+          && codeOk(request.resource.data.joinCode)
+          && get(codePath(request.resource.data.joinCode)).data.householdId == hid
+          && get(codePath(request.resource.data.joinCode)).data.active == true;
+        allow update: if isOwner(hid) && onlyChanges(['status'])
+          && resource.data.status == 'pending'
+          && request.resource.data.status in ['approved', 'declined'];
+        allow delete: if signedIn() && (me() == uid || isOwner(hid));
+      }
+
+      match /products/{id} {
+        allow read, delete: if isMember(hid);
+        allow create, update: if isMember(hid) && stamped()
+          && s(request.resource.data.name, 1, 80)
+          && (request.resource.data.minQuantity == null || request.resource.data.minQuantity is number);
+      }
+      match /stock/{id} {
+        allow read, delete: if isMember(hid);
+        allow create, update: if isMember(hid) && stamped()
+          && request.resource.data.quantity is number && request.resource.data.quantity >= 0
+          && (request.resource.data.expiryDate == null
+              || (request.resource.data.expiryDate is string
+                  && request.resource.data.expiryDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+          && request.resource.data.location in ['fridge', 'freezer', 'pantry', 'other']
+          && request.resource.data.dateType in ['use_by', 'best_before'];
+      }
+      match /groceryLists/{listId} {
+        allow read, update, delete: if isMember(hid);
+        // existsAfter (deviation): the default list is created in the same batch as the household.
+        allow create: if signedIn() && existsAfter(memberPath(hid, me()));
+        match /items/{itemId} {
+          allow read, delete: if isMember(hid);
+          allow create, update: if isMember(hid) && stamped() && s(request.resource.data.name, 1, 80);
+        }
+      }
+      match /recipes/{id} {
+        allow read, delete: if isMember(hid);
+        allow create, update: if isMember(hid) && stamped() && s(request.resource.data.title, 1, 200)
+          && request.resource.data.ingredients.size() <= 100
+          && request.resource.data.steps.size() <= 100;
+      }
+      match /activity/{id} {
+        allow read: if isMember(hid);
+        allow create: if isMember(hid) && request.resource.data.actorUid == me()
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isOwner(hid);   // household deletion; routine pruning uses the Admin SDK
+      }
     }
   }
 }

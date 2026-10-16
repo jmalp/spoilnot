@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug only: an empty Hilt activity that instrumented tests use as a host for single composables. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".HiltTestActivity"
+            android:exported="false" />
+    </application>
+</manifest>
