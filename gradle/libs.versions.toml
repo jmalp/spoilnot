@@ -17,6 +17,7 @@ kotlinxSerialization = "1.11.0"
 coroutines = "1.11.0"
 timber = "5.0.1"
 firebaseBom = "35.0.2"
+datastore = "1.2.1"
 
 junit = "4.13.2"
 mockk = "1.14.11"
@@ -59,6 +60,8 @@ timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 
 junit = { module = "junit:junit", version.ref = "junit" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }

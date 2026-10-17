@@ -8,6 +8,7 @@ import com.parcha.spoilnot.feature.auth.domain.AuthUser
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.auth.domain.UserProfile
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
+import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -74,6 +75,7 @@ class SessionManager @Inject constructor(
     private val users: UserRepository,
     private val households: HouseholdRepository,
     private val localData: LocalData,
+    private val devices: DeviceRegistry,
     @param:ApplicationScope private val scope: CoroutineScope,
 ) {
     private val shuttingDown = MutableStateFlow(false)
@@ -104,8 +106,11 @@ class SessionManager @Inject constructor(
 
     /** Clears this device's copy of the household before signing out (DESIGN 12.2, control 6). */
     suspend fun signOut() {
+        val uid = auth.currentUser?.uid
         shuttingDown.value = true
         try {
+            // This phone stops receiving the user's digests (DESIGN 10.2).
+            if (uid != null) runCatching { devices.unregister(uid) }
             runCatching { localData.clear() }
             auth.signOut()
         } finally {

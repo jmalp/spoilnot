@@ -67,6 +67,16 @@ class TabNavigatorTest {
         assertFalse(navigator.goBack())
     }
 
+    @Test
+    fun `showRoot switches to a tab and pops it to its root`() {
+        navigator.selectTab(Pantry)
+        navigator.navigate(SettingsRoute(Pantry))
+        navigator.selectTab(Groceries)
+        navigator.showRoot(Pantry)
+        assertEquals(Pantry, navigator.currentTab)
+        assertEquals(listOf(HomeRoute, PantryRoute), navigator.visibleKeys)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `rejects a missing tab`() {
         TabNavigator(mapOf(Home to mutableListOf<NavKey>(HomeRoute)), { Home }, {})

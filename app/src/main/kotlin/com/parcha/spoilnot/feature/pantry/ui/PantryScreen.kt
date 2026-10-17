@@ -52,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -64,6 +65,8 @@ import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.ui.MessageEffect
+import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
+import com.parcha.spoilnot.feature.notifications.ui.Notifications
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
 import com.parcha.spoilnot.feature.pantry.domain.PantryGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantryGrouping
@@ -79,6 +82,8 @@ fun PantryScreen(
     viewModel: PantryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val askForNotifications by viewModel.askForNotifications.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var adding by rememberSaveable { mutableStateOf(false) }
     var throwing by remember { mutableStateOf<StockBatch?>(null) }
@@ -145,6 +150,13 @@ fun PantryScreen(
         }
     }
 
+    if (askForNotifications) {
+        if (Notifications.permissionGranted(context)) {
+            LaunchedEffect(Unit) { viewModel.notificationExplainerDone() }
+        } else {
+            NotificationExplainer(onDone = viewModel::notificationExplainerDone)
+        }
+    }
     if (adding) {
         AddItemSheet(
             products = state.data.products,

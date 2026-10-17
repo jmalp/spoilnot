@@ -10,6 +10,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -34,6 +35,7 @@ import com.parcha.spoilnot.feature.home.ui.HomeScreen
 import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
+import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
 import com.parcha.spoilnot.feature.pantry.ui.ProductDetailScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipesScreen
@@ -50,11 +52,16 @@ fun AppShell(
     shellViewModel: ShellViewModel = hiltViewModel(),
 ) {
     val pendingJoinRequests by shellViewModel.pendingJoinRequests.collectAsStateWithLifecycle()
+    val deepLink by shellViewModel.deepLink.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(TabNavigator.START) }
     val backStacks = TopLevelDestination.entries.associateWith { tab -> key(tab) { rememberNavBackStack(tab.root) } }
     val navigator = remember(backStacks) { TabNavigator(backStacks, { currentTab }, { currentTab = it }) }
 
     val openSettings = { navigator.navigate(SettingsRoute(navigator.currentTab)) }
+    // A tapped digest opens the Pantry tab at its root; the Pantry screen applies the filter (DESIGN 5.4).
+    LaunchedEffect(deepLink) {
+        if (deepLink == DeepLink.PantryExpiring) navigator.showRoot(TopLevelDestination.Pantry)
+    }
     val provider = entryProvider<NavKey> {
         entry<HomeRoute> {
             HomeScreen(
@@ -78,8 +85,10 @@ fun AppShell(
             SettingsScreen(
                 onBack = { navigator.goBack() },
                 onOpenHousehold = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
+                onOpenNotifications = { navigator.navigate(NotificationSettingsRoute(navigator.currentTab)) },
             )
         }
+        entry<NotificationSettingsRoute> { NotificationSettingsScreen(onBack = { navigator.goBack() }) }
         entry<HouseholdSettingsRoute> { HouseholdSettingsScreen(onBack = { navigator.goBack() }) }
     }
 

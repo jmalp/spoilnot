@@ -1,0 +1,23 @@
+{
+  "name": "spoilnot-reminder",
+  "private": true,
+  "type": "module",
+  "description": "Hourly expiry-reminder job for Spoil Not (DESIGN 10)",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "node --test --test-concurrency=1 'test/*.test.ts'",
+    "test:integration": "node --test --test-concurrency=1 'test/integration/*.test.ts'",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}

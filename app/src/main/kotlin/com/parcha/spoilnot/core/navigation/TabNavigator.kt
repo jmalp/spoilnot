@@ -38,6 +38,13 @@ class TabNavigator(
         }
     }
 
+    /** Shows [tab] at its root, for example when a notification opens the filtered Pantry list. */
+    fun showRoot(tab: TopLevelDestination) {
+        val stack = stackOf(tab)
+        while (stack.size > 1) stack.removeAt(stack.lastIndex)
+        if (tab != currentTab) setCurrentTab(tab)
+    }
+
     fun navigate(key: NavKey) {
         stackOf(currentTab).add(key)
     }

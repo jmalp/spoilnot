@@ -1,4 +1,5 @@
 import com.android.build.api.variant.BuildConfigField
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -38,8 +39,24 @@ android {
         }
     }
 
+    // Release signing comes from keystore.properties (never committed, DESIGN 13.3). Until the upload keystore
+    // exists (M6), release builds use the debug key so they can be installed for testing against real Firebase.
+    val keystoreFile = rootProject.file("keystore.properties")
+    signingConfigs {
+        if (keystoreFile.exists()) {
+            val props = Properties().apply { keystoreFile.inputStream().use(::load) }
+            create("upload") {
+                storeFile = rootProject.file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -112,6 +129,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.messaging)
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

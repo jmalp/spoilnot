@@ -8,6 +8,8 @@ import com.parcha.spoilnot.feature.auth.domain.AuthRepository
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
+import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
+import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -29,7 +31,14 @@ class SettingsViewModel @Inject constructor(
     private val session: SessionManager,
     private val auth: AuthRepository,
     households: HouseholdRepository,
+    notificationPrefs: NotificationPrefsRepository,
 ) : ViewModel() {
+    val notifications: StateFlow<NotificationPrefs?> = session.session
+        .filterIsInstance<Session.InHousehold>()
+        .flatMapLatest { notificationPrefs.observe(it.user.uid) }
+        .catch { }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     data class Content(val displayName: String, val email: String?, val householdName: String?, val memberCount: Int)
 
     data class UiState(

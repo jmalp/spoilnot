@@ -331,4 +331,36 @@
     <string name="grocery_skip">Skip</string>
     <string name="grocery_added_to_pantry">Added to the pantry</string>
     <string name="grocery_add_to_list">Add</string>
+
+    <!-- Notifications (DESIGN 5.4, 10.2) -->
+    <string name="channel_expiry">Expiry reminders</string>
+    <string name="channel_expiry_description">A daily summary of food that expires soon.</string>
+    <string name="test_notification_title">Test notification</string>
+    <string name="test_notification_body">Notifications from Spoil Not are working. Tap to see what expires soon.</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_notifications_on">Daily, shortly after %1$s</string>
+    <string name="settings_notifications_off">Off</string>
+    <string name="notif_enabled">Daily reminder</string>
+    <string name="notif_enabled_help">One notification a day, only when something needs attention.</string>
+    <string name="notif_time">Time</string>
+    <string name="notif_time_help">It arrives shortly after this time.</string>
+    <string name="notif_stages">Remind me about food that expires</string>
+    <string name="stage_3">In 3 days</string>
+    <string name="stage_2">In 2 days</string>
+    <string name="stage_1">Tomorrow</string>
+    <string name="stage_0">Today</string>
+    <string name="notif_expired">Expired food</string>
+    <string name="expired_once">Remind me once</string>
+    <string name="expired_daily">Every day until it is removed</string>
+    <string name="expired_never">Never</string>
+    <string name="notif_test">Send test notification</string>
+    <string name="notif_test_sent">Test notification sent</string>
+    <string name="notif_blocked">Notifications are turned off for Spoil Not, so reminders cannot appear.</string>
+    <string name="notif_turn_on">Turn on</string>
+    <string name="notif_open_settings">Open settings</string>
+    <string name="notif_battery">If reminders arrive late, let Spoil Not run without battery restrictions.</string>
+    <string name="notif_battery_action">Battery settings</string>
+    <string name="notif_explainer_title">Get a heads-up before food expires</string>
+    <string name="notif_explainer_body">Spoil Not sends one notification a day when something is about to expire. You can change the time or turn it off in Settings.</string>
+    <string name="notif_explainer_later">Not now</string>
 </resources>

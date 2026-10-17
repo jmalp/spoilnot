@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -40,16 +41,19 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.PasswordField
+import com.parcha.spoilnot.feature.notifications.ui.formatHour
 
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenHousehold: () -> Unit,
+    onOpenNotifications: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val content by viewModel.content.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val transparent = ListItemDefaults.colors(containerColor = Color.Transparent)
 
@@ -117,6 +121,28 @@ fun SettingsScreen(
                     },
                     colors = transparent,
                     modifier = Modifier.clickable(onClick = onOpenHousehold).testTag("row_household"),
+                )
+            }
+            Card(Modifier.fillMaxWidth()) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_notifications)) },
+                    supportingContent = notifications?.let { prefs ->
+                        {
+                            Text(
+                                if (prefs.enabled) {
+                                    stringResource(R.string.settings_notifications_on, formatHour(prefs.hour))
+                                } else {
+                                    stringResource(R.string.settings_notifications_off)
+                                },
+                            )
+                        }
+                    },
+                    leadingContent = { Icon(Icons.Rounded.Notifications, contentDescription = null) },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
+                    },
+                    colors = transparent,
+                    modifier = Modifier.clickable(onClick = onOpenNotifications).testTag("row_notifications"),
                 )
             }
             OutlinedButton(

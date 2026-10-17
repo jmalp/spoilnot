@@ -1,0 +1,126 @@
+// Runs the whole job against the Firestore emulator with seeded data (DESIGN 10.5). FCM has no emulator, so a
+// recording sender stands in for it. Uses its own project id so it never touches the app's emulator data.
+import assert from 'node:assert/strict';
+import { after, before, beforeEach, describe, it } from 'node:test';
+import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
+import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { runJob, ROUTE, type Message, type Sender } from '../../src/job.ts';
+
+const PROJECT = 'demo-reminder-test';
+const host = process.env.FIRESTORE_EMULATOR_HOST;
+
+class RecordingSender implements Sender {
+  sent: Message[] = [];
+  async sendEach(messages: Message[]) {
+    this.sent.push(...messages);
+    return messages.map((m) => ({ success: m.token !== 'dead-token', deadToken: m.token === 'dead-token' }));
+  }
+}
+
+let app: App;
+let db: Firestore;
+
+before(() => {
+  assert.ok(host, 'Run inside the Firestore emulator (FIRESTORE_EMULATOR_HOST)');
+  app = initializeApp({ projectId: PROJECT }, 'reminder-test');
+  db = getFirestore(app);
+});
+
+after(async () => {
+  await deleteApp(app);
+});
+
+const prefs = { enabled: true, digestMinutes: 540, stages: [3, 2, 1, 0], expiredMode: 'once' };
+// 2026-10-12 13:07 UTC is 9:07 in New York (EDT) and 22:07 in Tokyo (too late there).
+const NOW = new Date('2026-10-12T13:07:00Z');
+
+beforeEach(async () => {
+  await fetch(`http://${host}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
+  const batch = db.batch();
+  const user = (uid: string, fields: object) => batch.set(db.doc(`users/${uid}`), {
+    displayName: uid, householdId: 'h1', timezone: 'America/New_York', locale: 'en', notificationPrefs: prefs,
+    lastDigestDate: null, lastExpiredThrough: null, ...fields,
+  });
+  user('alice', {});
+  user('bob', {}); // no devices: skipped and retried next run
+  user('carol', { notificationPrefs: { ...prefs, enabled: false } });
+  user('erin', { timezone: 'Asia/Tokyo' }); // past 22:00 there
+  user('frank', { notificationPrefs: { ...prefs, stages: [] , expiredMode: 'never' } });
+  batch.set(db.doc('users/alice/devices/phone'), { token: 'alice-token-1234567890', platform: 'android' });
+  batch.set(db.doc('users/alice/devices/old'), { token: 'dead-token', platform: 'android' });
+  batch.set(db.doc('users/frank/devices/phone'), { token: 'frank-token-1234567890', platform: 'android' });
+  batch.set(db.doc('users/erin/devices/phone'), { token: 'erin-token-1234567890', platform: 'android' });
+  batch.set(db.doc('households/h1'), { name: 'Test', ownerUid: 'alice' });
+  const stock = (id: string, productName: string, expiryDate: string | null, dateType = 'use_by') =>
+    batch.set(db.doc(`households/h1/stock/${id}`), { productName, expiryDate, dateType, quantity: 1, location: 'fridge' });
+  stock('s1', 'Milk', '2026-10-11');
+  stock('s2', 'Yogurt', '2026-10-13');
+  stock('s3', 'Eggs', '2026-10-13');
+  stock('s4', 'Rice', '2027-06-01');
+  stock('s5', 'Salt', null);
+  const old = Timestamp.fromDate(new Date('2026-09-01T00:00:00Z'));
+  const recent = Timestamp.fromDate(new Date('2026-10-10T00:00:00Z'));
+  batch.set(db.doc('households/h1/activity/old'), { type: 'stock_added', createdAt: old });
+  batch.set(db.doc('households/h1/activity/new'), { type: 'stock_added', createdAt: recent });
+  batch.set(db.doc('households/h1/joinRequests/stale'), { status: 'pending', requestedAt: old });
+  batch.set(db.doc('households/h1/joinRequests/fresh'), { status: 'pending', requestedAt: recent });
+  await batch.commit();
+});
+
+describe('reminder job against the emulator', () => {
+  it('sends the right digest to every device, deletes dead tokens and records the day', async () => {
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: NOW });
+
+    const alice = sender.sent.filter((m) => m.token.startsWith('alice') || m.token === 'dead-token');
+    assert.equal(alice.length, 2);
+    assert.deepEqual(alice[0]!.notification, { title: '3 items need attention', body: 'Throw away: Milk. Tomorrow: Yogurt, Eggs.' });
+    assert.deepEqual(alice[0]!.data, { type: 'expiry_digest', route: ROUTE, date: '2026-10-12' });
+    assert.deepEqual(alice[0]!.android, { priority: 'high', notification: { channelId: 'expiry', tag: 'expiry_digest' } });
+
+    assert.equal((await db.doc('users/alice/devices/old').get()).exists, false, 'dead token deleted');
+    assert.equal((await db.doc('users/alice/devices/phone').get()).exists, true);
+    const aliceDoc = (await db.doc('users/alice').get()).data()!;
+    assert.equal(aliceDoc.lastDigestDate, '2026-10-12');
+    assert.equal(aliceDoc.lastExpiredThrough, '2026-10-11');
+
+    assert.equal(sender.sent.some((m) => m.token.startsWith('erin')), false, 'too late in Tokyo');
+    assert.equal(sender.sent.some((m) => m.token.startsWith('frank')), false, 'nothing in his stages');
+    assert.equal((await db.doc('users/frank').get()).get('lastDigestDate'), '2026-10-12', 'an empty digest counts as done');
+    assert.equal((await db.doc('users/bob').get()).get('lastDigestDate'), null, 'no devices: try again next run');
+    assert.equal(summary.skippedNoDevices, 1);
+    assert.equal(summary.deadTokens, 1);
+
+    assert.equal(summary.prunedActivity, 1);
+    assert.equal(summary.prunedJoinRequests, 1);
+    assert.equal((await db.doc('households/h1/activity/new').get()).exists, true);
+    assert.equal((await db.doc('households/h1/joinRequests/fresh').get()).exists, true);
+  });
+
+  it('a second run on the same day sends nothing', async () => {
+    await runJob(db, new RecordingSender(), { now: NOW });
+    const again = new RecordingSender();
+    await runJob(db, again, { now: new Date('2026-10-12T15:07:00Z') });
+    assert.deepEqual(again.sent.filter((m) => !m.token.startsWith('bob')), []);
+  });
+
+  it('the next day reports new items but not expired ones again', async () => {
+    await runJob(db, new RecordingSender(), { now: NOW });
+    const tomorrow = new RecordingSender();
+    await runJob(db, tomorrow, { now: new Date('2026-10-13T13:07:00Z') });
+    const alice = tomorrow.sent.find((m) => m.token.startsWith('alice'));
+    assert.deepEqual(alice?.notification, { title: '2 items need attention', body: 'Today: Yogurt, Eggs.' });
+  });
+
+  it('a dry run sends and changes nothing', async () => {
+    const sender = new RecordingSender();
+    const lines: string[] = [];
+    const summary = await runJob(db, sender, { now: NOW, dryRun: true, log: (l) => lines.push(l) });
+    assert.equal(sender.sent.length, 0);
+    assert.ok(summary.sent >= 2);
+    assert.ok(lines.some((l) => l.includes('3 items need attention')));
+    assert.equal((await db.doc('users/alice').get()).get('lastDigestDate'), null);
+    assert.equal((await db.doc('users/alice/devices/old').get()).exists, true);
+    assert.equal((await db.doc('households/h1/activity/old').get()).exists, true);
+  });
+});

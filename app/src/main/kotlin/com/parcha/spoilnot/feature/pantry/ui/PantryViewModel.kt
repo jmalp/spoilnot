@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.navigation.DeepLink
+import com.parcha.spoilnot.core.navigation.DeepLinkRouter
+import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
@@ -69,7 +72,12 @@ class PantryViewModel @Inject constructor(
     writer: HouseholdWriter,
     private val service: PantryService,
     clock: Clock,
+    private val deepLinks: DeepLinkRouter,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
+    /** True once the first dated item is saved and the notification explanation has not been shown (DESIGN 5.4). */
+    val askForNotifications = MutableStateFlow(false)
+
     data class UiState(
         val loading: Boolean = true,
         val groups: List<PantryGroup> = emptyList(),
@@ -123,6 +131,13 @@ class PantryViewModel @Inject constructor(
         }
             .launchIn(viewModelScope)
         writer.errors.onEach { _messages.send(UiMessage(it.writeMessage())) }.launchIn(viewModelScope)
+        // A tapped digest lands here filtered to Expiring soon (DESIGN 5.4).
+        deepLinks.pending.onEach { link ->
+            if (link == DeepLink.PantryExpiring) {
+                setFilter(PantryFilter.ExpiringSoon)
+                deepLinks.consume(link)
+            }
+        }.launchIn(viewModelScope)
     }
 
     fun setFilter(filter: PantryFilter) = query.update { it.copy(filter = filter) }
@@ -137,6 +152,11 @@ class PantryViewModel @Inject constructor(
     fun add(draft: StockDraft, onDone: () -> Unit) = act { hid, actor ->
         val result = service.add(hid, actor, draft, currentData())
         onDone()
+        if (draft.expiryDate != null &&
+            !appPreferences.hasShownNotificationExplainer()
+        ) {
+            askForNotifications.value = true
+        }
         val text = if (result.merged) R.string.added_merged_message else R.string.added_message
         _messages.send(UiMessage(text, draft.name.trim()))
     }
@@ -164,6 +184,12 @@ class PantryViewModel @Inject constructor(
     }
 
     fun move(batch: StockBatch, location: Location) = act { hid, actor -> service.move(hid, actor, batch, location) }
+
+    /** The explanation was answered (or not needed): never ask again from here. */
+    fun notificationExplainerDone() {
+        askForNotifications.value = false
+        viewModelScope.launch { appPreferences.markNotificationExplainerShown() }
+    }
 
     fun undo(undo: Undo) = act { hid, actor -> service.undo(hid, actor, undo) }
 
