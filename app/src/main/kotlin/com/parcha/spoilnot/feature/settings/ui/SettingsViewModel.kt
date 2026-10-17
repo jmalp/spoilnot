@@ -1,18 +1,32 @@
 package com.parcha.spoilnot.feature.settings.ui
 
+import android.content.Context
+import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.core.prefs.AppPreferences
+import com.parcha.spoilnot.core.prefs.ThemeMode
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.feature.auth.domain.AuthRepository
+import com.parcha.spoilnot.feature.auth.domain.ProfileDefaults
+import com.parcha.spoilnot.feature.auth.domain.Units
+import com.parcha.spoilnot.feature.auth.domain.UserRepository
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
 import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefsRepository
+import com.parcha.spoilnot.feature.settings.domain.ExportFormat
+import com.parcha.spoilnot.feature.settings.domain.HouseholdExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
+import java.time.Clock
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,9 +35,11 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -32,7 +48,55 @@ class SettingsViewModel @Inject constructor(
     private val auth: AuthRepository,
     households: HouseholdRepository,
     notificationPrefs: NotificationPrefsRepository,
+    private val preferences: AppPreferences,
+    private val users: UserRepository,
+    private val exporter: HouseholdExporter,
+    private val clock: Clock,
+    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
+    /** Settings > Appearance and Crash reports (DESIGN 5.6). */
+    data class Device(
+        val themeMode: ThemeMode = ThemeMode.System,
+        val dynamicColor: Boolean = true,
+        val crashReports: Boolean = true,
+    )
+
+    val device: StateFlow<Device> =
+        combine(preferences.themeMode, preferences.dynamicColor, preferences.crashReports, ::Device)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Device())
+
+    val units: StateFlow<Units> = session.session
+        .filterIsInstance<Session.InHousehold>()
+        .map { it.units }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfileDefaults.UNITS)
+
+    /** The export's file name, for the system's Save dialog. */
+    fun exportFileName(): String = ExportFormat.fileName(LocalDate.now(clock))
+
+    fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { preferences.setThemeMode(mode) }
+
+    fun setDynamicColor(enabled: Boolean) = viewModelScope.launch { preferences.setDynamicColor(enabled) }
+
+    fun setCrashReports(enabled: Boolean) = viewModelScope.launch { preferences.setCrashReports(enabled) }
+
+    fun setUnits(units: Units) = run {
+        val me = session.session.value as? Session.InHousehold ?: return@run
+        users.setUnits(me.user.uid, units)
+    }
+
+    /** Writes the household's data to [target], a document the user picked in the system's Save dialog. */
+    fun export(target: Uri) = run {
+        val me = session.session.value as? Session.InHousehold ?: return@run
+        val json = exporter.export(me.householdId)
+        withContext(Dispatchers.IO) {
+            context.contentResolver.openOutputStream(target, "wt")?.use { it.write(json.toByteArray()) }
+                ?: throw IOException("Cannot write the export")
+        }
+        _state.update { it.copy(exported = true) }
+    }
+
+    fun dismissExported() = _state.update { it.copy(exported = false) }
+
     val notifications: StateFlow<NotificationPrefs?> = session.session
         .filterIsInstance<Session.InHousehold>()
         .flatMapLatest { notificationPrefs.observe(it.user.uid) }
@@ -46,6 +110,7 @@ class SettingsViewModel @Inject constructor(
         @StringRes val error: Int? = null,
         val emailVerified: Boolean = true,
         val verificationSent: Boolean = false,
+        val exported: Boolean = false,
     )
 
     val content: StateFlow<Content?> = session.session

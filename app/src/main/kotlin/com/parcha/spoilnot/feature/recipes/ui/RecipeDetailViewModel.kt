@@ -128,7 +128,7 @@ class RecipeDetailViewModel @AssistedInject constructor(
         val g = grocery.value
         val list = g.lists.firstOrNull { it.id == g.listId } ?: return
         act { hid, actor ->
-            val count = service.addToGrocery(hid, actor, list.id, recipe, chosen, g.pantry)
+            val count = service.addToGrocery(hid, actor, list.id, recipe, chosen, g.pantry, list.name)
             sheetOpen.value = false
             if (count > 0) show(UiMessage(R.string.recipe_added_to_list, list.name))
         }

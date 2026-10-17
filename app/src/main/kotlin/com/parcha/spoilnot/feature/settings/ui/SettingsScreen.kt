@@ -1,5 +1,7 @@
 package com.parcha.spoilnot.feature.settings.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,9 +23,12 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,11 +53,27 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenHousehold: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    val content by viewModel.content.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val device by viewModel.device.collectAsStateWithLifecycle()
+    val units by viewModel.units.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val exportedText = stringResource(R.string.settings_exported)
+    // The system's Save dialog picks where the export goes (DESIGN 13.4).
+    val saveExport =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            if (uri != null) viewModel.export(uri)
+        }
+    LaunchedEffect(state.exported) {
+        if (state.exported) {
+            snackbar.showSnackbar(exportedText)
+            viewModel.dismissExported()
+        }
+    }
+    val content by viewModel.content.collectAsStateWithLifecycle()
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val transparent = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -61,6 +82,7 @@ fun SettingsScreen(
         title = stringResource(R.string.settings),
         onBack = onBack,
         modifier = modifier.testTag("screen_settings"),
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(
             Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
@@ -145,6 +167,19 @@ fun SettingsScreen(
                     modifier = Modifier.clickable(onClick = onOpenNotifications).testTag("row_notifications"),
                 )
             }
+            AppearanceCard(
+                device = device,
+                units = units,
+                onThemeMode = { viewModel.setThemeMode(it) },
+                onDynamicColor = { viewModel.setDynamicColor(it) },
+                onUnits = viewModel::setUnits,
+            )
+            DataCard(busy = state.busy, onExport = { saveExport.launch(viewModel.exportFileName()) })
+            PrivacyAndAboutCard(
+                crashReports = device.crashReports,
+                onCrashReports = { viewModel.setCrashReports(it) },
+                onOpenAbout = onOpenAbout,
+            )
             OutlinedButton(
                 onClick = viewModel::signOut,
                 enabled = !state.busy,

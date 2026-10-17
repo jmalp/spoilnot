@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.core.navigation
 
+import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -8,8 +9,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** Where a notification tap or a share from another app should land (DESIGN 10.2, 11.1). */
 sealed interface DeepLink {
-    /** `/pantry?filter=expiring`: the Pantry tab filtered to Expiring soon. */
-    data object PantryExpiring : DeepLink
+    /** The Pantry tab with a filter: a digest opens Expiring soon (`/pantry?filter=expiring`), Home cards others. */
+    data class Pantry(val filter: PantryFilter) : DeepLink
 
     /** A link shared from another app; null when the shared text had none. */
     data class ImportRecipe(val url: String?) : DeepLink
@@ -19,7 +20,7 @@ sealed interface DeepLink {
         const val PANTRY_EXPIRING = "/pantry?filter=expiring"
 
         fun parse(route: String?): DeepLink? = when (route) {
-            PANTRY_EXPIRING -> PantryExpiring
+            PANTRY_EXPIRING -> Pantry(PantryFilter.ExpiringSoon)
             else -> null
         }
     }

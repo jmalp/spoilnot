@@ -50,4 +50,6 @@ interface UserRepository {
 
     /** Deletes the profile and its device tokens. */
     suspend fun deleteProfile(uid: String)
+
+    suspend fun setUnits(uid: String, units: Units)
 }

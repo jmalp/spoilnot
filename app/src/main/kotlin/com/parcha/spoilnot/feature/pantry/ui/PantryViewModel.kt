@@ -131,10 +131,10 @@ class PantryViewModel @Inject constructor(
         }
             .launchIn(viewModelScope)
         writer.errors.onEach { _messages.send(UiMessage(it.writeMessage())) }.launchIn(viewModelScope)
-        // A tapped digest lands here filtered to Expiring soon (DESIGN 5.4).
+        // A tapped digest lands here filtered to Expiring soon (DESIGN 5.4); Home cards bring their own filter.
         deepLinks.pending.onEach { link ->
-            if (link == DeepLink.PantryExpiring) {
-                setFilter(PantryFilter.ExpiringSoon)
+            if (link is DeepLink.Pantry) {
+                setFilter(link.filter)
                 deepLinks.consume(link)
             }
         }.launchIn(viewModelScope)

@@ -92,6 +92,17 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
 
             is GroceryChange.DeleteItem -> batch.delete(item(db, hid, change.listId, change.itemId))
 
+            is GroceryChange.LogEvent -> batch.set(
+                db.document("households/$hid/activity/${change.eventId}"),
+                mapOf(
+                    "type" to change.type.wire,
+                    "actorUid" to actor.uid,
+                    "actorName" to actor.name,
+                    "params" to mapOf("name" to change.name, "listName" to change.listName, "count" to change.count),
+                    "createdAt" to FieldValue.serverTimestamp(),
+                ),
+            )
+
             is GroceryChange.UpsertLowStock -> {
                 // Merge-write with no `checked` field: an item already in the cart stays checked (DESIGN 9.6).
                 val fields = mutableMapOf<String, Any?>(

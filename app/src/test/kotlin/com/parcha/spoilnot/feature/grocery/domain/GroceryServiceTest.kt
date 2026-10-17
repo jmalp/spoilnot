@@ -43,6 +43,20 @@ class GroceryServiceTest {
     )
 
     @Test
+    fun `checking off is logged, unchecking is not`() = runTest {
+        service.setChecked("h", actor, "g1", item("i1", "Milk"), true, "Groceries")
+        assertEquals(
+            listOf(
+                GroceryChange.SetChecked("g1", "i1", true),
+                GroceryChange.LogEvent("id0", GroceryEventType.Checked, "Milk", "Groceries"),
+            ),
+            writer.last,
+        )
+        service.setChecked("h", actor, "g1", item("i1", "Milk", checked = true), false, "Groceries")
+        assertEquals(listOf(GroceryChange.SetChecked("g1", "i1", false)), writer.last)
+    }
+
+    @Test
     fun `quick add parses quantity and unit`() {
         assertEquals(QuickAdd("eggs", 12.0, null), QuickAddParser.parse("12 eggs"))
         assertEquals(QuickAdd("rice", 1.5, QuantityUnit.Kilograms), QuickAddParser.parse("1,5 kg rice"))
@@ -74,8 +88,20 @@ class GroceryServiceTest {
     @Test
     fun `quick add links the pantry product for its category`() = runTest {
         val milk = product("milk", category = Category.Dairy)
-        service.quickAdd("h", actor, "g1", "2 milk", emptyList(), PantryData(listOf(milk), emptyList(), false))
-        val created = (writer.last.single() as GroceryChange.CreateItem).item
+        service.quickAdd(
+            "h",
+            actor,
+            "g1",
+            "2 milk",
+            emptyList(),
+            PantryData(listOf(milk), emptyList(), false),
+            listName = "Groceries",
+        )
+        val created = (writer.last[0] as GroceryChange.CreateItem).item
+        // Logged for Recent activity (DESIGN 5.6).
+        val event = writer.last[1] as GroceryChange.LogEvent
+        assertEquals(GroceryEventType.Added to "Milk", event.type to event.name)
+        assertEquals("Groceries", event.listName)
         assertEquals("Milk", created.name)
         assertEquals("milk", created.productId)
         assertEquals(Category.Dairy, created.category)

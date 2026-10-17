@@ -70,3 +70,7 @@ data class RecipeBrowserRoute(
 /** Cook mode at [servings] (the detail screen's stepper). */
 @Serializable
 data class CookModeRoute(val recipeId: String, val servings: Int?, val tab: TopLevelDestination) : NavKey
+
+/** Settings > About, pushed on the same tab as Settings. */
+@Serializable
+data class AboutRoute(val tab: TopLevelDestination) : NavKey

@@ -189,7 +189,7 @@ fun AddItemForm(
         EnumDropdown(
             label = stringResource(R.string.field_unit),
             value = if (unitLocked) match!!.unit else unit,
-            options = QuantityUnit.entries,
+            options = unitMenu(),
             optionLabel = { stringResource(it.label()) },
             onPick = { unit = it },
             enabled = !unitLocked,

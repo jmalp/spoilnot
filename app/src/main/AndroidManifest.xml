@@ -17,6 +17,11 @@
         android:theme="@style/Theme.SpoilNot"
         android:usesCleartextTraffic="false">
 
+        <!-- Crash reports stay off until the app applies the Settings toggle at start (DESIGN 7.5). -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+
         <!-- Digests from the reminder job (DESIGN 10.2). -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"

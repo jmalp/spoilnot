@@ -112,8 +112,12 @@ class RecipeServiceTest {
         val pantry =
             PantryData(listOf(product("oil", "Olive oil", category = Category.PantryStaples)), emptyList(), false)
         val chosen = RecipeGrocery.candidates(r, pantry, emptyList())
-        assertEquals(2, service.addToGrocery("h1", actor, "list1", r, chosen, pantry))
-        val items = writer.applied.single().map { (it as GroceryChange.CreateItem).item }
+        assertEquals(2, service.addToGrocery("h1", actor, "list1", r, chosen, pantry, "Groceries"))
+        val changes = writer.applied.single()
+        val items = changes.filterIsInstance<GroceryChange.CreateItem>().map { it.item }
+        // One activity event for the whole add: "added 2 ingredients from r1".
+        val event = changes.last() as GroceryChange.LogEvent
+        assertEquals(Triple("r1", "Groceries", 2), Triple(event.name, event.listName, event.count))
         assertEquals(listOf("Olive oil", "rice"), items.map { it.name })
         assertTrue(items.all { it.source == ItemSource.Recipe && it.recipeId == "r1" })
         assertEquals("oil", items[0].productId)

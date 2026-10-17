@@ -31,11 +31,13 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
+import com.parcha.spoilnot.feature.home.ui.HomeNavigation
 import com.parcha.spoilnot.feature.home.ui.HomeScreen
 import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
+import com.parcha.spoilnot.feature.pantry.ui.LocalUnits
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
 import com.parcha.spoilnot.feature.pantry.ui.ProductDetailScreen
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
@@ -46,6 +48,7 @@ import com.parcha.spoilnot.feature.recipes.ui.RecipeEditScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipeImportScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipesNavigation
 import com.parcha.spoilnot.feature.recipes.ui.RecipesScreen
+import com.parcha.spoilnot.feature.settings.ui.AboutScreen
 import com.parcha.spoilnot.feature.settings.ui.SettingsScreen
 
 /** Waiting join requests, shown as a badge on the Settings avatar for the owner (DESIGN 5.1). */
@@ -65,10 +68,10 @@ fun AppShell(
     val navigator = remember(backStacks) { TabNavigator(backStacks, { currentTab }, { currentTab = it }) }
 
     val openSettings = { navigator.navigate(SettingsRoute(navigator.currentTab)) }
-    // A tapped digest opens the Pantry tab at its root; the Pantry screen applies the filter (DESIGN 5.4).
+    // A tapped digest or a Home card opens the Pantry tab at its root; the Pantry screen applies the filter.
     LaunchedEffect(deepLink) {
         when (val link = deepLink) {
-            DeepLink.PantryExpiring -> navigator.showRoot(TopLevelDestination.Pantry)
+            is DeepLink.Pantry -> navigator.showRoot(TopLevelDestination.Pantry)
 
             // A link shared from another app opens its preview on the Recipes tab (DESIGN 11.1).
             is DeepLink.ImportRecipe -> {
@@ -84,9 +87,13 @@ fun AppShell(
     val provider = entryProvider<NavKey> {
         entry<HomeRoute> {
             HomeScreen(
-                onOpenSettings = openSettings,
+                navigation = HomeNavigation(
+                    openSettings = openSettings,
+                    openPantry = { filter -> shellViewModel.open(DeepLink.Pantry(filter)) },
+                    openGroceries = { navigator.showRoot(TopLevelDestination.Groceries) },
+                    reviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
+                ),
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
-                onReviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
             )
         }
         entry<PantryRoute> {
@@ -183,8 +190,10 @@ fun AppShell(
                 onBack = { navigator.goBack() },
                 onOpenHousehold = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
                 onOpenNotifications = { navigator.navigate(NotificationSettingsRoute(navigator.currentTab)) },
+                onOpenAbout = { navigator.navigate(AboutRoute(navigator.currentTab)) },
             )
         }
+        entry<AboutRoute> { AboutScreen(onBack = { navigator.goBack() }) }
         entry<NotificationSettingsRoute> { NotificationSettingsScreen(onBack = { navigator.goBack() }) }
         entry<HouseholdSettingsRoute> { HouseholdSettingsScreen(onBack = { navigator.goBack() }) }
     }
@@ -209,7 +218,7 @@ fun AppShell(
         entriesByTab.getValue(TabNavigator.START) + entriesByTab.getValue(currentTab)
     }
 
-    CompositionLocalProvider(LocalJoinRequestCount provides pendingJoinRequests) {
+    CompositionLocalProvider(LocalJoinRequestCount provides pendingJoinRequests, LocalUnits provides session.units) {
         Scaffold(
             modifier = modifier,
             contentWindowInsets = WindowInsets(0),

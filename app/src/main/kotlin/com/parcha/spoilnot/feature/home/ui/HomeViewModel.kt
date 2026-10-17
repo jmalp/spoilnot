@@ -1,0 +1,79 @@
+package com.parcha.spoilnot.feature.home.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
+import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
+import com.parcha.spoilnot.feature.home.domain.ActivityEvent
+import com.parcha.spoilnot.feature.home.domain.ActivityRepository
+import com.parcha.spoilnot.feature.home.domain.HomeDashboard
+import com.parcha.spoilnot.feature.home.domain.HomeSummary
+import com.parcha.spoilnot.feature.household.domain.Session
+import com.parcha.spoilnot.feature.household.domain.SessionManager
+import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
+import com.parcha.spoilnot.feature.pantry.ui.todayFlow
+import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
+import java.time.LocalDate
+import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
+
+/** The Home tab (DESIGN 5.6): what needs attention, low stock, the grocery list and recent activity. */
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    session: SessionManager,
+    pantry: PantryRepository,
+    grocery: GroceryRepository,
+    activity: ActivityRepository,
+    clock: Clock,
+) : ViewModel() {
+    data class UiState(
+        /** Null until the pantry has loaded once: the skeleton shows (DESIGN 6.7). */
+        val summary: HomeSummary? = null,
+        val today: LocalDate = LocalDate.MIN,
+        val offline: Boolean = false,
+        /** The signed-in member, so their own events read "You". */
+        val myUid: String = "",
+    )
+
+    val state: StateFlow<UiState> = session.session
+        .map { (it as? Session.InHousehold)?.let { s -> s.householdId to s.user.uid } }
+        .distinctUntilChanged()
+        .flatMapLatest { me ->
+            if (me == null) {
+                flowOf(UiState())
+            } else {
+                val (hid, uid) = me
+                val items: Flow<List<GroceryItem>> = grocery.observeLists(hid)
+                    .map { lists -> lists.firstOrNull { it.isDefault }?.id }
+                    .distinctUntilChanged()
+                    .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else grocery.observeItems(hid, id) }
+                    .catch { emit(emptyList()) }
+                    .onStart { emit(emptyList()) }
+                val recent: Flow<List<ActivityEvent>> = activity.observeRecent(hid, RECENT)
+                    .catch { emit(emptyList()) }
+                    .onStart { emit(emptyList()) }
+                combine(pantry.observe(hid).catch { }, items, recent, todayFlow(clock)) { p, i, r, today ->
+                    UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid)
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+
+    private companion object {
+        /** DESIGN 5.6: the last 10 events. */
+        const val RECENT = 10
+    }
+}

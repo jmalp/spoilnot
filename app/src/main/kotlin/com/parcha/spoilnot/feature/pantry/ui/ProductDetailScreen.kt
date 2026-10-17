@@ -178,7 +178,7 @@ private fun SettingsForm(product: Product, hasStock: Boolean, onSave: (ProductEd
             EnumDropdown(
                 label = stringResource(R.string.field_unit),
                 value = unit,
-                options = QuantityUnit.entries,
+                options = unitMenu(),
                 optionLabel = { stringResource(it.label()) },
                 onPick = { unit = it },
                 enabled = !hasStock,

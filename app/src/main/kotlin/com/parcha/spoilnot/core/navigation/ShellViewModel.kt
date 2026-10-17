@@ -31,6 +31,8 @@ class ShellViewModel @Inject constructor(
 
     fun consume(link: DeepLink) = deepLinks.consume(link)
 
+    fun open(link: DeepLink) = deepLinks.open(link)
+
     val pendingJoinRequests: StateFlow<Int> = session.session
         .flatMapLatest { s ->
             if (s is Session.InHousehold && s.role == Role.Owner) {

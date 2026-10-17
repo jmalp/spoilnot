@@ -11,6 +11,7 @@ import com.parcha.spoilnot.core.firebase.commitQueued
 import com.parcha.spoilnot.core.firebase.snapshotFlow
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.auth.domain.ProfileDefaults
+import com.parcha.spoilnot.feature.auth.domain.Units
 import com.parcha.spoilnot.feature.auth.domain.UserProfile
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
 import java.time.ZoneId
@@ -73,6 +74,16 @@ class FirestoreUserRepository @Inject constructor(private val firestore: Firesto
             .commitQueued()
     }
 
+    override suspend fun setUnits(uid: String, units: Units) {
+        val db = firestore.current
+        db.batch()
+            .update(
+                db.document(UserFields.path(uid)),
+                mapOf("units" to units.name.lowercase(), UserFields.UPDATED_AT to FieldValue.serverTimestamp()),
+            )
+            .commitQueued()
+    }
+
     override suspend fun deleteProfile(uid: String) {
         val db = firestore.current
         val devices = db.collection("${UserFields.path(uid)}/devices").get(Source.SERVER).awaitMapped()
@@ -115,5 +126,6 @@ private fun DocumentSnapshot.toProfile(): UserProfile {
                 PendingJoin(householdId, it["householdName"] as? String ?: "", code)
             }
         },
+        units = Units.entries.firstOrNull { it.name.lowercase() == getString("units") } ?: ProfileDefaults.UNITS,
     )
 }

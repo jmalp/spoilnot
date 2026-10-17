@@ -9,6 +9,8 @@ data class UserProfile(
     val displayName: String,
     val householdId: String?,
     val pendingJoin: PendingJoin?,
+    /** Which units the unit menu offers first for new products (Settings > Appearance). */
+    val units: Units = ProfileDefaults.UNITS,
 )
 
 /** Where the user's one waiting join request was sent (DESIGN 5.1). */

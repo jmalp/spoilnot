@@ -56,6 +56,7 @@ import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.icon
 import com.parcha.spoilnot.feature.pantry.ui.label
 import com.parcha.spoilnot.feature.pantry.ui.parseQuantity
+import com.parcha.spoilnot.feature.pantry.ui.unitMenu
 import java.time.LocalDate
 
 /** One editable row of the Add to pantry sheet. */
@@ -173,7 +174,7 @@ private fun EntryCard(draft: EntryDraft, today: LocalDate) {
                         modifier = Modifier.width(140.dp),
                     )
                     Column(Modifier.weight(1f)) {
-                        EnumDropdown(stringResource(R.string.field_unit), draft.unit, QuantityUnit.entries, {
+                        EnumDropdown(stringResource(R.string.field_unit), draft.unit, unitMenu(), {
                             stringResource(it.label())
                         }, {
                             draft.unit =
@@ -253,7 +254,7 @@ fun EditItemSheet(
                 error = qtyError,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
             )
-            EnumDropdown(stringResource(R.string.field_unit), unit, QuantityUnit.entries, {
+            EnumDropdown(stringResource(R.string.field_unit), unit, unitMenu(), {
                 stringResource(it.label())
             }, {
                 unit =

@@ -52,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -266,12 +268,19 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
 
 @Composable
 private fun FilterRow(selected: PantryFilter, onSelect: (PantryFilter) -> Unit) {
+    val scroll = rememberScrollState()
+    // Where each chip starts, so a filter chosen elsewhere (a digest, a Home card) scrolls into view.
+    val starts = remember { mutableStateMapOf<PantryFilter, Int>() }
+    LaunchedEffect(selected, starts[selected]) {
+        starts[selected]?.let { scroll.animateScrollTo((it - scroll.viewportSize / 3).coerceAtLeast(0)) }
+    }
     Row(
-        Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.horizontalScroll(scroll).padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         PantryFilter.entries.forEach { filter ->
             FilterChip(
+                modifier = Modifier.onPlaced { starts[filter] = it.positionInParent().x.toInt() },
                 selected = filter == selected,
                 onClick = { onSelect(filter) },
                 label = { Text(stringResource(filter.label())) },

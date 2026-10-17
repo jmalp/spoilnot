@@ -47,6 +47,13 @@ enum class QuantityUnit(val wire: String) {
 
     companion object {
         fun fromWire(value: String?) = entries.firstOrNull { it.wire == value } ?: Pieces
+
+        /** The unit menu: pieces first, then the preferred system (Settings > Appearance), then the other. */
+        fun menu(imperialFirst: Boolean): List<QuantityUnit> {
+            val metric = listOf(Grams, Kilograms, Milliliters, Liters)
+            val imperial = listOf(Ounces, Pounds, FluidOunces)
+            return listOf(Pieces) + if (imperialFirst) imperial + metric else metric + imperial
+        }
     }
 }
 
