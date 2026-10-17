@@ -21,7 +21,14 @@ import kotlinx.coroutines.flow.stateIn
 /** Shell-wide state: waiting join requests for the owner's Settings badge and Home card (DESIGN 5.1). */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
-class ShellViewModel @Inject constructor(session: SessionManager, households: HouseholdRepository) : ViewModel() {
+class ShellViewModel @Inject constructor(
+    session: SessionManager,
+    households: HouseholdRepository,
+    deepLinks: DeepLinkRouter,
+) : ViewModel() {
+    /** A notification tap waiting to be shown (DESIGN 10.2). */
+    val deepLink: StateFlow<DeepLink?> = deepLinks.pending
+
     val pendingJoinRequests: StateFlow<Int> = session.session
         .flatMapLatest { s ->
             if (s is Session.InHousehold && s.role == Role.Owner) {

@@ -1,0 +1,39 @@
+name: expiry-reminders
+
+# DESIGN 10.4: hourly, off the busy top of the hour. Scheduled runs are best effort (late or occasionally
+# skipped); the job catches up until 22:00 local time and never sends twice a day.
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Log what would be sent and change nothing'
+        type: boolean
+        default: true
+
+concurrency:
+  group: expiry-reminders
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: backend/reminder/package-lock.json
+      - name: Run the reminder job
+        working-directory: backend/reminder
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          # Scheduled runs are live; manual runs default to a dry run.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: npm ci && npm run build && node dist/main.js

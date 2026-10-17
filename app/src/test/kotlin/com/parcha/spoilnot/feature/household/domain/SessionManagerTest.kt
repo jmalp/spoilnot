@@ -6,6 +6,7 @@ import com.parcha.spoilnot.feature.auth.domain.AuthUser
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.auth.domain.UserProfile
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
+import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +35,7 @@ class SessionManagerTest {
     private val localData = FakeLocalData(events)
 
     private fun TestScope.manager(): SessionManager =
-        SessionManager(auth, users, households, localData, backgroundScope).also { advanceUntilIdle() }
+        SessionManager(auth, users, households, localData, NoDevices, backgroundScope).also { advanceUntilIdle() }
 
     private fun runSession(block: suspend TestScope.() -> Unit) = runTest(UnconfinedTestDispatcher()) { block() }
 
@@ -327,6 +328,12 @@ class SessionManagerTest {
         override suspend fun transferOwnership(householdId: String, fromUid: String, toUid: String) = error("unused")
 
         override suspend fun deleteHousehold(household: Household, uid: String) = error("unused")
+    }
+
+    private object NoDevices : DeviceRegistry {
+        override suspend fun sync(uid: String) = Unit
+
+        override suspend fun unregister(uid: String) = Unit
     }
 
     private class FakeLocalData(private val log: MutableList<String>) : LocalData {

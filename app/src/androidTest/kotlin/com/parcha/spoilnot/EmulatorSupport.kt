@@ -19,6 +19,7 @@ import com.parcha.spoilnot.feature.household.data.FirestoreHouseholdRepository
 import com.parcha.spoilnot.feature.household.data.FirestoreLocalData
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
+import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository
 import com.parcha.spoilnot.feature.pantry.data.PantryChangeMapper
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
@@ -74,6 +75,12 @@ class TestPhone(private val name: String) : AutoCloseable {
         FirestoreUserRepository(firestore),
         households,
         FirestoreLocalData(firestore),
+        // Emulator builds cannot register for push; device sync is covered by the live test (DESIGN 14 M4).
+        object : DeviceRegistry {
+            override suspend fun sync(uid: String) = Unit
+
+            override suspend fun unregister(uid: String) = Unit
+        },
         scope,
     )
 
