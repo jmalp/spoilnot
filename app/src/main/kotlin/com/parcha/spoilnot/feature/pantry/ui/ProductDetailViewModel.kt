@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
+import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
-import com.parcha.spoilnot.feature.pantry.domain.Actor
 import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.Location
@@ -18,7 +20,6 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.ProductEdit
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
-import com.parcha.spoilnot.feature.pantry.domain.Undo
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -99,34 +100,34 @@ class ProductDetailViewModel @AssistedInject constructor(
         }
     }.catch { }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
-    private val _messages = Channel<PantryMessage>(Channel.BUFFERED)
-    val messages: Flow<PantryMessage> = _messages.receiveAsFlow()
+    private val _messages = Channel<UiMessage>(Channel.BUFFERED)
+    val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     fun save(edit: ProductEdit) = act { hid, actor ->
         val product = state.value.product ?: return@act
         service.updateProduct(hid, actor, product, edit, state.value.data)
-        _messages.send(PantryMessage(R.string.saved))
+        _messages.send(UiMessage(R.string.saved))
     }
 
     fun adjust(batch: StockBatch, delta: Double) = act { hid, actor ->
         service.adjust(hid, actor, batch, delta)?.let {
-            _messages.send(PantryMessage(R.string.undo_used_up, batch.productName, it))
+            _messages.send(UiMessage(R.string.undo_used_up, batch.productName, it))
         }
     }
 
     fun usedUp(batch: StockBatch) = act { hid, actor ->
-        _messages.send(PantryMessage(R.string.undo_used_up, batch.productName, service.usedUp(hid, actor, batch)))
+        _messages.send(UiMessage(R.string.undo_used_up, batch.productName, service.usedUp(hid, actor, batch)))
     }
 
     fun throwAway(batch: StockBatch, reason: DiscardReason) = act { hid, actor ->
         _messages.send(
-            PantryMessage(R.string.undo_thrown_away, batch.productName, service.throwAway(hid, actor, batch, reason)),
+            UiMessage(R.string.undo_thrown_away, batch.productName, service.throwAway(hid, actor, batch, reason)),
         )
     }
 
     fun edit(batch: StockBatch, edit: BatchEdit) = act { hid, actor ->
         service.edit(hid, actor, batch, edit)?.let {
-            _messages.send(PantryMessage(R.string.undo_used_up, batch.productName, it))
+            _messages.send(UiMessage(R.string.undo_used_up, batch.productName, it))
         }
     }
 
@@ -142,9 +143,9 @@ class ProductDetailViewModel @AssistedInject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: AppError.Conflict) {
-                _messages.send(PantryMessage(R.string.error_product_exists))
+                _messages.send(UiMessage(R.string.error_product_exists))
             } catch (e: Exception) {
-                _messages.send(PantryMessage(e.messageRes()))
+                _messages.send(UiMessage(e.messageRes()))
             }
         }
     }

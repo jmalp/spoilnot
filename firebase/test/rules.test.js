@@ -357,6 +357,42 @@ describe('members', () => {
   });
 });
 
+describe('grocery lists', () => {
+  const list = (extra = {}) => ({ name: 'Costco', isDefault: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...extra });
+
+  it('members create, rename and delete extra lists', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/groceryLists/g2`), list()));
+    await assertSucceeds(updateDoc(doc(db, `households/${HID}/groceryLists/g2`), { name: 'Market', updatedAt: serverTimestamp() }));
+    await assertSucceeds(deleteDoc(doc(db, `households/${HID}/groceryLists/g2`)));
+  });
+
+  it('nobody creates a second default list or moves the default flag', async () => {
+    const db = as('bob');
+    await assertFails(setDoc(doc(db, `households/${HID}/groceryLists/g3`), list({ isDefault: true })));
+    await assertFails(setDoc(doc(db, `households/${HID}/groceryLists/g3`), list({ name: '' })));
+    await assertFails(updateDoc(doc(db, `households/${HID}/groceryLists/g1`), { isDefault: false }));
+    await assertFails(updateDoc(doc(as('alice'), `households/${HID}/groceryLists/g1`), { isDefault: false }));
+  });
+
+  it('only the owner deletes the default list', async () => {
+    await assertFails(deleteDoc(doc(as('bob'), `households/${HID}/groceryLists/g1`)));
+    await assertSucceeds(deleteDoc(doc(as('alice'), `households/${HID}/groceryLists/g1`)));
+  });
+
+  it('a low-stock item can be merge-written by any member, also after it was checked', async () => {
+    const ref = (db) => doc(db, `households/${HID}/groceryLists/g1/items/low_p1`);
+    const fields = (uid) => ({
+      name: 'Milk', nameKey: 'milk', unit: 'pcs', category: 'dairy', source: 'low_stock', productId: 'p1',
+      quantity: 2, updatedAt: serverTimestamp(), updatedBy: uid,
+    });
+    await assertSucceeds(setDoc(ref(as('bob')), { ...fields('bob'), createdAt: serverTimestamp(), createdBy: 'bob' }, { merge: true }));
+    await assertSucceeds(updateDoc(ref(as('alice')), { checked: true, updatedAt: serverTimestamp(), updatedBy: 'alice' }));
+    await assertSucceeds(setDoc(ref(as('alice')), fields('alice'), { merge: true }));
+    await assertFails(setDoc(ref(as('carol')), fields('carol'), { merge: true }));
+  });
+});
+
 describe('activity', () => {
   const event = (uid) => ({ type: 'discarded', actorUid: uid, actorName: 'x', productId: 'p1', params: {}, createdAt: serverTimestamp() });
 

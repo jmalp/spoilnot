@@ -1,57 +1,32 @@
 package com.parcha.spoilnot.feature.pantry.data
 
-import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.MetadataChanges
-import com.google.firebase.firestore.SetOptions
-import com.google.firebase.firestore.WriteBatch
-import com.parcha.spoilnot.core.coroutines.ApplicationScope
-import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
-import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
-import com.parcha.spoilnot.feature.pantry.domain.Actor
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.Location
-import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryEvent
-import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
-import com.parcha.spoilnot.feature.pantry.domain.PantryWriteErrors
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import javax.inject.Inject
-import javax.inject.Singleton
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Singleton
-class FirestorePantryRepository @Inject constructor(
-    private val firestore: FirestoreProvider,
-    @param:ApplicationScope private val scope: CoroutineScope,
-) : PantryRepository,
-    PantryWriteErrors {
-    private val _errors = MutableSharedFlow<AppError>(extraBufferCapacity = 8)
-    override val errors: SharedFlow<AppError> = _errors
-
+class FirestorePantryRepository @Inject constructor(private val firestore: FirestoreProvider) : PantryRepository {
     override fun observe(householdId: String): Flow<PantryData> = firestore.instance.flatMapLatest { db ->
         val products = db.collection(
             products(householdId),
@@ -79,106 +54,7 @@ class FirestorePantryRepository @Inject constructor(
                 .take(limit)
         }.distinctUntilChanged()
 
-    override fun newProductId(householdId: String): String =
-        firestore.current.collection(products(householdId)).document().id
-
-    override fun newBatchId(householdId: String): String =
-        firestore.current.collection(stock(householdId)).document().id
-
-    override fun newEventId(householdId: String): String =
-        firestore.current.collection(activity(householdId)).document().id
-
-    /**
-     * Applies locally at once and returns: the cache gives the optimistic UI and offline support (DESIGN 9.3, 9.5).
-     * A rejection by the server arrives later on [errors].
-     */
-    override suspend fun apply(householdId: String, actor: Actor, changes: List<PantryChange>) {
-        val db = firestore.current
-        changes.chunked(PantryLimits.BATCH_LIMIT).forEach { chunk ->
-            val batch = db.batch()
-            chunk.forEach { batch.add(db, householdId, actor, it) }
-            val task = batch.commit()
-            scope.launch {
-                try {
-                    task.awaitMapped()
-                } catch (e: AppError) {
-                    _errors.emit(e)
-                }
-            }
-        }
-    }
-
-    private fun WriteBatch.add(db: FirebaseFirestore, hid: String, actor: Actor, change: PantryChange) {
-        val stamp = mapOf("updatedAt" to FieldValue.serverTimestamp(), "updatedBy" to actor.uid)
-        val created = mapOf("createdAt" to FieldValue.serverTimestamp(), "createdBy" to actor.uid)
-        when (change) {
-            is PantryChange.CreateProduct ->
-                set(
-                    db.document("${products(hid)}/${change.product.id}"),
-                    productFields(change.product) + created + stamp,
-                )
-
-            is PantryChange.UpdateProduct ->
-                set(
-                    db.document("${products(hid)}/${change.product.id}"),
-                    productFields(change.product) + stamp,
-                    SetOptions.merge(),
-                )
-
-            is PantryChange.CreateBatch ->
-                set(db.document("${stock(hid)}/${change.batch.id}"), batchFields(change.batch) + created + stamp)
-
-            is PantryChange.RestoreBatch -> set(
-                db.document("${stock(hid)}/${change.batch.id}"),
-                batchFields(change.batch) + stamp + mapOf(
-                    "createdAt" to (change.batch.createdAt?.let { Timestamp(it) } ?: FieldValue.serverTimestamp()),
-                    "createdBy" to actor.uid,
-                ),
-            )
-
-            is PantryChange.AddToBatch ->
-                update(
-                    db.document("${stock(hid)}/${change.batchId}"),
-                    mapOf("quantity" to FieldValue.increment(change.delta)) + stamp,
-                )
-
-            is PantryChange.UpdateBatch -> update(
-                db.document("${stock(hid)}/${change.batchId}"),
-                mapOf(
-                    "quantity" to change.edit.quantity,
-                    "expiryDate" to change.edit.expiryDate?.toString(),
-                    "dateType" to change.edit.dateType.wire,
-                    "location" to change.edit.location.wire,
-                    "note" to change.edit.note,
-                ) + stamp,
-            )
-
-            is PantryChange.SyncBatchProduct -> update(
-                db.document("${stock(hid)}/${change.batchId}"),
-                mapOf("productName" to change.name, "unit" to change.unit.wire, "category" to change.category.wire) +
-                    stamp,
-            )
-
-            is PantryChange.DeleteBatch -> delete(db.document("${stock(hid)}/${change.batchId}"))
-
-            is PantryChange.LogEvent -> set(
-                db.document("${activity(hid)}/${change.eventId}"),
-                mapOf(
-                    "type" to if (change.type == PantryEvent.Type.Added) TYPE_ADDED else TYPE_DISCARDED,
-                    "actorUid" to actor.uid,
-                    "actorName" to actor.name,
-                    "productId" to change.productId,
-                    "params" to
-                        mapOf("name" to change.name, "quantity" to change.quantity, "reason" to change.reason?.wire),
-                    "createdAt" to FieldValue.serverTimestamp(),
-                ),
-            )
-
-            is PantryChange.DeleteEvent -> delete(db.document("${activity(hid)}/${change.eventId}"))
-        }
-    }
-
-    private companion object {
+    internal companion object {
         const val TYPE_ADDED = "stock_added"
         const val TYPE_DISCARDED = "discarded"
 

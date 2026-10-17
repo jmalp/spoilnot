@@ -5,10 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
+import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.HouseholdWriter
+import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
-import com.parcha.spoilnot.feature.pantry.domain.Actor
 import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.Location
@@ -21,10 +24,8 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryQuery
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.domain.PantrySort
-import com.parcha.spoilnot.feature.pantry.domain.PantryWriteErrors
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
-import com.parcha.spoilnot.feature.pantry.domain.Undo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -51,9 +52,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** A message for the snackbar, with Undo when the action can be undone. */
-data class PantryMessage(@param:StringRes val text: Int, val arg: String? = null, val undo: Undo? = null)
-
 /** "Today" in the user's calendar, re-checked every minute so statuses roll over at midnight. */
 fun todayFlow(clock: Clock): Flow<LocalDate> = flow {
     while (true) {
@@ -68,7 +66,7 @@ fun todayFlow(clock: Clock): Flow<LocalDate> = flow {
 class PantryViewModel @Inject constructor(
     session: SessionManager,
     repository: PantryRepository,
-    writeErrors: PantryWriteErrors,
+    writer: HouseholdWriter,
     private val service: PantryService,
     clock: Clock,
 ) : ViewModel() {
@@ -111,8 +109,8 @@ class PantryViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
-    private val _messages = Channel<PantryMessage>(Channel.BUFFERED)
-    val messages: Flow<PantryMessage> = _messages.receiveAsFlow()
+    private val _messages = Channel<UiMessage>(Channel.BUFFERED)
+    val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     init {
         // Invariant 1: delete batches that reached 0, whoever notices first.
@@ -124,7 +122,7 @@ class PantryViewModel @Inject constructor(
             }
         }
             .launchIn(viewModelScope)
-        writeErrors.errors.onEach { _messages.send(PantryMessage(it.writeMessage())) }.launchIn(viewModelScope)
+        writer.errors.onEach { _messages.send(UiMessage(it.writeMessage())) }.launchIn(viewModelScope)
     }
 
     fun setFilter(filter: PantryFilter) = query.update { it.copy(filter = filter) }
@@ -140,28 +138,28 @@ class PantryViewModel @Inject constructor(
         val result = service.add(hid, actor, draft, currentData())
         onDone()
         val text = if (result.merged) R.string.added_merged_message else R.string.added_message
-        _messages.send(PantryMessage(text, draft.name.trim()))
+        _messages.send(UiMessage(text, draft.name.trim()))
     }
 
     fun adjust(batch: StockBatch, delta: Double) = act { hid, actor ->
         service.adjust(hid, actor, batch, delta)?.let {
-            _messages.send(PantryMessage(R.string.undo_used_up, batch.productName, it))
+            _messages.send(UiMessage(R.string.undo_used_up, batch.productName, it))
         }
     }
 
     fun usedUp(batch: StockBatch) = act { hid, actor ->
-        _messages.send(PantryMessage(R.string.undo_used_up, batch.productName, service.usedUp(hid, actor, batch)))
+        _messages.send(UiMessage(R.string.undo_used_up, batch.productName, service.usedUp(hid, actor, batch)))
     }
 
     fun throwAway(batch: StockBatch, reason: DiscardReason) = act { hid, actor ->
         _messages.send(
-            PantryMessage(R.string.undo_thrown_away, batch.productName, service.throwAway(hid, actor, batch, reason)),
+            UiMessage(R.string.undo_thrown_away, batch.productName, service.throwAway(hid, actor, batch, reason)),
         )
     }
 
     fun edit(batch: StockBatch, edit: BatchEdit) = act { hid, actor ->
         service.edit(hid, actor, batch, edit)?.let {
-            _messages.send(PantryMessage(R.string.undo_used_up, batch.productName, it))
+            _messages.send(UiMessage(R.string.undo_used_up, batch.productName, it))
         }
     }
 
@@ -181,7 +179,7 @@ class PantryViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _messages.send(PantryMessage(e.messageRes()))
+                _messages.send(UiMessage(e.messageRes()))
             }
         }
     }

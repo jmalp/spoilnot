@@ -37,10 +37,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -66,16 +63,13 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
+import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
 import com.parcha.spoilnot.feature.pantry.domain.PantryGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantryGrouping
 import com.parcha.spoilnot.feature.pantry.domain.PantrySort
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
-import kotlinx.coroutines.withTimeoutOrNull
-
-/** How long an Undo stays available (DESIGN 5.2). */
-const val UNDO_WINDOW_MS = 8_000L
 
 @Composable
 fun PantryScreen(
@@ -86,7 +80,6 @@ fun PantryScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val resources = LocalResources.current
     var adding by rememberSaveable { mutableStateOf(false) }
     var throwing by remember { mutableStateOf<StockBatch?>(null) }
     var moving by remember { mutableStateOf<StockBatch?>(null) }
@@ -98,25 +91,7 @@ fun PantryScreen(
         derivedStateOf { !listState.isScrollInProgress && listState.firstVisibleItemIndex == 0 }
     }
 
-    LaunchedEffect(viewModel) {
-        viewModel.messages.collect { message ->
-            val text = message.arg?.let { resources.getString(message.text, it) } ?: resources.getString(message.text)
-            val undo = message.undo
-            if (undo == null) {
-                snackbar.showSnackbar(text)
-            } else {
-                val result = withTimeoutOrNull(UNDO_WINDOW_MS) {
-                    snackbar.showSnackbar(
-                        text,
-                        actionLabel = resources.getString(R.string.action_undo),
-                        duration = SnackbarDuration.Indefinite,
-                    )
-                }
-                if (result == null) snackbar.currentSnackbarData?.dismiss()
-                if (result == SnackbarResult.ActionPerformed) viewModel.undo(undo)
-            }
-        }
-    }
+    MessageEffect(viewModel.messages, snackbar, viewModel::undo)
 
     val actions = BatchActions(
         onMinus = { viewModel.adjust(it, -1.0) },

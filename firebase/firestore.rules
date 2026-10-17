@@ -148,9 +148,15 @@ service cloud.firestore {
           && request.resource.data.dateType in ['use_by', 'best_before'];
       }
       match /groceryLists/{listId} {
-        allow read, update, delete: if isMember(hid);
-        // existsAfter (deviation): the default list is created in the same batch as the household.
-        allow create: if signedIn() && existsAfter(memberPath(hid, me()));
+        allow read: if isMember(hid);
+        // existsAfter (deviation): the default list is created in the same batch as the household; any later list
+        // is not the default (invariant 5).
+        allow create: if signedIn() && existsAfter(memberPath(hid, me()))
+          && s(request.resource.data.name, 1, 60)
+          && (request.resource.data.isDefault == false || !exists(hhPath(hid)));
+        allow update: if isMember(hid) && onlyChanges(['name', 'updatedAt']) && s(request.resource.data.name, 1, 60);
+        // Only the owner removes the default list, when deleting the household.
+        allow delete: if isMember(hid) && (resource.data.isDefault != true || isOwner(hid));
         match /items/{itemId} {
           allow read, delete: if isMember(hid);
           allow create, update: if isMember(hid) && stamped() && s(request.resource.data.name, 1, 80);

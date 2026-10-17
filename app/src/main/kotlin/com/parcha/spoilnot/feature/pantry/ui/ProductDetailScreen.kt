@@ -13,10 +13,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,7 +26,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -40,6 +37,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
@@ -52,7 +50,6 @@ import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun ProductDetailScreen(
@@ -66,30 +63,11 @@ fun ProductDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val resources = LocalResources.current
     var throwing by remember { mutableStateOf<StockBatch?>(null) }
     var moving by remember { mutableStateOf<StockBatch?>(null) }
     var editing by remember { mutableStateOf<StockBatch?>(null) }
 
-    LaunchedEffect(viewModel) {
-        viewModel.messages.collect { message ->
-            val text = message.arg?.let { resources.getString(message.text, it) } ?: resources.getString(message.text)
-            val undo = message.undo
-            if (undo == null) {
-                snackbar.showSnackbar(text)
-            } else {
-                val result = withTimeoutOrNull(UNDO_WINDOW_MS) {
-                    snackbar.showSnackbar(
-                        text,
-                        resources.getString(R.string.action_undo),
-                        duration = SnackbarDuration.Indefinite,
-                    )
-                }
-                if (result == null) snackbar.currentSnackbarData?.dismiss()
-                if (result == SnackbarResult.ActionPerformed) viewModel.undo(undo)
-            }
-        }
-    }
+    MessageEffect(viewModel.messages, snackbar, viewModel::undo)
     val actions = BatchActions(
         onMinus = { viewModel.adjust(it, -1.0) },
         onPlus = { viewModel.adjust(it, 1.0) },
@@ -164,7 +142,8 @@ private fun SettingsForm(product: Product, hasStock: Boolean, onSave: (ProductEd
     var location by rememberSaveable { mutableStateOf(product.defaultLocation) }
     var unit by rememberSaveable { mutableStateOf(product.unit) }
     var keepAtLeast by rememberSaveable { mutableStateOf(product.minQuantity?.let(::formatQuantity).orEmpty()) }
-    var autoAdd by rememberSaveable { mutableStateOf(product.autoAddToGrocery) }
+    // On by default the first time Keep at least is set, as in the Add item sheet.
+    var autoAdd by rememberSaveable { mutableStateOf(product.autoAddToGrocery || product.minQuantity == null) }
     var buy by rememberSaveable { mutableStateOf(product.buyQuantity?.let(::formatQuantity).orEmpty()) }
     var shelfLife by rememberSaveable { mutableStateOf(product.typicalShelfLifeDays?.toString().orEmpty()) }
 
