@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {"@type": "WebPage", "@id": "https://example.com/pancakes/", "name": "Pancakes"},
+    {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home"}]},
+    {
+      "@type": ["Recipe", "NewsArticle"],
+      "@id": "https://example.com/pancakes/#recipe",
+      "name": "Fluffy Pancakes",
+      "image": ["https://example.com/p-1x1.jpg", "https://example.com/p-4x3.jpg"],
+      "author": [{"@type": "Person", "name": "Jo Baker"}, {"@type": "Person", "name": "Kim Lee"}],
+      "recipeYield": 8,
+      "totalTime": "PT25M",
+      "recipeIngredient": ["200g flour", "2 eggs", "300 ml milk", "1 tsp baking powder"],
+      "recipeInstructions": [
+        {"@type": "HowToStep", "name": "Mix", "text": "Whisk the dry ingredients."},
+        {"@type": "HowToStep", "text": "Add eggs and milk and whisk until smooth."},
+        {"@type": "HowToStep", "name": "Cook the pancakes in a hot pan."}
+      ],
+      "keywords": ["breakfast", "Breakfast", "pancakes"]
+    }
+  ]
+}
+</script>
+</head><body></body></html>

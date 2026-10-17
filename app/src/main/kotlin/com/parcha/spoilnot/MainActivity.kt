@@ -10,6 +10,7 @@ import com.parcha.spoilnot.core.firebase.RequestEmulatorNetworkAccess
 import com.parcha.spoilnot.core.navigation.DeepLink
 import com.parcha.spoilnot.core.navigation.DeepLinkRouter
 import com.parcha.spoilnot.core.navigation.SpoilNotRoot
+import com.parcha.spoilnot.feature.recipes.domain.SourceUrl
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -20,8 +21,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // A tapped digest opens the app with the FCM data as extras (DESIGN 10.2).
-        if (savedInstanceState == null) deepLinks.open(DeepLink.parse(intent.getStringExtra(DeepLink.EXTRA_ROUTE)))
+        // A tapped digest opens the app with the FCM data as extras (DESIGN 10.2); a share brings a link (11.1).
+        if (savedInstanceState == null) deepLinks.open(linkFrom(intent))
         setContent {
             SpoilNotTheme {
                 RequestEmulatorNetworkAccess()
@@ -32,6 +33,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        deepLinks.open(DeepLink.parse(intent.getStringExtra(DeepLink.EXTRA_ROUTE)))
+        deepLinks.open(linkFrom(intent))
+    }
+
+    private fun linkFrom(intent: Intent): DeepLink? = if (intent.action == Intent.ACTION_SEND) {
+        DeepLink.ImportRecipe(SourceUrl.fromSharedText(intent.getStringExtra(Intent.EXTRA_TEXT)))
+    } else {
+        DeepLink.parse(intent.getStringExtra(DeepLink.EXTRA_ROUTE))
     }
 }

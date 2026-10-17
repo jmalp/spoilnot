@@ -23,6 +23,9 @@ import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository
 import com.parcha.spoilnot.feature.pantry.data.PantryChangeMapper
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
+import com.parcha.spoilnot.feature.recipes.data.FirestoreRecipeRepository
+import com.parcha.spoilnot.feature.recipes.data.RecipeChangeMapper
+import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import java.time.Clock
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -84,11 +87,17 @@ class TestPhone(private val name: String) : AutoCloseable {
         scope,
     )
 
-    val writer = FirestoreHouseholdWriter(firestore, scope, setOf(PantryChangeMapper(), GroceryChangeMapper()))
+    val writer = FirestoreHouseholdWriter(
+        firestore,
+        scope,
+        setOf(PantryChangeMapper(), GroceryChangeMapper(), RecipeChangeMapper()),
+    )
     val pantryRepository = FirestorePantryRepository(firestore)
     val pantry = PantryService(writer, Clock.systemDefaultZone())
     val groceryRepository = FirestoreGroceryRepository(firestore)
     val grocery = GroceryService(writer, groceryRepository, pantry)
+    val recipeRepository = FirestoreRecipeRepository(firestore)
+    val recipes = RecipeService(writer)
 
     /** Every phone runs the restock engine (DESIGN 9.6). Started by [startRestock]. */
     private val restock =

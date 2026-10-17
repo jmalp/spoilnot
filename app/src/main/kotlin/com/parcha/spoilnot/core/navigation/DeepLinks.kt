@@ -6,10 +6,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Where a notification tap should land (DESIGN 10.2). */
+/** Where a notification tap or a share from another app should land (DESIGN 10.2, 11.1). */
 sealed interface DeepLink {
     /** `/pantry?filter=expiring`: the Pantry tab filtered to Expiring soon. */
     data object PantryExpiring : DeepLink
+
+    /** A link shared from another app; null when the shared text had none. */
+    data class ImportRecipe(val url: String?) : DeepLink
 
     companion object {
         const val EXTRA_ROUTE = "route"
