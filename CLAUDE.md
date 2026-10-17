@@ -23,8 +23,11 @@
 - Repositories read `FirestoreProvider.current` or collect `.instance`; never keep a `FirebaseFirestore` reference (it is replaced when local data is cleared).
 - Household-scoped listeners use `snapshotFlow().retryAfterOwnWrites(db)`.
 - Session state (signed out, gate, joining, in household) comes only from `SessionManager`.
+- Pantry actions go through `PantryService`, which returns `PantryChange` plans; `PantryRepository.apply` writes them. Destructive actions return an `Undo`.
+- String resources: escape apostrophes (`\'`). A bad string fails the resource build, not `compileDevDebugKotlin`, so check `BUILD SUCCESSFUL`.
 
 ## Before finishing a task
 - `./gradlew spotlessApply` then `./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug`
 - `cd firebase && npm test` (rules tests in the Firestore emulator)
+- After UI changes: `./gradlew recordRoborazziDevDebug` and look at `app/build/outputs/roborazzi/*.png` (light/dark, font 1.0/2.0)
 - With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest` (includes the two-user household tests)

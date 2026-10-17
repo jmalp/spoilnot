@@ -39,8 +39,21 @@ after(async () => {
 
 // Seeds: household h1 owned by alice, bob is a member, carol and dave are outsiders.
 // h2 belongs to erin and has its own active code.
+// A long-running emulator that other clients (the Android tests) just used can answer the first clear with an
+// HTTP 500; the next attempt succeeds. CI always starts a fresh emulator.
+async function clearFirestore() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await env.clearFirestore();
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+}
+
 beforeEach(async () => {
-  await env.clearFirestore();
+  await clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     const t = new Date('2026-10-01T00:00:00Z');
@@ -341,6 +354,25 @@ describe('members', () => {
     const db = as('bob');
     await assertSucceeds(getDoc(doc(db, `households/${HID}`)));
     await assertSucceeds(getDoc(doc(db, `inviteCodes/${CODE}`)));
+  });
+});
+
+describe('activity', () => {
+  const event = (uid) => ({ type: 'discarded', actorUid: uid, actorName: 'x', productId: 'p1', params: {}, createdAt: serverTimestamp() });
+
+  it('members log their own events, read all, and delete only their own', async () => {
+    const bobDb = as('bob');
+    await assertSucceeds(setDoc(doc(bobDb, `households/${HID}/activity/a1`), event('bob')));
+    await assertFails(setDoc(doc(bobDb, `households/${HID}/activity/a2`), event('alice')));
+    await assertSucceeds(setDoc(doc(as('alice'), `households/${HID}/activity/a3`), event('alice')));
+    await assertSucceeds(getDocs(collection(bobDb, `households/${HID}/activity`)));
+    await assertFails(deleteDoc(doc(bobDb, `households/${HID}/activity/a3`)));
+    await assertSucceeds(deleteDoc(doc(bobDb, `households/${HID}/activity/a1`)));
+  });
+
+  it('outsiders cannot read or write activity', async () => {
+    await assertFails(getDocs(collection(as('carol'), `households/${HID}/activity`)));
+    await assertFails(setDoc(doc(as('carol'), `households/${HID}/activity/a4`), event('carol')));
   });
 });
 

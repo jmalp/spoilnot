@@ -13,6 +13,10 @@ import com.parcha.spoilnot.feature.household.data.FirestoreHouseholdRepository
 import com.parcha.spoilnot.feature.household.data.FirestoreLocalData
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
+import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository
+import com.parcha.spoilnot.feature.pantry.domain.Actor
+import com.parcha.spoilnot.feature.pantry.domain.PantryService
+import java.time.Clock
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +56,7 @@ class TestPhone(private val name: String) : AutoCloseable {
         FirebaseApp.initializeApp(context, FirebaseApp.getInstance().options, appName)
     }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val firestore = FirestoreProvider(app, BuildConfig.FIREBASE_EMULATOR_HOST)
+    val firestore = FirestoreProvider(app, BuildConfig.FIREBASE_EMULATOR_HOST)
     private val auth = FirebaseAuth.getInstance(app).also {
         FirebaseEmulators.configureAuth(it, BuildConfig.FIREBASE_EMULATOR_HOST)
     }
@@ -67,7 +71,12 @@ class TestPhone(private val name: String) : AutoCloseable {
         scope,
     )
 
+    val pantryRepository = FirestorePantryRepository(firestore, scope)
+    val pantry = PantryService(pantryRepository, Clock.systemDefaultZone())
+
     val uid: String get() = checkNotNull(authRepository.currentUser).uid
+
+    val actor: Actor get() = Actor(uid, (sessionManager.session.value as? Session.InHousehold)?.displayName ?: "Test")
 
     /** Every session state seen, for failure messages. */
     val history: MutableList<Session> = java.util.Collections.synchronizedList(mutableListOf())

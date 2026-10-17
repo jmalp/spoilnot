@@ -35,6 +35,7 @@ import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
+import com.parcha.spoilnot.feature.pantry.ui.ProductDetailScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipesScreen
 import com.parcha.spoilnot.feature.settings.ui.SettingsScreen
 
@@ -62,7 +63,15 @@ fun AppShell(
                 onReviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
             )
         }
-        entry<PantryRoute> { PantryScreen(onOpenSettings = openSettings) }
+        entry<PantryRoute> {
+            PantryScreen(
+                onOpenSettings = openSettings,
+                onOpenProduct = { navigator.navigate(ProductDetailRoute(it, navigator.currentTab)) },
+            )
+        }
+        entry<ProductDetailRoute> { key ->
+            ProductDetailScreen(productId = key.productId, onBack = { navigator.goBack() })
+        }
         entry<RecipesRoute> { RecipesScreen(onOpenSettings = openSettings) }
         entry<GroceriesRoute> { GroceriesScreen(onOpenSettings = openSettings) }
         entry<SettingsRoute> {

@@ -15,7 +15,6 @@
     <string name="loading">Loading</string>
 
     <string name="empty_home">What needs attention will show up here.</string>
-    <string name="empty_pantry">Your pantry is empty. Items you add will show up here.</string>
     <string name="empty_recipes">Saved recipes will show up here.</string>
     <string name="empty_groceries">Your grocery list is empty.</string>
 
@@ -149,4 +148,150 @@
         <item quantity="other">%d people want to join</item>
     </plurals>
     <string name="action_review">Review</string>
+
+    <!-- Pantry: status wording (DESIGN 5.2 status rules) -->
+    <plurals name="status_expired_use_by">
+        <item quantity="one">Expired %d day ago. Throw it away</item>
+        <item quantity="other">Expired %d days ago. Throw it away</item>
+    </plurals>
+    <string name="status_expired_best_before">Past its best before date. Check before using</string>
+    <string name="status_today_use_by">Expires today</string>
+    <string name="status_today_best_before">Best before today</string>
+    <string name="status_tomorrow_use_by">Expires tomorrow</string>
+    <string name="status_tomorrow_best_before">Best before tomorrow</string>
+    <plurals name="status_soon_use_by">
+        <item quantity="one">Expires in %d day</item>
+        <item quantity="other">Expires in %d days</item>
+    </plurals>
+    <plurals name="status_soon_best_before">
+        <item quantity="one">Best before in %d day</item>
+        <item quantity="other">Best before in %d days</item>
+    </plurals>
+    <plurals name="status_week">
+        <item quantity="one">In %d day</item>
+        <item quantity="other">In %d days</item>
+    </plurals>
+    <string name="status_no_date">No expiry date</string>
+    <!-- Short chip text for the list; the long wording is used in batch rows and for screen readers. -->
+    <string name="chip_expired">Expired</string>
+    <string name="chip_past_best_before">Past best before</string>
+    <string name="chip_today">Today</string>
+    <string name="chip_tomorrow">Tomorrow</string>
+    <plurals name="chip_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+
+    <!-- Pantry: labels -->
+    <string name="location_fridge">Fridge</string>
+    <string name="location_freezer">Freezer</string>
+    <string name="location_pantry">Pantry</string>
+    <string name="location_other">Other</string>
+    <string name="category_produce">Produce</string>
+    <string name="category_dairy">Dairy and eggs</string>
+    <string name="category_meat_fish">Meat and fish</string>
+    <string name="category_bakery">Bakery</string>
+    <string name="category_frozen">Frozen</string>
+    <string name="category_pantry_staples">Pantry staples</string>
+    <string name="category_drinks">Drinks</string>
+    <string name="category_snacks">Snacks</string>
+    <string name="category_other">Other</string>
+    <string name="unit_pcs">pcs</string>
+    <string name="unit_g">g</string>
+    <string name="unit_kg">kg</string>
+    <string name="unit_oz">oz</string>
+    <string name="unit_lb">lb</string>
+    <string name="unit_ml">ml</string>
+    <string name="unit_l">l</string>
+    <string name="unit_fl_oz">fl oz</string>
+    <string name="date_type_use_by">Use by</string>
+    <string name="date_type_best_before">Best before</string>
+    <string name="reason_expired">Expired</string>
+    <string name="reason_spoiled">Spoiled</string>
+    <string name="reason_didnt_like">Didn\'t like it</string>
+    <string name="reason_other">Other</string>
+
+    <!-- Pantry list -->
+    <string name="pantry_search">Search pantry</string>
+    <string name="filter_all">All</string>
+    <string name="filter_expiring_soon">Expiring soon</string>
+    <string name="filter_expired">Expired</string>
+    <string name="filter_low_stock">Low stock</string>
+    <string name="sort_and_group">Sort and group</string>
+    <string name="sort_title">Sort</string>
+    <string name="sort_soonest">Soonest expiry</string>
+    <string name="sort_name">Name</string>
+    <string name="sort_recent">Recently added</string>
+    <string name="group_title">Group by</string>
+    <string name="group_none">None</string>
+    <string name="group_location">Location</string>
+    <string name="group_category">Category</string>
+    <string name="badge_out">Out</string>
+    <string name="badge_low">Low</string>
+    <string name="pending_sync">Waiting to sync</string>
+    <string name="offline_banner">Offline. Changes will sync later</string>
+    <string name="pantry_empty_body">Add what you have at home and Spoil Not will tell you before it expires.</string>
+    <string name="action_add_first_item">Add your first item</string>
+    <string name="pantry_no_matches">Nothing matches. Try another filter or search.</string>
+    <string name="action_add_item">Add item</string>
+    <string name="expand_batches">Show batches of %1$s</string>
+    <string name="collapse_batches">Hide batches of %1$s</string>
+    <string name="row_description">%1$s, %2$s %3$s, %4$s, %5$s</string>
+    <string name="row_description_out">%1$s, out of stock</string>
+    <string name="batch_description">%1$s %2$s, %3$s, %4$s</string>
+    <string name="action_minus_one">Remove one</string>
+    <string name="action_plus_one">Add one</string>
+    <string name="action_used_up">Used up</string>
+    <string name="action_throw_away">Throw away</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_move">Move</string>
+    <string name="batch_options">Options for this batch</string>
+    <string name="action_undo">Undo</string>
+    <string name="undo_used_up">%1$s used up</string>
+    <string name="undo_thrown_away">%1$s thrown away</string>
+    <string name="throw_away_title">Why are you throwing %1$s away?</string>
+    <string name="move_title">Move to</string>
+
+    <!-- Add and edit -->
+    <string name="add_item_title">Add item</string>
+    <string name="edit_batch_title">Edit %1$s</string>
+    <string name="field_name">Name</string>
+    <string name="field_quantity">Quantity</string>
+    <string name="field_unit">Unit</string>
+    <string name="unit_locked">Fixed while this product has stock</string>
+    <string name="field_expiry">Expiration date</string>
+    <string name="chip_plus_3_days">+3 days</string>
+    <string name="chip_plus_1_week">+1 week</string>
+    <string name="chip_plus_2_weeks">+2 weeks</string>
+    <string name="chip_plus_1_month">+1 month</string>
+    <string name="chip_no_expiry">No expiry</string>
+    <string name="field_date_type">Date type</string>
+    <string name="field_location">Location</string>
+    <string name="field_category">Category</string>
+    <string name="field_notes">Notes</string>
+    <string name="advanced">More options</string>
+    <string name="field_keep_at_least">Keep at least</string>
+    <string name="keep_at_least_help">Add to the grocery list when fewer than this remain</string>
+    <string name="field_auto_add">Add to grocery list automatically</string>
+    <string name="field_buy_quantity">Buy quantity</string>
+    <string name="error_name_required">Enter a name.</string>
+    <string name="error_name_80">Use 80 characters or fewer.</string>
+    <string name="error_quantity">Enter a quantity above 0.</string>
+    <string name="error_number">Enter a number.</string>
+    <string name="error_product_exists">Another product already has this name.</string>
+    <string name="added_message">%1$s added</string>
+    <string name="added_merged_message">Added to your %1$s</string>
+
+    <!-- Product detail -->
+    <string name="product_total">%1$s %2$s in stock</string>
+    <string name="product_batches">Batches</string>
+    <string name="product_settings">Product settings</string>
+    <string name="field_default_location">Default location</string>
+    <string name="field_shelf_life">Typical shelf life (days)</string>
+    <string name="shelf_life_help">Used to fill in the expiration date. Learned from your last 5 purchases.</string>
+    <string name="product_history">History</string>
+    <string name="product_no_history">Nothing yet.</string>
+    <string name="event_added">%1$s added %2$s</string>
+    <string name="event_discarded">%1$s threw away %2$s (%3$s)</string>
+    <string name="saved">Saved</string>
 </resources>

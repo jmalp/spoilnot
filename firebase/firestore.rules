@@ -166,7 +166,9 @@ service cloud.firestore {
         allow read: if isMember(hid);
         allow create: if isMember(hid) && request.resource.data.actorUid == me()
           && request.resource.data.createdAt == request.time;
-        allow delete: if isOwner(hid);   // household deletion; routine pruning uses the Admin SDK
+        // The owner deletes everything with the household; anyone may remove their own event (Undo of
+        // Throw away, deviation). Routine pruning uses the Admin SDK.
+        allow delete: if isOwner(hid) || (isMember(hid) && resource.data.actorUid == me());
       }
     }
   }
