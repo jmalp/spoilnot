@@ -16,7 +16,6 @@
 
     <string name="empty_home">What needs attention will show up here.</string>
     <string name="empty_recipes">Saved recipes will show up here.</string>
-    <string name="empty_groceries">Your grocery list is empty.</string>
 
     <!-- Common actions -->
     <string name="action_cancel">Cancel</string>
@@ -294,4 +293,42 @@
     <string name="event_added">%1$s added %2$s</string>
     <string name="event_discarded">%1$s threw away %2$s (%3$s)</string>
     <string name="saved">Saved</string>
+
+    <!-- Groceries (DESIGN 5.3) -->
+    <string name="grocery_quick_add">Add an item</string>
+    <string name="grocery_lists">Lists</string>
+    <string name="grocery_new_list">New list</string>
+    <string name="grocery_rename_list">Rename list</string>
+    <string name="grocery_delete_list">Delete list</string>
+    <string name="grocery_list_name">List name</string>
+    <string name="grocery_delete_list_title">Delete %1$s?</string>
+    <string name="grocery_delete_list_body">The list and everything on it are deleted for everyone.</string>
+    <string name="grocery_empty">Your list is empty. Type above to add something, or set Keep at least on a pantry item to have it added when it runs low.</string>
+    <plurals name="grocery_in_cart">
+        <item quantity="one">In cart (%d)</item>
+        <item quantity="other">In cart (%d)</item>
+    </plurals>
+    <string name="grocery_clear_checked">Clear checked</string>
+    <plurals name="grocery_add_to_pantry">
+        <item quantity="one">Add %d to pantry</item>
+        <item quantity="other">Add %d to pantry</item>
+    </plurals>
+    <string name="grocery_source_low_stock">Low stock</string>
+    <string name="grocery_source_recipe">Recipe</string>
+    <string name="grocery_added_by">added by %1$s</string>
+    <string name="grocery_back_in_stock">Back in stock</string>
+    <string name="grocery_remove">Remove</string>
+    <string name="grocery_item_options">Options for %1$s</string>
+    <string name="grocery_already_title">Already on the list</string>
+    <string name="grocery_already_body">%1$s is already on the list.</string>
+    <string name="grocery_increase">Increase quantity</string>
+    <string name="grocery_add_anyway">Add anyway</string>
+    <string name="grocery_deleted">%1$s removed</string>
+    <string name="grocery_cleared">Cart cleared</string>
+    <string name="grocery_someone_added">%1$s added %2$s</string>
+    <string name="grocery_edit_item">Edit %1$s</string>
+    <string name="grocery_add_to_pantry_title">Add to pantry</string>
+    <string name="grocery_skip">Skip</string>
+    <string name="grocery_added_to_pantry">Added to the pantry</string>
+    <string name="grocery_add_to_list">Add</string>
 </resources>

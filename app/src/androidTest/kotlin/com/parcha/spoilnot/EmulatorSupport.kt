@@ -6,15 +6,21 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.parcha.spoilnot.core.firebase.ACCESS_LOCAL_NETWORK
 import com.parcha.spoilnot.core.firebase.FirebaseEmulators
+import com.parcha.spoilnot.core.firebase.FirestoreHouseholdWriter
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.feature.auth.data.FirebaseAuthRepository
 import com.parcha.spoilnot.feature.auth.data.FirestoreUserRepository
+import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository
+import com.parcha.spoilnot.feature.grocery.data.GroceryChangeMapper
+import com.parcha.spoilnot.feature.grocery.domain.GroceryService
+import com.parcha.spoilnot.feature.grocery.domain.RestockRunner
 import com.parcha.spoilnot.feature.household.data.FirestoreHouseholdRepository
 import com.parcha.spoilnot.feature.household.data.FirestoreLocalData
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository
-import com.parcha.spoilnot.feature.pantry.domain.Actor
+import com.parcha.spoilnot.feature.pantry.data.PantryChangeMapper
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import java.time.Clock
 import java.util.UUID
@@ -71,8 +77,17 @@ class TestPhone(private val name: String) : AutoCloseable {
         scope,
     )
 
-    val pantryRepository = FirestorePantryRepository(firestore, scope)
-    val pantry = PantryService(pantryRepository, Clock.systemDefaultZone())
+    val writer = FirestoreHouseholdWriter(firestore, scope, setOf(PantryChangeMapper(), GroceryChangeMapper()))
+    val pantryRepository = FirestorePantryRepository(firestore)
+    val pantry = PantryService(writer, Clock.systemDefaultZone())
+    val groceryRepository = FirestoreGroceryRepository(firestore)
+    val grocery = GroceryService(writer, groceryRepository, pantry)
+
+    /** Every phone runs the restock engine (DESIGN 9.6). Started by [startRestock]. */
+    private val restock =
+        RestockRunner(sessionManager, pantryRepository, groceryRepository, writer, scope, Clock.systemDefaultZone())
+
+    fun startRestock() = restock.start()
 
     val uid: String get() = checkNotNull(authRepository.currentUser).uid
 

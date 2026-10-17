@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -432,9 +433,16 @@ fun KeepAtLeastFields(
         error = error,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
     )
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+    // The whole row toggles, so the label is a touch target too (DESIGN 6.8).
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = set && autoAdd, enabled = set, role = Role.Switch, onValueChange = onAutoAdd),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(stringResource(R.string.field_auto_add), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = set && autoAdd, onCheckedChange = onAutoAdd, enabled = set)
+        Switch(checked = set && autoAdd, onCheckedChange = null, enabled = set)
     }
     FormTextField(
         value = buyQuantity,

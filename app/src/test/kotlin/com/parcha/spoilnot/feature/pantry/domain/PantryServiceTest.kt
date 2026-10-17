@@ -1,6 +1,9 @@
 package com.parcha.spoilnot.feature.pantry.domain
 
 import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.HouseholdChange
+import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
@@ -16,7 +19,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PantryServiceTest {
-    private val repo = RecordingRepository()
+    private val repo = RecordingWriter()
     private val clock = Clock.fixed(TODAY.atStartOfDay(ZoneId.of("UTC")).toInstant(), ZoneId.of("UTC"))
     private val service = PantryService(repo, clock)
     private val actor = Actor("u1", "Sam")
@@ -221,23 +224,16 @@ class PantryServiceTest {
             typicalShelfLifeDays = p.typicalShelfLifeDays,
         )
 
-    private class RecordingRepository : PantryRepository {
-        var last: List<PantryChange> = emptyList()
+    private class RecordingWriter : HouseholdWriter {
+        var last: List<HouseholdChange> = emptyList()
         private var next = 0
 
-        override fun observe(householdId: String): Flow<PantryData> = emptyFlow()
+        override fun newId() = "id${next++}"
 
-        override fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>> =
-            emptyFlow()
-
-        override fun newProductId(householdId: String) = "p${next++}"
-
-        override fun newBatchId(householdId: String) = "b${next++}"
-
-        override fun newEventId(householdId: String) = "e${next++}"
-
-        override suspend fun apply(householdId: String, actor: Actor, changes: List<PantryChange>) {
+        override suspend fun apply(householdId: String, actor: Actor, changes: List<HouseholdChange>) {
             last = changes
         }
+
+        override val errors: Flow<AppError> = emptyFlow()
     }
 }
