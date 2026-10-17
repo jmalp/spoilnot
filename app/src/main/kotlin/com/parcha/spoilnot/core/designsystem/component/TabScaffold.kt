@@ -38,15 +38,21 @@ fun TabScaffold(
     title: String,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+    floatingActionButton: @Composable () -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        floatingActionButton = floatingActionButton,
+        snackbarHost = snackbarHost,
         topBar = {
             LargeTopAppBar(
                 title = { Text(title) },
                 actions = {
+                    actions()
                     val requests = LocalJoinRequestCount.current
                     val description = if (requests > 0) {
                         pluralStringResource(R.plurals.open_settings_with_requests, requests, requests)
