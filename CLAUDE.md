@@ -31,3 +31,4 @@
 - `cd firebase && npm test` (rules tests in the Firestore emulator)
 - After UI changes: `./gradlew recordRoborazziDevDebug` and look at `app/build/outputs/roborazzi/*.png` (light/dark, font 1.0/2.0)
 - With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest` (includes the two-user household tests)
+- Recipe import changes: also run `LiveImportTest` against the real sites (command in docs/import-test-sites.md)

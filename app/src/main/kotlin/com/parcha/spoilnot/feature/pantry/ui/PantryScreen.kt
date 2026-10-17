@@ -62,6 +62,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
+import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.ui.MessageEffect
@@ -350,22 +351,6 @@ private fun CheckItem(label: Int, checked: Boolean, onClick: () -> Unit) {
 }
 
 /** DESIGN 6.7: a thin banner while working from the cache. */
-@Composable
-private fun OfflineBanner() {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .testTag("offline_banner"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(Icons.Rounded.CloudOff, contentDescription = null, modifier = Modifier.size(16.dp))
-        Text(stringResource(R.string.offline_banner), style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
 @Composable
 private fun EmptyPantry(onAdd: () -> Unit) {
     Column(

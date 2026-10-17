@@ -619,3 +619,45 @@ describe('config', () => {
     await assertFails(setDoc(doc(as('alice'), 'config/app'), { minSupportedBuild: 0 }));
   });
 });
+
+describe('recipes', () => {
+  it('enforce the import limits: title up to 200, at most 100 ingredients and 100 steps', async () => {
+    const ref = doc(as('bob'), `households/${HID}/recipes/r1`);
+    const many = (n, make) => Array.from({ length: n }, (_, i) => make(i));
+    await assertSucceeds(setDoc(ref, recipe('bob', { title: 'x'.repeat(200) })));
+    await assertFails(setDoc(ref, recipe('bob', { title: 'x'.repeat(201) })));
+    await assertSucceeds(setDoc(ref, recipe('bob', {
+      ingredients: many(100, (i) => ({ raw: `${i} g flour`, qty: i, unit: 'g', name: 'flour', group: null })),
+      steps: many(100, (i) => ({ text: `Step ${i}`, group: null })),
+    })));
+    await assertFails(setDoc(ref, recipe('bob', {
+      ingredients: many(101, (i) => ({ raw: `${i}`, qty: null, unit: null, name: null, group: null })),
+    })));
+    await assertFails(setDoc(ref, recipe('bob', { steps: many(101, (i) => ({ text: `${i}`, group: null })) })));
+  });
+
+  it('favorite is a stamped update, and any member may delete', async () => {
+    await assertSucceeds(setDoc(doc(as('alice'), `households/${HID}/recipes/r1`), recipe('alice')));
+    const ref = doc(as('bob'), `households/${HID}/recipes/r1`);
+    await assertSucceeds(updateDoc(ref, { favorite: true, updatedAt: serverTimestamp(), updatedBy: 'bob' }));
+    await assertFails(updateDoc(ref, { favorite: false }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('a save writes the recipe and its recipe_saved event in one batch', async () => {
+    const db = as('bob');
+    const b = writeBatch(db);
+    const imported = recipe('bob', { importMethod: 'web', sourceUrl: 'https://example.com/r' });
+    b.set(doc(db, `households/${HID}/recipes/r2`), imported);
+    b.set(doc(db, `households/${HID}/activity/e1`), {
+      type: 'recipe_saved', actorUid: 'bob', actorName: 'Bob', recipeId: 'r2',
+      params: { name: 'Pancakes' }, createdAt: serverTimestamp(),
+    });
+    await assertSucceeds(b.commit());
+  });
+
+  it('outsiders cannot read or write recipes', async () => {
+    await assertFails(getDocs(collection(as('carol'), `households/${HID}/recipes`)));
+    await assertFails(setDoc(doc(as('carol'), `households/${HID}/recipes/r3`), recipe('carol')));
+  });
+});

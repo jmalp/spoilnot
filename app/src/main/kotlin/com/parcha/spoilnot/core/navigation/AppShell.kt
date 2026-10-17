@@ -38,6 +38,13 @@ import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
 import com.parcha.spoilnot.feature.pantry.ui.ProductDetailScreen
+import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
+import com.parcha.spoilnot.feature.recipes.ui.CookModeScreen
+import com.parcha.spoilnot.feature.recipes.ui.RecipeBrowserScreen
+import com.parcha.spoilnot.feature.recipes.ui.RecipeDetailScreen
+import com.parcha.spoilnot.feature.recipes.ui.RecipeEditScreen
+import com.parcha.spoilnot.feature.recipes.ui.RecipeImportScreen
+import com.parcha.spoilnot.feature.recipes.ui.RecipesNavigation
 import com.parcha.spoilnot.feature.recipes.ui.RecipesScreen
 import com.parcha.spoilnot.feature.settings.ui.SettingsScreen
 
@@ -60,8 +67,20 @@ fun AppShell(
     val openSettings = { navigator.navigate(SettingsRoute(navigator.currentTab)) }
     // A tapped digest opens the Pantry tab at its root; the Pantry screen applies the filter (DESIGN 5.4).
     LaunchedEffect(deepLink) {
-        if (deepLink == DeepLink.PantryExpiring) navigator.showRoot(TopLevelDestination.Pantry)
+        when (val link = deepLink) {
+            DeepLink.PantryExpiring -> navigator.showRoot(TopLevelDestination.Pantry)
+
+            // A link shared from another app opens its preview on the Recipes tab (DESIGN 11.1).
+            is DeepLink.ImportRecipe -> {
+                navigator.showRoot(TopLevelDestination.Recipes)
+                navigator.navigate(RecipeImportRoute(link.url, TopLevelDestination.Recipes))
+                shellViewModel.consume(link)
+            }
+
+            null -> Unit
+        }
     }
+    val openRecipe = { id: String -> navigator.navigate(RecipeDetailRoute(id, navigator.currentTab)) }
     val provider = entryProvider<NavKey> {
         entry<HomeRoute> {
             HomeScreen(
@@ -79,7 +98,85 @@ fun AppShell(
         entry<ProductDetailRoute> { key ->
             ProductDetailScreen(productId = key.productId, onBack = { navigator.goBack() })
         }
-        entry<RecipesRoute> { RecipesScreen(onOpenSettings = openSettings) }
+        entry<RecipesRoute> {
+            RecipesScreen(
+                RecipesNavigation(
+                    openSettings = openSettings,
+                    openRecipe = openRecipe,
+                    importLink = { navigator.navigate(RecipeImportRoute(it, navigator.currentTab)) },
+                    openBrowser = { navigator.navigate(RecipeBrowserRoute(null, navigator.currentTab)) },
+                    createManually = { navigator.navigate(RecipeEditRoute(null, navigator.currentTab)) },
+                ),
+            )
+        }
+        entry<RecipeDetailRoute> { key ->
+            RecipeDetailScreen(
+                recipeId = key.recipeId,
+                onBack = { navigator.goBack() },
+                onEdit = { navigator.navigate(RecipeEditRoute(key.recipeId, key.tab)) },
+                onCook = { servings -> navigator.navigate(CookModeRoute(key.recipeId, servings, key.tab)) },
+            )
+        }
+        entry<RecipeEditRoute> { key ->
+            RecipeEditScreen(
+                recipeId = key.recipeId,
+                prefill = key.prefill(),
+                onBack = { navigator.goBack() },
+                onSaved = { id ->
+                    if (key.recipeId == null) navigator.replace(RecipeDetailRoute(id, key.tab)) else navigator.goBack()
+                },
+            )
+        }
+        entry<RecipeImportRoute> { key ->
+            RecipeImportScreen(
+                url = key.url,
+                onBack = { navigator.goBack() },
+                onSaved = { navigator.replace(RecipeDetailRoute(it, key.tab)) },
+                onOpenExisting = { navigator.replace(RecipeDetailRoute(it, key.tab)) },
+                onTryBrowser = { url, prefill ->
+                    navigator.replace(
+                        RecipeBrowserRoute(
+                            url,
+                            key.tab,
+                            fallback = true,
+                            prefill.title.ifEmpty {
+                                null
+                            },
+                            prefill.imageUrl,
+                        ),
+                    )
+                },
+            )
+        }
+        entry<RecipeBrowserRoute> { key ->
+            RecipeBrowserScreen(
+                url = key.url,
+                fallback = key.fallback,
+                prefill = RecipeContent(
+                    title = key.prefillTitle.orEmpty(),
+                    imageUrl = key.prefillImageUrl,
+                    sourceUrl = key.url,
+                ),
+                onBack = { navigator.goBack() },
+                onOpenRecipe = openRecipe,
+                onCreateManually = { p ->
+                    navigator.navigate(
+                        RecipeEditRoute(
+                            null,
+                            key.tab,
+                            p.title.ifEmpty {
+                                null
+                            },
+                            p.imageUrl,
+                            p.sourceUrl,
+                        ),
+                    )
+                },
+            )
+        }
+        entry<CookModeRoute> { key ->
+            CookModeScreen(recipeId = key.recipeId, servings = key.servings, onBack = { navigator.goBack() })
+        }
         entry<GroceriesRoute> { GroceriesScreen(onOpenSettings = openSettings) }
         entry<SettingsRoute> {
             SettingsScreen(
@@ -140,3 +237,11 @@ fun AppShell(
         }
     }
 }
+
+/** A failed import's title, image and link for Create manually (DESIGN 11.2). */
+private fun RecipeEditRoute.prefill(): RecipeContent? =
+    if (prefillTitle == null && prefillImageUrl == null && prefillSourceUrl == null) {
+        null
+    } else {
+        RecipeContent(title = prefillTitle.orEmpty(), imageUrl = prefillImageUrl, sourceUrl = prefillSourceUrl)
+    }

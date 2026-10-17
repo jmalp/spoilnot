@@ -24,10 +24,12 @@ import kotlinx.coroutines.flow.stateIn
 class ShellViewModel @Inject constructor(
     session: SessionManager,
     households: HouseholdRepository,
-    deepLinks: DeepLinkRouter,
+    private val deepLinks: DeepLinkRouter,
 ) : ViewModel() {
-    /** A notification tap waiting to be shown (DESIGN 10.2). */
+    /** A notification tap or a shared link waiting to be shown (DESIGN 10.2, 11.1). */
     val deepLink: StateFlow<DeepLink?> = deepLinks.pending
+
+    fun consume(link: DeepLink) = deepLinks.consume(link)
 
     val pendingJoinRequests: StateFlow<Int> = session.session
         .flatMapLatest { s ->

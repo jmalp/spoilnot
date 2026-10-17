@@ -49,6 +49,13 @@ class TabNavigator(
         stackOf(currentTab).add(key)
     }
 
+    /** Replaces the current screen, for example an import preview with the saved recipe. */
+    fun replace(key: NavKey) {
+        val stack = stackOf(currentTab)
+        if (stack.size > 1) stack.removeAt(stack.lastIndex)
+        stack.add(key)
+    }
+
     /** Returns false when there is nothing left to pop, so the system should handle back. */
     fun goBack(): Boolean {
         val stack = stackOf(currentTab)

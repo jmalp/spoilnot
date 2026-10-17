@@ -1,16 +1,25 @@
 package com.parcha.spoilnot
 
 import android.app.Application
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.parcha.spoilnot.feature.grocery.domain.RestockRunner
 import com.parcha.spoilnot.feature.notifications.domain.DeviceSync
 import com.parcha.spoilnot.feature.notifications.ui.Notifications
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import okhttp3.OkHttpClient
 import timber.log.Timber
 
 @HiltAndroidApp
-class SpoilNotApp : Application() {
+class SpoilNotApp :
+    Application(),
+    SingletonImageLoader.Factory {
     @Inject lateinit var restockRunner: RestockRunner
+
+    @Inject lateinit var okHttp: dagger.Lazy<OkHttpClient>
 
     @Inject lateinit var deviceSync: DeviceSync
 
@@ -22,4 +31,9 @@ class SpoilNotApp : Application() {
         Notifications.createChannel(this)
         deviceSync.start()
     }
+
+    /** Recipe images are remote URLs cached on the device (DESIGN 11.6), fetched with the app's OkHttp client. */
+    override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
+        .components { add(OkHttpNetworkFetcherFactory(callFactory = { okHttp.get() })) }
+        .build()
 }
