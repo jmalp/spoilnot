@@ -21,7 +21,7 @@ they are listed at the end with exact steps.
 | # | Control | Status | Evidence |
 | --- | --- | --- | --- |
 | 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests |
-| 2 | Email and password, minimum 8 characters; email enumeration protection on | ✅ app, **Owner** console | `AccountValidation` requires 8; the server-side password policy and enumeration protection are console settings (steps below) |
+| 2 | Email and password, minimum 8 characters; email enumeration protection on | ✅ app and server password policy; enumeration protection to confirm | `AccountValidation` requires 8; the server-side password policy and enumeration protection are console settings (steps below) |
 | 3 | Membership on every household path; owner-only actions check the role | ✅ | `isMember` / `isOwner` in `firestore.rules`; rules tests for owner-only delete, transfer, approve |
 | 4 | Invite codes: 10 characters (50 bits), secure generator, `get` only, pause and rotate | ✅ | `InviteCodes.kt` (`SecureRandom`); rules `allow list: if false`; Household settings pause and rotate |
 | 5 | Removed members lose access at once; cache cleared | ✅ | Rules; `SessionManager` membership watcher; `HouseholdFlowTest` |
@@ -53,6 +53,8 @@ Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 202
 
 ## Owner actions
 
+Status on 2026-10-18: 1 ✅ done (sign-in checked on the beta), 2 ✅ done, 3 ☐ to confirm, 4 ✅ done.
+
 1. **Restrict the Android API keys** (Google Cloud console → the project → APIs & Services → Credentials → the
    "Android key (auto created by Firebase)" → Application restrictions: **Android apps**):
    - `spoilnot-prod`: package `com.parcha.spoilnot`, SHA-1 `92:6C:BD:51:0C:4F:95:79:F5:5F:76:AA:1F:FB:D0:F1:F3:9C:48:68`
@@ -70,4 +72,4 @@ Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 202
 | | Name | Date |
 | --- | --- | --- |
 | Reviewed by | Claude Code | 2026-10-18 |
-| Owner actions done and accepted by | | |
+| Owner actions done and accepted by | Jomar Malpica (owner) | 2026-10-18 |

@@ -42,6 +42,11 @@ updates:
       time: "06:00"
       timezone: America/New_York
     open-pull-requests-limit: 3
+    ignore:
+      # The job runs on Node 24 (package.json engines, workflows): types for a newer Node would allow code that
+      # fails at runtime. Raise this together with the Node version.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       reminder-job:
         patterns: ["*"]
