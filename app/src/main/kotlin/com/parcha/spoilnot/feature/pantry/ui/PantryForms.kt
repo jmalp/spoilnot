@@ -1,7 +1,9 @@
 package com.parcha.spoilnot.feature.pantry.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -43,11 +45,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,9 +66,11 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
+import com.parcha.spoilnot.feature.pantry.domain.ItemEdit
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
@@ -83,8 +87,9 @@ import java.time.ZoneOffset
 fun parseQuantity(text: String): Double? = text.trim().replace(',', '.').toDoubleOrNull()
 
 /**
- * The Add item sheet (DESIGN 5.2). Choosing an existing product fills unit, location, category and the expiry date
- * from its typical shelf life. The unit is fixed once the product has stock.
+ * The Add item sheet (DESIGN 5.2, reworked from beta feedback). Choosing an existing product fills unit, category,
+ * location, the expiry date from its typical shelf life, and its grocery settings. [prefill] opens it for a product,
+ * for example an Out staple.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,88 +99,121 @@ fun AddItemSheet(
     today: LocalDate,
     onSave: (StockDraft) -> Unit,
     onDismiss: () -> Unit,
+    prefill: Product? = null,
 ) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, modifier = Modifier.testTag("sheet_add_item")) {
-        AddItemForm(products, productsWithStock, today, onSave)
+    val sheet = rememberFormSheet()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheet.state,
+        modifier = sheet.modifier.testTag("sheet_add_item"),
+    ) {
+        AddItemForm(products, productsWithStock, today, prefill, onSave)
     }
 }
 
-/** The fields of the Add item sheet, separate from the sheet so they can be tested and previewed on their own. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddItemForm(
-    products: List<Product>,
-    productsWithStock: Set<String>,
-    today: LocalDate,
-    onSave: (StockDraft) -> Unit,
+/** What the Add and Edit windows hold while typing. Saveable, so rotation keeps it. */
+private class ItemFormState(
+    name: String,
+    quantity: String,
+    unit: QuantityUnit,
+    category: Category,
+    expiry: LocalDate?,
+    location: Location,
+    autoAdd: Boolean,
+    keepAtLeast: String,
+    buyQuantity: String,
 ) {
-    var name by rememberSaveable { mutableStateOf("") }
-    var quantity by rememberSaveable { mutableStateOf("1") }
-    var unit by rememberSaveable { mutableStateOf(QuantityUnit.Pieces) }
-    var expiry by rememberSaveable { mutableStateOf<LocalDate?>(null) }
-    var dateType by rememberSaveable { mutableStateOf(DateType.UseBy) }
-    var location by rememberSaveable { mutableStateOf(Location.Fridge) }
-    var category by rememberSaveable { mutableStateOf(Category.Other) }
-    var note by rememberSaveable { mutableStateOf("") }
-    var advanced by rememberSaveable { mutableStateOf(false) }
-    var keepAtLeast by rememberSaveable { mutableStateOf("") }
-    var autoAdd by rememberSaveable { mutableStateOf(true) }
-    var buyQuantity by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable { mutableStateOf(false) }
+    var name by mutableStateOf(name)
+    var quantity by mutableStateOf(quantity)
+    var unit by mutableStateOf(unit)
+    var category by mutableStateOf(category)
+    var expiry by mutableStateOf(expiry)
+    var location by mutableStateOf(location)
+    var autoAdd by mutableStateOf(autoAdd)
+    var keepAtLeast by mutableStateOf(keepAtLeast)
+    var buyQuantity by mutableStateOf(buyQuantity)
+    var submitted by mutableStateOf(false)
 
-    val match = products.firstOrNull { it.nameKey == NameKey.of(name) }
-    val unitLocked = match != null && match.id in productsWithStock
-    val cleanName = NameKey.clean(name)
-    val nameError = when {
-        !submitted -> null
-        cleanName.isEmpty() -> stringResource(R.string.error_name_required)
-        cleanName.length > PantryLimits.MAX_NAME_LENGTH -> stringResource(R.string.error_name_80)
-        else -> null
-    }
-    val qty = parseQuantity(quantity)
-    val qtyError = if (submitted && (qty == null || qty <= 0)) stringResource(R.string.error_quantity) else null
-    val min = keepAtLeast.takeIf { it.isNotBlank() }?.let(::parseQuantity)
-    val minError = if (submitted && keepAtLeast.isNotBlank() &&
-        (min == null || min < 0)
-    ) {
-        stringResource(R.string.error_number)
-    } else {
-        null
-    }
-    val buy = buyQuantity.takeIf { it.isNotBlank() }?.let(::parseQuantity)
-
-    fun choose(product: Product) {
+    fun fillFrom(product: Product, today: LocalDate) {
         name = product.name
         unit = product.unit
         location = product.defaultLocation
         category = product.category
         ShelfLife.suggestExpiry(product.typicalShelfLifeDays, today)?.let { expiry = it }
+        autoAdd = product.autoAddToGrocery
+        keepAtLeast = product.minQuantity?.let(::formatQuantity).orEmpty()
+        buyQuantity = product.buyQuantity?.let(::formatQuantity).orEmpty()
     }
 
+    val cleanName get() = NameKey.clean(name)
+    val qty get() = parseQuantity(quantity)
+    val min get() = keepAtLeast.takeIf { it.isNotBlank() }?.let(::parseQuantity)
+    val buy get() = buyQuantity.takeIf { it.isNotBlank() }?.let(::parseQuantity)
+
+    fun nameOk() = cleanName.isNotEmpty() && cleanName.length <= PantryLimits.MAX_NAME_LENGTH
+
+    /** With auto-add on, Keep at least is required and above 0. */
+    fun minOk() = !autoAdd || (min?.let { it > 0 } == true)
+
+    fun buyOk() = !autoAdd || buyQuantity.isBlank() || (buy?.let { it > 0 } == true)
+
+    companion object {
+        val Saver = listSaver<ItemFormState, Any?>(
+            save = {
+                listOf(
+                    it.name, it.quantity, it.unit.name, it.category.name, it.expiry?.toString(), it.location.name,
+                    it.autoAdd, it.keepAtLeast, it.buyQuantity, it.submitted,
+                )
+            },
+            restore = { v ->
+                ItemFormState(
+                    v[0] as String, v[1] as String, QuantityUnit.valueOf(v[2] as String),
+                    Category.valueOf(v[3] as String), (v[4] as String?)?.let(LocalDate::parse),
+                    Location.valueOf(v[5] as String), v[6] as Boolean, v[7] as String, v[8] as String,
+                ).also { it.submitted = v[9] as Boolean }
+            },
+        )
+    }
+}
+
+/** The fields of the Add item sheet, separate from the sheet so they can be tested and previewed on their own. */
+@Composable
+fun AddItemForm(
+    products: List<Product>,
+    productsWithStock: Set<String>,
+    today: LocalDate,
+    prefill: Product? = null,
+    onSave: (StockDraft) -> Unit,
+) {
+    val form = rememberSaveable(saver = ItemFormState.Saver) {
+        ItemFormState("", "1", QuantityUnit.Pieces, Category.Other, null, Location.Fridge, false, "", "")
+            .also { state -> prefill?.let { state.fillFrom(it, today) } }
+    }
+    val match = products.firstOrNull { it.nameKey == NameKey.of(form.name) }
+    val unitLocked = match != null && match.id in productsWithStock
     FormSheetColumn(
         stringResource(R.string.add_item_title),
         button = {
             PrimaryButton(
                 text = stringResource(R.string.action_add_item),
                 onClick = {
-                    submitted = true
-                    val valid = cleanName.isNotEmpty() && cleanName.length <= PantryLimits.MAX_NAME_LENGTH &&
-                        qty != null && qty > 0 && minError == null && !(keepAtLeast.isNotBlank() && min == null)
-                    if (valid) {
+                    form.submitted = true
+                    val qty = form.qty
+                    if (form.nameOk() && qty != null && qty > 0 && form.minOk() && form.buyOk()) {
                         onSave(
                             StockDraft(
-                                name = cleanName,
-                                quantity = qty!!,
-                                unit = if (unitLocked) match!!.unit else unit,
-                                expiryDate = expiry,
-                                dateType = dateType,
-                                location = location,
-                                category = category,
-                                note = note,
-                                minQuantity = min,
-                                autoAddToGrocery = autoAdd,
-                                buyQuantity = buy,
+                                name = form.cleanName,
+                                quantity = qty,
+                                unit = if (unitLocked) match!!.unit else form.unit,
+                                expiryDate = form.expiry,
+                                // Date type and notes left the form (beta feedback): new items are "Use by".
+                                dateType = DateType.UseBy,
+                                location = form.location,
+                                category = form.category,
+                                note = null,
+                                minQuantity = form.min.takeIf { form.autoAdd },
+                                autoAddToGrocery = form.autoAdd,
+                                buyQuantity = form.buy.takeIf { form.autoAdd },
                             ),
                         )
                     }
@@ -184,74 +222,173 @@ fun AddItemForm(
             )
         },
     ) {
-        NameField(name, { name = it }, products, nameError, onChoose = ::choose)
-        QuantityRow(quantity, { quantity = it }, qtyError)
-        EnumDropdown(
-            label = stringResource(R.string.field_unit),
-            value = if (unitLocked) match!!.unit else unit,
-            options = QuantityUnit.entries,
-            optionLabel = { stringResource(it.label()) },
-            onPick = { unit = it },
-            enabled = !unitLocked,
-            helper = if (unitLocked) stringResource(R.string.unit_locked) else null,
+        ItemFields(
+            form = form,
+            products = products,
+            today = today,
+            unitLockedTo = if (unitLocked) match!!.unit else null,
+            onChooseProduct = { form.fillFrom(it, today) },
+            allowZero = false,
         )
-        ExpiryField(expiry, today, onChange = { expiry = it })
-        DateTypeChoice(dateType) { dateType = it }
-        LocationChoice(location) { location = it }
-        EnumDropdown(
-            label = stringResource(R.string.field_category),
-            value = category,
-            options = Category.entries,
-            optionLabel = { stringResource(it.label()) },
-            onPick = { category = it },
+    }
+}
+
+/**
+ * The Edit window, the same form as Add: the purchase's quantity, date and location, and its product's name, unit,
+ * category and grocery settings. The unit can change only when this is the product's only purchase.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditItemSheet(
+    batch: StockBatch,
+    product: Product?,
+    canChangeUnit: Boolean,
+    today: LocalDate,
+    onSave: (ItemEdit) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheet = rememberFormSheet()
+    val form = rememberSaveable(saver = ItemFormState.Saver) {
+        ItemFormState(
+            name = product?.name ?: batch.productName,
+            quantity = formatQuantity(batch.quantity),
+            unit = product?.unit ?: batch.unit,
+            category = product?.category ?: batch.category,
+            expiry = batch.expiryDate,
+            location = batch.location,
+            autoAdd = product?.autoAddToGrocery == true,
+            keepAtLeast = product?.minQuantity?.let(::formatQuantity).orEmpty(),
+            buyQuantity = product?.buyQuantity?.let(::formatQuantity).orEmpty(),
         )
-        NoteField(note) { note = it }
-        TextButton(onClick = { advanced = !advanced }, modifier = Modifier.heightIn(min = 48.dp)) {
-            Icon(if (advanced) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null)
-            Text(stringResource(R.string.advanced), Modifier.padding(start = 8.dp))
-        }
-        if (advanced) {
-            KeepAtLeastFields(keepAtLeast, { keepAtLeast = it }, minError, autoAdd, { autoAdd = it }, buyQuantity, {
-                buyQuantity =
-                    it
-            })
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheet.state,
+        modifier = sheet.modifier.testTag("sheet_edit_item"),
+    ) {
+        FormSheetColumn(
+            title = stringResource(R.string.edit_item_title),
+            button = {
+                PrimaryButton(
+                    stringResource(R.string.action_save),
+                    onClick = {
+                        form.submitted = true
+                        val qty = form.qty
+                        if (form.nameOk() && qty != null && qty >= 0 && form.minOk() && form.buyOk()) {
+                            onSave(
+                                ItemEdit(
+                                    name = form.cleanName,
+                                    quantity = qty,
+                                    unit = form.unit,
+                                    category = form.category,
+                                    expiryDate = form.expiry,
+                                    location = form.location,
+                                    autoAddToGrocery = form.autoAdd,
+                                    minQuantity = form.min.takeIf { form.autoAdd },
+                                    buyQuantity = form.buy.takeIf { form.autoAdd },
+                                ),
+                            )
+                        }
+                    },
+                    modifier = Modifier.testTag("button_save_item"),
+                )
+            },
+        ) {
+            ItemFields(
+                form = form,
+                products = emptyList(),
+                today = today,
+                unitLockedTo = if (canChangeUnit) null else (product?.unit ?: batch.unit),
+                onChooseProduct = {},
+                allowZero = true,
+            )
         }
     }
 }
 
-/** Edit one batch: quantity, date, date type, location and note. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Name, quantity, unit and category, date, location, and Add to grocery list automatically (beta feedback). */
 @Composable
-fun EditBatchSheet(batch: StockBatch, today: LocalDate, onSave: (BatchEdit) -> Unit, onDismiss: () -> Unit) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var quantity by rememberSaveable { mutableStateOf(formatQuantity(batch.quantity)) }
-    var expiry by rememberSaveable { mutableStateOf(batch.expiryDate) }
-    var dateType by rememberSaveable { mutableStateOf(batch.dateType) }
-    var location by rememberSaveable { mutableStateOf(batch.location) }
-    var note by rememberSaveable { mutableStateOf(batch.note.orEmpty()) }
-    var submitted by rememberSaveable { mutableStateOf(false) }
-    val qty = parseQuantity(quantity)
-    val qtyError = if (submitted && (qty == null || qty < 0)) stringResource(R.string.error_quantity) else null
+private fun ItemFields(
+    form: ItemFormState,
+    products: List<Product>,
+    today: LocalDate,
+    unitLockedTo: QuantityUnit?,
+    onChooseProduct: (Product) -> Unit,
+    allowZero: Boolean,
+) {
+    val nameError = when {
+        !form.submitted -> null
+        form.cleanName.isEmpty() -> stringResource(R.string.error_name_required)
+        form.cleanName.length > PantryLimits.MAX_NAME_LENGTH -> stringResource(R.string.error_name_80)
+        else -> null
+    }
+    val qty = form.qty
+    val qtyBad = qty == null || if (allowZero) qty < 0 else qty <= 0
+    val qtyError = if (form.submitted && qtyBad) stringResource(R.string.error_quantity) else null
+    NameField(form.name, { form.name = it }, products, nameError, onChoose = onChooseProduct)
+    QuantityRow(form.quantity, { form.quantity = it }, qtyError)
+    // Side by side: neither needs the full width (beta feedback).
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.weight(1f)) {
+            EnumDropdown(
+                label = stringResource(R.string.field_unit),
+                value = unitLockedTo ?: form.unit,
+                options = unitMenu(),
+                optionLabel = { stringResource(it.label()) },
+                onPick = { form.unit = it },
+                enabled = unitLockedTo == null,
+                helper = if (unitLockedTo != null) stringResource(R.string.unit_locked_short) else null,
+            )
+        }
+        Box(Modifier.weight(1f)) {
+            EnumDropdown(
+                label = stringResource(R.string.field_category),
+                value = form.category,
+                options = Category.entries,
+                optionLabel = { stringResource(it.label()) },
+                onPick = { form.category = it },
+            )
+        }
+    }
+    ExpiryField(form.expiry, today, onChange = { form.expiry = it })
+    LocationChoice(form.location) { form.location = it }
+    AutoAddFields(form)
+}
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheet,
-        modifier = Modifier.testTag("sheet_edit_batch"),
+/** The switch, then Keep at least and Buy quantity while it is on. */
+@Composable
+private fun AutoAddFields(form: ItemFormState) {
+    // The whole row toggles, so the label is a touch target too (DESIGN 6.8).
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = form.autoAdd, role = Role.Switch, onValueChange = { form.autoAdd = it })
+            .testTag("switch_auto_add"),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        FormSheetColumn(
-            title = stringResource(R.string.edit_batch_title, batch.productName),
-            button = {
-                PrimaryButton(stringResource(R.string.action_save), onClick = {
-                    submitted = true
-                    if (qty != null && qty >= 0) onSave(BatchEdit(qty, expiry, dateType, location, note))
-                })
-            },
-        ) {
-            QuantityRow(quantity, { quantity = it }, qtyError)
-            ExpiryField(expiry, today, onChange = { expiry = it })
-            DateTypeChoice(dateType) { dateType = it }
-            LocationChoice(location) { location = it }
-            NoteField(note) { note = it }
+        Text(stringResource(R.string.field_auto_add), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Switch(checked = form.autoAdd, onCheckedChange = null)
+    }
+    AnimatedVisibility(form.autoAdd) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            FormTextField(
+                value = form.keepAtLeast,
+                onValueChange = { form.keepAtLeast = it },
+                label = stringResource(R.string.field_keep_at_least),
+                helper = stringResource(R.string.keep_at_least_help),
+                error = if (form.submitted && !form.minOk()) stringResource(R.string.error_keep_at_least) else null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                modifier = Modifier.testTag("field_keep_at_least"),
+            )
+            FormTextField(
+                value = form.buyQuantity,
+                onValueChange = { form.buyQuantity = it },
+                label = stringResource(R.string.field_buy_quantity),
+                helper = stringResource(R.string.optional),
+                error = if (form.submitted && !form.buyOk()) stringResource(R.string.error_number) else null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            )
         }
     }
 }
@@ -399,65 +536,6 @@ private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDat
         ) { DatePicker(state = state) }
     }
 }
-
-@Composable
-private fun NoteField(value: String, onChange: (String) -> Unit) {
-    FormTextField(
-        value = value,
-        onValueChange = { onChange(it.take(PantryLimits.MAX_NOTE_LENGTH)) },
-        label = stringResource(R.string.field_notes),
-        helper = "${value.length} / ${PantryLimits.MAX_NOTE_LENGTH}",
-        keyboardOptions = KeyboardOptions(
-            capitalization = KeyboardCapitalization.Sentences,
-            imeAction = ImeAction.Done,
-        ),
-    )
-}
-
-@Composable
-fun KeepAtLeastFields(
-    keepAtLeast: String,
-    onKeepAtLeast: (String) -> Unit,
-    error: String?,
-    autoAdd: Boolean,
-    onAutoAdd: (Boolean) -> Unit,
-    buyQuantity: String,
-    onBuyQuantity: (String) -> Unit,
-) {
-    val set = keepAtLeast.isNotBlank()
-    FormTextField(
-        value = keepAtLeast,
-        onValueChange = onKeepAtLeast,
-        label = stringResource(R.string.field_keep_at_least),
-        helper = stringResource(R.string.keep_at_least_help),
-        error = error,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-    )
-    // The whole row toggles, so the label is a touch target too (DESIGN 6.8).
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .toggleable(value = set && autoAdd, enabled = set, role = Role.Switch, onValueChange = onAutoAdd),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(stringResource(R.string.field_auto_add), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = set && autoAdd, onCheckedChange = null, enabled = set)
-    }
-    FormTextField(
-        value = buyQuantity,
-        onValueChange = onBuyQuantity,
-        label = stringResource(R.string.field_buy_quantity),
-        enabled = set,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-    )
-}
-
-@Composable
-private fun DateTypeChoice(selected: DateType, onPick: (DateType) -> Unit) =
-    Segmented(stringResource(R.string.field_date_type), DateType.entries, selected, {
-        stringResource(it.label())
-    }, onPick)
 
 /** Location as wrapping chips: four labels do not fit a segmented row at large font sizes. */
 @Composable

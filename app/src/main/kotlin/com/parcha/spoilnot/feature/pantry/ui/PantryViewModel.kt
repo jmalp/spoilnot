@@ -15,14 +15,14 @@ import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
-import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
+import com.parcha.spoilnot.feature.pantry.domain.ItemEdit
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
-import com.parcha.spoilnot.feature.pantry.domain.PantryGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantryGrouping
-import com.parcha.spoilnot.feature.pantry.domain.PantryList
+import com.parcha.spoilnot.feature.pantry.domain.PantryItemGroup
+import com.parcha.spoilnot.feature.pantry.domain.PantryItems
 import com.parcha.spoilnot.feature.pantry.domain.PantryQuery
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
@@ -80,7 +80,8 @@ class PantryViewModel @Inject constructor(
 
     data class UiState(
         val loading: Boolean = true,
-        val groups: List<PantryGroup> = emptyList(),
+        /** One row per purchase (beta feedback). */
+        val groups: List<PantryItemGroup> = emptyList(),
         /** Nothing in the pantry at all (not just filtered out). */
         val pantryEmpty: Boolean = false,
         val offline: Boolean = false,
@@ -107,8 +108,8 @@ class PantryViewModel @Inject constructor(
         } else {
             UiState(
                 loading = false,
-                groups = PantryList.build(data.products, data.batches, query, today),
-                pantryEmpty = PantryList.rows(data.products, data.batches, today).isEmpty(),
+                groups = PantryItems.build(data.products, data.batches, query, today),
+                pantryEmpty = PantryItems.all(data.products, data.batches, today).isEmpty(),
                 offline = data.fromCache,
                 query = query,
                 today = today,
@@ -131,10 +132,10 @@ class PantryViewModel @Inject constructor(
         }
             .launchIn(viewModelScope)
         writer.errors.onEach { _messages.send(UiMessage(it.writeMessage())) }.launchIn(viewModelScope)
-        // A tapped digest lands here filtered to Expiring soon (DESIGN 5.4).
+        // A tapped digest lands here filtered to Expiring soon (DESIGN 5.4); Home cards bring their own filter.
         deepLinks.pending.onEach { link ->
-            if (link == DeepLink.PantryExpiring) {
-                setFilter(PantryFilter.ExpiringSoon)
+            if (link is DeepLink.Pantry) {
+                setFilter(link.filter)
                 deepLinks.consume(link)
             }
         }.launchIn(viewModelScope)
@@ -177,10 +178,11 @@ class PantryViewModel @Inject constructor(
         )
     }
 
-    fun edit(batch: StockBatch, edit: BatchEdit) = act { hid, actor ->
-        service.edit(hid, actor, batch, edit)?.let {
-            _messages.send(UiMessage(R.string.undo_used_up, batch.productName, it))
-        }
+    /** The Edit window: the purchase and its product together. Returns through [onDone] once saved. */
+    fun editItem(batch: StockBatch, edit: ItemEdit, onDone: () -> Unit) = act { hid, actor ->
+        val undo = service.editItem(hid, actor, batch, edit, currentData())
+        onDone()
+        undo?.let { _messages.send(UiMessage(R.string.undo_used_up, batch.productName, it)) }
     }
 
     fun move(batch: StockBatch, location: Location) = act { hid, actor -> service.move(hid, actor, batch, location) }

@@ -156,6 +156,7 @@ class GroceriesViewModel @Inject constructor(
                 state.value.items,
                 state.value.pantry,
                 addAnyway,
+                list.name,
             )
         ) {
             QuickAddResult.Added -> onAdded()
@@ -185,7 +186,9 @@ class GroceriesViewModel @Inject constructor(
         duplicate.value = null
     }
 
-    fun toggle(item: GroceryItem) = act { hid, actor -> service.setChecked(hid, actor, listId(), item, !item.checked) }
+    fun toggle(item: GroceryItem) = act { hid, actor ->
+        service.setChecked(hid, actor, listId(), item, !item.checked, state.value.list?.name)
+    }
 
     fun delete(item: GroceryItem) = act { hid, actor ->
         _messages.send(UiMessage(R.string.grocery_deleted, item.name, service.delete(hid, actor, listId(), item)))

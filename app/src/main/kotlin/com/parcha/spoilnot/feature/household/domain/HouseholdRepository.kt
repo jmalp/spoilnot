@@ -30,7 +30,7 @@ interface HouseholdRepository {
     suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode)
 
     /** After approval: points the profile at the household and removes the request. */
-    suspend fun completeJoin(uid: String, pending: PendingJoin)
+    suspend fun completeJoin(uid: String, displayName: String, pending: PendingJoin)
 
     /** Cancels a waiting request, or dismisses a declined or expired one. */
     suspend fun abandonJoin(uid: String, pending: PendingJoin)

@@ -68,6 +68,18 @@ sealed interface GroceryChange : HouseholdChange {
     data class DeleteItem(val listId: String, val itemId: String) : GroceryChange
 
     /**
+     * grocery_added or grocery_checked in the activity log (DESIGN 5.6). [count] is set when several items were added
+     * at once from the recipe called [name].
+     */
+    data class LogEvent(
+        val eventId: String,
+        val type: GroceryEventType,
+        val name: String,
+        val listName: String?,
+        val count: Int? = null,
+    ) : GroceryChange
+
+    /**
      * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). Never writes `checked`, so an item already
      * in the cart stays there; [writeCreated] is false when the item already exists in the local cache.
      */
@@ -81,6 +93,11 @@ sealed interface GroceryChange : HouseholdChange {
         val quantity: Double,
         val writeCreated: Boolean,
     ) : GroceryChange
+}
+
+enum class GroceryEventType(val wire: String) {
+    Added("grocery_added"),
+    Checked("grocery_checked"),
 }
 
 object GroceryRules {

@@ -20,12 +20,19 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.feature.auth.ui.AuthFlow
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdGateScreen
+import com.parcha.spoilnot.feature.update.ui.UpdateRequiredScreen
 
 /** Chooses the top-level screen from the session: sign-in, the household gate, or the app. */
 @Composable
 fun SpoilNotRoot(modifier: Modifier = Modifier, viewModel: RootViewModel = hiltViewModel()) {
     val session by viewModel.session.collectAsStateWithLifecycle()
+    val updateRequired by viewModel.updateRequired.collectAsStateWithLifecycle()
     Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+        val outdated = updateRequired
+        if (outdated != null) {
+            UpdateRequiredScreen(outdated)
+            return@Box
+        }
         when (val s = session) {
             Session.Loading -> Loading()
 

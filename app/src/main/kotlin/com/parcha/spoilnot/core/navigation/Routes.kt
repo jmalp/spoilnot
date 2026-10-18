@@ -26,10 +26,6 @@ data class SettingsRoute(val tab: TopLevelDestination) : NavKey
 @Serializable
 data class HouseholdSettingsRoute(val tab: TopLevelDestination) : NavKey
 
-/** A product's detail screen, pushed on the tab that opened it. */
-@Serializable
-data class ProductDetailRoute(val productId: String, val tab: TopLevelDestination) : NavKey
-
 /** Settings > Notifications, pushed on the same tab as Settings. */
 @Serializable
 data class NotificationSettingsRoute(val tab: TopLevelDestination) : NavKey
@@ -70,3 +66,7 @@ data class RecipeBrowserRoute(
 /** Cook mode at [servings] (the detail screen's stepper). */
 @Serializable
 data class CookModeRoute(val recipeId: String, val servings: Int?, val tab: TopLevelDestination) : NavKey
+
+/** Settings > About, pushed on the same tab as Settings. */
+@Serializable
+data class AboutRoute(val tab: TopLevelDestination) : NavKey

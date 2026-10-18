@@ -14,7 +14,6 @@
     <string name="back">Back</string>
     <string name="loading">Loading</string>
 
-    <string name="empty_home">What needs attention will show up here.</string>
     <string name="empty_recipes">Saved recipes will show up here.</string>
 
     <!-- Common actions -->
@@ -35,6 +34,7 @@
     <string name="error_permission">You don\'t have permission to do that.</string>
     <string name="error_quota">Spoil Not has reached its free daily limit and will work again tomorrow.</string>
     <string name="error_not_found">That no longer exists.</string>
+    <string name="error_name_taken">Another item already has this name. Choose a different one.</string>
     <string name="error_conflict">Something changed at the same time. Try again.</string>
     <string name="error_code_inactive">That code isn\'t active. Ask the household owner for a new one.</string>
     <string name="error_owner_must_transfer">Make someone else the owner or delete the household first.</string>
@@ -194,6 +194,7 @@
     <string name="category_pantry_staples">Pantry staples</string>
     <string name="category_drinks">Drinks</string>
     <string name="category_snacks">Snacks</string>
+    <string name="category_cooked">Cooked</string>
     <string name="category_other">Other</string>
     <string name="unit_pcs">pcs</string>
     <string name="unit_g">g</string>
@@ -233,11 +234,8 @@
     <string name="action_add_first_item">Add your first item</string>
     <string name="pantry_no_matches">Nothing matches. Try another filter or search.</string>
     <string name="action_add_item">Add item</string>
-    <string name="expand_batches">Show batches of %1$s</string>
-    <string name="collapse_batches">Hide batches of %1$s</string>
     <string name="row_description">%1$s, %2$s %3$s, %4$s, %5$s</string>
     <string name="row_description_out">%1$s, out of stock</string>
-    <string name="batch_description">%1$s %2$s, %3$s, %4$s</string>
     <string name="action_minus_one">Remove one</string>
     <string name="action_plus_one">Add one</string>
     <string name="action_used_up">Used up</string>
@@ -253,22 +251,18 @@
 
     <!-- Add and edit -->
     <string name="add_item_title">Add item</string>
-    <string name="edit_batch_title">Edit %1$s</string>
     <string name="field_name">Name</string>
     <string name="field_quantity">Quantity</string>
     <string name="field_unit">Unit</string>
-    <string name="unit_locked">Fixed while this product has stock</string>
     <string name="field_expiry">Expiration date</string>
     <string name="chip_plus_3_days">+3 days</string>
     <string name="chip_plus_1_week">+1 week</string>
     <string name="chip_plus_2_weeks">+2 weeks</string>
     <string name="chip_plus_1_month">+1 month</string>
     <string name="chip_no_expiry">No expiry</string>
-    <string name="field_date_type">Date type</string>
     <string name="field_location">Location</string>
     <string name="field_category">Category</string>
     <string name="field_notes">Notes</string>
-    <string name="advanced">More options</string>
     <string name="field_keep_at_least">Keep at least</string>
     <string name="keep_at_least_help">Add to the grocery list when fewer than this remain</string>
     <string name="field_auto_add">Add to grocery list automatically</string>
@@ -277,22 +271,10 @@
     <string name="error_name_80">Use 80 characters or fewer.</string>
     <string name="error_quantity">Enter a quantity above 0.</string>
     <string name="error_number">Enter a number.</string>
-    <string name="error_product_exists">Another product already has this name.</string>
     <string name="added_message">%1$s added</string>
     <string name="added_merged_message">Added to your %1$s</string>
 
     <!-- Product detail -->
-    <string name="product_total">%1$s %2$s in stock</string>
-    <string name="product_batches">Batches</string>
-    <string name="product_settings">Product settings</string>
-    <string name="field_default_location">Default location</string>
-    <string name="field_shelf_life">Typical shelf life (days)</string>
-    <string name="shelf_life_help">Used to fill in the expiration date. Learned from your last 5 purchases.</string>
-    <string name="product_history">History</string>
-    <string name="product_no_history">Nothing yet.</string>
-    <string name="event_added">%1$s added %2$s</string>
-    <string name="event_discarded">%1$s threw away %2$s (%3$s)</string>
-    <string name="saved">Saved</string>
 
     <!-- Groceries (DESIGN 5.3) -->
     <string name="grocery_quick_add">Add an item</string>
@@ -456,4 +438,78 @@
     <string name="recipe_found">Recipe found</string>
     <string name="recipe_saved">Saved to your recipes</string>
     <string name="recipe_not_found">No recipe found on this page.</string>
+
+    <!-- Home and activity (DESIGN 5.6) -->
+    <string name="home_attention">Needs attention</string>
+    <string name="home_attention_none">Nothing expires in the next 3 days.</string>
+    <string name="home_low_stock">Low stock</string>
+    <string name="home_low_stock_none">Your staples are stocked.</string>
+    <string name="home_grocery_list">Grocery list</string>
+    <string name="home_grocery_empty">Nothing to buy right now.</string>
+    <plurals name="home_grocery_count">
+        <item quantity="one">%d item to buy</item>
+        <item quantity="other">%d items to buy</item>
+    </plurals>
+    <string name="home_open_list">Open list</string>
+    <plurals name="home_see_all">
+        <item quantity="one">See %d in Pantry</item>
+        <item quantity="other">See all %d in Pantry</item>
+    </plurals>
+    <string name="home_recent_activity">Recent activity</string>
+    <string name="home_activity_none">Changes by anyone in the household show up here.</string>
+    <string name="activity_you">You</string>
+    <string name="activity_the_list">the grocery list</string>
+    <string name="activity_just_now">Just now</string>
+    <string name="activity_stock_added">%1$s added %2$s to the pantry</string>
+    <string name="activity_grocery_added">%1$s added %2$s to %3$s</string>
+    <plurals name="activity_grocery_added_from_recipe">
+        <item quantity="one">%1$s added %2$d ingredient from %3$s to %4$s</item>
+        <item quantity="other">%1$s added %2$d ingredients from %3$s to %4$s</item>
+    </plurals>
+    <string name="activity_grocery_checked">%1$s checked off %2$s</string>
+    <string name="activity_recipe_saved">%1$s saved the recipe %2$s</string>
+    <string name="activity_member_joined">%1$s joined the household</string>
+    <string name="activity_discarded">%1$s threw away %2$s</string>
+    <string name="activity_discarded_reason">%1$s threw away %2$s (%3$s)</string>
+
+    <!-- Settings: appearance, data, privacy and about (DESIGN 5.6) -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="settings_units">Units for new items</string>
+    <string name="units_metric">Metric</string>
+    <string name="units_imperial">Imperial</string>
+    <string name="settings_dynamic_color">Colors from your wallpaper</string>
+    <string name="settings_dynamic_color_summary">Use Material You colors. Status colors never change.</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_export">Export household data</string>
+    <string name="settings_export_summary">Save your pantry, grocery lists and recipes as a JSON file.</string>
+    <string name="action_export">Export</string>
+    <string name="settings_exported">Export saved</string>
+    <string name="settings_crash_reports">Send crash reports</string>
+    <string name="settings_crash_reports_summary">Helps fix crashes. Reports contain no names, emails or household data.</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_summary">Version, privacy and licenses</string>
+    <string name="about_version">Spoil Not %1$s (build %2$d)</string>
+    <string name="about_privacy_title">Privacy</string>
+    <string name="about_privacy_body">Spoil Not keeps only what it needs: your email and display name, your household\'s pantry, lists and recipes, this phone\'s notification token and time zone. Only members of your household can see household data. There are no ads and no analytics. Crash reports are optional. You can export your data or delete your account at any time in Settings.</string>
+    <string name="about_licenses">Open source licenses</string>
+    <string name="about_test_crash_title">Send a test crash?</string>
+    <string name="about_test_crash_body">Spoil Not will close and send a crash report, to check that reports arrive. Nothing is lost.</string>
+    <string name="about_test_crash">Crash now</string>
+
+    <!-- Update gate (DESIGN 13.3) -->
+    <string name="update_title">Please update Spoil Not</string>
+    <string name="update_body">This version is too old to use with your household\'s data. Install the latest version from the App Tester app or the link you were sent.</string>
+    <string name="update_action">Get the update</string>
+
+    <!-- Pantry edit window (beta feedback) -->
+    <string name="edit_item_title">Edit item</string>
+    <string name="action_use_one">Use 1</string>
+    <string name="action_add_one">Add 1</string>
+    <string name="action_add_stock">Add stock</string>
+    <string name="unit_locked_short">Set while in stock</string>
+    <string name="error_keep_at_least">Enter how many to keep, above 0.</string>
 </resources>

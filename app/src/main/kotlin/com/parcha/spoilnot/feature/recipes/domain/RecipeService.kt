@@ -4,6 +4,7 @@ import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryChange
+import com.parcha.spoilnot.feature.grocery.domain.GroceryEventType
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
@@ -122,6 +123,7 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
         recipe: Recipe,
         chosen: List<GroceryCandidate>,
         pantry: PantryData,
+        listName: String? = null,
     ): Int {
         val items = chosen.filter { it.name.isNotEmpty() }.map { c ->
             val key = NameKey.of(c.name)
@@ -143,7 +145,16 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
                 createdAt = null,
             )
         }
-        if (items.isNotEmpty()) writer.apply(householdId, actor, items.map { GroceryChange.CreateItem(listId, it) })
+        if (items.isNotEmpty()) {
+            val event = GroceryChange.LogEvent(
+                writer.newId(),
+                GroceryEventType.Added,
+                recipe.title,
+                listName,
+                items.size,
+            )
+            writer.apply(householdId, actor, items.map { GroceryChange.CreateItem(listId, it) } + event)
+        }
         return items.size
     }
 

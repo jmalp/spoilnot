@@ -79,6 +79,8 @@ import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.ui.MessageEffect
+import com.parcha.spoilnot.core.ui.rememberRemoteChanges
+import com.parcha.spoilnot.core.ui.remoteHighlight
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryLayout
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
@@ -139,44 +141,53 @@ fun GroceriesScreen(
 
                 state.items.isEmpty() -> EmptyState(Icons.Outlined.ShoppingCart, stringResource(R.string.grocery_empty))
 
-                else -> LazyColumn(
-                    contentPadding = PaddingValues(bottom = 96.dp),
-                    modifier = Modifier.testTag("grocery_list"),
-                ) {
-                    state.view.aisles.forEach { (category, items) ->
-                        stickyHeader(
-                            key = "aisle-$category",
-                        ) { SectionHeader(stringResource(category.label()).uppercase()) }
-                        items(items, key = { it.id }) { item ->
-                            GroceryRow(
-                                item,
-                                state,
-                                viewModel::toggle,
-                                viewModel::delete,
-                                { editing = it },
-                                Modifier.animateItem(),
-                            )
-                        }
-                    }
-                    if (state.view.inCart.isNotEmpty()) {
-                        item(key = "cart-header") {
-                            CartHeader(
-                                checkedCount,
-                                cartOpen,
-                                onToggle = { cartOpen = !cartOpen },
-                                onClear = viewModel::clearChecked,
-                            )
-                        }
-                        if (cartOpen) {
-                            items(state.view.inCart, key = { it.id }) { item ->
+                else -> {
+                    // Rows another phone changed get a short highlight (DESIGN 6.4).
+                    val remote = rememberRemoteChanges(
+                        state.items,
+                        id = { it.id },
+                        pending = { it.pendingSync },
+                        content = { it.copy(pendingSync = false) },
+                    )
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = 96.dp),
+                        modifier = Modifier.testTag("grocery_list"),
+                    ) {
+                        state.view.aisles.forEach { (category, items) ->
+                            stickyHeader(
+                                key = "aisle-$category",
+                            ) { SectionHeader(stringResource(category.label()).uppercase()) }
+                            items(items, key = { it.id }) { item ->
                                 GroceryRow(
                                     item,
                                     state,
                                     viewModel::toggle,
                                     viewModel::delete,
                                     { editing = it },
-                                    Modifier.animateItem(),
+                                    Modifier.animateItem().remoteHighlight(item.id in remote),
                                 )
+                            }
+                        }
+                        if (state.view.inCart.isNotEmpty()) {
+                            item(key = "cart-header") {
+                                CartHeader(
+                                    checkedCount,
+                                    cartOpen,
+                                    onToggle = { cartOpen = !cartOpen },
+                                    onClear = viewModel::clearChecked,
+                                )
+                            }
+                            if (cartOpen) {
+                                items(state.view.inCart, key = { it.id }) { item ->
+                                    GroceryRow(
+                                        item,
+                                        state,
+                                        viewModel::toggle,
+                                        viewModel::delete,
+                                        { editing = it },
+                                        Modifier.animateItem().remoteHighlight(item.id in remote),
+                                    )
+                                }
                             }
                         }
                     }

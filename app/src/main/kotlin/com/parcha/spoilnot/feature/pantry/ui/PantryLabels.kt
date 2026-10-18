@@ -169,6 +169,7 @@ fun Category.label(): Int = when (this) {
     Category.PantryStaples -> R.string.category_pantry_staples
     Category.Drinks -> R.string.category_drinks
     Category.Snacks -> R.string.category_snacks
+    Category.Cooked -> R.string.category_cooked
     Category.Other -> R.string.category_other
 }
 

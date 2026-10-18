@@ -25,6 +25,9 @@ enum class Category(val wire: String) {
     PantryStaples("pantry_staples"),
     Drinks("drinks"),
     Snacks("snacks"),
+
+    /** Leftovers and cooked dishes (beta feedback). */
+    Cooked("cooked"),
     Other("other"),
     ;
 
@@ -47,6 +50,13 @@ enum class QuantityUnit(val wire: String) {
 
     companion object {
         fun fromWire(value: String?) = entries.firstOrNull { it.wire == value } ?: Pieces
+
+        /** The unit menu: pieces first, then the preferred system (Settings > Appearance), then the other. */
+        fun menu(imperialFirst: Boolean): List<QuantityUnit> {
+            val metric = listOf(Grams, Kilograms, Milliliters, Liters)
+            val imperial = listOf(Ounces, Pounds, FluidOunces)
+            return listOf(Pieces) + if (imperialFirst) imperial + metric else metric + imperial
+        }
     }
 }
 
@@ -121,6 +131,22 @@ data class BatchEdit(
     val dateType: DateType,
     val location: Location,
     val note: String?,
+)
+
+/**
+ * The Edit window (beta feedback): one purchase and its product together. Keep at least and Buy quantity only exist
+ * with Add to grocery list automatically on.
+ */
+data class ItemEdit(
+    val name: String,
+    val quantity: Double,
+    val unit: QuantityUnit,
+    val category: Category,
+    val expiryDate: LocalDate?,
+    val location: Location,
+    val autoAddToGrocery: Boolean,
+    val minQuantity: Double?,
+    val buyQuantity: Double?,
 )
 
 /** Changes to a product from its detail screen. */

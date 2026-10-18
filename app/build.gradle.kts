@@ -1,4 +1,5 @@
 import com.android.build.api.variant.BuildConfigField
+import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import java.util.Properties
 
 plugins {
@@ -9,6 +10,8 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.firebase.crashlytics)
+    alias(libs.plugins.aboutlibraries)
 }
 
 android {
@@ -19,8 +22,8 @@ android {
         applicationId = "com.parcha.spoilnot"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "1.0.0-beta.2"
 
         testInstrumentationRunner = "com.parcha.spoilnot.HiltTestRunner"
     }
@@ -61,6 +64,20 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        // Release code (minified, not debuggable) against the local emulators, for measuring performance with
+        // seeded data (DESIGN 13.1). Dev flavor only; never distributed.
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
+        }
+    }
+
+    // The benchmark build reuses dev debug's emulator access (local-network permission, cleartext to the host).
+    sourceSets.maybeCreate("devBenchmark").apply {
+        manifest.srcFile("src/devDebug/AndroidManifest.xml")
+        res.directories.add("src/devDebug/res")
     }
 
     compileOptions {
@@ -86,12 +103,16 @@ android {
     }
 }
 
-// Only dev debug builds talk to the Firebase Emulator Suite (DESIGN 7.4). The Android emulator reaches the
+// Only dev debug (and dev benchmark) builds talk to the Firebase Emulator Suite (DESIGN 7.4). The Android emulator reaches the
 // host at 10.0.2.2; pass -Pspoilnot.emulatorHost=<LAN IP> to use a physical phone.
 val emulatorHost = providers.gradleProperty("spoilnot.emulatorHost").orElse("10.0.2.2")
 androidComponents {
+    // The benchmark build exists for dev only.
+    beforeVariants { variant ->
+        if (variant.buildType == "benchmark" && variant.flavorName != "dev") variant.enable = false
+    }
     onVariants { variant ->
-        val useEmulator = variant.flavorName == "dev" && variant.buildType == "debug"
+        val useEmulator = variant.flavorName == "dev" && variant.buildType in setOf("debug", "benchmark")
         val host = if (useEmulator) emulatorHost.get() else ""
         variant.buildConfigFields?.put(
             "FIREBASE_EMULATOR_HOST",
@@ -130,6 +151,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.crashlytics)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
@@ -138,6 +160,12 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.browser)
+    implementation(libs.aboutlibraries.compose.m3)
+    implementation(libs.androidx.core.splashscreen)
+    // AGP pins test dependencies to the app's versions; the test libraries need these slightly newer ones
+    // (the app alone would resolve concurrent-futures 1.1.0 and fragment 1.5.1).
+    implementation(libs.androidx.concurrent.futures)
+    implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
@@ -153,6 +181,7 @@ dependencies {
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4.accessibility)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)

@@ -5,8 +5,15 @@ Operational tasks for Spoil Not. The design is in `DESIGN.md`; deviations are in
 ## Reminder job (DESIGN 10)
 
 The hourly job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml` at minute 7 of every
-hour. It needs one GitHub secret, `FIREBASE_SERVICE_ACCOUNT_JSON`. Without it the job logs "nothing to do" and exits
-successfully.
+hour, once per Firebase project:
+
+| Project | GitHub secret |
+| --- | --- |
+| `spoilnot-prod` (testers) | `FIREBASE_SERVICE_ACCOUNT_JSON` |
+| `spoilnot-dev` (development, optional) | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
+
+A project whose secret is missing logs "nothing to do" and succeeds. A key stored under the wrong secret fails the
+run with "This key is for project …", and every run logs the project it served.
 
 ### Create the service account (once per Firebase project)
 
@@ -18,7 +25,10 @@ successfully.
 4. Open the account → **Keys → Add key → Create new key → JSON → Create**. A `.json` file downloads.
 5. Store it as the repository secret, then delete the downloaded file:
    ```bash
+   # spoilnot-prod
    gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   # spoilnot-dev
+   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --repo jmalp/spoilnot < ~/Downloads/<file>.json
    ```
 6. In the Firebase console → Project settings → Cloud Messaging, check that **Firebase Cloud Messaging API (V1)**
    is enabled.
@@ -54,7 +64,23 @@ Rules live in `firebase/firestore.rules` and are tested by `cd firebase && npm t
 `main`:
 
 ```bash
-cd firebase && npx firebase deploy --only firestore:rules --project spoilnot-dev
+cd firebase && npx firebase deploy --only firestore:rules --project dev
+cd firebase && npx firebase deploy --only firestore:rules --project prod
 ```
 
-`spoilnot-prod` stays locked until the beta (M6).
+Both projects run the same rules; deploy to dev first. `spoilnot-prod` was opened for the beta on 2026-10-18.
+
+## Beta releases (Firebase App Distribution)
+
+1. Raise `versionCode` (and `versionName`) in `app/build.gradle.kts`.
+2. Build with the upload keystore (`keystore.properties` at the repository root; never committed):
+   ```bash
+   ./gradlew assembleProdRelease
+   ```
+   The build uploads the R8 mapping to Crashlytics so crash reports are readable.
+3. Upload and invite testers (comma-separated emails; testers already invited get the new release):
+   ```bash
+   cd firebase && npx firebase appdistribution:distribute ../app/build/outputs/apk/prod/release/app-prod-release.apk \
+     --app 1:977467444046:android:2e84de68984d0dd33cec1f --project prod --testers "<emails>" --release-notes "<notes>"
+   ```
+4. To force everyone onto the new build, raise `minSupportedBuild` in Firestore `config/app` (spoilnot-prod).

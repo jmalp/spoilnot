@@ -92,6 +92,7 @@ class GroceryService @Inject constructor(
         items: List<GroceryItem>,
         pantryData: PantryData,
         addAnyway: Boolean = false,
+        listName: String? = null,
     ): QuickAddResult {
         val request = QuickAddParser.parse(text)
         require(request.name.isNotEmpty() && request.name.length <= GroceryRules.MAX_NAME_LENGTH) { "Invalid name" }
@@ -118,7 +119,14 @@ class GroceryService @Inject constructor(
             createdBy = actor.uid,
             createdAt = null,
         )
-        writer.apply(householdId, actor, listOf(GroceryChange.CreateItem(listId, item)))
+        writer.apply(
+            householdId,
+            actor,
+            listOf(
+                GroceryChange.CreateItem(listId, item),
+                GroceryChange.LogEvent(writer.newId(), GroceryEventType.Added, item.name, listName),
+            ),
+        )
         return QuickAddResult.Added
     }
 
@@ -140,8 +148,31 @@ class GroceryService @Inject constructor(
         writer.apply(householdId, actor, listOf(change))
     }
 
-    suspend fun setChecked(householdId: String, actor: Actor, listId: String, item: GroceryItem, checked: Boolean) =
-        writer.apply(householdId, actor, listOf(GroceryChange.SetChecked(listId, item.id, checked)))
+    /** Checking off is logged (DESIGN 5.6); unchecking is not. */
+    suspend fun setChecked(
+        householdId: String,
+        actor: Actor,
+        listId: String,
+        item: GroceryItem,
+        checked: Boolean,
+        listName: String? = null,
+    ) = writer.apply(
+        householdId,
+        actor,
+        listOfNotNull(
+            GroceryChange.SetChecked(listId, item.id, checked),
+            if (checked) {
+                GroceryChange.LogEvent(
+                    writer.newId(),
+                    GroceryEventType.Checked,
+                    item.name,
+                    listName,
+                )
+            } else {
+                null
+            },
+        ),
+    )
 
     suspend fun edit(
         householdId: String,

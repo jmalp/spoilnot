@@ -269,6 +269,8 @@ class SessionManagerTest {
             deleted += uid
             doc(uid).value = null
         }
+
+        override suspend fun setUnits(uid: String, units: com.parcha.spoilnot.feature.auth.domain.Units) = Unit
     }
 
     private class FakeHouseholds(private val users: FakeUsers) : HouseholdRepository {
@@ -282,7 +284,7 @@ class SessionManagerTest {
 
         override fun observeOwnJoinRequest(householdId: String, uid: String): Flow<JoinRequest?> = ownRequest.map { it }
 
-        override suspend fun completeJoin(uid: String, pending: PendingJoin) {
+        override suspend fun completeJoin(uid: String, displayName: String, pending: PendingJoin) {
             users.put(UserProfile(uid, users.profile(uid)!!.displayName, pending.householdId, null))
             ownRequest.value = null
         }

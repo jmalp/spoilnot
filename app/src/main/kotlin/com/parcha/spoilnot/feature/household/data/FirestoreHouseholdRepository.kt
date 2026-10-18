@@ -162,11 +162,23 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             .commitConfirmed()
     }
 
-    override suspend fun completeJoin(uid: String, pending: PendingJoin) {
+    override suspend fun completeJoin(uid: String, displayName: String, pending: PendingJoin) {
         val db = firestore.current
+        val hid = pending.householdId
         db.batch()
-            .update(db.document(UserFields.path(uid)), profilePointer(pending.householdId))
-            .delete(db.document(requestPath(pending.householdId, uid)))
+            .update(db.document(UserFields.path(uid)), profilePointer(hid))
+            .delete(db.document(requestPath(hid, uid)))
+            // member_joined (DESIGN 5.6), written by the new member: the owner's approval already made them a member.
+            .set(
+                db.collection("households/$hid/activity").document(),
+                mapOf(
+                    "type" to "member_joined",
+                    "actorUid" to uid,
+                    "actorName" to displayName,
+                    "params" to emptyMap<String, Any>(),
+                    "createdAt" to FieldValue.serverTimestamp(),
+                ),
+            )
             .commitQueued()
     }
 

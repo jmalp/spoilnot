@@ -52,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -66,19 +68,22 @@ import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.ui.MessageEffect
+import com.parcha.spoilnot.core.ui.rememberRemoteChanges
+import com.parcha.spoilnot.core.ui.remoteHighlight
 import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
 import com.parcha.spoilnot.feature.notifications.ui.Notifications
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
-import com.parcha.spoilnot.feature.pantry.domain.PantryGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantryGrouping
+import com.parcha.spoilnot.feature.pantry.domain.PantryItem
+import com.parcha.spoilnot.feature.pantry.domain.PantryItemGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantrySort
+import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
 
 @Composable
 fun PantryScreen(
     onOpenSettings: () -> Unit,
-    onOpenProduct: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PantryViewModel = hiltViewModel(),
 ) {
@@ -87,10 +92,11 @@ fun PantryScreen(
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var adding by rememberSaveable { mutableStateOf(false) }
+    // An Out staple opens Add item for that product.
+    var addingFor by remember { mutableStateOf<Product?>(null) }
     var throwing by remember { mutableStateOf<StockBatch?>(null) }
     var moving by remember { mutableStateOf<StockBatch?>(null) }
     var editing by remember { mutableStateOf<StockBatch?>(null) }
-    val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val listState = rememberLazyListState()
     // Collapses while scrolling or away from the top (DESIGN 6.5); derived so scrolling does not recompose the screen.
     val fabExpanded by remember {
@@ -104,7 +110,6 @@ fun PantryScreen(
         onPlus = { viewModel.adjust(it, 1.0) },
         onUsedUp = viewModel::usedUp,
         onThrowAway = { throwing = it },
-        onEdit = { editing = it },
         onMove = { moving = it },
     )
 
@@ -141,10 +146,18 @@ fun PantryScreen(
                     PantryList(
                         groups = state.groups,
                         today = state.today,
-                        expanded = expanded,
                         listState = listState,
                         actions = actions,
-                        onOpenProduct = onOpenProduct,
+                        onOpen = { item ->
+                            when (item) {
+                                is PantryItem.Purchase -> editing = item.batch
+
+                                is PantryItem.Out -> {
+                                    addingFor = item.product
+                                    adding = true
+                                }
+                            }
+                        },
                     )
                 }
             }
@@ -163,8 +176,17 @@ fun PantryScreen(
             products = state.data.products,
             productsWithStock = state.data.batches.filter { it.quantity > 0 }.map { it.productId }.toSet(),
             today = state.today,
-            onSave = { draft -> viewModel.add(draft) { adding = false } },
-            onDismiss = { adding = false },
+            onSave = { draft ->
+                viewModel.add(draft) {
+                    adding = false
+                    addingFor = null
+                }
+            },
+            onDismiss = {
+                adding = false
+                addingFor = null
+            },
+            prefill = addingFor,
         )
     }
     throwing?.let { batch ->
@@ -179,26 +201,38 @@ fun PantryScreen(
         })
     }
     editing?.let { batch ->
-        EditBatchSheet(batch, state.today, onSave = {
-            viewModel.edit(batch, it)
-            editing = null
-        }, onDismiss = { editing = null })
+        val product = state.data.products.firstOrNull { it.id == batch.productId }
+        val others = state.data.batches.any { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
+        EditItemSheet(
+            batch = batch,
+            product = product,
+            canChangeUnit = !others,
+            today = state.today,
+            onSave = { viewModel.editItem(batch, it) { editing = null } },
+            onDismiss = { editing = null },
+        )
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PantryList(
-    groups: List<PantryGroup>,
+    groups: List<PantryItemGroup>,
     today: LocalDate,
-    expanded: SnapshotStateMap<String, Boolean>,
     listState: LazyListState,
     actions: BatchActions,
-    onOpenProduct: (String) -> Unit,
+    onOpen: (PantryItem) -> Unit,
 ) {
     // A remote change must not move the list under the user's finger (DESIGN 6.4): hold updates while scrolling.
     var shown by remember { mutableStateOf(groups) }
     LaunchedEffect(groups, listState.isScrollInProgress) { if (!listState.isScrollInProgress) shown = groups }
+    // Rows another phone changed get a short highlight (DESIGN 6.4).
+    val remote = rememberRemoteChanges(
+        shown.flatMap { it.items }.filterIsInstance<PantryItem.Purchase>().map { it.batch },
+        id = { it.id },
+        pending = { it.pendingSync },
+        content = { it.copy(pendingSync = false) },
+    )
 
     if (shown.isEmpty()) {
         EmptyState(icon = Icons.Rounded.Search, message = stringResource(R.string.pantry_no_matches))
@@ -207,7 +241,7 @@ private fun PantryList(
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(bottom = 96.dp),
-        modifier = Modifier.testTag("pantry_list"),
+        modifier = Modifier.fillMaxSize().testTag("pantry_list"),
     ) {
         shown.forEach { group ->
             val header = group.location?.label() ?: group.category?.label()
@@ -225,16 +259,13 @@ private fun PantryList(
                     )
                 }
             }
-            items(group.rows, key = { "$groupKey-${it.productId}" }) { row ->
-                val key = "$groupKey-${row.productId}"
-                PantryRowItem(
-                    row = row,
+            items(group.items, key = { "$groupKey-${it.key}" }) { item ->
+                PantryItemRow(
+                    item = item,
                     today = today,
-                    expanded = expanded[key] == true,
-                    onToggle = { expanded[key] = expanded[key] != true },
-                    onOpenProduct = { onOpenProduct(row.productId) },
                     actions = actions,
-                    modifier = Modifier.animateItem(),
+                    onOpen = onOpen,
+                    modifier = Modifier.animateItem().remoteHighlight(item.key in remote),
                 )
             }
         }
@@ -266,12 +297,19 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
 
 @Composable
 private fun FilterRow(selected: PantryFilter, onSelect: (PantryFilter) -> Unit) {
+    val scroll = rememberScrollState()
+    // Where each chip starts, so a filter chosen elsewhere (a digest, a Home card) scrolls into view.
+    val starts = remember { mutableStateMapOf<PantryFilter, Int>() }
+    LaunchedEffect(selected, starts[selected]) {
+        starts[selected]?.let { scroll.animateScrollTo((it - scroll.viewportSize / 3).coerceAtLeast(0)) }
+    }
     Row(
-        Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.horizontalScroll(scroll).padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         PantryFilter.entries.forEach { filter ->
             FilterChip(
+                modifier = Modifier.onPlaced { starts[filter] = it.positionInParent().x.toInt() },
                 selected = filter == selected,
                 onClick = { onSelect(filter) },
                 label = { Text(stringResource(filter.label())) },

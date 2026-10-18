@@ -208,6 +208,59 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         writer.apply(householdId, actor, changes)
     }
 
+    /**
+     * The Edit window: the purchase's quantity, date and location, and its product's name, unit, category and restock
+     * settings, in one write. A quantity of 0 uses the purchase up instead. The unit can change only when this is the
+     * product's only purchase (no unit conversion, DESIGN 2).
+     */
+    suspend fun editItem(
+        householdId: String,
+        actor: Actor,
+        batch: StockBatch,
+        edit: ItemEdit,
+        data: PantryData,
+    ): Undo? {
+        if (edit.quantity <= 0) return usedUp(householdId, actor, batch)
+        writer.apply(householdId, actor, planEdit(batch, edit, data))
+        return null
+    }
+
+    fun planEdit(batch: StockBatch, edit: ItemEdit, data: PantryData): List<HouseholdChange> {
+        val name = NameKey.clean(edit.name)
+        require(name.isNotEmpty() && name.length <= PantryLimits.MAX_NAME_LENGTH) { "Invalid name" }
+        val key = NameKey.of(name)
+        val product = data.products.firstOrNull { it.id == batch.productId }
+        if (data.products.any { it.id != batch.productId && it.nameKey == key }) throw AppError.NameTaken()
+        val others = data.batches.filter { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
+        val unit = if (others.isEmpty()) edit.unit else product?.unit ?: batch.unit
+        val min = edit.minQuantity?.takeIf { edit.autoAddToGrocery }
+        val changes = mutableListOf<HouseholdChange>(
+            PantryChange.UpdateBatch(
+                batch.id,
+                BatchEdit(edit.quantity, edit.expiryDate, batch.dateType, edit.location, batch.note),
+            ),
+        )
+        if (product != null) {
+            val raised = min != null && (product.minQuantity == null || min > product.minQuantity)
+            val updated = product.copy(
+                name = name,
+                nameKey = key,
+                category = edit.category,
+                unit = unit,
+                minQuantity = min,
+                autoAddToGrocery = min != null,
+                buyQuantity = edit.buyQuantity?.takeIf { min != null },
+                restockArmed = product.restockArmed || raised,
+            )
+            if (updated != product) changes += PantryChange.UpdateProduct(updated)
+        }
+        // Every purchase carries a copy of the product's name, unit and category (invariant 2).
+        if (name != batch.productName || unit != batch.unit || edit.category != batch.category) {
+            (others + batch).forEach { changes += PantryChange.SyncBatchProduct(it.id, name, unit, edit.category) }
+        }
+        return changes
+    }
+
     suspend fun undo(householdId: String, actor: Actor, undo: Undo) = writer.apply(householdId, actor, undo.changes)
 
     /** Batches at 0 or below are hidden and deleted by whichever client notices first (DESIGN 8.5, invariant 1). */

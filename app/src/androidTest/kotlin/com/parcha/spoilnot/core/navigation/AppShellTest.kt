@@ -68,17 +68,33 @@ class AppShellTest {
     fun eachTabKeepsItsBackStack() {
         compose.setContent { SpoilNotTheme { AppShell(session) } }
 
+        // A screen pushed on Recipes (New recipe) is still there after visiting another tab.
+        tab(R.string.tab_recipes).performClick()
+        compose.onNodeWithTag("fab_add_recipe").performClick()
+        compose.onNodeWithTag("add_recipe_manual").performClick()
+        compose.onNodeWithTag("screen_recipe_edit").assertIsDisplayed()
+
+        tab(R.string.tab_groceries).performClick()
+        compose.onNodeWithTag("screen_groceries").assertIsDisplayed()
+
+        tab(R.string.tab_recipes).performClick()
+        compose.onNodeWithTag("screen_recipe_edit").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription(str(R.string.back)).performClick()
+        compose.onNodeWithTag("screen_recipes").assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsClosesWhenItsTabIsLeft() {
+        compose.setContent { SpoilNotTheme { AppShell(session) } }
+
         tab(R.string.tab_pantry).performClick()
         compose.onNodeWithContentDescription(str(R.string.open_settings)).performClick()
         compose.onNodeWithTag("screen_settings").assertIsDisplayed()
 
         tab(R.string.tab_groceries).performClick()
-        compose.onNodeWithTag("screen_groceries").assertIsDisplayed()
-
         tab(R.string.tab_pantry).performClick()
-        compose.onNodeWithTag("screen_settings").assertIsDisplayed()
-
-        compose.onNodeWithContentDescription(str(R.string.back)).performClick()
         compose.onNodeWithTag("screen_pantry").assertIsDisplayed()
+        compose.onNodeWithTag("screen_settings").assertDoesNotExist()
     }
 }

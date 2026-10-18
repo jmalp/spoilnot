@@ -1,9 +1,24 @@
 package com.parcha.spoilnot.core.navigation
 
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -18,8 +33,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -30,14 +48,18 @@ import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
+import com.parcha.spoilnot.core.error.QuotaSignal
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
+import com.parcha.spoilnot.feature.home.ui.HomeNavigation
 import com.parcha.spoilnot.feature.home.ui.HomeScreen
 import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
+import com.parcha.spoilnot.feature.pantry.ui.LocalUnits
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
-import com.parcha.spoilnot.feature.pantry.ui.ProductDetailScreen
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.ui.CookModeScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipeBrowserScreen
@@ -46,6 +68,7 @@ import com.parcha.spoilnot.feature.recipes.ui.RecipeEditScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipeImportScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipesNavigation
 import com.parcha.spoilnot.feature.recipes.ui.RecipesScreen
+import com.parcha.spoilnot.feature.settings.ui.AboutScreen
 import com.parcha.spoilnot.feature.settings.ui.SettingsScreen
 
 /** Waiting join requests, shown as a badge on the Settings avatar for the owner (DESIGN 5.1). */
@@ -62,18 +85,24 @@ fun AppShell(
     val deepLink by shellViewModel.deepLink.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(TabNavigator.START) }
     val backStacks = TopLevelDestination.entries.associateWith { tab -> key(tab) { rememberNavBackStack(tab.root) } }
-    val navigator = remember(backStacks) { TabNavigator(backStacks, { currentTab }, { currentTab = it }) }
+    val navigator = remember(backStacks) {
+        TabNavigator(backStacks, { currentTab }, { currentTab = it }, closesOnLeave = ::isSettingsScreen)
+    }
 
     val openSettings = { navigator.navigate(SettingsRoute(navigator.currentTab)) }
-    // A tapped digest opens the Pantry tab at its root; the Pantry screen applies the filter (DESIGN 5.4).
+    // A tapped digest or a Home card opens the Pantry tab at its root; the Pantry screen applies the filter.
     LaunchedEffect(deepLink) {
         when (val link = deepLink) {
-            DeepLink.PantryExpiring -> navigator.showRoot(TopLevelDestination.Pantry)
+            is DeepLink.Pantry -> {
+                navigator.showRoot(TopLevelDestination.Pantry)
+                shellViewModel.navigated(link)
+            }
 
             // A link shared from another app opens its preview on the Recipes tab (DESIGN 11.1).
             is DeepLink.ImportRecipe -> {
                 navigator.showRoot(TopLevelDestination.Recipes)
                 navigator.navigate(RecipeImportRoute(link.url, TopLevelDestination.Recipes))
+                shellViewModel.navigated(link)
                 shellViewModel.consume(link)
             }
 
@@ -84,20 +113,16 @@ fun AppShell(
     val provider = entryProvider<NavKey> {
         entry<HomeRoute> {
             HomeScreen(
-                onOpenSettings = openSettings,
+                navigation = HomeNavigation(
+                    openSettings = openSettings,
+                    openPantry = { filter -> shellViewModel.open(DeepLink.Pantry(filter)) },
+                    openGroceries = { navigator.showRoot(TopLevelDestination.Groceries) },
+                    reviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
+                ),
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
-                onReviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
             )
         }
-        entry<PantryRoute> {
-            PantryScreen(
-                onOpenSettings = openSettings,
-                onOpenProduct = { navigator.navigate(ProductDetailRoute(it, navigator.currentTab)) },
-            )
-        }
-        entry<ProductDetailRoute> { key ->
-            ProductDetailScreen(productId = key.productId, onBack = { navigator.goBack() })
-        }
+        entry<PantryRoute> { PantryScreen(onOpenSettings = openSettings) }
         entry<RecipesRoute> {
             RecipesScreen(
                 RecipesNavigation(
@@ -183,8 +208,10 @@ fun AppShell(
                 onBack = { navigator.goBack() },
                 onOpenHousehold = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
                 onOpenNotifications = { navigator.navigate(NotificationSettingsRoute(navigator.currentTab)) },
+                onOpenAbout = { navigator.navigate(AboutRoute(navigator.currentTab)) },
             )
         }
+        entry<AboutRoute> { AboutScreen(onBack = { navigator.goBack() }) }
         entry<NotificationSettingsRoute> { NotificationSettingsScreen(onBack = { navigator.goBack() }) }
         entry<HouseholdSettingsRoute> { HouseholdSettingsScreen(onBack = { navigator.goBack() }) }
     }
@@ -209,7 +236,7 @@ fun AppShell(
         entriesByTab.getValue(TabNavigator.START) + entriesByTab.getValue(currentTab)
     }
 
-    CompositionLocalProvider(LocalJoinRequestCount provides pendingJoinRequests) {
+    CompositionLocalProvider(LocalJoinRequestCount provides pendingJoinRequests, LocalUnits provides session.units) {
         Scaffold(
             modifier = modifier,
             contentWindowInsets = WindowInsets(0),
@@ -229,11 +256,20 @@ fun AppShell(
                 }
             },
         ) { padding ->
-            NavDisplay(
-                entries = visibleEntries,
-                onBack = { navigator.goBack() },
-                modifier = Modifier.padding(padding).consumeWindowInsets(padding),
-            )
+            val quotaDay by QuotaSignal.exhaustedOn.collectAsStateWithLifecycle()
+            val reduceMotion = rememberReduceMotion()
+            Column(Modifier.padding(padding).consumeWindowInsets(padding)) {
+                // DESIGN 6.7: the free daily quota was reached; it resets at midnight Pacific time.
+                if (quotaDay != null && QuotaSignal.isExhausted()) QuotaBanner()
+                NavDisplay(
+                    entries = visibleEntries,
+                    onBack = { navigator.goBack() },
+                    modifier = Modifier.weight(1f),
+                    transitionSpec = { sharedAxis(forward = true, reduceMotion) },
+                    popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                    predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                )
+            }
         }
     }
 }
@@ -245,3 +281,39 @@ private fun RecipeEditRoute.prefill(): RecipeContent? =
     } else {
         RecipeContent(title = prefillTitle.orEmpty(), imageUrl = prefillImageUrl, sourceUrl = prefillSourceUrl)
     }
+
+@Composable
+private fun QuotaBanner() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag("quota_banner"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.CloudOff, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+        Text(
+            stringResource(R.string.error_quota),
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+/**
+ * Material shared axis X (DESIGN 6.4): a short slide with a fade, 250 ms; only a fade when the system's Remove
+ * animations setting is on.
+ */
+private fun sharedAxis(forward: Boolean, reduceMotion: Boolean): ContentTransform {
+    if (reduceMotion) return fadeIn(tween(120)) togetherWith fadeOut(tween(120))
+    val sign = if (forward) 1 else -1
+    return (slideInHorizontally(tween(250)) { sign * it / 8 } + fadeIn(tween(250, delayMillis = 50))) togetherWith
+        (slideOutHorizontally(tween(250)) { -sign * it / 8 } + fadeOut(tween(150)))
+}
+
+/** Settings and its pages close when their tab is left. */
+private fun isSettingsScreen(key: NavKey) =
+    key is SettingsRoute || key is HouseholdSettingsRoute || key is NotificationSettingsRoute || key is AboutRoute

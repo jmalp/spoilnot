@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -223,6 +224,75 @@ class PantryServiceTest {
             buyQuantity = null,
             typicalShelfLifeDays = p.typicalShelfLifeDays,
         )
+
+    private fun itemEdit(
+        name: String = "Milk",
+        quantity: Double = 2.0,
+        unit: QuantityUnit = QuantityUnit.Pieces,
+        category: Category = Category.Dairy,
+        autoAdd: Boolean = false,
+        min: Double? = null,
+        buy: Double? = null,
+    ) = ItemEdit(name, quantity, unit, category, TODAY.plusDays(4), Location.Freezer, autoAdd, min, buy)
+
+    @Test
+    fun `the edit window changes the purchase and its product in one write, keeping date type and note`() {
+        val milk = product("milk")
+        val b1 = batch("b1", "milk").copy(dateType = DateType.BestBefore, note = "Lactose free")
+        val data = PantryData(listOf(milk), listOf(b1), false)
+        val changes = service.planEdit(b1, itemEdit(name = "Oat milk", autoAdd = true, min = 2.0, buy = 4.0), data)
+        val batch = changes.filterIsInstance<PantryChange.UpdateBatch>().single()
+        assertEquals(
+            BatchEdit(2.0, TODAY.plusDays(4), DateType.BestBefore, Location.Freezer, "Lactose free"),
+            batch.edit,
+        )
+        val product = changes.filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertEquals("Oat milk", product.name)
+        assertEquals(2.0, product.minQuantity!!, 0.0)
+        assertTrue(product.autoAddToGrocery)
+        assertEquals(4.0, product.buyQuantity!!, 0.0)
+        assertTrue(product.restockArmed)
+        assertEquals(listOf("b1"), changes.filterIsInstance<PantryChange.SyncBatchProduct>().map { it.batchId })
+    }
+
+    @Test
+    fun `turning auto-add off clears Keep at least and Buy quantity`() {
+        val rice = product("rice", min = 5.0).copy(buyQuantity = 10.0)
+        val b1 = batch("b1", "rice")
+        val changes = service.planEdit(
+            b1,
+            itemEdit(name = "Rice", min = 5.0, buy = 10.0),
+            PantryData(listOf(rice), listOf(b1), false),
+        )
+        val product = changes.filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertNull(product.minQuantity)
+        assertFalse(product.autoAddToGrocery)
+        assertNull(product.buyQuantity)
+    }
+
+    @Test
+    fun `the unit changes only when this is the product's only purchase`() {
+        val rice = product("rice")
+        val only = PantryData(listOf(rice), listOf(batch("b1", "rice")), false)
+        val two = PantryData(listOf(rice), listOf(batch("b1", "rice"), batch("b2", "rice")), false)
+        val kg = itemEdit(name = "Rice", unit = QuantityUnit.Kilograms)
+        val alone = service.planEdit(only.batches[0], kg, only)
+        assertEquals(QuantityUnit.Kilograms, alone.filterIsInstance<PantryChange.UpdateProduct>().single().product.unit)
+        val shared = service.planEdit(two.batches[0], kg, two)
+        assertTrue(
+            shared.filterIsInstance<PantryChange.UpdateProduct>().none {
+                it.product.unit != QuantityUnit.Pieces
+            },
+        )
+    }
+
+    @Test
+    fun `a rename onto another product's name is refused`() {
+        val data = PantryData(listOf(product("milk"), product("eggs")), listOf(batch("b1", "milk")), false)
+        assertThrows(AppError.NameTaken::class.java) {
+            service.planEdit(data.batches[0], itemEdit(name = "eggs"), data)
+        }
+    }
 
     private class RecordingWriter : HouseholdWriter {
         var last: List<HouseholdChange> = emptyList()

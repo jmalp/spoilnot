@@ -6,6 +6,8 @@ import com.parcha.spoilnot.feature.auth.domain.AccountValidation
 import com.parcha.spoilnot.feature.auth.domain.AuthRepository
 import com.parcha.spoilnot.feature.auth.domain.AuthUser
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
+import com.parcha.spoilnot.feature.auth.domain.ProfileDefaults
+import com.parcha.spoilnot.feature.auth.domain.Units
 import com.parcha.spoilnot.feature.auth.domain.UserProfile
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
 import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
@@ -43,8 +45,13 @@ sealed interface Session {
     /** Signed in without a household: the household gate, possibly with a join request in flight. */
     data class NoHousehold(val user: AuthUser, val displayName: String, val join: JoinState?) : Session
 
-    data class InHousehold(val user: AuthUser, val displayName: String, val householdId: String, val role: Role) :
-        Session
+    data class InHousehold(
+        val user: AuthUser,
+        val displayName: String,
+        val householdId: String,
+        val role: Role,
+        val units: Units = ProfileDefaults.UNITS,
+    ) : Session
 }
 
 /** The user's one join request (DESIGN 5.1). An approved request completes on its own. */
@@ -181,7 +188,7 @@ class SessionManager @Inject constructor(
         households.observeMembership(householdId, user.uid).transformLatest { membership ->
             when (membership) {
                 is Membership.Active -> emit(
-                    Session.InHousehold(user, profile.displayName, householdId, membership.role),
+                    Session.InHousehold(user, profile.displayName, householdId, membership.role, profile.units),
                 )
 
                 Membership.Gone -> {
@@ -207,7 +214,11 @@ class SessionManager @Inject constructor(
                 JoinRequestStatus.Declined -> JoinState.Declined(pending)
             }
             emit(Session.NoHousehold(user, profile.displayName, join))
-            if (request?.status == JoinRequestStatus.Approved) households.completeJoin(user.uid, pending)
+            if (request?.status ==
+                JoinRequestStatus.Approved
+            ) {
+                households.completeJoin(user.uid, profile.displayName, pending)
+            }
         }
 
     private fun onTransition(session: Session) {

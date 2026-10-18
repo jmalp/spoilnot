@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -16,11 +17,15 @@ import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
-import com.parcha.spoilnot.feature.pantry.domain.PantryList
+import com.parcha.spoilnot.feature.pantry.domain.PantryItem
+import com.parcha.spoilnot.feature.pantry.domain.PantryItems
+import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
+import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,7 +39,7 @@ class PantryComponentsTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private val noActions = BatchActions({}, {}, {}, {}, {}, {})
+    private val noActions = BatchActions({}, {}, {}, {}, {})
 
     private fun chip(days: Long?, type: DateType = DateType.UseBy) = compose.setContent {
         SpoilNotTheme(dynamicColor = false) { StatusChip(days?.let { TODAY.plusDays(it) }, type, TODAY) }
@@ -67,27 +72,39 @@ class PantryComponentsTest {
         compose.onNode(hasContentDescription("Expires in 3 days")).assertIsDisplayed()
     }
 
+    private fun items(products: List<Product>, batches: List<StockBatch>) = PantryItems.all(products, batches, TODAY)
+
     @Test
     fun rowReadsNameQuantityStatusAndLocation() {
-        val row = PantryList.rows(
-            listOf(product("milk")),
-            listOf(batch("m1", "milk", quantity = 2.0, inDays = 1)),
-            TODAY,
-        ).single()
+        val item = items(listOf(product("milk")), listOf(batch("m1", "milk", quantity = 2.0, inDays = 1))).single()
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { PantryRowItem(row, TODAY, false, {}, {}, noActions) }
+            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, noActions, {}) }
         }
         compose.onNode(hasContentDescription("Milk, 2 pcs, Expires tomorrow, Fridge")).assertIsDisplayed()
     }
 
     @Test
-    fun staplesAtZeroShowOut() {
-        val row = PantryList.rows(listOf(product("oil", name = "Olive oil", min = 1.0)), emptyList(), TODAY).single()
+    fun staplesAtZeroShowOutAndOpenToAddStock() {
+        val item = items(listOf(product("oil", name = "Olive oil", min = 1.0)), emptyList()).single()
+        var opened: PantryItem? = null
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { PantryRowItem(row, TODAY, false, {}, {}, noActions) }
+            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
         }
         compose.onNode(hasContentDescription("Olive oil, out of stock")).assertIsDisplayed()
         compose.onNodeWithText("Out", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Olive oil, out of stock")).performClick()
+        assertTrue(opened is PantryItem.Out)
+    }
+
+    @Test
+    fun tappingAPurchaseOpensItForEditing() {
+        val item = items(listOf(product("milk")), listOf(batch("m1", "milk"))).single()
+        var opened: PantryItem? = null
+        compose.setContent {
+            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
+        }
+        compose.onNodeWithTag("pantry_item_m1").onChildAt(0).performClick()
+        assertEquals("m1", (opened as PantryItem.Purchase).batch.id)
     }
 
     @Test
@@ -98,33 +115,17 @@ class PantryComponentsTest {
             onPlus = { calls += "plus" },
             onUsedUp = { calls += "used" },
             onThrowAway = { calls += "throw" },
-            onEdit = { calls += "edit" },
             onMove = { calls += "move" },
         )
+        val item = items(listOf(product("milk")), listOf(batch("m1", "milk", quantity = 2.0))).single()
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { BatchRow(batch("m1", "milk", quantity = 2.0), TODAY, actions) }
+            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, actions, {}) }
         }
-        compose.onNodeWithContentDescription("Remove one").performClick()
-        compose.onNodeWithContentDescription("Add one").performClick()
-        listOf("Used up", "Throw away", "Edit", "Move").forEach { item ->
+        listOf("Use 1", "Add 1", "Used up", "Throw away", "Move").forEach { entry ->
             compose.onNodeWithContentDescription("Options for this batch").performClick()
-            compose.onNodeWithText(item).performClick()
+            compose.onNodeWithText(entry).performClick()
         }
-        assertEquals(listOf("minus", "plus", "used", "throw", "edit", "move"), calls)
-    }
-
-    @Test
-    fun expandingARowShowsItsBatches() {
-        val row = PantryList.rows(
-            listOf(product("yogurt")),
-            listOf(batch("y1", "yogurt", inDays = 2), batch("y2", "yogurt", inDays = 9)),
-            TODAY,
-        ).single()
-        compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { PantryRowItem(row, TODAY, true, {}, {}, noActions) }
-        }
-        compose.onNodeWithTag("batch_y1").assertIsDisplayed()
-        compose.onNodeWithTag("batch_y2").assertIsDisplayed()
+        assertEquals(listOf("minus", "plus", "used", "throw", "move"), calls)
     }
 
     @Test
@@ -169,9 +170,29 @@ class PantryComponentsTest {
         }
         compose.onNodeWithTag("field_name").performTextInput("ri")
         compose.onNode(hasText("Rice")).performClick()
-        compose.onNodeWithText("Fixed while this product has stock").assertIsDisplayed()
+        compose.onNodeWithText("Set while in stock").assertIsDisplayed()
         compose.onNodeWithTag("button_save_item").performClick()
         assertEquals(QuantityUnit.Kilograms, saved?.unit)
         assertEquals(TODAY.plusDays(30), saved?.expiryDate)
+    }
+
+    @Test
+    fun theAutoAddSwitchRevealsKeepAtLeastAndRequiresIt() {
+        var saved: StockDraft? = null
+        compose.setContent {
+            SpoilNotTheme(dynamicColor = false) { AddItemForm(emptyList(), emptySet(), TODAY) { saved = it } }
+        }
+        compose.onNodeWithTag("field_name").performTextInput("Eggs")
+        compose.onNodeWithTag("field_keep_at_least").assertDoesNotExist()
+        compose.onNodeWithTag("switch_auto_add").performScrollTo().performClick()
+        compose.onNodeWithTag("button_save_item").performClick()
+        compose.onNodeWithText("Enter how many to keep, above 0.").performScrollTo().assertIsDisplayed()
+        assertNull(saved)
+        compose.onNodeWithTag("field_keep_at_least").performTextInput("6")
+        compose.onNodeWithTag("button_save_item").performClick()
+        assertEquals(6.0, saved!!.minQuantity!!, 0.0)
+        assertTrue(saved!!.autoAddToGrocery)
+        assertEquals(DateType.UseBy, saved!!.dateType)
+        assertNull(saved!!.note)
     }
 }

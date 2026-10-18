@@ -239,15 +239,26 @@ describe('join requests', () => {
     await assertSucceeds(approveBatch(db));
   });
 
-  it('after approval the new member can finish joining', async () => {
+  it('after approval the new member can finish joining and log member_joined', async () => {
     await seedPendingRequest();
     await approveBatch(as('alice'));
     const db = as('carol');
     const b = writeBatch(db);
     b.update(doc(db, 'users/carol'), { householdId: HID, pendingJoin: null, updatedAt: serverTimestamp() });
     b.delete(doc(db, `households/${HID}/joinRequests/carol`));
+    b.set(doc(db, `households/${HID}/activity/joined`), {
+      type: 'member_joined', actorUid: 'carol', actorName: 'Carol', params: {}, createdAt: serverTimestamp(),
+    });
     await assertSucceeds(b.commit());
     await assertSucceeds(getDoc(doc(db, `households/${HID}`)));
+  });
+
+  it('someone still waiting cannot log member_joined', async () => {
+    await seedPendingRequest();
+    const db = as('carol');
+    await assertFails(setDoc(doc(db, `households/${HID}/activity/early`), {
+      type: 'member_joined', actorUid: 'carol', actorName: 'Carol', params: {}, createdAt: serverTimestamp(),
+    }));
   });
 
   it('the owner cannot approve with a different display name', async () => {

@@ -7,11 +7,14 @@ import androidx.navigation3.runtime.NavKey
  * so it can be unit tested; in the app the lists are Navigation 3 [androidx.navigation3.runtime.NavBackStack]s.
  *
  * Back pops the current tab; at a tab's root it returns to Home; at Home's root it leaves the app.
+ * Screens matching [closesOnLeave] (Settings and its pages) are closed when their tab is left, so another tab never
+ * comes back with Settings open (beta feedback); everything else keeps its place.
  */
 class TabNavigator(
     private val backStacks: Map<TopLevelDestination, MutableList<NavKey>>,
     private val currentTabHolder: () -> TopLevelDestination,
     private val setCurrentTab: (TopLevelDestination) -> Unit,
+    private val closesOnLeave: (NavKey) -> Boolean = { false },
 ) {
     init {
         require(backStacks.keys == TopLevelDestination.entries.toSet()) { "Every tab needs a back stack" }
@@ -34,6 +37,7 @@ class TabNavigator(
             val stack = stackOf(tab)
             while (stack.size > 1) stack.removeAt(stack.lastIndex)
         } else {
+            leave(currentTab)
             setCurrentTab(tab)
         }
     }
@@ -42,7 +46,10 @@ class TabNavigator(
     fun showRoot(tab: TopLevelDestination) {
         val stack = stackOf(tab)
         while (stack.size > 1) stack.removeAt(stack.lastIndex)
-        if (tab != currentTab) setCurrentTab(tab)
+        if (tab != currentTab) {
+            leave(currentTab)
+            setCurrentTab(tab)
+        }
     }
 
     fun navigate(key: NavKey) {
@@ -66,12 +73,19 @@ class TabNavigator(
             }
 
             currentTab != START -> {
+                leave(currentTab)
                 setCurrentTab(START)
                 true
             }
 
             else -> false
         }
+    }
+
+    /** Closes the screens on top of [tab]'s stack that do not stay open when the tab is left. */
+    private fun leave(tab: TopLevelDestination) {
+        val stack = stackOf(tab)
+        while (stack.size > 1 && closesOnLeave(stack.last())) stack.removeAt(stack.lastIndex)
     }
 
     fun stackOf(tab: TopLevelDestination): MutableList<NavKey> = backStacks.getValue(tab)

@@ -66,6 +66,7 @@ import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.ExpiryStatus
 import com.parcha.spoilnot.feature.pantry.domain.Location
+import com.parcha.spoilnot.feature.pantry.domain.PantryItem
 import com.parcha.spoilnot.feature.pantry.domain.PantryRow
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
@@ -77,213 +78,208 @@ data class BatchActions(
     val onPlus: (StockBatch) -> Unit,
     val onUsedUp: (StockBatch) -> Unit,
     val onThrowAway: (StockBatch) -> Unit,
-    val onEdit: (StockBatch) -> Unit,
     val onMove: (StockBatch) -> Unit,
 )
 
-/** One product row: name, total, status chip and location; tap to expand into its batches (DESIGN 5.2). */
+/**
+ * One purchase (beta feedback): status, name, date and location, quantity. Tap to edit; swipe right to use up, left
+ * to throw away; the menu has the same actions plus one less, one more and Move. An Out staple's row adds stock.
+ */
 @Composable
-fun PantryRowItem(
-    row: PantryRow,
+fun PantryItemRow(
+    item: PantryItem,
     today: LocalDate,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onOpenProduct: () -> Unit,
     actions: BatchActions,
+    onOpen: (PantryItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val unit = stringResource(row.unit.label())
-    val location = stringResource(row.location.label())
-    val status = statusText(row.soonest?.expiryDate, row.soonest?.dateType ?: DateType.UseBy, today)
-    val description = if (row.isOut) {
-        stringResource(R.string.row_description_out, row.name)
-    } else {
-        stringResource(R.string.row_description, row.name, formatQuantity(row.total), unit, status, location)
+    when (item) {
+        is PantryItem.Purchase -> PurchaseRow(item, today, actions, onOpen, modifier)
+        is PantryItem.Out -> OutRow(item, onOpen, modifier)
     }
-    val toggleLabel = stringResource(if (expanded) R.string.collapse_batches else R.string.expand_batches, row.name)
+}
 
-    Column(modifier.fillMaxWidth().testTag("pantry_row_${row.productId}")) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClickLabel = toggleLabel, onClick = onToggle)
-                .heightIn(min = 64.dp)
-                .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
-                .semantics(mergeDescendants = true) {
-                    contentDescription = description
-                    stateDescription = toggleLabel
-                },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val tone = if (row.isOut) StatusTone.NoDate else row.status.tone()
-            Icon(
-                if (row.isOut) Icons.Rounded.Remove else row.status.icon(),
-                contentDescription = null,
-                tint = SpoilNotStatus.colors.forTone(tone),
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        row.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false).clickable(onClick = onOpenProduct),
-                    )
-                    if (row.isOut) {
-                        Badge(stringResource(R.string.badge_out))
-                    } else if (row.isLow) {
-                        Badge(stringResource(R.string.badge_low))
-                    }
-                    if (row.pendingSync) {
-                        Icon(
-                            Icons.Rounded.CloudOff,
-                            contentDescription = stringResource(R.string.pending_sync),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+@Composable
+private fun PurchaseRow(
+    item: PantryItem.Purchase,
+    today: LocalDate,
+    actions: BatchActions,
+    onOpen: (PantryItem) -> Unit,
+    modifier: Modifier,
+) {
+    val batch = item.batch
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val swipe = rememberSwipeToDismissBoxState()
+    LaunchedEffect(batch.id, batch.quantity) { swipe.reset() }
+    val unit = stringResource(batch.unit.label())
+    val location = stringResource(batch.location.label())
+    val status = statusText(batch.expiryDate, batch.dateType, today)
+    val description =
+        stringResource(R.string.row_description, item.name, formatQuantity(batch.quantity), unit, status, location)
+    val editLabel = stringResource(R.string.action_edit)
+
+    Column(modifier.fillMaxWidth().testTag("pantry_item_${batch.id}")) {
+        SwipeToDismissBox(
+            state = swipe,
+            backgroundContent = { SwipeBackground(swipe.dismissDirection) },
+            onDismiss = { direction ->
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> actions.onUsedUp(batch)
+                    SwipeToDismissBoxValue.EndToStart -> actions.onThrowAway(batch)
+                    SwipeToDismissBoxValue.Settled -> Unit
                 }
-                // Wraps instead of squeezing at large font sizes (DESIGN 6.8: 200% font scale).
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically,
+                scope.launch { swipe.reset() }
+            },
+        ) {
+            // Opaque, so the swipe background only shows where the row has moved away.
+            Surface {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(onClickLabel = editLabel) { onOpen(item) }
+                        .heightIn(min = 64.dp)
+                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (!row.isOut) StatusChip(row.soonest?.expiryDate, row.soonest!!.dateType, today)
                     Row(
+                        Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description },
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Icon(
-                            row.location.icon(),
+                            item.status.icon(),
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = SpoilNotStatus.colors.forTone(item.status.tone()),
                         )
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            NameLine(item.name, low = item.isLow, out = false, pending = batch.pendingSync)
+                            // Wraps instead of squeezing at large font sizes (DESIGN 6.8: 200% font scale).
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                itemVerticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                StatusChip(batch.expiryDate, batch.dateType, today)
+                                LocationLabel(batch.location, location)
+                            }
+                        }
                         Text(
-                            location,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            softWrap = false,
+                            "${formatQuantity(batch.quantity)} $unit",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
+                    PurchaseMenu(batch, actions)
                 }
-            }
-            Text(
-                "${formatQuantity(row.total)} $unit",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (row.batches.isNotEmpty()) {
-                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null)
-            }
-        }
-        AnimatedVisibility(expanded && row.batches.isNotEmpty()) {
-            Column(Modifier.padding(start = 24.dp)) {
-                row.batches.forEach { batch -> BatchRow(batch, today, actions) }
             }
         }
         HorizontalDivider()
     }
 }
 
-/**
- * One batch: quantity, date, location and date type, with -1/+1 and a menu. Swipe right to use up, left to throw
- * away (asks why).
- */
 @Composable
-fun BatchRow(
-    batch: StockBatch,
-    today: LocalDate,
-    actions: BatchActions,
-    modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surface,
-) {
-    val haptics = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
-    val swipe = rememberSwipeToDismissBoxState()
-    LaunchedEffect(batch.id, batch.quantity) { swipe.reset() }
-
-    SwipeToDismissBox(
-        state = swipe,
-        modifier = modifier.testTag("batch_${batch.id}"),
-        backgroundContent = { SwipeBackground(swipe.dismissDirection) },
-        onDismiss = { direction ->
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            when (direction) {
-                SwipeToDismissBoxValue.StartToEnd -> actions.onUsedUp(batch)
-                SwipeToDismissBoxValue.EndToStart -> actions.onThrowAway(batch)
-                SwipeToDismissBoxValue.Settled -> Unit
+private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier: Modifier) {
+    val product = item.product
+    val unit = stringResource(product.unit.label())
+    val location = stringResource(product.defaultLocation.label())
+    val description = stringResource(R.string.row_description_out, product.name)
+    Column(modifier.fillMaxWidth().testTag("pantry_item_out_${product.id}")) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = stringResource(R.string.action_add_stock)) { onOpen(item) }
+                .heightIn(min = 64.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .semantics(mergeDescendants = true) { contentDescription = description },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                Icons.Rounded.Remove,
+                contentDescription = null,
+                tint = SpoilNotStatus.colors.forTone(StatusTone.NoDate),
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                NameLine(product.name, low = false, out = true, pending = false)
+                LocationLabel(product.defaultLocation, location)
             }
-            scope.launch { swipe.reset() }
-        },
-    ) {
-        // Opaque, so the swipe background only shows where the row has moved away.
-        Surface(color = containerColor) {
-            BatchContent(batch, today, actions)
+            Text("0 $unit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+        HorizontalDivider()
+    }
+}
+
+@Composable
+private fun NameLine(name: String, low: Boolean, out: Boolean, pending: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            name,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (out) {
+            Badge(stringResource(R.string.badge_out))
+        } else if (low) {
+            Badge(stringResource(R.string.badge_low))
+        }
+        if (pending) {
+            Icon(
+                Icons.Rounded.CloudOff,
+                contentDescription = stringResource(R.string.pending_sync),
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
 
 @Composable
-private fun BatchContent(batch: StockBatch, today: LocalDate, actions: BatchActions) {
-    val unit = stringResource(batch.unit.label())
-    val status = statusText(batch.expiryDate, batch.dateType, today)
-    val location = stringResource(batch.location.label())
-    val dateType = stringResource(batch.dateType.label())
-    val description = stringResource(R.string.batch_description, formatQuantity(batch.quantity), unit, status, location)
+private fun LocationLabel(location: Location, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(
+            location.icon(),
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+/** Every swipe has a menu equivalent (DESIGN 6.8), plus one less, one more and Move. */
+@Composable
+private fun PurchaseMenu(batch: StockBatch, actions: BatchActions) {
     var menu by rememberSaveable { mutableStateOf(false) }
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            Modifier.weight(1f).padding(vertical = 8.dp).semantics(mergeDescendants = true) {
-                contentDescription =
-                    description
-            },
-        ) {
-            Text("${formatQuantity(batch.quantity)} $unit", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "$status · $location · $dateType",
-                style = MaterialTheme.typography.bodyMedium,
-                color = SpoilNotStatus.colors.forTone(ExpiryStatus.of(batch.expiryDate, today).tone()),
-            )
-            batch.note?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+    Box {
+        IconButton(onClick = { menu = true }, modifier = Modifier.testTag("menu_${batch.id}")) {
+            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.batch_options))
         }
-        IconButton(onClick = { actions.onMinus(batch) }) {
-            Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.action_minus_one))
-        }
-        IconButton(onClick = { actions.onPlus(batch) }) {
-            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.action_plus_one))
-        }
-        Box {
-            IconButton(onClick = { menu = true }) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.batch_options))
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                listOf(
-                    R.string.action_used_up to actions.onUsedUp,
-                    R.string.action_throw_away to actions.onThrowAway,
-                    R.string.action_edit to actions.onEdit,
-                    R.string.action_move to actions.onMove,
-                ).forEach { (label, action) ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(label)) },
-                        onClick = {
-                            menu = false
-                            action(batch)
-                        },
-                    )
-                }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            listOf(
+                R.string.action_use_one to actions.onMinus,
+                R.string.action_add_one to actions.onPlus,
+                R.string.action_used_up to actions.onUsedUp,
+                R.string.action_throw_away to actions.onThrowAway,
+                R.string.action_move to actions.onMove,
+            ).forEach { (label, action) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    onClick = {
+                        menu = false
+                        action(batch)
+                    },
+                )
             }
         }
     }
