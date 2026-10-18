@@ -73,18 +73,39 @@ Both projects run the same rules; deploy to dev first. `spoilnot-prod` was opene
 
 ## Beta releases (Firebase App Distribution)
 
-1. Raise `versionCode` (and `versionName`) in `app/build.gradle.kts`.
-2. Build with the upload keystore (`keystore.properties` at the repository root; never committed):
-   ```bash
-   ./gradlew assembleProdRelease
-   ```
-   The build uploads the R8 mapping to Crashlytics so crash reports are readable.
-3. Upload and invite testers (comma-separated emails; testers already invited get the new release):
-   ```bash
-   cd firebase && npx firebase appdistribution:distribute ../app/build/outputs/apk/prod/release/app-prod-release.apk \
-     --app 1:977467444046:android:2e84de68984d0dd33cec1f --project prod --testers "<emails>" --release-notes "<notes>"
-   ```
-4. To force everyone onto the new build, raise `minSupportedBuild` in Firestore `config/app` (spoilnot-prod).
+A merge does not update the app on phones: a release must be signed with the upload key, which stays on the
+owner's Mac. One command does the rest:
+
+```bash
+./scripts/release-beta.sh "What changed, in a sentence or two"
+```
+
+It:
+
+1. checks that you are on `main`, with no uncommitted changes (`gradle.properties` is allowed) and the same as
+   GitHub;
+2. raises `versionCode` by one and the beta number in `versionName` (`1.0.0-beta.3` becomes `1.0.0-beta.4`; use
+   `--name 1.0.0` for a chosen name);
+3. builds the prod release and **refuses to upload** unless it is signed with the upload key;
+4. asks to deploy the Firestore rules (dev, then prod) if `firebase/firestore.rules` changed since the last release;
+5. uploads it to everyone in `.beta-testers` (one email per line; the file is git-ignored because the emails are
+   personal) with your notes;
+6. commits the new version to `main`, tags it `v<versionName>` and pushes both.
+
+`--dry-run` builds and checks only: nothing is uploaded, committed or tagged, and the version is left as it was.
+If any step fails, the version change is undone and nothing is committed.
+
+To make older builds stop working until updated, raise `minSupportedBuild` in Firestore `config/app`
+(spoilnot-prod) to the new `versionCode` after the testers have it.
+
+**New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
+
+```bash
+cd firebase && npx firebase appdistribution:distribute ../app/build/outputs/apk/prod/release/app-prod-release.apk \
+  --app 1:977467444046:android:2e84de68984d0dd33cec1f --project prod --testers "<email>"
+```
+
+(This re-uses the existing release when the APK is the one last uploaded; otherwise run the script.)
 
 ## Nightly export and restore (DESIGN 13.4)
 

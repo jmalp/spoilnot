@@ -14,6 +14,8 @@ captures/
 # Local and secret files (DESIGN 12.2)
 local.properties
 keystore.properties
+# Beta tester emails for scripts/release-beta.sh (personal data)
+.beta-testers
 *.jks
 *.keystore
 service-account*.json
