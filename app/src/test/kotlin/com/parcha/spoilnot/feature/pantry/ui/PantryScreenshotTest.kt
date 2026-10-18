@@ -19,7 +19,9 @@ import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
-import com.parcha.spoilnot.feature.pantry.domain.PantryList
+import com.parcha.spoilnot.feature.pantry.domain.PantryItems
+import com.parcha.spoilnot.feature.pantry.domain.PantryQuery
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -84,15 +86,20 @@ class PantryScreenshotTest(private val dark: Boolean, private val fontScale: Flo
             batch("y1", "yogurt", inDays = 3),
             batch("y2", "yogurt", quantity = 3.0, inDays = 10, location = Location.Freezer).copy(pendingSync = true),
         )
-        val actions = BatchActions({}, {}, {}, {}, {}, {})
-        PantryList.rows(products, batches, TODAY).sortedBy { it.name }.forEach { row ->
-            PantryRowItem(row, TODAY, expanded = row.name == "Yogurt", onToggle = {
-            }, onOpenProduct = {}, actions = actions)
+        val actions = BatchActions({}, {}, {}, {}, {})
+        PantryItems.build(products, batches, PantryQuery(), TODAY).flatMap { it.items }.forEach { item ->
+            PantryItemRow(item, TODAY, actions, {})
         }
     }
 
     @Test
     fun addItemForm() = snap("add_item_form") {
         AddItemForm(emptyList(), emptySet(), TODAY) {}
+    }
+
+    @Test
+    fun addItemFormForAStaple() = snap("add_item_form_staple") {
+        val eggs = product("eggs", min = 6.0, unit = QuantityUnit.Pieces).copy(buyQuantity = 12.0)
+        AddItemForm(listOf(eggs), emptySet(), TODAY, prefill = eggs) {}
     }
 }

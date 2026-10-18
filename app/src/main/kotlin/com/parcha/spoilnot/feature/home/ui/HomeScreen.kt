@@ -106,7 +106,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeCards(summary: HomeSummary, today: LocalDate, myUid: String, navigation: HomeNavigation) {
+internal fun HomeCards(summary: HomeSummary, today: LocalDate, myUid: String, navigation: HomeNavigation) {
     // Expired only: the Expiring soon filter would hide them.
     val attentionFilter =
         if (summary.attention.size == summary.expiredCount) PantryFilter.Expired else PantryFilter.ExpiringSoon

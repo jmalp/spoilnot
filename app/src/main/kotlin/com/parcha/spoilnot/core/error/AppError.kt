@@ -15,6 +15,9 @@ sealed class AppError(message: String? = null, cause: Throwable? = null) : Excep
 
     class Conflict(cause: Throwable? = null) : AppError("Conflict", cause)
 
+    /** Another pantry product already has this name. */
+    class NameTaken : AppError("Name taken")
+
     // Accounts
     class InvalidCredentials(cause: Throwable? = null) : AppError("Invalid credentials", cause)
 

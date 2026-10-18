@@ -60,7 +60,6 @@ import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
 import com.parcha.spoilnot.feature.pantry.ui.LocalUnits
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
-import com.parcha.spoilnot.feature.pantry.ui.ProductDetailScreen
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.ui.CookModeScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipeBrowserScreen
@@ -123,15 +122,7 @@ fun AppShell(
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
             )
         }
-        entry<PantryRoute> {
-            PantryScreen(
-                onOpenSettings = openSettings,
-                onOpenProduct = { navigator.navigate(ProductDetailRoute(it, navigator.currentTab)) },
-            )
-        }
-        entry<ProductDetailRoute> { key ->
-            ProductDetailScreen(productId = key.productId, onBack = { navigator.goBack() })
-        }
+        entry<PantryRoute> { PantryScreen(onOpenSettings = openSettings) }
         entry<RecipesRoute> {
             RecipesScreen(
                 RecipesNavigation(

@@ -73,16 +73,17 @@ import com.parcha.spoilnot.core.ui.remoteHighlight
 import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
 import com.parcha.spoilnot.feature.notifications.ui.Notifications
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
-import com.parcha.spoilnot.feature.pantry.domain.PantryGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantryGrouping
+import com.parcha.spoilnot.feature.pantry.domain.PantryItem
+import com.parcha.spoilnot.feature.pantry.domain.PantryItemGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantrySort
+import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
 
 @Composable
 fun PantryScreen(
     onOpenSettings: () -> Unit,
-    onOpenProduct: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PantryViewModel = hiltViewModel(),
 ) {
@@ -91,10 +92,11 @@ fun PantryScreen(
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var adding by rememberSaveable { mutableStateOf(false) }
+    // An Out staple opens Add item for that product.
+    var addingFor by remember { mutableStateOf<Product?>(null) }
     var throwing by remember { mutableStateOf<StockBatch?>(null) }
     var moving by remember { mutableStateOf<StockBatch?>(null) }
     var editing by remember { mutableStateOf<StockBatch?>(null) }
-    val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val listState = rememberLazyListState()
     // Collapses while scrolling or away from the top (DESIGN 6.5); derived so scrolling does not recompose the screen.
     val fabExpanded by remember {
@@ -108,7 +110,6 @@ fun PantryScreen(
         onPlus = { viewModel.adjust(it, 1.0) },
         onUsedUp = viewModel::usedUp,
         onThrowAway = { throwing = it },
-        onEdit = { editing = it },
         onMove = { moving = it },
     )
 
@@ -145,10 +146,18 @@ fun PantryScreen(
                     PantryList(
                         groups = state.groups,
                         today = state.today,
-                        expanded = expanded,
                         listState = listState,
                         actions = actions,
-                        onOpenProduct = onOpenProduct,
+                        onOpen = { item ->
+                            when (item) {
+                                is PantryItem.Purchase -> editing = item.batch
+
+                                is PantryItem.Out -> {
+                                    addingFor = item.product
+                                    adding = true
+                                }
+                            }
+                        },
                     )
                 }
             }
@@ -167,8 +176,17 @@ fun PantryScreen(
             products = state.data.products,
             productsWithStock = state.data.batches.filter { it.quantity > 0 }.map { it.productId }.toSet(),
             today = state.today,
-            onSave = { draft -> viewModel.add(draft) { adding = false } },
-            onDismiss = { adding = false },
+            onSave = { draft ->
+                viewModel.add(draft) {
+                    adding = false
+                    addingFor = null
+                }
+            },
+            onDismiss = {
+                adding = false
+                addingFor = null
+            },
+            prefill = addingFor,
         )
     }
     throwing?.let { batch ->
@@ -183,33 +201,37 @@ fun PantryScreen(
         })
     }
     editing?.let { batch ->
-        EditBatchSheet(batch, state.today, onSave = {
-            viewModel.edit(batch, it)
-            editing = null
-        }, onDismiss = { editing = null })
+        val product = state.data.products.firstOrNull { it.id == batch.productId }
+        val others = state.data.batches.any { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
+        EditItemSheet(
+            batch = batch,
+            product = product,
+            canChangeUnit = !others,
+            today = state.today,
+            onSave = { viewModel.editItem(batch, it) { editing = null } },
+            onDismiss = { editing = null },
+        )
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PantryList(
-    groups: List<PantryGroup>,
+    groups: List<PantryItemGroup>,
     today: LocalDate,
-    expanded: SnapshotStateMap<String, Boolean>,
     listState: LazyListState,
     actions: BatchActions,
-    onOpenProduct: (String) -> Unit,
+    onOpen: (PantryItem) -> Unit,
 ) {
     // A remote change must not move the list under the user's finger (DESIGN 6.4): hold updates while scrolling.
     var shown by remember { mutableStateOf(groups) }
     LaunchedEffect(groups, listState.isScrollInProgress) { if (!listState.isScrollInProgress) shown = groups }
-    // Rows another phone changed get a short highlight (DESIGN 6.4). Only batches are compared: products have no
-    // pending-write flag, and this phone's restock engine updates them too.
+    // Rows another phone changed get a short highlight (DESIGN 6.4).
     val remote = rememberRemoteChanges(
-        shown.flatMap { it.rows }.distinctBy { it.productId },
-        id = { it.productId },
+        shown.flatMap { it.items }.filterIsInstance<PantryItem.Purchase>().map { it.batch },
+        id = { it.id },
         pending = { it.pendingSync },
-        content = { row -> row.batches.map { it.copy(pendingSync = false) } },
+        content = { it.copy(pendingSync = false) },
     )
 
     if (shown.isEmpty()) {
@@ -219,7 +241,7 @@ private fun PantryList(
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(bottom = 96.dp),
-        modifier = Modifier.testTag("pantry_list"),
+        modifier = Modifier.fillMaxSize().testTag("pantry_list"),
     ) {
         shown.forEach { group ->
             val header = group.location?.label() ?: group.category?.label()
@@ -237,16 +259,13 @@ private fun PantryList(
                     )
                 }
             }
-            items(group.rows, key = { "$groupKey-${it.productId}" }) { row ->
-                val key = "$groupKey-${row.productId}"
-                PantryRowItem(
-                    row = row,
+            items(group.items, key = { "$groupKey-${it.key}" }) { item ->
+                PantryItemRow(
+                    item = item,
                     today = today,
-                    expanded = expanded[key] == true,
-                    onToggle = { expanded[key] = expanded[key] != true },
-                    onOpenProduct = { onOpenProduct(row.productId) },
                     actions = actions,
-                    modifier = Modifier.animateItem().remoteHighlight(row.productId in remote),
+                    onOpen = onOpen,
+                    modifier = Modifier.animateItem().remoteHighlight(item.key in remote),
                 )
             }
         }

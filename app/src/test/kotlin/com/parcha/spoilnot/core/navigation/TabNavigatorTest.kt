@@ -87,13 +87,13 @@ class TabNavigatorTest {
         val settings = { key: NavKey -> key is SettingsRoute || key is HouseholdSettingsRoute }
         val nav = TabNavigator(stacks, { current }, { current = it }, closesOnLeave = settings)
         nav.selectTab(Pantry)
-        nav.navigate(ProductDetailRoute("p1", Pantry))
+        nav.navigate(RecipeDetailRoute("r1", Pantry))
         nav.navigate(SettingsRoute(Pantry))
         nav.navigate(HouseholdSettingsRoute(Pantry))
         nav.selectTab(Groceries)
         nav.navigate(SettingsRoute(Groceries))
         nav.selectTab(Pantry)
-        assertEquals(listOf(PantryRoute, ProductDetailRoute("p1", Pantry)), stacks.getValue(Pantry))
+        assertEquals(listOf(PantryRoute, RecipeDetailRoute("r1", Pantry)), stacks.getValue(Pantry))
         assertEquals(listOf(GroceriesRoute), stacks.getValue(Groceries))
         // Leaving through Back to Home closes it as well.
         nav.navigate(SettingsRoute(Pantry))

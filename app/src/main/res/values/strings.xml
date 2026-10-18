@@ -34,6 +34,7 @@
     <string name="error_permission">You don\'t have permission to do that.</string>
     <string name="error_quota">Spoil Not has reached its free daily limit and will work again tomorrow.</string>
     <string name="error_not_found">That no longer exists.</string>
+    <string name="error_name_taken">Another item already has this name. Choose a different one.</string>
     <string name="error_conflict">Something changed at the same time. Try again.</string>
     <string name="error_code_inactive">That code isn\'t active. Ask the household owner for a new one.</string>
     <string name="error_owner_must_transfer">Make someone else the owner or delete the household first.</string>
@@ -233,11 +234,8 @@
     <string name="action_add_first_item">Add your first item</string>
     <string name="pantry_no_matches">Nothing matches. Try another filter or search.</string>
     <string name="action_add_item">Add item</string>
-    <string name="expand_batches">Show batches of %1$s</string>
-    <string name="collapse_batches">Hide batches of %1$s</string>
     <string name="row_description">%1$s, %2$s %3$s, %4$s, %5$s</string>
     <string name="row_description_out">%1$s, out of stock</string>
-    <string name="batch_description">%1$s %2$s, %3$s, %4$s</string>
     <string name="action_minus_one">Remove one</string>
     <string name="action_plus_one">Add one</string>
     <string name="action_used_up">Used up</string>
@@ -253,22 +251,18 @@
 
     <!-- Add and edit -->
     <string name="add_item_title">Add item</string>
-    <string name="edit_batch_title">Edit %1$s</string>
     <string name="field_name">Name</string>
     <string name="field_quantity">Quantity</string>
     <string name="field_unit">Unit</string>
-    <string name="unit_locked">Fixed while this product has stock</string>
     <string name="field_expiry">Expiration date</string>
     <string name="chip_plus_3_days">+3 days</string>
     <string name="chip_plus_1_week">+1 week</string>
     <string name="chip_plus_2_weeks">+2 weeks</string>
     <string name="chip_plus_1_month">+1 month</string>
     <string name="chip_no_expiry">No expiry</string>
-    <string name="field_date_type">Date type</string>
     <string name="field_location">Location</string>
     <string name="field_category">Category</string>
     <string name="field_notes">Notes</string>
-    <string name="advanced">More options</string>
     <string name="field_keep_at_least">Keep at least</string>
     <string name="keep_at_least_help">Add to the grocery list when fewer than this remain</string>
     <string name="field_auto_add">Add to grocery list automatically</string>
@@ -277,22 +271,10 @@
     <string name="error_name_80">Use 80 characters or fewer.</string>
     <string name="error_quantity">Enter a quantity above 0.</string>
     <string name="error_number">Enter a number.</string>
-    <string name="error_product_exists">Another product already has this name.</string>
     <string name="added_message">%1$s added</string>
     <string name="added_merged_message">Added to your %1$s</string>
 
     <!-- Product detail -->
-    <string name="product_total">%1$s %2$s in stock</string>
-    <string name="product_batches">Batches</string>
-    <string name="product_settings">Product settings</string>
-    <string name="field_default_location">Default location</string>
-    <string name="field_shelf_life">Typical shelf life (days)</string>
-    <string name="shelf_life_help">Used to fill in the expiration date. Learned from your last 5 purchases.</string>
-    <string name="product_history">History</string>
-    <string name="product_no_history">Nothing yet.</string>
-    <string name="event_added">%1$s added %2$s</string>
-    <string name="event_discarded">%1$s threw away %2$s (%3$s)</string>
-    <string name="saved">Saved</string>
 
     <!-- Groceries (DESIGN 5.3) -->
     <string name="grocery_quick_add">Add an item</string>
@@ -522,4 +504,12 @@
     <string name="update_title">Please update Spoil Not</string>
     <string name="update_body">This version is too old to use with your household\'s data. Install the latest version from the App Tester app or the link you were sent.</string>
     <string name="update_action">Get the update</string>
+
+    <!-- Pantry edit window (beta feedback) -->
+    <string name="edit_item_title">Edit item</string>
+    <string name="action_use_one">Use 1</string>
+    <string name="action_add_one">Add 1</string>
+    <string name="action_add_stock">Add stock</string>
+    <string name="unit_locked_short">Set while in stock</string>
+    <string name="error_keep_at_least">Enter how many to keep, above 0.</string>
 </resources>

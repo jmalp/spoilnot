@@ -17,14 +17,17 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 ## 2. Everyday flows
 
 1. Pantry: add Milk (expires tomorrow) on Phone A. Phone B shows it in under 2 seconds with a short highlight.
-2. Mark it used up with a swipe, then Undo from the snackbar. Throw away something with a reason; Undo.
-3. Set Keep at least on a product and use it below that: it appears on the grocery list by itself on both phones.
+2. Mark it used up with a swipe, then Undo from the snackbar. Throw away something with a reason; Undo. Tap a row:
+   the Edit window opens; drag it down a little (it stays) and then past halfway (it closes).
+3. Turn on Add to grocery list automatically with Keep at least on a product and use it below that: it appears on
+   the grocery list by itself on both phones.
 4. Groceries: quick-add "2 kg rice", check it off (light vibration), Add to pantry.
 5. Recipes: share a recipe page from Chrome (Share > Spoil Not). The preview opens in under 5 seconds; Save. Open it,
    change servings, start Cook mode (screen stays on), add ingredients to the grocery list ("Probably in pantry"
    items start unchecked).
-6. Home: Needs attention, Low stock, Grocery list and Recent activity match what you just did; each card opens the
-   right place.
+6. Home: Needs attention, Low stock, Grocery list and Recent activity match what you just did; each card's button
+   switches to the right tab with the right filter.
+7. Open Settings on one tab, switch to another tab and back: Settings is closed.
 
 ## 3. Conditions
 

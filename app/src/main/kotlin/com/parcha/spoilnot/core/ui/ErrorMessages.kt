@@ -18,6 +18,7 @@ fun Throwable.messageRes(): Int = when (this) {
     is AppError.QuotaExceeded -> R.string.error_quota
     is AppError.NotFound -> R.string.error_not_found
     is AppError.Conflict -> R.string.error_conflict
+    is AppError.NameTaken -> R.string.error_name_taken
     is AppError.InviteCodeInactive -> R.string.error_code_inactive
     is AppError.OwnerMustTransferFirst -> R.string.error_owner_must_transfer
     else -> R.string.error_unknown

@@ -26,10 +26,6 @@ data class SettingsRoute(val tab: TopLevelDestination) : NavKey
 @Serializable
 data class HouseholdSettingsRoute(val tab: TopLevelDestination) : NavKey
 
-/** A product's detail screen, pushed on the tab that opened it. */
-@Serializable
-data class ProductDetailRoute(val productId: String, val tab: TopLevelDestination) : NavKey
-
 /** Settings > Notifications, pushed on the same tab as Settings. */
 @Serializable
 data class NotificationSettingsRoute(val tab: TopLevelDestination) : NavKey

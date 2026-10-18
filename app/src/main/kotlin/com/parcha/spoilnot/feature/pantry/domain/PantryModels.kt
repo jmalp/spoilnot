@@ -133,6 +133,22 @@ data class BatchEdit(
     val note: String?,
 )
 
+/**
+ * The Edit window (beta feedback): one purchase and its product together. Keep at least and Buy quantity only exist
+ * with Add to grocery list automatically on.
+ */
+data class ItemEdit(
+    val name: String,
+    val quantity: Double,
+    val unit: QuantityUnit,
+    val category: Category,
+    val expiryDate: LocalDate?,
+    val location: Location,
+    val autoAddToGrocery: Boolean,
+    val minQuantity: Double?,
+    val buyQuantity: Double?,
+)
+
 /** Changes to a product from its detail screen. */
 data class ProductEdit(
     val name: String,
