@@ -101,10 +101,12 @@ were. It never changes the household document or its members (they control acces
 after the export alone. Anything deleted since the export comes back; anything changed since goes back to the
 exported version.
 
-1. **Actions → restore-from-export → Run workflow.** Enter the export run's ID and the household ID; leave
-   "apply" unticked. The log shows how many documents would be written, by kind.
-2. Run it again with **apply** ticked.
-3. To restore into a different household (for example after the original was deleted, recreate one in the app,
+1. **Actions → restore-from-export → Run workflow.** Enter the export run's ID and leave the household empty: the
+   log lists each household ID in that export with its document counts (nothing is written).
+2. Run it again with the household ID and "apply" unticked. The log shows how many documents would be written,
+   by kind.
+3. Run it again with **apply** ticked.
+4. To restore into a different household (for example after the original was deleted, recreate one in the app,
    then find its ID in the Firebase console under `households`), fill in **target household**.
 
 From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<hid> -f apply=false`.

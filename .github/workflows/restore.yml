@@ -10,8 +10,8 @@ on:
         required: true
         type: string
       household_id:
-        description: 'Household ID (the export file name, without .json)'
-        required: true
+        description: 'Household ID (leave empty to list the households in the export)'
+        required: false
         type: string
       target_household_id:
         description: 'Household to write into (leave empty for the same one)'
@@ -57,4 +57,8 @@ jobs:
           APPLY: ${{ inputs.apply && '--apply' || '' }}
         run: |
           npm ci && npm run build
-          node dist/restore-main.js "$RUNNER_TEMP/exports/$SOURCE.json" "$TARGET" $APPLY
+          if [ -z "$SOURCE" ]; then
+            node dist/restore-main.js --list "$RUNNER_TEMP/exports"
+          else
+            node dist/restore-main.js "$RUNNER_TEMP/exports/$SOURCE.json" "$TARGET" $APPLY
+          fi
