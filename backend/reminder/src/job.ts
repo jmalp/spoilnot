@@ -26,6 +26,8 @@ export interface JobOptions {
   now: Date;
   /** Log what would be sent and change nothing (DESIGN 10.5). */
   dryRun?: boolean;
+  /** Delete old activity and join requests in this run (default true; the hourly workflow prunes once a day). */
+  prune?: boolean;
   log?: (line: string) => void;
 }
 
@@ -67,7 +69,7 @@ function toBatch(data: FirebaseFirestore.DocumentData): Batch | null {
 }
 
 export async function runJob(db: Firestore, sender: Sender, options: JobOptions): Promise<JobSummary> {
-  const { now, dryRun = false } = options;
+  const { now, dryRun = false, prune: shouldPrune = true } = options;
   const log = options.log ?? (() => {});
   const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0 };
 
@@ -143,7 +145,7 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
   }
 
   // 7. Housekeeping (DESIGN 5.1, 5.6).
-  if (!dryRun) {
+  if (!dryRun && shouldPrune) {
     const pruned = await prune(db, now);
     summary.prunedActivity = pruned.activity;
     summary.prunedJoinRequests = pruned.joinRequests;

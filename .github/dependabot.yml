@@ -1,0 +1,58 @@
+# Dependency automation (DESIGN 12.2 control 9, M7). Weekly and grouped, so updates arrive as a few pull requests
+# instead of one per library; CI must pass before merging. Security updates are not delayed by the schedule.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    groups:
+      androidx-and-compose:
+        patterns: ["androidx.*", "org.jetbrains.compose*"]
+      firebase-and-google:
+        patterns: ["com.google.*"]
+      kotlin-and-build:
+        patterns: ["org.jetbrains.kotlin*", "com.android.*", "com.google.devtools.ksp*", "com.diffplug*"]
+      testing:
+        patterns: ["junit*", "io.mockk*", "app.cash.turbine*", "org.robolectric*", "io.github.takahirom*"]
+      other-libraries:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /firebase
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    groups:
+      firebase-tools-and-sdk:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /backend/reminder
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    groups:
+      reminder-job:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    groups:
+      actions:
+        patterns: ["*"]

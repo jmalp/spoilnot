@@ -38,7 +38,8 @@ Never commit the key or put it anywhere else. Do not link a billing account (DES
 ### Rotate the key (yearly)
 
 Create a new key (step 4), replace the secret (step 5), run the workflow once by hand (below), then delete the old
-key under **Keys** in the console.
+key under **Keys** in the console. The nightly export and the restore workflow use the same prod secret, so they
+pick up the new key too.
 
 ### Run the job by hand
 
@@ -84,3 +85,83 @@ Both projects run the same rules; deploy to dev first. `spoilnot-prod` was opene
      --app 1:977467444046:android:2e84de68984d0dd33cec1f --project prod --testers "<emails>" --release-notes "<notes>"
    ```
 4. To force everyone onto the new build, raise `minSupportedBuild` in Firestore `config/app` (spoilnot-prod).
+
+## Nightly export and restore (DESIGN 13.4)
+
+`nightly-export.yml` runs at 07:17 UTC (about 3 AM Eastern) and saves every spoilnot-prod household as
+`<householdId>.json` in an artifact called `household-exports`, kept 14 days. The format is the same as the app's
+Settings > Export file. Artifacts of this private repository are visible only to people with access to it.
+
+To find an export: **Actions → nightly-export →** pick a run (its URL ends with the run ID) **→ Artifacts**.
+
+### Restore a household
+
+Restoring writes back the export's products, stock, grocery lists and their items, and recipes, exactly as they
+were. It never changes the household document or its members (they control access), and it leaves documents created
+after the export alone. Anything deleted since the export comes back; anything changed since goes back to the
+exported version.
+
+1. **Actions → restore-from-export → Run workflow.** Enter the export run's ID and the household ID; leave
+   "apply" unticked. The log shows how many documents would be written, by kind.
+2. Run it again with **apply** ticked.
+3. To restore into a different household (for example after the original was deleted, recreate one in the app,
+   then find its ID in the Firebase console under `households`), fill in **target household**.
+
+From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<hid> -f apply=false`.
+
+A file saved from Settings > Export can be restored the same way from a computer that has the service account key
+in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci && npm run build && node dist/restore-main.js
+<file> <householdId>`), but the workflow is preferred because the key never leaves GitHub.
+
+## Regenerate an invite code by hand
+
+Normally the owner rotates the code in the app (Settings > Household > invite card > Rotate), which also cancels
+the old one. If that is not possible, in the Firebase console → Firestore:
+
+1. Choose a new code: 10 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0 or 1).
+2. `inviteCodes` → **Add document** with that code as the document ID and fields `householdId` (string),
+   `householdName` (string), `active` (boolean, true), `createdBy` (the owner's uid), `createdAt` (timestamp).
+3. `households/<id>`: set `inviteCode` to the new code.
+4. Delete the old `inviteCodes/<old code>` document.
+
+## Check quota usage (DESIGN 9.7)
+
+Firebase console → the project → **Usage and billing → Usage** (or Firestore → Usage) shows reads, writes and
+deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 deletes). Look at it after adding a
+household or a new feature.
+
+`cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
+2026-10-18 (30 products, 60 batches, 25 grocery items and 15 recipes per household; 4 phones opening the app 8
+times a day):
+
+| Reads | Per day | Share of 50,000 |
+| --- | --- | --- |
+| App listeners | 42,280 | |
+| Security-rule lookups | 2,200 | |
+| Scheduled jobs (reminders, housekeeping, export) | 2,440 | |
+| **Total for 10 households** | **46,920** | **93.8%** |
+| Per household | about 4,700 | 9.4% |
+
+Writes were 440 (2.2%). So the free plan holds about 7 households of this size under the 70% warning line. Most
+reads are a phone re-reading the pantry when it opens after more than 30 minutes. If usage nears 70%: check for a
+regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
+
+## Scheduled workflows
+
+`expiry-reminders` (hourly), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub can
+disable scheduled workflows in a repository with no activity for 60 days, and shows a banner on the Actions tab. To
+turn one back on: **Actions →** the workflow **→ Enable workflow** (or
+`gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check.
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens grouped pull requests on Mondays for Gradle, the two npm projects and
+GitHub Actions. Merge one when CI is green; for an app library update, also install a build on a phone before the
+next beta. Security updates arrive as soon as they are published.
+
+## Secret scanning
+
+`secret-scan.yml` runs gitleaks on every push and pull request and over the whole history weekly. If it finds
+something: treat the secret as leaked even after deleting it from the repository. Rotate it first (for the
+service account, see "Rotate the key"), then remove it from the code. The Firebase configuration files are allowed
+on purpose (`.gitleaks.toml`).
