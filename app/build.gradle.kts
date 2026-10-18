@@ -143,6 +143,10 @@ dependencies {
     implementation(libs.androidx.browser)
     implementation(libs.aboutlibraries.compose.m3)
     implementation(libs.androidx.core.splashscreen)
+    // AGP pins test dependencies to the app's versions; the test libraries need these slightly newer ones
+    // (the app alone would resolve concurrent-futures 1.1.0 and fragment 1.5.1).
+    implementation(libs.androidx.concurrent.futures)
+    implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
@@ -158,6 +162,7 @@ dependencies {
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4.accessibility)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
