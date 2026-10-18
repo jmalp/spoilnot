@@ -68,6 +68,8 @@ import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.ui.MessageEffect
+import com.parcha.spoilnot.core.ui.rememberRemoteChanges
+import com.parcha.spoilnot.core.ui.remoteHighlight
 import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
 import com.parcha.spoilnot.feature.notifications.ui.Notifications
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
@@ -201,6 +203,14 @@ private fun PantryList(
     // A remote change must not move the list under the user's finger (DESIGN 6.4): hold updates while scrolling.
     var shown by remember { mutableStateOf(groups) }
     LaunchedEffect(groups, listState.isScrollInProgress) { if (!listState.isScrollInProgress) shown = groups }
+    // Rows another phone changed get a short highlight (DESIGN 6.4). Only batches are compared: products have no
+    // pending-write flag, and this phone's restock engine updates them too.
+    val remote = rememberRemoteChanges(
+        shown.flatMap { it.rows }.distinctBy { it.productId },
+        id = { it.productId },
+        pending = { it.pendingSync },
+        content = { row -> row.batches.map { it.copy(pendingSync = false) } },
+    )
 
     if (shown.isEmpty()) {
         EmptyState(icon = Icons.Rounded.Search, message = stringResource(R.string.pantry_no_matches))
@@ -236,7 +246,7 @@ private fun PantryList(
                     onToggle = { expanded[key] = expanded[key] != true },
                     onOpenProduct = { onOpenProduct(row.productId) },
                     actions = actions,
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem().remoteHighlight(row.productId in remote),
                 )
             }
         }

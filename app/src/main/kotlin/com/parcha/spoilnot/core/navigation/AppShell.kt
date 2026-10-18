@@ -1,5 +1,12 @@
 package com.parcha.spoilnot.core.navigation
 
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +49,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.error.QuotaSignal
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
 import com.parcha.spoilnot.feature.home.ui.HomeNavigation
@@ -252,10 +260,18 @@ fun AppShell(
             },
         ) { padding ->
             val quotaDay by QuotaSignal.exhaustedOn.collectAsStateWithLifecycle()
+            val reduceMotion = rememberReduceMotion()
             Column(Modifier.padding(padding).consumeWindowInsets(padding)) {
                 // DESIGN 6.7: the free daily quota was reached; it resets at midnight Pacific time.
                 if (quotaDay != null && QuotaSignal.isExhausted()) QuotaBanner()
-                NavDisplay(entries = visibleEntries, onBack = { navigator.goBack() }, modifier = Modifier.weight(1f))
+                NavDisplay(
+                    entries = visibleEntries,
+                    onBack = { navigator.goBack() },
+                    modifier = Modifier.weight(1f),
+                    transitionSpec = { sharedAxis(forward = true, reduceMotion) },
+                    popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                    predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                )
             }
         }
     }
@@ -288,4 +304,15 @@ private fun QuotaBanner() {
             modifier = Modifier.padding(start = 8.dp),
         )
     }
+}
+
+/**
+ * Material shared axis X (DESIGN 6.4): a short slide with a fade, 250 ms; only a fade when the system's Remove
+ * animations setting is on.
+ */
+private fun sharedAxis(forward: Boolean, reduceMotion: Boolean): ContentTransform {
+    if (reduceMotion) return fadeIn(tween(120)) togetherWith fadeOut(tween(120))
+    val sign = if (forward) 1 else -1
+    return (slideInHorizontally(tween(250)) { sign * it / 8 } + fadeIn(tween(250, delayMillis = 50))) togetherWith
+        (slideOutHorizontally(tween(250)) { -sign * it / 8 } + fadeOut(tween(150)))
 }
