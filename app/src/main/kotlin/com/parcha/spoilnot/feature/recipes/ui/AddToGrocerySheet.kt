@@ -25,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -38,6 +37,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
 
 /**
@@ -56,9 +56,11 @@ fun AddToGrocerySheet(
     val choices = remember { mutableStateMapOf<Int, Boolean>() }
     fun selected(index: Int, c: GroceryCandidate) = choices[index] ?: c.selectedByDefault
     val count = state.candidates.indices.count { selected(it, state.candidates[it]) }
+    val sheet = rememberFormSheet()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheet.state,
+        modifier = sheet.modifier,
     ) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             Text(stringResource(R.string.recipe_add_to_list), style = MaterialTheme.typography.titleLarge)

@@ -25,6 +25,9 @@ enum class Category(val wire: String) {
     PantryStaples("pantry_staples"),
     Drinks("drinks"),
     Snacks("snacks"),
+
+    /** Leftovers and cooked dishes (beta feedback). */
+    Cooked("cooked"),
     Other("other"),
     ;
 

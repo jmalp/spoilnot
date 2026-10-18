@@ -86,18 +86,24 @@ fun AppShell(
     val deepLink by shellViewModel.deepLink.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(TabNavigator.START) }
     val backStacks = TopLevelDestination.entries.associateWith { tab -> key(tab) { rememberNavBackStack(tab.root) } }
-    val navigator = remember(backStacks) { TabNavigator(backStacks, { currentTab }, { currentTab = it }) }
+    val navigator = remember(backStacks) {
+        TabNavigator(backStacks, { currentTab }, { currentTab = it }, closesOnLeave = ::isSettingsScreen)
+    }
 
     val openSettings = { navigator.navigate(SettingsRoute(navigator.currentTab)) }
     // A tapped digest or a Home card opens the Pantry tab at its root; the Pantry screen applies the filter.
     LaunchedEffect(deepLink) {
         when (val link = deepLink) {
-            is DeepLink.Pantry -> navigator.showRoot(TopLevelDestination.Pantry)
+            is DeepLink.Pantry -> {
+                navigator.showRoot(TopLevelDestination.Pantry)
+                shellViewModel.navigated(link)
+            }
 
             // A link shared from another app opens its preview on the Recipes tab (DESIGN 11.1).
             is DeepLink.ImportRecipe -> {
                 navigator.showRoot(TopLevelDestination.Recipes)
                 navigator.navigate(RecipeImportRoute(link.url, TopLevelDestination.Recipes))
+                shellViewModel.navigated(link)
                 shellViewModel.consume(link)
             }
 
@@ -316,3 +322,7 @@ private fun sharedAxis(forward: Boolean, reduceMotion: Boolean): ContentTransfor
     return (slideInHorizontally(tween(250)) { sign * it / 8 } + fadeIn(tween(250, delayMillis = 50))) togetherWith
         (slideOutHorizontally(tween(250)) { -sign * it / 8 } + fadeOut(tween(150)))
 }
+
+/** Settings and its pages close when their tab is left. */
+private fun isSettingsScreen(key: NavKey) =
+    key is SettingsRoute || key is HouseholdSettingsRoute || key is NotificationSettingsRoute || key is AboutRoute

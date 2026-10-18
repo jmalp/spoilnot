@@ -26,11 +26,12 @@ import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -179,7 +180,8 @@ private fun HomeCard(
     action: Pair<String, () -> Unit>? = null,
     content: @Composable () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth().testTag(tag)) {
+    // Outlined, with solid buttons: tonal buttons on tonal cards were hard to see in light mode (beta feedback).
+    OutlinedCard(modifier = Modifier.fillMaxWidth().testTag(tag)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -191,7 +193,7 @@ private fun HomeCard(
             }
             content()
             action?.let { (label, onClick) ->
-                FilledTonalButton(
+                Button(
                     onClick = onClick,
                     modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp),
                 ) { Text(label) }
@@ -304,7 +306,7 @@ private fun SkeletonCard() {
             label = "skeleton alpha",
         ).value
     }
-    Card(Modifier.fillMaxWidth().testTag("home_skeleton")) {
+    OutlinedCard(Modifier.fillMaxWidth().testTag("home_skeleton")) {
         Column(Modifier.padding(16.dp).alpha(alpha), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
                 Modifier.fillMaxWidth(
@@ -343,7 +345,7 @@ private fun JoinRequestsCard(count: Int, onReview: () -> Unit, modifier: Modifie
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            FilledTonalButton(onClick = onReview, modifier = Modifier.heightIn(min = 48.dp)) {
+            Button(onClick = onReview, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.action_review))
             }
         }

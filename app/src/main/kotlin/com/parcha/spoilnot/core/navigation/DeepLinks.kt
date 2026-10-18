@@ -26,17 +26,29 @@ sealed interface DeepLink {
     }
 }
 
-/** Holds a deep link until the screen it targets has applied it. */
+/**
+ * Holds a deep link for its two consumers: the app shell, which shows the right tab ([navigation]), and the screen
+ * that applies it, such as the Pantry filter ([pending]). Each consumes its own copy, so neither can miss it.
+ */
 @Singleton
 class DeepLinkRouter @Inject constructor() {
     private val _pending = MutableStateFlow<DeepLink?>(null)
     val pending: StateFlow<DeepLink?> = _pending.asStateFlow()
 
+    private val _navigation = MutableStateFlow<DeepLink?>(null)
+    val navigation: StateFlow<DeepLink?> = _navigation.asStateFlow()
+
     fun open(link: DeepLink?) {
-        if (link != null) _pending.value = link
+        if (link == null) return
+        _pending.value = link
+        _navigation.value = link
     }
 
     fun consume(link: DeepLink) {
         _pending.compareAndSet(link, null)
+    }
+
+    fun consumeNavigation(link: DeepLink) {
+        _navigation.compareAndSet(link, null)
     }
 }

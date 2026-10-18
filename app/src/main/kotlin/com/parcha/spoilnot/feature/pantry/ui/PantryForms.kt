@@ -43,7 +43,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
@@ -95,8 +95,12 @@ fun AddItemSheet(
     onSave: (StockDraft) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, modifier = Modifier.testTag("sheet_add_item")) {
+    val sheet = rememberFormSheet()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheet.state,
+        modifier = sheet.modifier.testTag("sheet_add_item"),
+    ) {
         AddItemForm(products, productsWithStock, today, onSave)
     }
 }
@@ -223,7 +227,7 @@ fun AddItemForm(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditBatchSheet(batch: StockBatch, today: LocalDate, onSave: (BatchEdit) -> Unit, onDismiss: () -> Unit) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheet = rememberFormSheet()
     var quantity by rememberSaveable { mutableStateOf(formatQuantity(batch.quantity)) }
     var expiry by rememberSaveable { mutableStateOf(batch.expiryDate) }
     var dateType by rememberSaveable { mutableStateOf(batch.dateType) }
@@ -235,8 +239,8 @@ fun EditBatchSheet(batch: StockBatch, today: LocalDate, onSave: (BatchEdit) -> U
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheet,
-        modifier = Modifier.testTag("sheet_edit_batch"),
+        sheetState = sheet.state,
+        modifier = sheet.modifier.testTag("sheet_edit_batch"),
     ) {
         FormSheetColumn(
             title = stringResource(R.string.edit_batch_title, batch.productName),

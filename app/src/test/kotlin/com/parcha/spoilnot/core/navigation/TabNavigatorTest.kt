@@ -81,4 +81,28 @@ class TabNavigatorTest {
     fun `rejects a missing tab`() {
         TabNavigator(mapOf(Home to mutableListOf<NavKey>(HomeRoute)), { Home }, {})
     }
+
+    @Test
+    fun `leaving a tab closes Settings on it but keeps other screens`() {
+        val settings = { key: NavKey -> key is SettingsRoute || key is HouseholdSettingsRoute }
+        val nav = TabNavigator(stacks, { current }, { current = it }, closesOnLeave = settings)
+        nav.selectTab(Pantry)
+        nav.navigate(ProductDetailRoute("p1", Pantry))
+        nav.navigate(SettingsRoute(Pantry))
+        nav.navigate(HouseholdSettingsRoute(Pantry))
+        nav.selectTab(Groceries)
+        nav.navigate(SettingsRoute(Groceries))
+        nav.selectTab(Pantry)
+        assertEquals(listOf(PantryRoute, ProductDetailRoute("p1", Pantry)), stacks.getValue(Pantry))
+        assertEquals(listOf(GroceriesRoute), stacks.getValue(Groceries))
+        // Leaving through Back to Home closes it as well.
+        nav.navigate(SettingsRoute(Pantry))
+        nav.goBack()
+        nav.goBack()
+        nav.goBack()
+        assertEquals(Home, current)
+        nav.navigate(SettingsRoute(Home))
+        nav.showRoot(Pantry)
+        assertEquals(listOf(HomeRoute), stacks.getValue(Home))
+    }
 }

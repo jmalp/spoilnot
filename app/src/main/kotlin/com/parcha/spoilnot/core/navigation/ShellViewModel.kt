@@ -27,7 +27,10 @@ class ShellViewModel @Inject constructor(
     private val deepLinks: DeepLinkRouter,
 ) : ViewModel() {
     /** A notification tap or a shared link waiting to be shown (DESIGN 10.2, 11.1). */
-    val deepLink: StateFlow<DeepLink?> = deepLinks.pending
+    val deepLink: StateFlow<DeepLink?> = deepLinks.navigation
+
+    /** The shell has shown where [link] goes. */
+    fun navigated(link: DeepLink) = deepLinks.consumeNavigation(link)
 
     fun consume(link: DeepLink) = deepLinks.consume(link)
 

@@ -23,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -42,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.PantryEntry
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -88,7 +88,7 @@ fun AddToPantrySheet(
     onConfirm: (entries: List<PantryEntry>, skipped: List<GroceryItem>) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheet = rememberFormSheet()
     val drafts = remember(items) {
         mutableStateListOf(
             *items.map { item ->
@@ -109,8 +109,8 @@ fun AddToPantrySheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheet,
-        modifier = Modifier.testTag("sheet_add_to_pantry"),
+        sheetState = sheet.state,
+        modifier = sheet.modifier.testTag("sheet_add_to_pantry"),
     ) {
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
             Column(
@@ -227,7 +227,7 @@ fun EditItemSheet(
     onSave: (quantity: Double?, unit: QuantityUnit?, note: String?, category: Category?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheet = rememberFormSheet()
     var quantity by rememberSaveable { mutableStateOf(item.quantity?.let(::formatQuantity).orEmpty()) }
     var unit by rememberSaveable { mutableStateOf(item.unit ?: QuantityUnit.Pieces) }
     var note by rememberSaveable { mutableStateOf(item.note.orEmpty()) }
@@ -241,7 +241,7 @@ fun EditItemSheet(
         null
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet.state, modifier = sheet.modifier) {
         Column(
             Modifier.fillMaxWidth().imePadding().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

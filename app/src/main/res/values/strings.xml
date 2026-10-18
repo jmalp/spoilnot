@@ -193,6 +193,7 @@
     <string name="category_pantry_staples">Pantry staples</string>
     <string name="category_drinks">Drinks</string>
     <string name="category_snacks">Snacks</string>
+    <string name="category_cooked">Cooked</string>
     <string name="category_other">Other</string>
     <string name="unit_pcs">pcs</string>
     <string name="unit_g">g</string>
