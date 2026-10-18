@@ -1,5 +1,6 @@
 // Entry point for the GitHub Actions workflow (DESIGN 10.4). Needs FIREBASE_SERVICE_ACCOUNT_JSON; DRY_RUN=true
-// logs what would be sent and changes nothing.
+// logs what would be sent and changes nothing. EXPECTED_PROJECT, when set, must match the key's project, so a key
+// stored under the wrong secret fails loudly instead of quietly serving the other project.
 import { cert, initializeApp, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -14,6 +15,10 @@ async function main(): Promise<void> {
     return;
   }
   const account = JSON.parse(raw) as ServiceAccount & { project_id?: string };
+  const expected = process.env.EXPECTED_PROJECT;
+  if (expected && account.project_id !== expected) {
+    throw new Error(`This key is for project ${account.project_id ?? '?'}, but this run is for ${expected}.`);
+  }
   const app = initializeApp({ credential: cert(account) });
   const db = getFirestore(app);
   const messaging = getMessaging(app);

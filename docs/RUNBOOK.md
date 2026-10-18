@@ -5,8 +5,15 @@ Operational tasks for Spoil Not. The design is in `DESIGN.md`; deviations are in
 ## Reminder job (DESIGN 10)
 
 The hourly job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml` at minute 7 of every
-hour. It needs one GitHub secret, `FIREBASE_SERVICE_ACCOUNT_JSON`. Without it the job logs "nothing to do" and exits
-successfully.
+hour, once per Firebase project:
+
+| Project | GitHub secret |
+| --- | --- |
+| `spoilnot-prod` (testers) | `FIREBASE_SERVICE_ACCOUNT_JSON` |
+| `spoilnot-dev` (development, optional) | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
+
+A project whose secret is missing logs "nothing to do" and succeeds. A key stored under the wrong secret fails the
+run with "This key is for project …", and every run logs the project it served.
 
 ### Create the service account (once per Firebase project)
 
@@ -18,7 +25,10 @@ successfully.
 4. Open the account → **Keys → Add key → Create new key → JSON → Create**. A `.json` file downloads.
 5. Store it as the repository secret, then delete the downloaded file:
    ```bash
+   # spoilnot-prod
    gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   # spoilnot-dev
+   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --repo jmalp/spoilnot < ~/Downloads/<file>.json
    ```
 6. In the Firebase console → Project settings → Cloud Messaging, check that **Firebase Cloud Messaging API (V1)**
    is enabled.

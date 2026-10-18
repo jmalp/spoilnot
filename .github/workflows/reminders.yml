@@ -12,15 +12,25 @@ on:
         type: boolean
         default: true
 
-concurrency:
-  group: expiry-reminders
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
 jobs:
   send:
+    # One run per Firebase project. A project whose secret is missing logs "nothing to do".
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: spoilnot-prod
+            secret: FIREBASE_SERVICE_ACCOUNT_JSON
+          - project: spoilnot-dev
+            secret: FIREBASE_SERVICE_ACCOUNT_JSON_DEV
+    name: send (${{ matrix.project }})
+    concurrency:
+      group: expiry-reminders-${{ matrix.project }}
+      cancel-in-progress: false
+
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -33,7 +43,8 @@ jobs:
       - name: Run the reminder job
         working-directory: backend/reminder
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets[matrix.secret] }}
+          EXPECTED_PROJECT: ${{ matrix.project }}
           # Scheduled runs are live; manual runs default to a dry run.
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
         run: npm ci && npm run build && node dist/main.js
