@@ -513,6 +513,9 @@
     <string name="about_privacy_title">Privacy</string>
     <string name="about_privacy_body">Spoil Not keeps only what it needs: your email and display name, your household\'s pantry, lists and recipes, this phone\'s notification token and time zone. Only members of your household can see household data. There are no ads and no analytics. Crash reports are optional. You can export your data or delete your account at any time in Settings.</string>
     <string name="about_licenses">Open source licenses</string>
+    <string name="about_test_crash_title">Send a test crash?</string>
+    <string name="about_test_crash_body">Spoil Not will close and send a crash report, to check that reports arrive. Nothing is lost.</string>
+    <string name="about_test_crash">Crash now</string>
 
     <!-- Update gate (DESIGN 13.3) -->
     <string name="update_title">Please update Spoil Not</string>
