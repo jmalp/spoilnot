@@ -67,16 +67,17 @@ fi
 git rev-parse -q --verify "refs/tags/v$NAME" >/dev/null && die "tag v$NAME already exists"
 step "Version $old_name ($old_code) -> $NAME ($new_code)"
 restore_version() { git checkout -q -- "$GRADLE_FILE"; }
-trap 'restore_version' ERR
+trap 'restore_version; echo "release-beta: failed at line $LINENO; the version change was undone" >&2' ERR
 sed -i '' -E "s/^([[:space:]]*versionCode = )[0-9]+/\1$new_code/; s/^([[:space:]]*versionName = )\".*\"/\1\"$NAME\"/" "$GRADLE_FILE"
 
 # --- Build and verify ---
 step "Building the prod release (a few minutes)"
 ./gradlew -q assembleProdRelease
 BUILD_TOOLS=$(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/build-tools/* | sort -V | tail -1)
-cert=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+# awk reads all input (unlike head or grep -m1), so the tools never fail on a closed pipe under pipefail.
+cert=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | awk '/SHA-256 digest/ && !seen { print $NF; seen = 1 }')
 [ "$cert" = "$UPLOAD_CERT_SHA256" ] || die "the APK is not signed with the upload key (got $cert); nothing was uploaded"
-badging=$("$BUILD_TOOLS/aapt2" dump badging "$APK" | head -1)
+badging=$("$BUILD_TOOLS/aapt2" dump badging "$APK" | awk 'NR == 1')
 [[ "$badging" == *"name='com.parcha.spoilnot'"*"versionCode='$new_code'"*"versionName='$NAME'"* ]] \
   || die "unexpected APK: $badging"
 echo "Signed with the upload key: com.parcha.spoilnot $NAME ($new_code)"
