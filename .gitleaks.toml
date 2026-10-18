@@ -1,0 +1,11 @@
+# Secret scanning (DESIGN 12.2 control 8). The default rules, except the Firebase configuration files: their API
+# keys are public identifiers by design (docs/DECISIONS.md, 2026-10-15) and are restricted in the Google Cloud
+# console to the app's package names and signing certificates (docs/RUNBOOK.md).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Firebase Android configuration (public identifiers)"
+paths = [
+  '''(^|/)google-services\.json$''',
+]

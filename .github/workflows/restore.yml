@@ -1,0 +1,60 @@
+name: restore-from-export
+
+# Restores one household from a nightly export (docs/RUNBOOK.md). Manual only, and a dry run unless "apply" is
+# ticked. Restores products, stock, grocery lists and recipes; never the household itself or its members.
+on:
+  workflow_dispatch:
+    inputs:
+      export_run_id:
+        description: 'Run ID of the nightly-export run to restore from (from its URL)'
+        required: true
+        type: string
+      household_id:
+        description: 'Household ID (the export file name, without .json)'
+        required: true
+        type: string
+      target_household_id:
+        description: 'Household to write into (leave empty for the same one)'
+        required: false
+        type: string
+      apply:
+        description: 'Write the documents (otherwise only list what would be written)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: restore-from-export
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: backend/reminder/package-lock.json
+      - uses: actions/download-artifact@v8
+        with:
+          name: household-exports
+          run-id: ${{ inputs.export_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/exports
+      - name: Restore
+        working-directory: backend/reminder
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          EXPECTED_PROJECT: spoilnot-prod
+          SOURCE: ${{ inputs.household_id }}
+          TARGET: ${{ inputs.target_household_id || inputs.household_id }}
+          APPLY: ${{ inputs.apply && '--apply' || '' }}
+        run: |
+          npm ci && npm run build
+          node dist/restore-main.js "$RUNNER_TEMP/exports/$SOURCE.json" "$TARGET" $APPLY

@@ -1,0 +1,40 @@
+name: nightly-export
+
+# DESIGN 13.4 (M7): every night, each household's data as JSON (the app's export format), kept as a private
+# Actions artifact for 14 days. Read-only. Restore with the restore workflow (docs/RUNBOOK.md).
+on:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: nightly-export
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: backend/reminder/package-lock.json
+      - name: Export every household
+        working-directory: backend/reminder
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          EXPECTED_PROJECT: spoilnot-prod
+          EXPORT_DIR: ${{ runner.temp }}/exports
+        run: npm ci && npm run build && node dist/export-main.js
+      - uses: actions/upload-artifact@v7
+        with:
+          name: household-exports
+          path: ${{ runner.temp }}/exports/
+          retention-days: 14
+          if-no-files-found: ignore
