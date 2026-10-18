@@ -12,6 +12,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.error.QuotaSignal
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.awaitClose
@@ -89,7 +90,7 @@ fun Throwable.toAppError(): AppError = when (this) {
 
     is FirebaseFirestoreException -> when (code) {
         Code.PERMISSION_DENIED, Code.UNAUTHENTICATED -> AppError.PermissionDenied(this)
-        Code.RESOURCE_EXHAUSTED -> AppError.QuotaExceeded(this)
+        Code.RESOURCE_EXHAUSTED -> AppError.QuotaExceeded(this).also { QuotaSignal.report() }
         Code.UNAVAILABLE, Code.DEADLINE_EXCEEDED -> AppError.Offline(this)
         Code.NOT_FOUND -> AppError.NotFound(this)
         Code.ALREADY_EXISTS, Code.ABORTED, Code.FAILED_PRECONDITION -> AppError.Conflict(this)

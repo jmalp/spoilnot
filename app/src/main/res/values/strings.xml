@@ -513,4 +513,9 @@
     <string name="about_privacy_title">Privacy</string>
     <string name="about_privacy_body">Spoil Not keeps only what it needs: your email and display name, your household\'s pantry, lists and recipes, this phone\'s notification token and time zone. Only members of your household can see household data. There are no ads and no analytics. Crash reports are optional. You can export your data or delete your account at any time in Settings.</string>
     <string name="about_licenses">Open source licenses</string>
+
+    <!-- Update gate (DESIGN 13.3) -->
+    <string name="update_title">Please update Spoil Not</string>
+    <string name="update_body">This version is too old to use with your household\'s data. Install the latest version from the App Tester app or the link you were sent.</string>
+    <string name="update_action">Get the update</string>
 </resources>

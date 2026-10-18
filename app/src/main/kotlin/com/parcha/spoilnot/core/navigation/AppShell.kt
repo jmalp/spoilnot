@@ -1,9 +1,17 @@
 package com.parcha.spoilnot.core.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -18,8 +26,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -30,6 +41,8 @@ import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.error.QuotaSignal
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
 import com.parcha.spoilnot.feature.home.ui.HomeNavigation
 import com.parcha.spoilnot.feature.home.ui.HomeScreen
@@ -238,11 +251,12 @@ fun AppShell(
                 }
             },
         ) { padding ->
-            NavDisplay(
-                entries = visibleEntries,
-                onBack = { navigator.goBack() },
-                modifier = Modifier.padding(padding).consumeWindowInsets(padding),
-            )
+            val quotaDay by QuotaSignal.exhaustedOn.collectAsStateWithLifecycle()
+            Column(Modifier.padding(padding).consumeWindowInsets(padding)) {
+                // DESIGN 6.7: the free daily quota was reached; it resets at midnight Pacific time.
+                if (quotaDay != null && QuotaSignal.isExhausted()) QuotaBanner()
+                NavDisplay(entries = visibleEntries, onBack = { navigator.goBack() }, modifier = Modifier.weight(1f))
+            }
         }
     }
 }
@@ -254,3 +268,24 @@ private fun RecipeEditRoute.prefill(): RecipeContent? =
     } else {
         RecipeContent(title = prefillTitle.orEmpty(), imageUrl = prefillImageUrl, sourceUrl = prefillSourceUrl)
     }
+
+@Composable
+private fun QuotaBanner() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag("quota_banner"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.CloudOff, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+        Text(
+            stringResource(R.string.error_quota),
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
