@@ -1,4 +1,5 @@
 import com.android.build.api.variant.BuildConfigField
+import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import java.util.Properties
 
 plugins {
@@ -63,6 +64,20 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        // Release code (minified, not debuggable) against the local emulators, for measuring performance with
+        // seeded data (DESIGN 13.1). Dev flavor only; never distributed.
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
+        }
+    }
+
+    // The benchmark build reuses dev debug's emulator access (local-network permission, cleartext to the host).
+    sourceSets.maybeCreate("devBenchmark").apply {
+        manifest.srcFile("src/devDebug/AndroidManifest.xml")
+        res.directories.add("src/devDebug/res")
     }
 
     compileOptions {
@@ -88,12 +103,16 @@ android {
     }
 }
 
-// Only dev debug builds talk to the Firebase Emulator Suite (DESIGN 7.4). The Android emulator reaches the
+// Only dev debug (and dev benchmark) builds talk to the Firebase Emulator Suite (DESIGN 7.4). The Android emulator reaches the
 // host at 10.0.2.2; pass -Pspoilnot.emulatorHost=<LAN IP> to use a physical phone.
 val emulatorHost = providers.gradleProperty("spoilnot.emulatorHost").orElse("10.0.2.2")
 androidComponents {
+    // The benchmark build exists for dev only.
+    beforeVariants { variant ->
+        if (variant.buildType == "benchmark" && variant.flavorName != "dev") variant.enable = false
+    }
     onVariants { variant ->
-        val useEmulator = variant.flavorName == "dev" && variant.buildType == "debug"
+        val useEmulator = variant.flavorName == "dev" && variant.buildType in setOf("debug", "benchmark")
         val host = if (useEmulator) emulatorHost.get() else ""
         variant.buildConfigFields?.put(
             "FIREBASE_EMULATOR_HOST",
