@@ -64,7 +64,23 @@ Rules live in `firebase/firestore.rules` and are tested by `cd firebase && npm t
 `main`:
 
 ```bash
-cd firebase && npx firebase deploy --only firestore:rules --project spoilnot-dev
+cd firebase && npx firebase deploy --only firestore:rules --project dev
+cd firebase && npx firebase deploy --only firestore:rules --project prod
 ```
 
-`spoilnot-prod` stays locked until the beta (M6).
+Both projects run the same rules; deploy to dev first. `spoilnot-prod` was opened for the beta on 2026-10-18.
+
+## Beta releases (Firebase App Distribution)
+
+1. Raise `versionCode` (and `versionName`) in `app/build.gradle.kts`.
+2. Build with the upload keystore (`keystore.properties` at the repository root; never committed):
+   ```bash
+   ./gradlew assembleProdRelease
+   ```
+   The build uploads the R8 mapping to Crashlytics so crash reports are readable.
+3. Upload and invite testers (comma-separated emails; testers already invited get the new release):
+   ```bash
+   cd firebase && npx firebase appdistribution:distribute ../app/build/outputs/apk/prod/release/app-prod-release.apk \
+     --app 1:977467444046:android:2e84de68984d0dd33cec1f --project prod --testers "<emails>" --release-notes "<notes>"
+   ```
+4. To force everyone onto the new build, raise `minSupportedBuild` in Firestore `config/app` (spoilnot-prod).
