@@ -5,6 +5,7 @@ import { getMessaging } from 'firebase-admin/messaging';
 import { fromEnv } from './credentials.ts';
 import { runJob, type Sender } from './job.ts';
 
+const PRUNE_HOUR_UTC = 7;
 const DEAD_TOKEN_CODES = new Set(['messaging/registration-token-not-registered', 'messaging/invalid-argument']);
 
 async function main(): Promise<void> {
@@ -28,7 +29,10 @@ async function main(): Promise<void> {
     },
   };
 
-  const summary = await runJob(db, sender, { now: new Date(), dryRun, log: (line) => console.log(line) });
+  const now = new Date();
+  // Housekeeping costs reads for every household, so it runs once a day, not hourly (M7 quota simulation).
+  const prune = now.getUTCHours() === PRUNE_HOUR_UTC;
+  const summary = await runJob(db, sender, { now, dryRun, prune, log: (line) => console.log(line) });
   console.log(`${dryRun ? '[dry run] ' : ''}project ${projectId}: ${JSON.stringify(summary)}`);
 }
 
