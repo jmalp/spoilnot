@@ -6,8 +6,16 @@ import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 
-/** households/{hid}/groceryLists/{listId} (DESIGN 8.2). */
-data class GroceryList(val id: String, val name: String, val isDefault: Boolean)
+/**
+ * households/{hid}/groceryLists/{listId} (DESIGN 8.2). [aisleOrder]: the aisles in this list's store order, learned
+ * from check-offs (after v1, DESIGN 5.3).
+ */
+data class GroceryList(
+    val id: String,
+    val name: String,
+    val isDefault: Boolean,
+    val aisleOrder: List<Category> = emptyList(),
+)
 
 enum class ItemSource(val wire: String) {
     Manual("manual"),
@@ -49,6 +57,9 @@ sealed interface GroceryChange : HouseholdChange {
     data class CreateList(val list: GroceryList) : GroceryChange
 
     data class RenameList(val listId: String, val name: String) : GroceryChange
+
+    /** The store order learned from check-offs (DESIGN 5.3). */
+    data class SetAisleOrder(val listId: String, val order: List<Category>) : GroceryChange
 
     data class DeleteList(val listId: String) : GroceryChange
 

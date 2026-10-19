@@ -17,6 +17,8 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryView
 import com.parcha.spoilnot.feature.grocery.domain.PantryEntry
 import com.parcha.spoilnot.feature.grocery.domain.QuickAddResult
 import com.parcha.spoilnot.feature.grocery.domain.RestockEngine
+import com.parcha.spoilnot.feature.grocery.domain.ShoppingTrip
+import com.parcha.spoilnot.feature.grocery.domain.StoreOrder
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
@@ -63,6 +65,9 @@ class GroceriesViewModel @Inject constructor(
     private val service: GroceryService,
     clock: Clock,
 ) : ViewModel() {
+    /** This phone's current shopping trip, for learning the store order. */
+    private val trip = ShoppingTrip(clock)
+
     data class UiState(
         val loading: Boolean = true,
         val lists: List<GroceryList> = emptyList(),
@@ -121,7 +126,7 @@ class GroceriesViewModel @Inject constructor(
             lists = allLists,
             list = list,
             items = itemsNow,
-            view = GroceryLayout.of(itemsNow),
+            view = StoreOrder.sort(GroceryLayout.of(itemsNow), list?.aisleOrder.orEmpty()),
             backInStock = itemsNow.filter { RestockEngine.isBackInStock(it, data) }.map { it.id }.toSet(),
             memberNames = names,
             pantry = data,
@@ -188,6 +193,13 @@ class GroceriesViewModel @Inject constructor(
 
     fun toggle(item: GroceryItem) = act { hid, actor ->
         service.setChecked(hid, actor, listId(), item, !item.checked, state.value.list?.name)
+        // Learn the store's aisle order from the order things go into the cart (DESIGN 5.3).
+        val list = state.value.list ?: return@act
+        if (!item.checked) {
+            val aisle = item.category ?: Category.Other
+            val before = trip.checked(list.id, aisle)
+            StoreOrder.learn(list.aisleOrder, before, aisle)?.let { service.setAisleOrder(hid, actor, list, it) }
+        }
     }
 
     fun delete(item: GroceryItem) = act { hid, actor ->

@@ -50,6 +50,12 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     ),
                 )
 
+            is GroceryChange.SetAisleOrder ->
+                batch.update(
+                    db.document("${lists(hid)}/${change.listId}"),
+                    mapOf("aisleOrder" to change.order.map { it.wire }, "updatedAt" to FieldValue.serverTimestamp()),
+                )
+
             is GroceryChange.DeleteList -> batch.delete(db.document("${lists(hid)}/${change.listId}"))
 
             is GroceryChange.CreateItem ->

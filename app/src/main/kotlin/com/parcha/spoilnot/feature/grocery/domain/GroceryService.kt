@@ -151,6 +151,10 @@ class GroceryService @Inject constructor(
         writer.apply(householdId, actor, listOf(change))
     }
 
+    /** Saves [list]'s learned store order (DESIGN 5.3). */
+    suspend fun setAisleOrder(householdId: String, actor: Actor, list: GroceryList, order: List<Category>) =
+        writer.apply(householdId, actor, listOf(GroceryChange.SetAisleOrder(list.id, order)))
+
     /** Checking off is logged (DESIGN 5.6); unchecking is not. */
     suspend fun setChecked(
         householdId: String,

@@ -32,7 +32,16 @@ class FirestoreGroceryRepository @Inject constructor(
         .flatMapLatest { db -> db.collection(lists(householdId)).snapshotFlow().retryAfterOwnWrites(db) }
         .map { snapshot ->
             snapshot.documents
-                .map { GroceryList(it.id, it.getString("name").orEmpty(), it.getBoolean("isDefault") == true) }
+                .map {
+                    GroceryList(
+                        it.id,
+                        it.getString("name").orEmpty(),
+                        it.getBoolean("isDefault") == true,
+                        (it.get("aisleOrder") as? List<*>).orEmpty().mapNotNull { wire ->
+                            (wire as? String)?.let { w -> Category.entries.firstOrNull { c -> c.wire == w } }
+                        },
+                    )
+                }
                 .sortedWith(compareByDescending<GroceryList> { it.isDefault }.thenBy { it.name.lowercase() })
         }
         .distinctUntilChanged()

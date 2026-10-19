@@ -195,7 +195,11 @@ service cloud.firestore {
         allow create: if signedIn() && existsAfter(memberPath(hid, me()))
           && s(request.resource.data.name, 1, 60)
           && (request.resource.data.isDefault == false || !exists(hhPath(hid)));
-        allow update: if isMember(hid) && onlyChanges(['name', 'updatedAt']) && s(request.resource.data.name, 1, 60);
+        // After v1 (DESIGN 5.3): the store's aisle order, learned from check-offs.
+        allow update: if isMember(hid) && onlyChanges(['name', 'updatedAt', 'aisleOrder'])
+          && s(request.resource.data.name, 1, 60)
+          && (!('aisleOrder' in request.resource.data)
+              || (request.resource.data.aisleOrder is list && request.resource.data.aisleOrder.size() <= 30));
         // Only the owner removes the default list, when deleting the household.
         allow delete: if isMember(hid) && (resource.data.isDefault != true || isOwner(hid));
         match /items/{itemId} {
