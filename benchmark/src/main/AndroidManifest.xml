@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The generator and benchmarks reach the app on the same device; they never use the network themselves. -->
+    <queries>
+        <package android:name="com.parcha.spoilnot.dev" />
+    </queries>
+</manifest>

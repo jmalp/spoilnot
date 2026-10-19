@@ -107,6 +107,27 @@ cd firebase && npx firebase appdistribution:distribute ../app/build/outputs/apk/
 
 (This re-uses the existing release when the APK is the one last uploaded; otherwise run the script.)
 
+## Baseline profile (DESIGN 13.1)
+
+Release builds ship `app/src/main/baselineProfiles/baseline-prof.txt`, a list of the code the app runs while
+starting and on its busiest screens, so Android can compile it ahead of time. Phones that install the APK from App
+Distribution get it through `androidx.profileinstaller` and compile it during their next idle maintenance (often
+overnight), so the first day may still feel like before.
+
+Regenerate it after large UI changes (new screens, a new list), with the Firebase emulators running
+(`./scripts/emulators.sh`) and one Android emulator or phone connected:
+
+```bash
+./scripts/baseline-profile.sh
+```
+
+It seeds the emulator-only 500-batch household (`PantryScrollPerfTest`), runs `BaselineProfileGenerator` in the
+`benchmark` module against the dev benchmark build (start, sign in, every tab, Pantry scrolls, Add item), and
+copies the result into the app. Review the diff and commit it. `--measure` also runs `StartupBenchmark` and
+`PantryScrollBenchmark` without and with the profile and prints the medians; `--measure-only` runs just the
+benchmarks with the profile already in the app. Emulator numbers compare builds; they
+are not phone timings.
+
 ## Nightly export and restore (DESIGN 13.4)
 
 `nightly-export.yml` runs at 07:17 UTC (about 3 AM Eastern) and saves every spoilnot-prod household as
