@@ -8,6 +8,7 @@ import com.parcha.spoilnot.core.firebase.ACCESS_LOCAL_NETWORK
 import com.parcha.spoilnot.core.firebase.FirebaseEmulators
 import com.parcha.spoilnot.core.firebase.FirestoreHouseholdWriter
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.feature.auth.data.FirebaseAuthRepository
 import com.parcha.spoilnot.feature.auth.data.FirestoreUserRepository
@@ -94,11 +95,18 @@ class TestPhone(private val name: String) : AutoCloseable {
         scope,
         setOf(PantryChangeMapper(), GroceryChangeMapper(), RecipeChangeMapper(), StatsChangeMapper()),
     )
-    val pantryRepository = FirestorePantryRepository(firestore)
+
+    /** Each phone has its own record of full reads, as separate phones would (DESIGN 9.8). */
+    val syncLog = SyncLog(
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getSharedPreferences("delta_sync_${app.name}", android.content.Context.MODE_PRIVATE),
+        Clock.systemUTC(),
+    )
+    val pantryRepository = FirestorePantryRepository(firestore, syncLog)
     val pantry = PantryService(writer, Clock.systemDefaultZone())
-    val groceryRepository = FirestoreGroceryRepository(firestore)
+    val groceryRepository = FirestoreGroceryRepository(firestore, syncLog)
     val grocery = GroceryService(writer, groceryRepository, pantry)
-    val recipeRepository = FirestoreRecipeRepository(firestore)
+    val recipeRepository = FirestoreRecipeRepository(firestore, syncLog)
     val recipes = RecipeService(writer)
     val stats = FirestoreStatsRepository(firestore)
 

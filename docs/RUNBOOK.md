@@ -98,6 +98,10 @@ If any step fails, the version change is undone and nothing is committed.
 To make older builds stop working until updated, raise `minSupportedBuild` in Firestore `config/app`
 (spoilnot-prod) to the new `versionCode` after the testers have it.
 
+**Required for the release with changes-only listeners (DESIGN 9.8):** right after the release, raise
+`minSupportedBuild` to that release's `versionCode`. Older builds show deleted items again (tombstones) and delete
+without leaving one, so they must update.
+
 **New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
 
 ```bash
@@ -175,20 +179,21 @@ deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 del
 household or a new feature.
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
-2026-10-18, with Insights (30 products, 60 batches, 25 grocery items, 15 recipes and this month's counts per
-household; 4 phones opening the app 8 times a day; 10 of the 40 daily writes finish a batch):
+2026-10-18 with changes-only listeners (30 products, 60 batches, 25 grocery items, 15 recipes, this month's counts
+and 30 tombstones per household; 4 phones opening the app 8 times a day, the first open a full read, the 40 daily
+writes spread between opens, 10 of them finishing a batch):
 
 | Reads | Per day | Share of 50,000 |
 | --- | --- | --- |
-| App listeners | 42,600 | |
+| App listeners | 13,440 | |
 | Security-rule lookups | 2,520 | |
-| Scheduled jobs (reminders, housekeeping, export) | 2,450 | |
-| **Total for 10 households** | **47,570** | **95.1%** |
-| Per household | about 4,760 | 9.5% |
+| Scheduled jobs (reminders, housekeeping, export) | 2,960 | |
+| **Total for 10 households** | **18,920** | **37.8%** |
+| Per household | about 1,890 | 3.8% |
 
-Writes were 540 (2.7%). Insights added about 65 reads per household per day (Home reads only the current month).
-So the free plan holds about 7 households of this size under the 70% warning line. Most
-reads are a phone re-reading the pantry when it opens after more than 30 minutes. If usage nears 70%: check for a
+Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household).
+So the free plan holds about 18 households of this size under the 70% warning line. The largest
+remaining costs are each phone's daily full read, Recent activity (10 reads per open) and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 
 ## Scheduled workflows

@@ -15,7 +15,10 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  deleteField,
   increment,
+  query,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 
@@ -734,5 +737,52 @@ describe('insights stats', () => {
     await assertFails(getDocs(collection(as('erin'), `households/${HID}/stats`)));
     await assertFails(setDoc(doc(as('carol'), path()), counted('carol', { used: increment(1) }), { merge: true }));
     await assertFails(getDoc(doc(anon(), path())));
+  });
+});
+
+describe('tombstones and change queries', () => {
+  const tombstone = (uid) => ({ deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid });
+  const seed = async () => env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `households/${HID}/stock/s1`), stock('alice'));
+    await setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i1`), groceryItem('alice'));
+    await setDoc(doc(db, `households/${HID}/recipes/r1`), recipe('alice'));
+  });
+
+  it('members delete a batch, item or recipe by marking it, and restore it by writing it again', async () => {
+    await seed();
+    const db = as('bob');
+    for (const path of ['stock/s1', 'groceryLists/g1/items/i1', 'recipes/r1']) {
+      await assertSucceeds(setDoc(doc(db, `households/${HID}/${path}`), tombstone('bob'), { merge: true }));
+    }
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/stock/s1`), stock('bob')));
+    const restored = await getDoc(doc(db, `households/${HID}/stock/s1`));
+    if (restored.data().deletedAt !== undefined) throw new Error('restore keeps deletedAt');
+  });
+
+  it('deletedAt must be the write time, and a later merge keeps it as it was', async () => {
+    await seed();
+    const ref = doc(as('bob'), `households/${HID}/stock/s1`);
+    await assertFails(setDoc(ref, { ...tombstone('bob'), deletedAt: new Date('2026-01-01') }, { merge: true }));
+    await assertFails(setDoc(ref, { ...tombstone('bob'), deletedAt: 'yesterday' }, { merge: true }));
+    await assertSucceeds(setDoc(ref, tombstone('bob'), { merge: true }));
+    await assertSucceeds(setDoc(ref, { quantity: 3, updatedAt: serverTimestamp(), updatedBy: 'bob' }, { merge: true }));
+  });
+
+  it('a low-stock item comes back from a tombstone by removing deletedAt', async () => {
+    await seed();
+    const ref = doc(as('bob'), `households/${HID}/groceryLists/g1/items/i1`);
+    await assertSucceeds(setDoc(ref, tombstone('bob'), { merge: true }));
+    await assertSucceeds(setDoc(ref, {
+      name: 'Eggs', quantity: 12, deletedAt: deleteField(), updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }, { merge: true }));
+  });
+
+  it('members may ask for changes since a time; outsiders may not', async () => {
+    await seed();
+    const since = new Date('2026-01-01T00:00:00Z');
+    await assertSucceeds(getDocs(query(collection(as('bob'), `households/${HID}/stock`), where('updatedAt', '>', since))));
+    await assertFails(getDocs(query(collection(as('carol'), `households/${HID}/stock`), where('updatedAt', '>', since))));
+    await assertFails(setDoc(doc(as('carol'), `households/${HID}/stock/s1`), tombstone('carol'), { merge: true }));
   });
 });

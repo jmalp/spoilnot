@@ -3,9 +3,11 @@ package com.parcha.spoilnot.feature.recipes.data
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
+import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.recipes.data.FirestoreRecipeRepository.Companion.contentFields
@@ -49,7 +51,8 @@ class RecipeChangeMapper @Inject constructor() : FirestoreChangeMapper {
                 mapOf("favorite" to change.favorite) + stamp,
             )
 
-            is RecipeChange.Delete -> batch.delete(doc(change.recipeId))
+            // A tombstone, so other phones' change listeners see the deletion (DESIGN 9.8).
+            is RecipeChange.Delete -> batch.set(doc(change.recipeId), Tombstones.fields(actor), SetOptions.merge())
 
             is RecipeChange.LogSaved -> batch.set(
                 db.document("households/$householdId/activity/${change.eventId}"),

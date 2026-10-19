@@ -3,6 +3,8 @@ package com.parcha.spoilnot.feature.recipes.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
@@ -20,13 +22,14 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class FirestoreRecipeRepository @Inject constructor(private val firestore: FirestoreProvider) : RecipeRepository {
+class FirestoreRecipeRepository @Inject constructor(
+    private val firestore: FirestoreProvider,
+    private val syncLog: SyncLog,
+) : RecipeRepository {
+    // Changes-only listeners (DESIGN 9.8); fromCache turns false once the server confirms (offline banner).
     override fun observe(householdId: String): Flow<RecipeBoxData> = firestore.instance
-        // Metadata changes too, so fromCache turns false once the server confirms (offline banner).
-        .flatMapLatest { db ->
-            db.collection(recipes(householdId)).snapshotFlow(MetadataChanges.INCLUDE).retryAfterOwnWrites(db)
-        }
-        .map { snapshot -> RecipeBoxData(snapshot.documents.map { it.toRecipe() }, snapshot.metadata.isFromCache) }
+        .flatMapLatest { db -> db.collection(recipes(householdId)).liveDocuments(db, syncLog) }
+        .map { live -> RecipeBoxData(live.documents.map { it.toRecipe() }, live.fromCache) }
         .distinctUntilChanged()
 
     internal companion object {

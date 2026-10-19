@@ -65,7 +65,8 @@ sealed interface GroceryChange : HouseholdChange {
 
     data class SetChecked(val listId: String, val itemId: String, val checked: Boolean) : GroceryChange
 
-    data class DeleteItem(val listId: String, val itemId: String) : GroceryChange
+    /** [tombstone] false only when the whole list goes, since nothing listens to a deleted list's items. */
+    data class DeleteItem(val listId: String, val itemId: String, val tombstone: Boolean = true) : GroceryChange
 
     /**
      * grocery_added or grocery_checked in the activity log (DESIGN 5.6). [count] is set when several items were added

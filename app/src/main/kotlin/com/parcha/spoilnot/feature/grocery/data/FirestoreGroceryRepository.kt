@@ -4,7 +4,10 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Source
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.Tombstones.isTombstone
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
@@ -21,7 +24,10 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class FirestoreGroceryRepository @Inject constructor(private val firestore: FirestoreProvider) : GroceryRepository {
+class FirestoreGroceryRepository @Inject constructor(
+    private val firestore: FirestoreProvider,
+    private val syncLog: SyncLog,
+) : GroceryRepository {
     override fun observeLists(householdId: String): Flow<List<GroceryList>> = firestore.instance
         .flatMapLatest { db -> db.collection(lists(householdId)).snapshotFlow().retryAfterOwnWrites(db) }
         .map { snapshot ->
@@ -32,15 +38,14 @@ class FirestoreGroceryRepository @Inject constructor(private val firestore: Fire
         .distinctUntilChanged()
 
     override fun observeItems(householdId: String, listId: String): Flow<List<GroceryItem>> = firestore.instance
-        // Metadata changes too, for the pending-sync icon.
-        .flatMapLatest { db ->
-            db.collection(items(householdId, listId)).snapshotFlow(MetadataChanges.INCLUDE).retryAfterOwnWrites(db)
-        }
-        .map { snapshot -> snapshot.documents.map { it.toItem() } }
+        // Changes-only listeners (DESIGN 9.8); each item keeps its pending-sync flag from the cache.
+        .flatMapLatest { db -> db.collection(items(householdId, listId)).liveDocuments(db, syncLog) }
+        .map { live -> live.documents.map { it.toItem() } }
         .distinctUntilChanged()
 
     override suspend fun isCached(householdId: String, listId: String, itemId: String): Boolean = try {
-        firestore.current.document("${items(householdId, listId)}/$itemId").get(Source.CACHE).awaitMapped().exists()
+        firestore.current.document("${items(householdId, listId)}/$itemId").get(Source.CACHE).awaitMapped()
+            .let { it.exists() && !it.isTombstone() }
     } catch (e: Exception) {
         // Not in the cache at all.
         false

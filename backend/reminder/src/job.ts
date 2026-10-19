@@ -1,5 +1,5 @@
 // The hourly reminder job (DESIGN 10.1, 10.3). Reads Firestore with the Admin SDK (which bypasses the rules),
-// sends one digest per due user through FCM, and prunes old activity and join requests.
+// sends one digest per due user through FCM, and prunes old activity, join requests and tombstones.
 import type { Firestore } from 'firebase-admin/firestore';
 import { afterSend, buildDigest, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from './digest.ts';
 import { isCalendarDate, type LocalTime } from './time.ts';
@@ -26,7 +26,10 @@ export interface JobOptions {
   now: Date;
   /** Log what would be sent and change nothing (DESIGN 10.5). */
   dryRun?: boolean;
-  /** Delete old activity and join requests in this run (default true; the hourly workflow prunes once a day). */
+  /**
+   * Delete old activity, join requests and tombstones in this run (default true; the hourly workflow prunes once a
+   * day).
+   */
   prune?: boolean;
   log?: (line: string) => void;
 }
@@ -39,12 +42,17 @@ export interface JobSummary {
   deadTokens: number;
   prunedActivity: number;
   prunedJoinRequests: number;
+  prunedTombstones: number;
 }
 
 export const ROUTE = '/pantry?filter=expiring';
 const CHANNEL = 'expiry';
 const ACTIVITY_DAYS = 30;
 const JOIN_REQUEST_DAYS = 7;
+/** Deleted documents stay as tombstones this long (longer than the phones' daily full read, DESIGN 9.8). */
+export const TOMBSTONE_DAYS = 2;
+/** Household collections whose deletions are tombstones (plus every list's items). */
+const TOMBSTONED = ['products', 'stock', 'recipes'];
 
 function toUser(id: string, data: FirebaseFirestore.DocumentData): UserDoc {
   return {
@@ -59,7 +67,8 @@ function toUser(id: string, data: FirebaseFirestore.DocumentData): UserDoc {
 }
 
 function toBatch(data: FirebaseFirestore.DocumentData): Batch | null {
-  if (!isCalendarDate(data.expiryDate)) return null;
+  // A tombstone is a deleted batch (DESIGN 9.8).
+  if (data.deletedAt != null || !isCalendarDate(data.expiryDate)) return null;
   return {
     productName: typeof data.productName === 'string' ? data.productName : 'Item',
     expiryDate: data.expiryDate,
@@ -71,7 +80,7 @@ function toBatch(data: FirebaseFirestore.DocumentData): Batch | null {
 export async function runJob(db: Firestore, sender: Sender, options: JobOptions): Promise<JobSummary> {
   const { now, dryRun = false, prune: shouldPrune = true } = options;
   const log = options.log ?? (() => {});
-  const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0 };
+  const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0, prunedTombstones: 0 };
 
   // 1-2. Users with reminders on who are due now.
   const users = await db.collection('users').where('notificationPrefs.enabled', '==', true).get();
@@ -149,27 +158,42 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
     const pruned = await prune(db, now);
     summary.prunedActivity = pruned.activity;
     summary.prunedJoinRequests = pruned.joinRequests;
+    summary.prunedTombstones = pruned.tombstones;
   }
   return summary;
 }
 
-/** Deletes activity older than 30 days and join requests older than 7 days. */
-async function prune(db: Firestore, now: Date): Promise<{ activity: number; joinRequests: number }> {
+/**
+ * Deletes activity older than 30 days, join requests older than 7 days and tombstones older than 2 days. Each query
+ * costs at least one read, even when empty (quota simulation).
+ */
+async function prune(db: Firestore, now: Date): Promise<{ activity: number; joinRequests: number; tombstones: number }> {
   const activityCutoff = new Date(now.getTime() - ACTIVITY_DAYS * 86_400_000);
   const requestCutoff = new Date(now.getTime() - JOIN_REQUEST_DAYS * 86_400_000);
+  const tombstoneCutoff = new Date(now.getTime() - TOMBSTONE_DAYS * 86_400_000);
   let activity = 0;
   let joinRequests = 0;
+  let tombstones = 0;
   const households = await db.collection('households').select().get();
   for (const household of households.docs) {
     const old = await household.ref.collection('activity').where('createdAt', '<', activityCutoff).get();
     const stale = await household.ref.collection('joinRequests').where('requestedAt', '<', requestCutoff).get();
+    // deletedAt exists only on tombstones, so a range on it reads nothing else.
+    const lists = await household.ref.collection('groceryLists').select().get();
+    const tombstoneQueries = [
+      ...TOMBSTONED.map((name) => household.ref.collection(name)),
+      ...lists.docs.map((list) => list.ref.collection('items')),
+    ].map((collection) => collection.where('deletedAt', '<', tombstoneCutoff).get());
+    const deleted = (await Promise.all(tombstoneQueries)).flatMap((snapshot) => snapshot.docs);
     const writer = db.bulkWriter();
     old.docs.forEach((d) => writer.delete(d.ref));
     stale.docs.forEach((d) => writer.delete(d.ref));
+    deleted.forEach((d) => writer.delete(d.ref));
     await writer.close();
     activity += old.size;
     joinRequests += stale.size;
+    tombstones += deleted.length;
   }
-  return { activity, joinRequests };
+  return { activity, joinRequests, tombstones };
 }
 

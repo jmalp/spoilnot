@@ -44,6 +44,10 @@ every change.
 counts with known fields and `yyyy-MM` ids; only the owner deletes (with the household). 5 tests ("insights stats").
 Re-reviewed against 12.1: the documents hold numbers only, readable only by members.
 
+**After v1:** tombstones (2026-10-18): products, stock, items and recipes accept `deletedAt` only as the write's time
+(or unchanged on a later merge); members may query `updatedAt` ranges. 4 tests ("tombstones and change queries"),
+70 in total.
+
 Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
 deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed).
 
