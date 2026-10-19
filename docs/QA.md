@@ -28,6 +28,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 6. Home: Needs attention, Low stock, Grocery list and Recent activity match what you just did; each card's button
    switches to the right tab with the right filter.
 7. Open Settings on one tab, switch to another tab and back: Settings is closed.
+8. Insights: use up one item and throw away another (Spoiled). On both phones, Home > Your kitchen this month shows
+   "1 used · 1 thrown away" and a 50% ring with a dashed part. Undo the throw-away: it shows "1 used · 0 thrown
+   away". See insights: the bars, streak and reasons match, and TalkBack reads each chart's summary.
 
 ## 3. Conditions
 

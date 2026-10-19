@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DonutLarge
 import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Inventory2
@@ -56,6 +57,9 @@ import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
 import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
+import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
+import com.parcha.spoilnot.feature.insights.ui.MonthRing
+import com.parcha.spoilnot.feature.insights.ui.moodText
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
 import com.parcha.spoilnot.feature.pantry.domain.PantryRow
 import com.parcha.spoilnot.feature.pantry.ui.Badge
@@ -69,6 +73,7 @@ class HomeNavigation(
     val openPantry: (PantryFilter) -> Unit,
     val openGroceries: () -> Unit,
     val reviewJoinRequests: () -> Unit,
+    val openInsights: () -> Unit = {},
 )
 
 /** How many rows a card lists before "See all". */
@@ -98,7 +103,7 @@ fun HomeScreen(
                 if (summary == null) {
                     repeat(4) { SkeletonCard() }
                 } else {
-                    HomeCards(summary, state.today, state.myUid, navigation)
+                    HomeCards(summary, state.today, state.myUid, navigation, state.insights)
                 }
             }
         }
@@ -106,7 +111,13 @@ fun HomeScreen(
 }
 
 @Composable
-internal fun HomeCards(summary: HomeSummary, today: LocalDate, myUid: String, navigation: HomeNavigation) {
+internal fun HomeCards(
+    summary: HomeSummary,
+    today: LocalDate,
+    myUid: String,
+    navigation: HomeNavigation,
+    insights: InsightsSummary? = null,
+) {
     // Expired only: the Expiring soon filter would hide them.
     val attentionFilter =
         if (summary.attention.size == summary.expiredCount) PantryFilter.Expired else PantryFilter.ExpiringSoon
@@ -159,6 +170,7 @@ internal fun HomeCards(summary: HomeSummary, today: LocalDate, myUid: String, na
             style = MaterialTheme.typography.bodyLarge,
         )
     }
+    insights?.let { InsightsCard(it, navigation.openInsights) }
     HomeCard(
         title = stringResource(R.string.home_recent_activity),
         icon = Icons.Rounded.History,
@@ -168,6 +180,32 @@ internal fun HomeCards(summary: HomeSummary, today: LocalDate, myUid: String, na
             Calm(stringResource(R.string.home_activity_none))
         } else {
             summary.recent.forEach { ActivityLine(it, myUid) }
+        }
+    }
+}
+
+/** This month's kitchen (DESIGN 5.7): a small ring, the counts and a friendly line. */
+@Composable
+private fun InsightsCard(insights: InsightsSummary, onOpen: () -> Unit) {
+    val month = insights.current
+    HomeCard(
+        title = stringResource(R.string.insights_card_title),
+        icon = Icons.Rounded.DonutLarge,
+        tag = "card_home_insights",
+        action = stringResource(R.string.insights_see) to onOpen,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MonthRing(month, small = true)
+            Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // The ring shows the percentage; the text gives the counts behind it.
+                if (month.total > 0) {
+                    Text(
+                        stringResource(R.string.insights_counts, month.used, month.thrownTotal),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                Text(moodText(insights.mood), style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

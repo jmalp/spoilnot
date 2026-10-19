@@ -13,7 +13,7 @@ class ExportFormatTest {
     private val created = Instant.parse("2026-10-17T12:00:00Z")
 
     @Test
-    fun `products, stock, lists with their items and recipes, with times as ISO strings`() {
+    fun `products, stock, lists with their items, recipes and stats, with times as ISO strings`() {
         val data = ExportData(
             household = ExportDoc("h1", mapOf("name" to "Home", "createdAt" to created)),
             members = listOf(ExportDoc("u1", mapOf("displayName" to "Sam", "role" to "owner"))),
@@ -44,6 +44,7 @@ class ExportFormatTest {
                     ),
                 ),
             ),
+            stats = listOf(ExportDoc("2026-10", mapOf("used" to 4L, "thrownByDay" to mapOf("3" to 1L)))),
         )
         val json = Json.parseToJsonElement(ExportFormat.write(data, created, "1.0.0 (5)")).jsonObject
         assertEquals("spoilnot-export", json["format"]!!.jsonPrimitive.content)
@@ -56,6 +57,9 @@ class ExportFormatTest {
         assertEquals("Eggs", list["items"]!!.jsonArray[0].jsonObject["name"]!!.jsonPrimitive.content)
         val ingredient = json["recipes"]!!.jsonArray[0].jsonObject["ingredients"]!!.jsonArray[0].jsonObject
         assertEquals("1 cup flour", ingredient["raw"]!!.jsonPrimitive.content)
+        val month = json["stats"]!!.jsonArray[0].jsonObject
+        assertEquals("2026-10", month["id"]!!.jsonPrimitive.content)
+        assertEquals("4", month["used"]!!.jsonPrimitive.content)
     }
 
     @Test

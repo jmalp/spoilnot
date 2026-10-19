@@ -122,7 +122,7 @@ Regenerate it after large UI changes (new screens, a new list), with the Firebas
 ```
 
 It seeds the emulator-only 500-batch household (`PantryScrollPerfTest`), runs `BaselineProfileGenerator` in the
-`benchmark` module against the dev benchmark build (start, sign in, every tab, Pantry scrolls, Add item), and
+`benchmark` module against the dev benchmark build (start, sign in, every tab, Insights, Pantry scrolls, Add item), and
 copies the result into the app. Review the diff and commit it. `--measure` also runs `StartupBenchmark` and
 `PantryScrollBenchmark` without and with the profile and prints the medians; `--measure-only` runs just the
 benchmarks with the profile already in the app. Emulator numbers compare builds; they
@@ -175,18 +175,19 @@ deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 del
 household or a new feature.
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
-2026-10-18 (30 products, 60 batches, 25 grocery items and 15 recipes per household; 4 phones opening the app 8
-times a day):
+2026-10-18, with Insights (30 products, 60 batches, 25 grocery items, 15 recipes and this month's counts per
+household; 4 phones opening the app 8 times a day; 10 of the 40 daily writes finish a batch):
 
 | Reads | Per day | Share of 50,000 |
 | --- | --- | --- |
-| App listeners | 42,280 | |
-| Security-rule lookups | 2,200 | |
-| Scheduled jobs (reminders, housekeeping, export) | 2,440 | |
-| **Total for 10 households** | **46,920** | **93.8%** |
-| Per household | about 4,700 | 9.4% |
+| App listeners | 42,600 | |
+| Security-rule lookups | 2,520 | |
+| Scheduled jobs (reminders, housekeeping, export) | 2,450 | |
+| **Total for 10 households** | **47,570** | **95.1%** |
+| Per household | about 4,760 | 9.5% |
 
-Writes were 440 (2.2%). So the free plan holds about 7 households of this size under the 70% warning line. Most
+Writes were 540 (2.7%). Insights added about 65 reads per household per day (Home reads only the current month).
+So the free plan holds about 7 households of this size under the 70% warning line. Most
 reads are a phone re-reading the pantry when it opens after more than 30 minutes. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 

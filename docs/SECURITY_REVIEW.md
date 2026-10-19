@@ -8,7 +8,7 @@ they are listed at the end with exact steps.
 
 | Threat | Mitigation | Checked |
 | --- | --- | --- |
-| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests (`firebase/test/rules.test.js`), "non-members" and "signed out" groups |
+| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests at sign-off, 66 after v1 (`firebase/test/rules.test.js`), "non-members" and "signed out" groups |
 | A guessed or leaked invite code | 50-bit codes, readable only by exact `get`; a code only lets someone ask to join; the owner approves, can pause or rotate | Rules tests "join requests"; `InviteCodes` uses `SecureRandom` |
 | A removed member keeps access | Rules re-check membership on every request; the app's membership watcher returns them to the gate and clears the cache | `HouseholdFlowTest` (removed member back at the gate within 5 s), rules tests |
 | A lost or shared phone | Sign-out and account deletion clear the local copy (`terminate()` then `clearPersistence()`); the owner can remove a lost phone's member | `FirestoreProvider.clearLocalData`, `SessionManager.signOut` |
@@ -20,7 +20,7 @@ they are listed at the end with exact steps.
 
 | # | Control | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests |
+| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests (66 after v1) |
 | 2 | Email and password, minimum 8 characters; email enumeration protection on | ✅ | `AccountValidation` requires 8; the server password policy (8, enforced) and email enumeration protection are on in both projects (owner, 2026-10-18) |
 | 3 | Membership on every household path; owner-only actions check the role | ✅ | `isMember` / `isOwner` in `firestore.rules`; rules tests for owner-only delete, transfer, approve |
 | 4 | Invite codes: 10 characters (50 bits), secure generator, `get` only, pause and rotate | ✅ | `InviteCodes.kt` (`SecureRandom`); rules `allow list: if false`; Household settings pause and rotate |
@@ -40,7 +40,12 @@ default list, own activity events). The 61 tests in `firebase/test/rules.test.js
 non-members, join requests, members, owner-only actions, grocery lists, recipes and activity. They run in CI on
 every change.
 
-Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18).
+**After v1:** `stats/{month}` (Insights, 2026-10-18) allows members to read and to write stamped, whole, non-negative
+counts with known fields and `yyyy-MM` ids; only the owner deletes (with the household). 5 tests ("insights stats").
+Re-reviewed against 12.1: the documents hold numbers only, readable only by members.
+
+Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
+deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed).
 
 ## Operations
 

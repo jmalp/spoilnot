@@ -3,6 +3,7 @@ package com.parcha.spoilnot.benchmark
 import android.os.Build
 import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
@@ -87,6 +88,16 @@ fun MacrobenchmarkScope.openAndCloseAddItem() {
     device.wait(Until.findObject(By.text("Add item")), TIMEOUT_MS)?.click() ?: return
     device.wait(Until.hasObject(By.text("Name")), TIMEOUT_MS)
     device.pressBack()
+    device.pressBack()
+    device.waitForIdle()
+}
+
+/** Opens Insights from Home's "Your kitchen this month" card and comes back. */
+fun MacrobenchmarkScope.openAndCloseInsights() {
+    device.findObject(By.scrollable(true))?.scrollUntil(Direction.DOWN, Until.findObject(button("See insights")))
+    device.wait(Until.findObject(button("See insights")), TIMEOUT_MS)?.click() ?: return
+    device.wait(Until.hasObject(By.text("Last 6 months")), TIMEOUT_MS)
+    flingList(times = 1)
     device.pressBack()
     device.waitForIdle()
 }

@@ -57,6 +57,7 @@ import com.parcha.spoilnot.feature.home.ui.HomeScreen
 import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
+import com.parcha.spoilnot.feature.insights.ui.InsightsScreen
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
 import com.parcha.spoilnot.feature.pantry.ui.LocalUnits
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
@@ -118,6 +119,7 @@ fun AppShell(
                     openPantry = { filter -> shellViewModel.open(DeepLink.Pantry(filter)) },
                     openGroceries = { navigator.showRoot(TopLevelDestination.Groceries) },
                     reviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
+                    openInsights = { navigator.navigate(InsightsRoute(navigator.currentTab)) },
                 ),
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
             )
@@ -212,6 +214,7 @@ fun AppShell(
             )
         }
         entry<AboutRoute> { AboutScreen(onBack = { navigator.goBack() }) }
+        entry<InsightsRoute> { InsightsScreen(onBack = { navigator.goBack() }) }
         entry<NotificationSettingsRoute> { NotificationSettingsScreen(onBack = { navigator.goBack() }) }
         entry<HouseholdSettingsRoute> { HouseholdSettingsScreen(onBack = { navigator.goBack() }) }
     }

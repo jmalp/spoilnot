@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   let documents = 0;
   for (const id of ids) {
     const data = await exportHousehold(db, id, now, 'nightly-export');
-    documents += data.products.length + data.stock.length + data.recipes.length +
+    documents += data.products.length + data.stock.length + data.recipes.length + (data.stats?.length ?? 0) +
       data.groceryLists.reduce((n, l) => n + 1 + l.items.length, 0);
     await writeFile(join(dir, `${id}.json`), JSON.stringify(data, null, 2) + '\n');
   }

@@ -16,10 +16,14 @@ import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.home.domain.HomeDashboard
+import com.parcha.spoilnot.feature.insights.domain.Insights
+import com.parcha.spoilnot.feature.insights.domain.MonthStats
+import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
+import java.time.YearMonth
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,6 +55,13 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
         )
         val summary = HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY)
         val navigation = HomeNavigation({}, {}, {}, {})
+        val october = YearMonth.from(TODAY)
+        val insights = Insights.summary(
+            listOf(
+                MonthStats(october, used = 11, thrown = mapOf(DiscardReason.Expired to 1), thrownByDay = mapOf(3 to 1)),
+            ),
+            TODAY,
+        )
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
@@ -59,7 +70,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
                         Column(
                             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) { HomeCards(summary, TODAY, "me", navigation) }
+                        ) { HomeCards(summary, TODAY, "me", navigation, insights) }
                     }
                 }
             }

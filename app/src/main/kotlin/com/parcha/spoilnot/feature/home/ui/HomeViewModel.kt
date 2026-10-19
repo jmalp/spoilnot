@@ -10,11 +10,15 @@ import com.parcha.spoilnot.feature.home.domain.HomeDashboard
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
+import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
+import com.parcha.spoilnot.feature.insights.domain.StatsRepository
+import com.parcha.spoilnot.feature.insights.ui.insightsFlow
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.ui.todayFlow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
+import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -29,7 +33,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 
-/** The Home tab (DESIGN 5.6): what needs attention, low stock, the grocery list and recent activity. */
+/**
+ * The Home tab (DESIGN 5.6): what needs attention, low stock, the grocery list, this month's kitchen (5.7) and recent
+ * activity.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -37,6 +44,7 @@ class HomeViewModel @Inject constructor(
     pantry: PantryRepository,
     grocery: GroceryRepository,
     activity: ActivityRepository,
+    stats: StatsRepository,
     clock: Clock,
 ) : ViewModel() {
     data class UiState(
@@ -46,7 +54,12 @@ class HomeViewModel @Inject constructor(
         val offline: Boolean = false,
         /** The signed-in member, so their own events read "You". */
         val myUid: String = "",
+        /** This month's counts (DESIGN 5.7); null until loaded. */
+        val insights: InsightsSummary? = null,
     )
+
+    /** Only the current month: one document per open (DESIGN 9.7). */
+    private val insights = insightsFlow(session, stats, clock, YearMonth::from).onStart { emit(null) }
 
     val state: StateFlow<UiState> = session.session
         .map { (it as? Session.InHousehold)?.let { s -> s.householdId to s.user.uid } }
@@ -65,8 +78,8 @@ class HomeViewModel @Inject constructor(
                 val recent: Flow<List<ActivityEvent>> = activity.observeRecent(hid, RECENT)
                     .catch { emit(emptyList()) }
                     .onStart { emit(emptyList()) }
-                combine(pantry.observe(hid).catch { }, items, recent, todayFlow(clock)) { p, i, r, today ->
-                    UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid)
+                combine(pantry.observe(hid).catch { }, items, recent, todayFlow(clock), insights) { p, i, r, today, s ->
+                    UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid, s)
                 }
             }
         }

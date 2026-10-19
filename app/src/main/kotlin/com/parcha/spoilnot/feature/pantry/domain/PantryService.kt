@@ -5,6 +5,7 @@ import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
+import com.parcha.spoilnot.feature.insights.domain.StatsChange
 import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
@@ -125,14 +126,20 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         return null
     }
 
+    /** Deletes the batch and counts it as used for Insights (DESIGN 5.7). Undo restores it and the count. */
     suspend fun usedUp(householdId: String, actor: Actor, batch: StockBatch): Undo {
-        writer.apply(householdId, actor, listOf(PantryChange.DeleteBatch(batch.id)))
-        return Undo(listOf(PantryChange.RestoreBatch(batch)))
+        val counted = StatsChange.usedUp(today())
+        writer.apply(householdId, actor, listOf(PantryChange.DeleteBatch(batch.id), counted))
+        return Undo(listOf(PantryChange.RestoreBatch(batch), StatsChange.undo(counted)))
     }
 
-    /** Deletes the batch and logs why (DESIGN 5.2). Undo restores the batch and removes the log entry. */
+    /**
+     * Deletes the batch, logs why (DESIGN 5.2) and counts it for Insights. Undo restores the batch, removes the log
+     * entry and takes the count back off the same month.
+     */
     suspend fun throwAway(householdId: String, actor: Actor, batch: StockBatch, reason: DiscardReason): Undo {
         val eventId = writer.newId()
+        val counted = StatsChange.thrownAway(today(), reason)
         writer.apply(
             householdId,
             actor,
@@ -146,9 +153,12 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
                     batch.quantity,
                     reason,
                 ),
+                counted,
             ),
         )
-        return Undo(listOf(PantryChange.RestoreBatch(batch), PantryChange.DeleteEvent(eventId)))
+        return Undo(
+            listOf(PantryChange.RestoreBatch(batch), PantryChange.DeleteEvent(eventId), StatsChange.undo(counted)),
+        )
     }
 
     /** Typed changes. A quantity of 0 uses the batch up. */

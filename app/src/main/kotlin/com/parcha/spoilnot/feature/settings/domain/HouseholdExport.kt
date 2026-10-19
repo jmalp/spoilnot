@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-/** Settings > Data > Export (DESIGN 13.4): products, stock, lists and recipes as JSON. */
+/** Settings > Data > Export (DESIGN 13.4): products, stock, lists, recipes and Insights counts as JSON. */
 interface HouseholdExporter {
     /** The household's data as a JSON document. Reads the server when online, the local copy otherwise. */
     suspend fun export(householdId: String): String
@@ -27,6 +27,8 @@ data class ExportData(
     /** Each list with its items. */
     val groceryLists: List<Pair<ExportDoc, List<ExportDoc>>>,
     val recipes: List<ExportDoc>,
+    /** Insights counts, one document per month (after v1; older files have none). */
+    val stats: List<ExportDoc> = emptyList(),
 )
 
 object ExportFormat {
@@ -52,6 +54,7 @@ object ExportFormat {
                     },
                 ),
                 "recipes" to JsonArray(data.recipes.map(::doc)),
+                "stats" to JsonArray(data.stats.map(::doc)),
             ),
         )
         return json.encodeToString(JsonElement.serializer(), root)
