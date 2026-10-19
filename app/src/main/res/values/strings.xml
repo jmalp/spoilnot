@@ -399,6 +399,16 @@
     <string name="recipe_pantry_hint">Items that look like they\'re in your pantry start unchecked.</string>
     <string name="recipe_probably_in_pantry">Probably in pantry</string>
     <string name="recipe_adds_as">Adds as %1$s</string>
+    <string name="recipe_cooked_this">I cooked this</string>
+    <string name="recipe_cooked_title">What did you use?</string>
+    <string name="recipe_cooked_hint">Checked items come off the pantry, starting with what expires first. Change an amount if you used less.</string>
+    <string name="recipe_cooked_have">You have %1$s</string>
+    <string name="recipe_cooked_none">Nothing this recipe uses is in the pantry right now.</string>
+    <string name="recipe_cooked_done">Cooked %1$s. The pantry is updated.</string>
+    <plurals name="recipe_cooked_use">
+        <item quantity="one">Take %d item off the pantry</item>
+        <item quantity="other">Take %d items off the pantry</item>
+    </plurals>
     <string name="recipe_change_item">Change</string>
     <string name="recipe_change_item_description">Change what %1$s is added as</string>
     <string name="recipe_change_title">Add to the list as</string>
@@ -512,6 +522,7 @@
     </plurals>
     <string name="activity_grocery_checked">%1$s checked off %2$s</string>
     <string name="activity_recipe_saved">%1$s saved the recipe %2$s</string>
+    <string name="activity_recipe_cooked">%1$s cooked %2$s</string>
     <string name="activity_member_joined">%1$s joined the household</string>
     <string name="activity_discarded">%1$s threw away %2$s</string>
     <string name="activity_discarded_reason">%1$s threw away %2$s (%3$s)</string>

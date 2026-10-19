@@ -47,6 +47,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 13. Use it up: give Spinach a date tomorrow and Yogurt one in 3 days; save a recipe using both and another using only
     yogurt. Home shows Use it up with the two-ingredient recipe first ("Uses Spinach (Tomorrow), Yogurt (3 days)");
     tapping it opens the recipe. With nothing expiring soon, the card is gone.
+14. I cooked this: with 6 eggs and a bottle of soy sauce, open a recipe with "3 large eggs" and "2 tbsp soy sauce"
+    and tap I cooked this. Eggs are checked with 3; Soy sauce is unchecked with 1. Take 1 item off: the pantry has 3
+    eggs on both phones and Recent activity says you cooked it. Undo: 6 eggs again.
 
 ## 3. Conditions
 

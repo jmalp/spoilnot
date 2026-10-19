@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.SoupKitchen
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -105,7 +106,7 @@ fun RecipeDetailScreen(
     var servings by rememberSaveable(recipe?.content?.servings) { mutableStateOf(recipe?.content?.servings) }
     val context = LocalContext.current
 
-    MessageEffect(viewModel.messages, snackbar) {}
+    MessageEffect(viewModel.messages, snackbar, viewModel::undo)
 
     DetailScaffold(
         title = "",
@@ -161,6 +162,7 @@ fun RecipeDetailScreen(
                     addingToList = true
                     viewModel.openGrocerySheet(true)
                 },
+                onCooked = { factor -> viewModel.openCookSheet(factor) },
                 onOpenOriginal = { url -> openOriginal(context, url) },
                 modifier = Modifier.padding(padding),
             )
@@ -186,6 +188,14 @@ fun RecipeDetailScreen(
             },
         )
     }
+    val cook by viewModel.cook.collectAsStateWithLifecycle()
+    if (!cook.loading && recipe != null) {
+        CookedSheet(
+            state = cook,
+            onUse = viewModel::cooked,
+            onDismiss = { viewModel.openCookSheet(null) },
+        )
+    }
     if (addingToList && recipe != null) {
         val grocery by viewModel.grocery.collectAsStateWithLifecycle()
         AddToGrocerySheet(
@@ -209,6 +219,7 @@ private fun RecipeBody(
     onAddToList: () -> Unit,
     onOpenOriginal: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onCooked: (Double) -> Unit = {},
 ) {
     val c = recipe.content
     val factor = Scaling.factor(c.servings, servings)
@@ -252,9 +263,15 @@ private fun RecipeBody(
                     if (c.servings != null && servings != null) ServingsStepper(servings, onServings)
                 }
                 IngredientChecklist(c.ingredients.map { it.group to Scaling.line(it.raw, factor) }, checked)
-                OutlinedButton(onClick = onAddToList, modifier = Modifier.testTag("recipe_add_to_list")) {
-                    Icon(Icons.Rounded.AddShoppingCart, contentDescription = null)
-                    Text(stringResource(R.string.recipe_add_to_list), Modifier.padding(start = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onAddToList, modifier = Modifier.testTag("recipe_add_to_list")) {
+                        Icon(Icons.Rounded.AddShoppingCart, contentDescription = null)
+                        Text(stringResource(R.string.recipe_add_to_list), Modifier.padding(start = 8.dp))
+                    }
+                    OutlinedButton(onClick = { onCooked(factor) }, modifier = Modifier.testTag("recipe_cooked")) {
+                        Icon(Icons.Rounded.SoupKitchen, contentDescription = null)
+                        Text(stringResource(R.string.recipe_cooked_this), Modifier.padding(start = 8.dp))
+                    }
                 }
             }
             if (c.steps.isNotEmpty()) {

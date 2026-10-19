@@ -355,6 +355,8 @@ private fun ActivityLine(event: ActivityEvent, myUid: String) {
 
         ActivityType.RecipeSaved -> stringResource(R.string.activity_recipe_saved, who, name)
 
+        ActivityType.Cooked -> stringResource(R.string.activity_recipe_cooked, who, name)
+
         ActivityType.MemberJoined -> stringResource(R.string.activity_member_joined, who)
 
         ActivityType.Discarded -> event.reason?.let {

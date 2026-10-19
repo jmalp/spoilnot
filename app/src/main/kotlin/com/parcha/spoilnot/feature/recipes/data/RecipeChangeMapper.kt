@@ -56,14 +56,12 @@ class RecipeChangeMapper @Inject constructor() : FirestoreChangeMapper {
 
             is RecipeChange.LogSaved -> batch.set(
                 db.document("households/$householdId/activity/${change.eventId}"),
-                mapOf(
-                    "type" to TYPE_SAVED,
-                    "actorUid" to actor.uid,
-                    "actorName" to actor.name,
-                    "recipeId" to change.recipeId,
-                    "params" to mapOf("name" to change.title),
-                    "createdAt" to FieldValue.serverTimestamp(),
-                ),
+                event(TYPE_SAVED, actor, change.recipeId, change.title),
+            )
+
+            is RecipeChange.LogCooked -> batch.set(
+                db.document("households/$householdId/activity/${change.eventId}"),
+                event(TYPE_COOKED, actor, change.recipeId, change.title),
             )
         }
         return true
@@ -71,5 +69,15 @@ class RecipeChangeMapper @Inject constructor() : FirestoreChangeMapper {
 
     private companion object {
         const val TYPE_SAVED = "recipe_saved"
+        const val TYPE_COOKED = "recipe_cooked"
+
+        private fun event(type: String, actor: Actor, recipeId: String, title: String) = mapOf(
+            "type" to type,
+            "actorUid" to actor.uid,
+            "actorName" to actor.name,
+            "recipeId" to recipeId,
+            "params" to mapOf("name" to title),
+            "createdAt" to FieldValue.serverTimestamp(),
+        )
     }
 }
