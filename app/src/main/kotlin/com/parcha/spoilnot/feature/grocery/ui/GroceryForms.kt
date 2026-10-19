@@ -110,6 +110,7 @@ fun AddToPantrySheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
+        contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier.testTag("sheet_add_to_pantry"),
     ) {
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
@@ -241,7 +242,12 @@ fun EditItemSheet(
         null
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet.state, modifier = sheet.modifier) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheet.state,
+        modifier = sheet.modifier,
+        contentWindowInsets = sheet.contentWindowInsets,
+    ) {
         Column(
             Modifier.fillMaxWidth().imePadding().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

@@ -105,6 +105,7 @@ fun AddItemSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
+        contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier.testTag("sheet_add_item"),
     ) {
         AddItemForm(products, productsWithStock, today, prefill, onSave)
@@ -264,6 +265,7 @@ fun EditItemSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
+        contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier.testTag("sheet_edit_item"),
     ) {
         FormSheetColumn(
