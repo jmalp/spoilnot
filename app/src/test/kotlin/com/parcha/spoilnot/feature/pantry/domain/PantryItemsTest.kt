@@ -48,4 +48,20 @@ class PantryItemsTest {
         val groups = PantryItems.build(products, batches, PantryQuery(grouping = PantryGrouping.Category), TODAY)
         assertTrue(groups.any { it.category == Category.Cooked && it.items.single().key == "s1" })
     }
+
+    @Test
+    fun `three or more expired fold into a header while browsing, not when searching or filtering to Expired`() {
+        val old = (1..3).map { batch("x$it", "milk", inDays = -it.toLong()) }
+        val groups = PantryItems.build(products, batches + old, PantryQuery(), TODAY)
+        val fold = ExpiredFold.of(groups, PantryQuery())!!
+        assertEquals(listOf("x3", "x2", "x1", "s1"), fold.expired.map { it.key })
+        assertEquals(listOf("m1", "m2", "r1", "out-oil"), fold.rest.flatMap { it.items }.map { it.key })
+        assertEquals(null, ExpiredFold.of(groups, PantryQuery(search = "milk")))
+        assertEquals(null, ExpiredFold.of(groups, PantryQuery(filter = PantryFilter.Expired)))
+        // Two are not a backlog: they stay in the list.
+        assertEquals(
+            null,
+            ExpiredFold.of(PantryItems.build(products, batches + old.take(1), PantryQuery(), TODAY), PantryQuery()),
+        )
+    }
 }

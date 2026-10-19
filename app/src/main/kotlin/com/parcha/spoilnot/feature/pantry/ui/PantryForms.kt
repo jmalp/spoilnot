@@ -1,6 +1,8 @@
 package com.parcha.spoilnot.feature.pantry.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +15,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
@@ -54,18 +58,24 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SEGMENTED_STACK_FONT_SCALE
 import com.parcha.spoilnot.core.designsystem.component.Segmented
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
@@ -329,10 +339,9 @@ private fun ItemFields(
     val qtyBad = qty == null || if (allowZero) qty < 0 else qty <= 0
     val qtyError = if (form.submitted && qtyBad) stringResource(R.string.error_quantity) else null
     NameField(form.name, { form.name = it }, products, nameError, onChoose = onChooseProduct)
-    QuantityRow(form.quantity, { form.quantity = it }, qtyError)
-    // Side by side: neither needs the full width (beta feedback).
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.weight(1f)) {
+    // A compact stepper next to the unit (after v1): the amount needs a few digits, not the full width.
+    val unitField = @Composable { modifier: Modifier ->
+        Box(modifier) {
             EnumDropdown(
                 label = stringResource(R.string.field_unit),
                 value = unitLockedTo ?: form.unit,
@@ -343,18 +352,26 @@ private fun ItemFields(
                 helper = if (unitLockedTo != null) stringResource(R.string.unit_locked_short) else null,
             )
         }
-        Box(Modifier.weight(1f)) {
-            EnumDropdown(
-                label = stringResource(R.string.field_category),
-                value = form.category,
-                options = Category.entries,
-                optionLabel = { stringResource(it.label()) },
-                onPick = { form.category = it },
-            )
+    }
+    if (LocalDensity.current.fontScale >= SEGMENTED_STACK_FONT_SCALE) {
+        QuantityRow(form.quantity, { form.quantity = it }, qtyError, compact = false)
+        unitField(Modifier.fillMaxWidth())
+    } else {
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            QuantityRow(form.quantity, { form.quantity = it }, qtyError)
+            unitField(Modifier.weight(1f))
         }
     }
     ExpiryField(form.expiry, today, onChange = { form.expiry = it })
     LocationChoice(form.location) { form.location = it }
+    // Usually filled in from the product or the name, so it comes after what changes every time.
+    EnumDropdown(
+        label = stringResource(R.string.field_category),
+        value = form.category,
+        options = Category.entries,
+        optionLabel = { stringResource(it.label()) },
+        onPick = { form.category = it },
+    )
     AutoAddFields(form)
 }
 
@@ -468,7 +485,7 @@ private fun NameField(
 
 /** Stepper plus keyboard; decimals allowed (DESIGN 5.2). */
 @Composable
-private fun QuantityRow(value: String, onChange: (String) -> Unit, error: String?) {
+private fun QuantityRow(value: String, onChange: (String) -> Unit, error: String?, compact: Boolean = true) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         IconButton(onClick = { parseQuantity(value)?.let { onChange(formatQuantity((it - 1).coerceAtLeast(0.0))) } }) {
             Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.action_minus_one))
@@ -479,7 +496,8 @@ private fun QuantityRow(value: String, onChange: (String) -> Unit, error: String
             label = stringResource(R.string.field_quantity),
             error = error,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-            modifier = Modifier.weight(1f).testTag("field_quantity"),
+            // Compact beside the unit; the full width when stacked at large text sizes.
+            modifier = (if (compact) Modifier.width(96.dp) else Modifier.weight(1f)).testTag("field_quantity"),
         )
         IconButton(onClick = { onChange(formatQuantity((parseQuantity(value) ?: 0.0) + 1)) }) {
             Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.action_plus_one))
@@ -510,19 +528,7 @@ private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDat
                 Modifier.padding(start = 8.dp),
             )
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(
-                R.string.chip_plus_3_days to today.plusDays(3),
-                R.string.chip_plus_1_week to today.plusWeeks(1),
-                R.string.chip_plus_2_weeks to today.plusWeeks(2),
-                R.string.chip_plus_1_month to today.plusMonths(1),
-                R.string.chip_no_expiry to null,
-            ).forEach { (label, date) ->
-                FilterChip(selected = value == date, onClick = {
-                    onChange(date)
-                }, label = { Text(stringResource(label)) })
-            }
-        }
+        DateChips(value, today, onChange)
     }
     if (picking) {
         val state = rememberDatePickerState(
@@ -545,22 +551,77 @@ private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDat
     }
 }
 
-/** Location as wrapping chips: four labels do not fit a segmented row at large font sizes. */
+/**
+ * The quick date chips, wrapping onto a second line instead of running off the edge (after v1), shared by Add item
+ * and Add to pantry.
+ */
 @Composable
-private fun LocationChoice(selected: Location, onPick: (Location) -> Unit) {
+internal fun DateChips(value: LocalDate?, today: LocalDate, onChange: (LocalDate?) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            R.string.chip_plus_3_days to today.plusDays(3),
+            R.string.chip_plus_1_week to today.plusWeeks(1),
+            R.string.chip_plus_2_weeks to today.plusWeeks(2),
+            R.string.chip_plus_1_month to today.plusMonths(1),
+            R.string.chip_no_expiry to null,
+        ).forEach { (label, date) ->
+            FilterChip(selected = value == date, onClick = { onChange(date) }, label = { Text(stringResource(label)) })
+        }
+    }
+}
+
+/**
+ * Location as four equal tiles, icon over label, in one row (a 2 by 2 grid at large text sizes; after v1, replacing
+ * chips that wrapped "Other" onto a line of its own). The chosen one has a border, a fill and a bold label.
+ */
+@Composable
+internal fun LocationChoice(selected: Location, onPick: (Location) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.field_location), style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.selectableGroup()) {
-            Location.entries.forEach { location ->
-                FilterChip(
-                    selected = location == selected,
-                    onClick = { onPick(location) },
-                    label = { Text(stringResource(location.label())) },
-                    leadingIcon = { Icon(location.icon(), contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    modifier = Modifier.semantics { role = Role.RadioButton },
-                )
+        val rows = if (LocalDensity.current.fontScale >= SEGMENTED_STACK_FONT_SCALE) 2 else 1
+        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Location.entries.chunked(Location.entries.size / rows).forEach { line ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    line.forEach { location ->
+                        LocationTile(location, location == selected, { onPick(location) }, Modifier.weight(1f))
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun LocationTile(location: Location, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val shape = MaterialTheme.shapes.medium
+    Column(
+        modifier
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .border(
+                if (selected) 2.dp else 1.dp,
+                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape,
+            )
+            .selectable(selected, role = Role.RadioButton, onClick = onClick)
+            .heightIn(min = 64.dp)
+            .padding(vertical = 8.dp, horizontal = 4.dp)
+            .testTag("location_${location.name}"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+    ) {
+        Icon(
+            location.icon(),
+            contentDescription = null,
+            tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            stringResource(location.label()),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.Bold else null,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

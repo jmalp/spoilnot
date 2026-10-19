@@ -37,7 +37,12 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -147,16 +152,22 @@ fun CoachMarkOverlay(
         if (hole == null) {
             Scrim(Rect(0f, 0f, width, height), scrim)
         } else {
-            Scrim(Rect(0f, 0f, width, hole.top), scrim)
-            Scrim(Rect(0f, hole.bottom, width, height), scrim)
-            Scrim(Rect(0f, hole.top, hole.left, hole.bottom), scrim)
-            Scrim(Rect(hole.right, hole.top, width, hole.bottom), scrim)
+            // Four invisible rectangles take the touches; the dimming is drawn with rounded corners that match
+            // the outline, so no light corners show outside it (after v1).
+            val clear = Color.Transparent
+            Scrim(Rect(0f, 0f, width, hole.top), clear)
+            Scrim(Rect(0f, hole.bottom, width, height), clear)
+            Scrim(Rect(0f, hole.top, hole.left, hole.bottom), clear)
+            Scrim(Rect(hole.right, hole.top, width, hole.bottom), clear)
             Canvas(Modifier.fillMaxSize()) {
+                val corner = CornerRadius(12.dp.toPx())
+                val cutOut = Path().apply { addRoundRect(RoundRect(hole, corner)) }
+                clipPath(cutOut, ClipOp.Difference) { drawRect(scrim) }
                 drawRoundRect(
                     ring,
                     topLeft = hole.topLeft,
                     size = hole.size,
-                    cornerRadius = CornerRadius(12.dp.toPx()),
+                    cornerRadius = corner,
                     style = Stroke(3.dp.toPx()),
                 )
             }
@@ -224,7 +235,7 @@ private val MIN_CARD_ROOM = 160.dp
 
 /** A dimmed rectangle that swallows every touch on it. */
 @Composable
-private fun Scrim(rect: Rect, color: androidx.compose.ui.graphics.Color) {
+private fun Scrim(rect: Rect, color: Color) {
     if (rect.width <= 0f || rect.height <= 0f) return
     val density = LocalDensity.current
     Box(

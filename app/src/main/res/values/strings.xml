@@ -510,6 +510,12 @@
         <item quantity="one">Throw away %d expired</item>
         <item quantity="other">Throw away all %d expired</item>
     </plurals>
+    <plurals name="pantry_expired_count">
+        <item quantity="one">%d expired item</item>
+        <item quantity="other">%d expired items</item>
+    </plurals>
+    <string name="pantry_expired_show">Show</string>
+    <string name="pantry_expired_hide">Hide</string>
     <string name="home_threw_away_expired">Threw away %1$s expired items</string>
     <string name="home_use_it_up_uses">Uses %1$s</string>
     <string name="home_use_it_up_open">Open recipe</string>

@@ -55,7 +55,9 @@ import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.ShelfLife
+import com.parcha.spoilnot.feature.pantry.ui.DateChips
 import com.parcha.spoilnot.feature.pantry.ui.EnumDropdown
+import com.parcha.spoilnot.feature.pantry.ui.LocationChoice
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatDate
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
@@ -281,34 +283,8 @@ private fun EntryEditor(draft: EntryDraft, today: LocalDate) {
                 draft.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date),
                 style = MaterialTheme.typography.labelLarge,
             )
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(
-                    R.string.chip_plus_3_days to today.plusDays(3),
-                    R.string.chip_plus_1_week to today.plusWeeks(1),
-                    R.string.chip_plus_2_weeks to today.plusWeeks(2),
-                    R.string.chip_plus_1_month to today.plusMonths(1),
-                    R.string.chip_no_expiry to null,
-                ).forEach { (label, date) ->
-                    FilterChip(selected = draft.expiry == date, onClick = {
-                        draft.expiry = date
-                    }, label = { Text(stringResource(label)) })
-                }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Location.entries.forEach { location ->
-                    FilterChip(
-                        selected = draft.location == location,
-                        onClick = { draft.location = location },
-                        label = { Text(stringResource(location.label())) },
-                        leadingIcon = {
-                            Icon(location.icon(), contentDescription = null, modifier = Modifier.size(18.dp))
-                        },
-                    )
-                }
-            }
+            DateChips(draft.expiry, today) { draft.expiry = it }
+            LocationChoice(draft.location) { draft.location = it }
         }
     }
 }

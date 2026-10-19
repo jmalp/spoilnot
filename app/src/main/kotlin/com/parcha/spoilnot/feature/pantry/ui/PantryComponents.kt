@@ -115,7 +115,7 @@ private fun PurchaseRow(
     val scope = rememberCoroutineScope()
     val swipe = rememberSwipeToDismissBoxState()
     LaunchedEffect(batch.id, batch.quantity) { swipe.reset() }
-    val amount = amountText(batch.quantity, batch.unit)
+    val amount = rowAmount(batch.quantity, batch.unit)
     val location = stringResource(batch.location.label())
     val status = statusText(batch.expiryDate, batch.dateType, today)
     val opened = if (batch.openedOn != null) stringResource(R.string.row_opened_suffix) else ""
@@ -158,11 +158,7 @@ private fun PurchaseRow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(
-                            item.status.icon(),
-                            contentDescription = null,
-                            tint = SpoilNotStatus.colors.forTone(item.status.tone()),
-                        )
+                        // The chip carries the status (icon, text, color); a second icon here only repeated it.
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             NameLine(item.name, low = item.isLow, out = false, pending = batch.pendingSync)
                             // Wraps instead of squeezing at large font sizes (DESIGN 6.8: 200% font scale).
@@ -176,11 +172,13 @@ private fun PurchaseRow(
                                 if (batch.openedOn != null) OpenedLabel()
                             }
                         }
-                        Text(
-                            amount,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        amount?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                     PurchaseMenu(batch, actions)
                 }
@@ -193,7 +191,6 @@ private fun PurchaseRow(
 @Composable
 private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier: Modifier) {
     val product = item.product
-    val amount = amountText(0.0, product.unit)
     val location = stringResource(product.defaultLocation.label())
     val description = stringResource(R.string.row_description_out, product.name)
     Column(modifier.fillMaxWidth().testTag("pantry_item_out_${product.id}")) {
@@ -207,16 +204,11 @@ private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier:
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(
-                Icons.Rounded.Remove,
-                contentDescription = null,
-                tint = SpoilNotStatus.colors.forTone(StatusTone.NoDate),
-            )
+            // The Out badge says it; no "0" and no extra icon (after v1).
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 NameLine(product.name, low = false, out = true, pending = false)
                 LocationLabel(product.defaultLocation, location)
             }
-            Text(amount, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
         HorizontalDivider()
     }

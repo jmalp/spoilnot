@@ -9,6 +9,7 @@ import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
+import com.parcha.spoilnot.feature.pantry.domain.NaturalOrder
 import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
@@ -64,10 +65,10 @@ object GroceryLayout {
         val (cart, toBuy) = items.partition { it.checked }
         val byTime = compareBy<GroceryItem, java.time.Instant?>(nullsLast()) {
             it.createdAt
-        }.thenBy { it.name.lowercase() }
+        }.thenBy(NaturalOrder) { it.name }
         val aisles = toBuy.groupBy { it.category ?: Category.Other }.toSortedMap()
             .map { (category, list) -> category to list.sortedWith(byTime) }
-        return GroceryView(aisles, cart.sortedBy { it.name.lowercase() })
+        return GroceryView(aisles, cart.sortedWith(compareBy(NaturalOrder) { it.name }))
     }
 
     /** Pantry products and names already used on the list, for the quick-add suggestions. */

@@ -72,6 +72,10 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     highlighted (Pantry, Add item, Recipes, Groceries); each tap moves it on. Taps on the dimmed part do nothing. At
     200% text the card stays readable and its buttons wrap. Restart the app: no tour. Settings > Take the app tour:
     it starts again; Skip tour ends it at any step.
+21. Polish 1: each tab's title is one compact bar. Pantry rows show one status chip and "× 3" (nothing for one). With
+    three or more expired items, the list starts with "N expired items": Show lists them, Throw away all removes them
+    with Undo. Add item: the quantity stepper sits beside the unit, the date chips wrap, the four locations are tiles
+    on one line (two lines at 200% text). "Bag 2" sorts before "Bag 10". The tour highlight has no light corners.
 
 ## 3. Conditions
 
