@@ -31,6 +31,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 8. Insights: use up one item and throw away another (Spoiled). On both phones, Home > Your kitchen this month shows
    "1 used · 1 thrown away" and a 50% ring with a dashed part. Undo the throw-away: it shows "1 used · 0 thrown
    away". See insights: the bars, streak and reasons match, and TalkBack reads each chart's summary.
+9. Settings > Appearance > Colors: pick each preset in light and dark. The whole app changes at once, expiry chips keep
+   their colors, text stays readable, and TalkBack reads each swatch as a selected or unselected radio button with its
+   name. Restart the app: the choice is kept.
 
 ## 3. Conditions
 

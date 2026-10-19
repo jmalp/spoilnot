@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
@@ -51,7 +52,7 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                SpoilNotTheme(darkTheme = dark, dynamicColor = false) {
+                SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
                     Surface { Column { content() } }
                 }
             }

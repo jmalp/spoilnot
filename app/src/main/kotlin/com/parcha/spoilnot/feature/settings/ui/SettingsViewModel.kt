@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.prefs.ThemeMode
 import com.parcha.spoilnot.core.ui.messageRes
@@ -57,12 +58,12 @@ class SettingsViewModel @Inject constructor(
     /** Settings > Appearance and Crash reports (DESIGN 5.6). */
     data class Device(
         val themeMode: ThemeMode = ThemeMode.System,
-        val dynamicColor: Boolean = true,
+        val colorTheme: ColorTheme = ColorTheme.Wallpaper,
         val crashReports: Boolean = true,
     )
 
     val device: StateFlow<Device> =
-        combine(preferences.themeMode, preferences.dynamicColor, preferences.crashReports, ::Device)
+        combine(preferences.themeMode, preferences.colorTheme, preferences.crashReports, ::Device)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Device())
 
     val units: StateFlow<Units> = session.session
@@ -75,7 +76,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { preferences.setThemeMode(mode) }
 
-    fun setDynamicColor(enabled: Boolean) = viewModelScope.launch { preferences.setDynamicColor(enabled) }
+    fun setColorTheme(theme: ColorTheme) = viewModelScope.launch { preferences.setColorTheme(theme) }
 
     fun setCrashReports(enabled: Boolean) = viewModelScope.launch { preferences.setCrashReports(enabled) }
 

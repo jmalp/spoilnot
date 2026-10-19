@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
@@ -81,7 +82,7 @@ class GroceryRowTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                SpoilNotTheme(darkTheme = dark, dynamicColor = false) { Surface { Column { content() } } }
+                SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) { Surface { Column { content() } } }
             }
         }
 
@@ -126,7 +127,7 @@ class GroceryRowTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, variant.second)) {
-                SpoilNotTheme(darkTheme = variant.first, dynamicColor = false) {
+                SpoilNotTheme(darkTheme = variant.first, colorTheme = ColorTheme.SpoilNot) {
                     Surface { Column { rows.forEach { GroceryRow(it, state, {}, {}, {}) } } }
                 }
             }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.core.firebase.RequestEmulatorNetworkAccess
 import com.parcha.spoilnot.core.navigation.DeepLink
@@ -44,13 +45,13 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) deepLinks.open(linkFrom(intent))
         setContent {
             val themeMode by preferences.themeMode.collectAsStateWithLifecycle(ThemeMode.System)
-            val dynamicColor by preferences.dynamicColor.collectAsStateWithLifecycle(true)
+            val colorTheme by preferences.colorTheme.collectAsStateWithLifecycle(ColorTheme.Wallpaper)
             val dark = when (themeMode) {
                 ThemeMode.System -> isSystemInDarkTheme()
                 ThemeMode.Light -> false
                 ThemeMode.Dark -> true
             }
-            SpoilNotTheme(darkTheme = dark, dynamicColor = dynamicColor) {
+            SpoilNotTheme(darkTheme = dark, colorTheme = colorTheme) {
                 RequestEmulatorNetworkAccess()
                 SpoilNotRoot()
             }

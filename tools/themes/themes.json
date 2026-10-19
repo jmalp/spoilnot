@@ -1,0 +1,77 @@
+[
+  {
+    "id": "fiery",
+    "name": "Fiery Palette",
+    "palette": [
+      "5f0f40",
+      "9a031e",
+      "fb8b24",
+      "e36414",
+      "0f4c5c"
+    ],
+    "main": "e36414",
+    "second": "fb8b24",
+    "accent": "0f4c5c",
+    "neutral": "fb8b24"
+  },
+  {
+    "id": "summerFun",
+    "name": "Summer Fun",
+    "palette": [
+      "8ecae6",
+      "219ebc",
+      "023047",
+      "ffb703",
+      "fb8500"
+    ],
+    "main": "219ebc",
+    "second": "023047",
+    "accent": "fb8500",
+    "neutral": "8ecae6"
+  },
+  {
+    "id": "enchantedForest",
+    "name": "Enchanted Forest",
+    "palette": [
+      "ef233c",
+      "d5f2e3",
+      "73ba9b",
+      "003e1f",
+      "d90429"
+    ],
+    "main": "73ba9b",
+    "second": "003e1f",
+    "accent": "ef233c",
+    "neutral": "d5f2e3"
+  },
+  {
+    "id": "watermelonSorbet",
+    "name": "Watermelon Sorbet",
+    "palette": [
+      "ef476f",
+      "ffd166",
+      "06d6a0",
+      "118ab2",
+      "073b4c"
+    ],
+    "main": "ef476f",
+    "second": "06d6a0",
+    "accent": "118ab2",
+    "neutral": "ef476f"
+  },
+  {
+    "id": "contrastPop",
+    "name": "Contrast Pop",
+    "palette": [
+      "011627",
+      "fdfffc",
+      "2ec4b6",
+      "e71d36",
+      "ff9f1c"
+    ],
+    "main": "2ec4b6",
+    "second": "011627",
+    "accent": "ff9f1c",
+    "neutral": "011627"
+  }
+]
