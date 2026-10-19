@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.feature.grocery.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,9 +16,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -52,6 +56,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.ShelfLife
 import com.parcha.spoilnot.feature.pantry.ui.EnumDropdown
+import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatDate
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.icon
@@ -73,12 +78,17 @@ private class EntryDraft(
     var expiry by mutableStateOf(expiry)
     var location by mutableStateOf(location)
     var skip by mutableStateOf(false)
+
+    /** Showing the full editor instead of the one-line summary (after v1). */
+    var expanded by mutableStateOf(false)
+
+    val valid: Boolean get() = skip || parseQuantity(quantity)?.let { it > 0 } == true
 }
 
 /**
- * Done shopping (DESIGN 5.3): one row per checked item with quantity, unit, expiry quick chips (pre-filled from the
- * product's typical shelf life) and location. Confirm adds them all in one write; Skip removes an item without
- * adding stock.
+ * Done shopping (DESIGN 5.3): one line per checked item summing up what will be added (amount, location, date
+ * pre-filled from the product's typical shelf life). Tapping a line opens its editor: quantity, unit, expiry quick
+ * chips, location and Skip, which removes the item without adding stock. Add all adds them in one write.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +100,24 @@ fun AddToPantrySheet(
     onDismiss: () -> Unit,
 ) {
     val sheet = rememberFormSheet()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheet.state,
+        contentWindowInsets = sheet.contentWindowInsets,
+        modifier = sheet.modifier.testTag("sheet_add_to_pantry"),
+    ) {
+        AddToPantryContent(items, pantry, today, onConfirm)
+    }
+}
+
+/** The sheet's lines and Add all button, without the sheet (tested on the JVM). */
+@Composable
+internal fun AddToPantryContent(
+    items: List<GroceryItem>,
+    pantry: PantryData,
+    today: LocalDate,
+    onConfirm: (entries: List<PantryEntry>, skipped: List<GroceryItem>) -> Unit,
+) {
     val drafts = remember(items) {
         mutableStateListOf(
             *items.map { item ->
@@ -105,116 +133,180 @@ fun AddToPantrySheet(
             }.toTypedArray(),
         )
     }
-    val valid = drafts.all { it.skip || (parseQuantity(it.quantity)?.let { q -> q > 0 } == true) }
+    val valid = drafts.all { it.valid }
     val count = drafts.count { !it.skip }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheet.state,
-        contentWindowInsets = sheet.contentWindowInsets,
-        modifier = sheet.modifier.testTag("sheet_add_to_pantry"),
-    ) {
-        Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
-            Column(
-                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    stringResource(R.string.grocery_add_to_pantry_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-                drafts.forEach { draft -> EntryCard(draft, today) }
+    Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
+        Column(
+            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                stringResource(R.string.grocery_add_to_pantry_title),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Column {
+                drafts.forEach { draft ->
+                    EntryRow(draft, today)
+                    HorizontalDivider()
+                }
             }
-            Column(Modifier.padding(16.dp)) {
-                PrimaryButton(
-                    text = pluralStringResource(R.plurals.grocery_add_to_pantry, count, count),
-                    onClick = {
-                        if (!valid) return@PrimaryButton
-                        val entries = drafts.filter { !it.skip }.map {
-                            PantryEntry(it.item, parseQuantity(it.quantity)!!, it.unit, it.expiry, it.location)
-                        }
-                        onConfirm(entries, drafts.filter { it.skip }.map { it.item })
-                    },
-                    modifier = Modifier.testTag("button_confirm_add_to_pantry"),
-                )
-            }
+        }
+        Column(Modifier.padding(16.dp)) {
+            PrimaryButton(
+                text = if (count == 0) {
+                    stringResource(R.string.grocery_remove_skipped)
+                } else if (count == drafts.size && count > 1) {
+                    pluralStringResource(R.plurals.grocery_add_all_to_pantry, count, count)
+                } else {
+                    pluralStringResource(R.plurals.grocery_add_to_pantry, count, count)
+                },
+                onClick = {
+                    if (!valid) {
+                        // Show what needs fixing.
+                        drafts.filter { !it.valid }.forEach { it.expanded = true }
+                        return@PrimaryButton
+                    }
+                    val entries = drafts.filter { !it.skip }.map {
+                        PantryEntry(it.item, parseQuantity(it.quantity)!!, it.unit, it.expiry, it.location)
+                    }
+                    onConfirm(entries, drafts.filter { it.skip }.map { it.item })
+                },
+                modifier = Modifier.testTag("button_confirm_add_to_pantry"),
+            )
         }
     }
 }
 
+/** "2 · Fridge · Oct 26", "Skipped" or the problem, for one line of the sheet. */
 @Composable
-private fun EntryCard(draft: EntryDraft, today: LocalDate) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(draft.item.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text(stringResource(R.string.grocery_skip), style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = draft.skip, onCheckedChange = {
-                    draft.skip = it
-                }, modifier = Modifier.padding(start = 8.dp))
-            }
-            if (!draft.skip) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FormTextField(
-                        value = draft.quantity,
-                        onValueChange = { draft.quantity = it },
-                        label = stringResource(R.string.field_quantity),
-                        error = if (parseQuantity(draft.quantity)?.let { it > 0 } !=
-                            true
-                        ) {
-                            stringResource(R.string.error_quantity)
-                        } else {
-                            null
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Decimal,
-                            imeAction = ImeAction.Next,
-                        ),
-                        modifier = Modifier.width(140.dp),
-                    )
-                    Column(Modifier.weight(1f)) {
-                        EnumDropdown(stringResource(R.string.field_unit), draft.unit, unitMenu(), {
-                            stringResource(it.label())
-                        }, {
-                            draft.unit =
-                                it
-                        })
-                    }
-                }
+private fun entrySummary(draft: EntryDraft, today: LocalDate): String {
+    if (draft.skip) return stringResource(R.string.grocery_entry_skipped)
+    val quantity = parseQuantity(draft.quantity)?.takeIf { it > 0 } ?: return stringResource(R.string.error_quantity)
+    val date = draft.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date)
+    return stringResource(
+        R.string.grocery_entry_summary,
+        amountText(quantity, draft.unit),
+        stringResource(draft.location.label()),
+        date,
+    )
+}
+
+@Composable
+private fun EntryRow(draft: EntryDraft, today: LocalDate) {
+    val summary = entrySummary(draft, today)
+    Column(Modifier.fillMaxWidth().testTag("entry_${draft.item.id}")) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(
+                    onClickLabel = stringResource(
+                        if (draft.expanded) R.string.grocery_entry_done else R.string.grocery_entry_edit,
+                    ),
+                ) { draft.expanded = !draft.expanded }
+                .heightIn(min = 56.dp)
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(draft.item.name, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    draft.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date),
-                    style = MaterialTheme.typography.labelLarge,
+                    summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (draft.valid) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                 )
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf(
-                        R.string.chip_plus_3_days to today.plusDays(3),
-                        R.string.chip_plus_1_week to today.plusWeeks(1),
-                        R.string.chip_plus_2_weeks to today.plusWeeks(2),
-                        R.string.chip_plus_1_month to today.plusMonths(1),
-                        R.string.chip_no_expiry to null,
-                    ).forEach { (label, date) ->
-                        FilterChip(selected = draft.expiry == date, onClick = {
-                            draft.expiry = date
-                        }, label = { Text(stringResource(label)) })
-                    }
+            }
+            Icon(
+                if (draft.expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = null,
+            )
+        }
+        if (draft.expanded) EntryEditor(draft, today)
+    }
+}
+
+@Composable
+private fun EntryEditor(draft: EntryDraft, today: LocalDate) {
+    Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.grocery_skip_help),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(stringResource(R.string.grocery_skip), style = MaterialTheme.typography.bodyMedium)
+            Switch(
+                checked = draft.skip,
+                onCheckedChange = { draft.skip = it },
+                modifier = Modifier.padding(start = 8.dp).testTag("entry_skip_${draft.item.id}"),
+            )
+        }
+        if (!draft.skip) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FormTextField(
+                    value = draft.quantity,
+                    onValueChange = { draft.quantity = it },
+                    label = stringResource(R.string.field_quantity),
+                    error = if (parseQuantity(draft.quantity)?.let { it > 0 } !=
+                        true
+                    ) {
+                        stringResource(R.string.error_quantity)
+                    } else {
+                        null
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next,
+                    ),
+                    modifier = Modifier.width(140.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    EnumDropdown(stringResource(R.string.field_unit), draft.unit, unitMenu(), {
+                        stringResource(it.label())
+                    }, {
+                        draft.unit =
+                            it
+                    })
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Location.entries.forEach { location ->
-                        FilterChip(
-                            selected = draft.location == location,
-                            onClick = { draft.location = location },
-                            label = { Text(stringResource(location.label())) },
-                            leadingIcon = {
-                                Icon(location.icon(), contentDescription = null, modifier = Modifier.size(18.dp))
-                            },
-                        )
-                    }
+            }
+            Text(
+                draft.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    R.string.chip_plus_3_days to today.plusDays(3),
+                    R.string.chip_plus_1_week to today.plusWeeks(1),
+                    R.string.chip_plus_2_weeks to today.plusWeeks(2),
+                    R.string.chip_plus_1_month to today.plusMonths(1),
+                    R.string.chip_no_expiry to null,
+                ).forEach { (label, date) ->
+                    FilterChip(selected = draft.expiry == date, onClick = {
+                        draft.expiry = date
+                    }, label = { Text(stringResource(label)) })
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Location.entries.forEach { location ->
+                    FilterChip(
+                        selected = draft.location == location,
+                        onClick = { draft.location = location },
+                        label = { Text(stringResource(location.label())) },
+                        leadingIcon = {
+                            Icon(location.icon(), contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                    )
                 }
             }
         }

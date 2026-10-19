@@ -6,6 +6,8 @@ import com.parcha.spoilnot.EmulatorSupport
 import com.parcha.spoilnot.EmulatorSupport.PASSWORD
 import com.parcha.spoilnot.EmulatorSupport.uniqueEmail
 import com.parcha.spoilnot.TestPhone
+import com.parcha.spoilnot.feature.home.domain.ActivityEvent
+import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -80,6 +82,25 @@ class PantryFlowTest {
 
     private suspend fun TestPhone.data(predicate: (PantryData) -> Boolean): PantryData =
         withTimeout(20_000) { pantryRepository.observe(householdId).first { !it.fromCache && predicate(it) } }
+
+    /** Changes-only Recent activity (after v1, DESIGN 9.8): new events arrive, and an Undo removes one. */
+    @Test
+    fun activityReachesTheOtherPhoneAndUndoRemovesIt() = runBlocking {
+        suspend fun bobSees(predicate: (List<ActivityEvent>) -> Boolean) =
+            withTimeout(20_000) { bob.activity.observeRecent(householdId, 10).first(predicate) }
+        // Bob's first look is the full read of the newest ten.
+        bobSees { true }
+        alice.pantry.add(householdId, alice.actor, draft("Milk"), alice.data { true })
+        bobSees { events -> events.any { it.type == ActivityType.StockAdded && it.name == "Milk" } }
+        // From now on Bob reads only new events; the cache still shows the older ones.
+        val milk = alice.data { d -> d.batches.any { it.productName == "Milk" } }.batches.single()
+        val undo = alice.pantry.throwAway(householdId, alice.actor, milk, DiscardReason.Spoiled)
+        val seen = bobSees { events -> events.any { it.type == ActivityType.Discarded && it.name == "Milk" } }
+        assertTrue(seen.any { it.type == ActivityType.StockAdded })
+        alice.pantry.undo(householdId, alice.actor, undo)
+        bobSees { events -> events.none { it.type == ActivityType.Discarded } }
+        Unit
+    }
 
     @Test
     fun hundredItemsAddedAndVisibleOnBothPhones() = runBlocking {

@@ -120,6 +120,33 @@ fun CollectionReference.liveDocuments(db: FirebaseFirestore, log: SyncLog): Flow
     )
 }
 
+/**
+ * The newest [limit] documents by [field], for collections that are only added to (Recent activity, after v1): the
+ * cache listener shows the newest ones the phone has, and the server listener reads only documents newer than the
+ * newest cached one (less [DeltaSync.CURSOR_MARGIN]), or the newest [limit] on the daily full read. Removals that
+ * happen while a document is in the server listener's result (Undo) show at once; others (pruning, an Undo while
+ * the phone was away) by the next full read at the latest.
+ */
+fun CollectionReference.liveNewest(
+    db: FirebaseFirestore,
+    log: SyncLog,
+    field: String,
+    limit: Long,
+): Flow<LiveDocuments> = flow {
+    val collection = this@liveNewest
+    val newestQuery = collection.orderBy(field, Query.Direction.DESCENDING).limit(limit)
+    val cached = runCatching { newestQuery.get(Source.CACHE).await() }.getOrNull()
+    val newest = cached?.documents?.firstNotNullOfOrNull { it.getTimestamp(field)?.toDate()?.toInstant() }
+    val since = DeltaSync.cursor(newest, log.lastFullSync(path), log.now())
+    val server: Query = if (since == null) newestQuery else collection.whereGreaterThan(field, Timestamp(since))
+    val remote = server.snapshotFlow(MetadataChanges.INCLUDE)
+        .retryAfterOwnWrites(db)
+        .onEach { if (since == null && !it.metadata.isFromCache) log.markFullSync(path) }
+    emitAll(
+        combine(newestQuery.cacheSnapshotFlow(), remote) { l, r -> LiveDocuments(l.documents, r.metadata.isFromCache) },
+    )
+}
+
 /** A listener on the local cache only: free, and updated by local writes and by every other listener. */
 private fun Query.cacheSnapshotFlow(): Flow<QuerySnapshot> = callbackFlow {
     val options = SnapshotListenOptions.Builder()

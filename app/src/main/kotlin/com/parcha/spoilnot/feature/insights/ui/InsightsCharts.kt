@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -29,8 +34,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -111,26 +121,49 @@ fun UsageRing(
     }
 }
 
-/** One month in [MonthBars]. */
-data class MonthBar(val label: String, val used: Int, val thrown: Int)
+/** One month in [MonthBars]; [description] is what TalkBack reads for it. */
+data class MonthBar(val label: String, val used: Int, val thrown: Int, val description: String = label)
 
 /**
  * Used and thrown away per month, side by side: solid bars for used, striped outlined bars for thrown away, each with
- * its number above and the month below.
+ * its number above and the month below. After v1 each month can be tapped ([onSelect]) to show its details; the
+ * selected one is marked by a tinted background and a bold label, and TalkBack reads each month on its own.
  */
 @Composable
-fun MonthBars(bars: List<MonthBar>, description: String, modifier: Modifier = Modifier, height: Dp = 160.dp) {
+fun MonthBars(
+    bars: List<MonthBar>,
+    modifier: Modifier = Modifier,
+    height: Dp = 160.dp,
+    selected: Int? = null,
+    onSelect: (Int) -> Unit = {},
+) {
     val usedColor = ChartColors.used
     val thrownColor = ChartColors.thrown
     val grow = rememberGrow(bars)
     val max = (bars.maxOfOrNull { maxOf(it.used, it.thrown) } ?: 0).coerceAtLeast(1)
     Row(
-        modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
+        modifier.fillMaxWidth().selectableGroup(),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.Bottom,
     ) {
-        bars.forEach { bar ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        bars.forEachIndexed { index, bar ->
+            val isSelected = index == selected
+            Column(
+                Modifier
+                    .testTag("month_bar_$index")
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    )
+                    .selectable(isSelected, role = Role.Tab) { onSelect(index) }
+                    .clearAndSetSemantics {
+                        contentDescription = bar.description
+                        this.selected = isSelected
+                        role = Role.Tab
+                    }
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     Bar(bar.used, max, height, grow, usedColor, striped = false)
                     Bar(bar.thrown, max, height, grow, thrownColor, striped = true)
@@ -138,7 +171,12 @@ fun MonthBars(bars: List<MonthBar>, description: String, modifier: Modifier = Mo
                 Text(
                     bar.label,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (isSelected) FontWeight.Bold else null,
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }

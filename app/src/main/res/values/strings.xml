@@ -335,6 +335,16 @@
     <string name="grocery_edit_item">Edit %1$s</string>
     <string name="grocery_add_to_pantry_title">Add to pantry</string>
     <string name="grocery_skip">Skip</string>
+    <string name="grocery_skip_help">Remove from the list without adding it</string>
+    <string name="grocery_entry_summary">%1$s · %2$s · %3$s</string>
+    <string name="grocery_entry_skipped">Skipped: leaves the list, not added</string>
+    <string name="grocery_entry_edit">Edit</string>
+    <string name="grocery_entry_done">Done editing</string>
+    <string name="grocery_remove_skipped">Remove from the list</string>
+    <plurals name="grocery_add_all_to_pantry">
+        <item quantity="one">Add all %d to pantry</item>
+        <item quantity="other">Add all %d to pantry</item>
+    </plurals>
     <string name="grocery_added_to_pantry">Added to the pantry</string>
     <string name="grocery_add_to_list">Add</string>
 
@@ -523,7 +533,9 @@
     <string name="insights_legend_thrown">Thrown away</string>
     <string name="insights_section_months">Last 6 months</string>
     <string name="insights_months_none">Each month\'s bars show up here as items are used up or thrown away.</string>
-    <string name="insights_months_description">Used and thrown away in the last 6 months. %1$s</string>
+    <string name="insights_month_details">%1$d used · %2$d thrown away · %3$d%% used</string>
+    <string name="insights_month_nothing">Nothing used up or thrown away.</string>
+    <string name="insights_month_reasons">Thrown away: %1$s</string>
     <string name="insights_month_entry">%1$s: %2$d used, %3$d thrown away</string>
     <string name="insights_section_reasons">Why things were thrown away</string>
     <string name="insights_reasons_none">Nothing thrown away in the last 6 months.</string>

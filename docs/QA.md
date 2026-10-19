@@ -36,7 +36,8 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
    name. Restart the app: the choice is kept.
 10. Changes-only sync: with both phones open, delete a grocery item and throw away a batch on Phone A; both
     disappear on Phone B. Close the app on Phone B, make three changes on Phone A (add, edit, delete), reopen Phone B:
-    all three show. Offline on Phone B, delete something, reconnect: Phone A sees it go.
+    all three show. Offline on Phone B, delete something, reconnect: Phone A sees it go. Recent activity: with Home
+    open on Phone B, throw something away on Phone A: it shows on Phone B; Undo: it goes away again.
 11. Recipe to groceries: with "Onions" in the pantry (any amount, even out of stock), add a recipe with "1 extra large
     onion, diced" and "½ tbsp soy sauce" to the list. The sheet shows "Adds as Onions × <your usual amount>" and
     "Adds as Soy sauce". On the list: "Onions" with the usual amount and the note "<recipe>: 1 extra large onion,
@@ -61,6 +62,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     away all 2 expired; tap it, then Undo. On a new household, the empty Home cards are one row each. The
     notification explanation appears on the third dated item, not the first. Pantry and grocery rows show "2", not
     "2 pcs". At font size 200%, Settings > Units shows radio buttons with full labels.
+18. Add to pantry: check off five items and tap Add to pantry. Each is one line ("2 · Fridge · Oct 26") and the
+    button says Add all 5 to pantry. Tap one line: its editor opens; turn on Skip: the line says Skipped and the
+    button Add 4 to pantry. Clear a quantity and confirm: that line opens with the error.
+19. Insights: the latest month is highlighted with its details below. Tap an earlier month: it is highlighted and the
+    details change (counts, % used, reasons). With TalkBack, swipe through the months: each is read on its own with
+    "selected" on the chosen one, and the new details are announced.
 
 ## 3. Conditions
 

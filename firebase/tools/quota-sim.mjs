@@ -112,7 +112,10 @@ async function open(db, uid, hid, isOwner, since) {
     synced(`${h}/stock`),
     collection(db, `${h}/groceryLists`),
     synced(`${h}/groceryLists/default/items`), // Home's grocery card and the list
-    query(collection(db, `${h}/activity`), orderBy('createdAt', 'desc'), limit(10)), // Home > Recent activity
+    // Home > Recent activity: the newest 10 on the first open of the day, then only new events (after v1).
+    since
+      ? query(collection(db, `${h}/activity`), where('createdAt', '>', since))
+      : query(collection(db, `${h}/activity`), orderBy('createdAt', 'desc'), limit(10)),
     query(collection(db, `${h}/stats`), where(documentId(), '>=', MONTH)), // Home > Your kitchen this month
   ];
   if (isOwner) targets.push(collection(db, `${h}/joinRequests`)); // owner's badge
@@ -136,6 +139,10 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
       for (let i = 0; i < WRITES_PER_ROUND && w < WRITES_PER_HOUSEHOLD; i++, w++) {
         await updateDoc(doc(writer, `households/${hid}/stock/s${w % 60}`), {
           quantity: 2 + w, updatedAt: serverTimestamp(), updatedBy: `${hid}-u1`,
+        });
+        // Every write is counted as logging an event too (in the app only some do), so Recent activity has news.
+        await setDoc(doc(writer, `households/${hid}/activity/e${w}`), {
+          type: 'stock_added', actorUid: `${hid}-u1`, actorName: 'User 1', params: {}, createdAt: serverTimestamp(),
         });
       }
     }

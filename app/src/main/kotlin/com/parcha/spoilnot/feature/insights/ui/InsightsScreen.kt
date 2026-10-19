@@ -19,12 +19,17 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -80,27 +85,33 @@ internal fun InsightsContent(summary: InsightsSummary, modifier: Modifier = Modi
             Text(moodText(summary.mood), style = MaterialTheme.typography.bodyLarge)
         }
         Section(stringResource(R.string.insights_section_months), "card_insights_months") {
-            val entries = summary.months.map { m ->
-                stringResource(
-                    R.string.insights_month_entry,
-                    monthName(m.month, TextStyle.FULL, summary.current.month),
-                    m.used,
-                    m.thrownTotal,
-                )
-            }
             if (summary.months.all { it.total == 0 }) {
                 Text(stringResource(R.string.insights_months_none), style = MaterialTheme.typography.bodyLarge)
             } else {
+                // The latest month is selected first; tapping another shows its details (after v1).
+                var selected by rememberSaveable(summary.months.size) { mutableIntStateOf(summary.months.lastIndex) }
                 MonthBars(
                     bars = summary.months.map {
-                        MonthBar(monthName(it.month, TextStyle.SHORT, summary.current.month), it.used, it.thrownTotal)
+                        MonthBar(
+                            monthName(it.month, TextStyle.SHORT, summary.current.month),
+                            it.used,
+                            it.thrownTotal,
+                            stringResource(
+                                R.string.insights_month_entry,
+                                monthName(it.month, TextStyle.FULL, summary.current.month),
+                                it.used,
+                                it.thrownTotal,
+                            ),
+                        )
                     },
-                    description = stringResource(R.string.insights_months_description, entries.joinToString("; ")),
+                    selected = selected,
+                    onSelect = { selected = it },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     LegendItem(stringResource(R.string.insights_legend_used), thrown = false)
                     LegendItem(stringResource(R.string.insights_legend_thrown), thrown = true)
                 }
+                summary.months.getOrNull(selected)?.let { MonthDetails(it, summary.current.month) }
             }
             summary.bestMonth?.let { best ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -143,6 +154,43 @@ internal fun InsightsContent(summary: InsightsSummary, modifier: Modifier = Modi
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** The tapped month: its counts, the share used and why things were thrown away (after v1). */
+@Composable
+private fun MonthDetails(stats: MonthStats, thisMonth: YearMonth) {
+    Column(
+        Modifier.fillMaxWidth().testTag("insights_month_details").semantics(mergeDescendants = true) {
+            liveRegion =
+                LiveRegionMode.Polite
+        },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(monthName(stats.month, TextStyle.FULL, thisMonth), style = MaterialTheme.typography.titleSmall)
+        Text(
+            if (stats.total == 0) {
+                stringResource(R.string.insights_month_nothing)
+            } else {
+                stringResource(
+                    R.string.insights_month_details,
+                    stats.used,
+                    stats.thrownTotal,
+                    percent(stats.usedShare),
+                )
+            },
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        val reasons = stats.thrown.filterValues { it > 0 }.entries.sortedByDescending { it.value }
+        if (reasons.isNotEmpty()) {
+            // map is inline, so the composable labels can be read for each reason.
+            val text = reasons.map { (reason, count) -> "${stringResource(reason.label())} $count" }.joinToString(", ")
+            Text(
+                stringResource(R.string.insights_month_reasons, text),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
