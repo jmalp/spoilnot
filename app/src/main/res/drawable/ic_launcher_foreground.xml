@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder leaf icon; the final icon is approved in M6. -->
+<!-- Launcher icon, "Fresh jar" (chosen 2026-10-18): a pantry jar with a leaf on its label. 108dp adaptive canvas;
+     the art stays inside the 66dp safe zone. The leaf is a hole, so the green background shows through. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -7,5 +8,9 @@
     android:viewportHeight="108">
     <path
         android:fillColor="@color/ic_launcher_foreground"
-        android:pathData="M72,34C52,34 38,44 36,62c-1,5 0,9 1,12l-4,5 3,2 4,-5c3,1 7,1 11,0 17,-4 22,-20 21,-42zM44,70c4,-10 11,-18 21,-24 -8,7 -14,15 -18,25z" />
+        android:pathData="M41,30H67A3,3 0,0 1,70 33V36A3,3 0,0 1,67 39H41A3,3 0,0 1,38 36V33A3,3 0,0 1,41 30Z" />
+    <path
+        android:fillColor="@color/ic_launcher_foreground"
+        android:fillType="evenOdd"
+        android:pathData="M43,41H65A10,10 0,0 1,75 51V69A10,10 0,0 1,65 79H43A10,10 0,0 1,33 69V51A10,10 0,0 1,43 41ZM45,70C45,59 51,53 63,53C63,64 57,70 45,70Z" />
 </vector>
