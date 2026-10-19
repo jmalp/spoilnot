@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -173,10 +174,15 @@ internal fun CandidateRow(
             role = Role.Checkbox,
             onValueChange = onChange,
         ).testTag("candidate"),
-        verticalAlignment = Alignment.CenterVertically,
+        // The box lines up with the recipe line it belongs to, not the middle of three lines (after v1).
+        verticalAlignment = Alignment.Top,
     ) {
-        Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(12.dp))
-        Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+        Checkbox(
+            checked = selected,
+            onCheckedChange = null,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp),
+        )
+        Column(Modifier.weight(1f).padding(top = 8.dp, bottom = 4.dp)) {
             Text(candidate.ingredient.raw, style = MaterialTheme.typography.bodyLarge)
             // What lands on the list: the shopping name and amount, not the recipe's wording (DESIGN 5.5).
             val amount = candidate.quantity?.let { " × " + amountText(it, candidate.unit) }.orEmpty()
@@ -208,7 +214,12 @@ internal fun CandidateRow(
             }
             tag?.let { (icon, text) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(18.dp),
+                    )
                     Text(
                         text,
                         style = MaterialTheme.typography.labelLarge,

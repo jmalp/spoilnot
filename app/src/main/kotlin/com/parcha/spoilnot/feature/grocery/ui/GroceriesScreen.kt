@@ -14,22 +14,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.rounded.TrendingDown
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.RestaurantMenu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,15 +68,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -116,7 +127,8 @@ fun GroceriesScreen(
         title = state.list?.name ?: stringResource(R.string.tab_groceries),
         onOpenSettings = onOpenSettings,
         modifier = modifier.testTag("screen_groceries"),
-        actions = { ListMenu(state, viewModel::selectList) { listDialog = it } },
+        // The list's name is the switcher (after v1; a bare list icon did not say which list this is).
+        titleContent = { ListMenu(state, viewModel::selectList) { listDialog = it } },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (checkedCount > 0) {
@@ -329,11 +341,40 @@ internal fun GroceryRow(
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
+                        // Each source has its own icon, so the two look different without relying on color.
                         when (item.source) {
-                            ItemSource.LowStock -> SourceBadge(stringResource(R.string.grocery_source_low_stock))
-                            ItemSource.Recipe -> SourceBadge(stringResource(R.string.grocery_source_recipe))
+                            ItemSource.LowStock -> SourceBadge(
+                                stringResource(R.string.grocery_source_low_stock),
+                                Icons.AutoMirrored.Rounded.TrendingDown,
+                            )
+
+                            ItemSource.Recipe -> SourceBadge(
+                                stringResource(R.string.grocery_source_recipe),
+                                Icons.Rounded.RestaurantMenu,
+                            )
+
                             ItemSource.Manual -> Unit
+                        }
+                        // On the same line (after v1): it used to add a tall second line under the badge.
+                        if (item.id in state.backInStock) {
+                            SourceBadge(
+                                stringResource(R.string.grocery_back_in_stock),
+                                Icons.Rounded.CheckCircle,
+                                good = true,
+                            )
+                            Text(
+                                stringResource(R.string.grocery_remove),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.small)
+                                    .clickable(role = Role.Button) { onDelete(item) }
+                                    .heightIn(min = 48.dp)
+                                    .wrapContentHeight()
+                                    .padding(horizontal = 8.dp),
+                            )
                         }
                         val by = addedBy(item, state)
                         if (by != null) {
@@ -349,17 +390,6 @@ internal fun GroceryRow(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        }
-                    }
-                    if (item.id in state.backInStock) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            SourceBadge(stringResource(R.string.grocery_back_in_stock), good = true)
-                            TextButton(onClick = { onDelete(item) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                                Text(stringResource(R.string.grocery_remove))
-                            }
                         }
                     }
                 }
@@ -381,21 +411,22 @@ private fun addedBy(item: GroceryItem, state: GroceriesViewModel.UiState): Strin
     ?.takeIf { it != state.myUid && item.source == ItemSource.Manual }
     ?.let { state.memberNames[it] }
 
-/** A small label: tertiary for where an item came from, secondary for good news such as Back in stock. */
+/**
+ * A small label with an icon: tertiary for where an item came from, secondary for good news such as Back in stock.
+ */
 @Composable
-private fun SourceBadge(text: String, good: Boolean = false) {
+private fun SourceBadge(text: String, icon: ImageVector, good: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val container = if (good) colors.secondaryContainer else colors.tertiaryContainer
     val content = if (good) colors.onSecondaryContainer else colors.onTertiaryContainer
-    Text(
-        text,
-        style = MaterialTheme.typography.labelMedium,
-        color = content,
-        modifier = Modifier.background(
-            container,
-            MaterialTheme.shapes.small,
-        ).padding(horizontal = 8.dp, vertical = 2.dp),
-    )
+    Row(
+        Modifier.background(container, MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+        Text(text, style = MaterialTheme.typography.labelMedium, color = content)
+    }
 }
 
 @Composable
@@ -468,6 +499,8 @@ private fun QuickAddField(text: String, onText: (String) -> Unit, suggestions: L
                 open = true
             },
             placeholder = { Text(stringResource(R.string.grocery_quick_add)) },
+            // The same pill as Pantry's search (after v1).
+            shape = CircleShape,
             singleLine = true,
             trailingIcon = {
                 IconButton(onClick = { onAdd(text) }, enabled = text.isNotBlank()) {
@@ -507,9 +540,27 @@ private fun ListMenu(
     onDialog: (ListDialog) -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
+    val name = state.list?.name ?: stringResource(R.string.tab_groceries)
+    val description = stringResource(R.string.grocery_list_switcher, name)
     Box {
-        IconButton(onClick = { open = true }) {
-            Icon(Icons.AutoMirrored.Outlined.List, contentDescription = stringResource(R.string.grocery_lists))
+        Row(
+            Modifier
+                .clip(MaterialTheme.shapes.small)
+                .clickable(onClickLabel = stringResource(R.string.grocery_lists)) { open = true }
+                .heightIn(min = 48.dp)
+                .padding(end = 4.dp)
+                .semantics(mergeDescendants = true) { contentDescription = description }
+                .testTag("grocery_list_switcher"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                name,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             state.lists.forEach { list ->
