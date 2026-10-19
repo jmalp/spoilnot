@@ -193,6 +193,13 @@ dependencies {
     kspAndroidTest(libs.hilt.compiler)
 }
 
+// Lint analysis resolves symbols through every variant's Hilt-generated sources, and crashed with "No such file"
+// when hiltJavaCompileProdDebug rewrote them in parallel (local runs of the full check list, docs/DECISIONS.md).
+// Ordering only: lint waits for any Hilt generation already in the same build, and adds no work.
+tasks.matching { it.name.startsWith("lintAnalyze") }.configureEach {
+    mustRunAfter(tasks.matching { it.name.startsWith("hiltJavaCompile") })
+}
+
 // Robolectric reaches into JDK internals that Java 17+ hides by default.
 tasks.withType<Test>().configureEach {
     jvmArgs(
