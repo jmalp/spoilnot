@@ -68,6 +68,10 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 19. Insights: the latest month is highlighted with its details below. Tap an earlier month: it is highlighted and the
     details change (counts, % used, reasons). With TalkBack, swipe through the months: each is read on its own with
     "selected" on the chosen one, and the new details are announced.
+20. App tour: on a fresh install, create a household. The tour starts on Home. Follow it by tapping what is
+    highlighted (Pantry, Add item, Recipes, Groceries); each tap moves it on. Taps on the dimmed part do nothing. At
+    200% text the card stays readable and its buttons wrap. Restart the app: no tour. Settings > Take the app tour:
+    it starts again; Skip tour ends it at any step.
 
 ## 3. Conditions
 

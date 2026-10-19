@@ -59,6 +59,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
+import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
@@ -74,6 +75,7 @@ import com.parcha.spoilnot.feature.pantry.ui.StatusChip
 import com.parcha.spoilnot.feature.pantry.ui.chipText
 import com.parcha.spoilnot.feature.pantry.ui.label
 import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
+import com.parcha.spoilnot.feature.tutorial.domain.TourTarget
 import java.time.LocalDate
 
 /** Where the Home cards lead. */
@@ -158,6 +160,8 @@ internal fun HomeCards(
                 { navigation.openPantry(attentionFilter) }
         },
         calm = if (summary.attention.isEmpty()) stringResource(R.string.home_attention_none) else null,
+        // The tour's Home step points at the first card (DESIGN 5.8).
+        modifier = Modifier.coachMark(TourTarget.HomeCards.key),
     ) {
         summary.attention.take(CARD_ROWS).forEach { row -> AttentionRow(row, today) }
         // Several expired at once: one tap instead of a swipe and a reason each (after v1).
@@ -289,13 +293,14 @@ private fun HomeCard(
     title: String,
     icon: ImageVector,
     tag: String,
+    modifier: Modifier = Modifier,
     action: Pair<String, () -> Unit>? = null,
     /** Nothing to show: one compact row with a check instead of a full card (after v1). */
     calm: String? = null,
     content: @Composable () -> Unit,
 ) {
     if (calm != null) {
-        OutlinedCard(modifier = Modifier.fillMaxWidth().testTag(tag)) {
+        OutlinedCard(modifier = modifier.fillMaxWidth().testTag(tag)) {
             Row(
                 Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -321,7 +326,7 @@ private fun HomeCard(
         return
     }
     // Outlined, with solid buttons: tonal buttons on tonal cards were hard to see in light mode (beta feedback).
-    OutlinedCard(modifier = Modifier.fillMaxWidth().testTag(tag)) {
+    OutlinedCard(modifier = modifier.fillMaxWidth().testTag(tag)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)

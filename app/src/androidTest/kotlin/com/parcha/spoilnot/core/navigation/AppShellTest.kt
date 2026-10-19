@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.parcha.spoilnot.EmulatorSupport
 import com.parcha.spoilnot.HiltTestActivity
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
@@ -18,6 +19,7 @@ import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,6 +34,9 @@ class AppShellTest {
     val compose = createAndroidComposeRule<HiltTestActivity>()
 
     private val session = Session.InHousehold(AuthUser("u1", "u1@example.com", "Sam", true), "Sam", "h1", Role.Member)
+
+    @Before
+    fun noTour() = EmulatorSupport.skipAppTour()
 
     private fun str(id: Int) = InstrumentationRegistry.getInstrumentation().targetContext.getString(id)
 

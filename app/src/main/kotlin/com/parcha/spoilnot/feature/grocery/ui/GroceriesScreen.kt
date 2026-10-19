@@ -78,6 +78,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
+import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.core.ui.rememberRemoteChanges
 import com.parcha.spoilnot.core.ui.remoteHighlight
@@ -89,6 +90,7 @@ import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
+import com.parcha.spoilnot.feature.tutorial.domain.TourTarget
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -481,7 +483,8 @@ private fun QuickAddField(text: String, onText: (String) -> Unit, suggestions: L
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
-                .testTag("grocery_quick_add"),
+                .testTag("grocery_quick_add")
+                .coachMark(TourTarget.QuickAdd.key),
         )
         ExposedDropdownMenu(expanded = open && suggestions.isNotEmpty(), onDismissRequest = { open = false }) {
             suggestions.forEach { name ->

@@ -179,6 +179,7 @@ fun SettingsScreen(
                 crashReports = device.crashReports,
                 onCrashReports = { viewModel.setCrashReports(it) },
                 onOpenAbout = onOpenAbout,
+                onTakeTour = viewModel::takeTour,
             )
             OutlinedButton(
                 onClick = viewModel::signOut,

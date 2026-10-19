@@ -12,7 +12,7 @@ This page lists exactly what is collected (DESIGN 12.2, control 11).
 | Household data: products, stock with dates and places, grocery lists, recipes, the activity log (who did what, kept 30 days), monthly counts of items used up and thrown away (Insights; no names or items, only numbers) | Firestore, under the household | The app's purpose; shared with the household's members |
 | Device notification token, time zone and reminder settings | Firestore (`users/{you}`) | Sending the daily expiry reminder at your local time |
 | Preferred units | Firestore (`users/{you}`) | The order of the unit menu |
-| Theme, colors and crash-report choice | On the phone only | Settings |
+| Theme, colors, crash-report choice and whether you finished the app tour | On the phone only | Settings |
 
 Firestore stores data in the `us-east1` region. The phone keeps an offline copy of the household's data, which is
 cleared when you sign out, leave a household or are removed from it.

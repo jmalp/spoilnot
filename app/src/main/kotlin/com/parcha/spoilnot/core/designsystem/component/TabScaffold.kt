@@ -59,7 +59,8 @@ fun TabScaffold(
                     } else {
                         stringResource(R.string.open_settings)
                     }
-                    IconButton(onClick = onOpenSettings) {
+                    // The tour's last step points here (DESIGN 5.8); the key matches TourTarget.Settings.
+                    IconButton(onClick = onOpenSettings, modifier = Modifier.coachMark("tour_settings")) {
                         BadgedBox(badge = { if (requests > 0) Badge { Text(requests.toString()) } }) {
                             Icon(Icons.Rounded.AccountCircle, contentDescription = description)
                         }

@@ -22,6 +22,7 @@ enum class ThemeMode { System, Light, Dark }
 @Singleton
 class AppPreferences @Inject constructor(@param:ApplicationContext private val context: Context) {
     private val explainerShown = booleanPreferencesKey("notification_explainer_shown")
+    private val tourDoneKey = booleanPreferencesKey("tour_done")
     private val themeModeKey = stringPreferencesKey("theme_mode")
 
     /** Before the preset themes: the Material You switch. Read only, to keep an older choice. */
@@ -64,5 +65,12 @@ class AppPreferences @Inject constructor(@param:ApplicationContext private val c
 
     suspend fun markNotificationExplainerShown() {
         context.dataStore.edit { it[explainerShown] = true }
+    }
+
+    /** The app tour (DESIGN 5.8) was finished or skipped on this phone; false starts it on the next Home. */
+    val tourDone: Flow<Boolean> = context.dataStore.data.map { it[tourDoneKey] == true }
+
+    suspend fun setTourDone(done: Boolean) {
+        context.dataStore.edit { it[tourDoneKey] = done }
     }
 }

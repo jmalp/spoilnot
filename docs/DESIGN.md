@@ -265,7 +265,7 @@ After v1, a card with nothing to show (nothing needs attention, staples stocked,
 
 **Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason), and after v1 a recipe cooked. Events older than 30 days are pruned by the reminder job.
 
-**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4); metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle.
+**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4); metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle. After v1, *Take the app tour* starts the tour (5.8) again.
 
 ### 5.7 Insights (after v1)
 
@@ -276,6 +276,16 @@ How the household is doing at using food before it spoils, shown so it feels goo
 - **Insights screen:** this month's ring with a legend; the last 6 months as bars (solid used, striped thrown away, the number above each bar; after v1 each month can be tapped, the latest selected first, and its details show below: the counts, the share used and the reasons, e.g. "Thrown away: Expired 4, Spoiled 1"); the best month (highest share used, at least 5 batches, when two months qualify); the streak (days since anything was thrown away, or days of counting with nothing thrown away); why things were thrown away (striped bars by reason); a note on what is counted.
 - **Accessibility.** Thrown away is never shown by color alone: dashed in the ring, striped in bars, always with a text legend and numbers. Each chart has a spoken summary; the months chart is read one month at a time, each a tab that says whether it is selected, and the selected month is marked by a tinted background and a bold label, not color alone. Charts grow in over 700 ms, or appear at once with reduce motion on. Colors come from the theme (primary for used, tertiary for thrown away).
 - **Months** follow the phone's local date.
+
+### 5.8 App tour (after v1)
+
+A short follow-along tour teaches new users the app and its main actions. The owner chose it instead of two other ideas from the post-v1 list.
+
+- **When.** Once per phone, the first time the household app opens (a local preference, `tour_done`; nothing is stored in Firestore). Finishing it or tapping *Skip tour* at any step ends it for good; Settings > *Take the app tour* starts it again.
+- **How it looks.** The screen is dimmed except for a hole around one element, outlined in the theme's primary color, with a card next to it ("3 of 9", the text, *Skip tour* and *Next*; *Done* on the last step). The card goes below a target in the top half and above one in the bottom half, or covers a target too tall to leave room. Taps on the dimmed part do nothing; taps in the hole reach the app.
+- **Follow along.** Steps that point at a tab move on when the user opens that tab, and steps that point at a button (Add item, Add recipe) move on when it is tapped, so the user learns by doing. *Next* always works too, and opens the tab the next step needs.
+- **Steps.** Welcome; Home's Needs attention card; tap Pantry; Add item (dates and reminders); pantry rows (swipe right used up, left throw away, Undo, tap to edit, ⋮ for Mark opened); tap Recipes; Add recipe (share sheet, built-in browser, missing ingredients to the list); tap Groceries; the quick-add field (check off, Add to pantry); the Settings avatar (invite the household, replay the tour). A target that is not on screen (an empty pantry has no rows) shows its card in the middle.
+- **Accessibility.** The card is a pane announced politely when it changes, every step has a text and a button, so it works without seeing the highlight, and text follows the font scale (buttons wrap at 200%).
 
 ## 6. UX and visual design
 
@@ -1176,6 +1186,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Add to pantry is one summary line per item with Add all; tapping a line edits it | 5.3, QA |
 | 2026-10-19 | Insights: tap a month for its counts, share used and reasons; TalkBack reads each month on its own | 5.7, QA |
 | 2026-10-19 | Recent activity reads only new events (changes-only), about 1,790 reads per household per day instead of 1,930 | 9.7, 9.8, RUNBOOK |
+| 2026-10-19 | App tour: a short follow-along tour for new users, replayable from Settings | 5.6, 5.8, QA, PRIVACY |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

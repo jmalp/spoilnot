@@ -1,0 +1,90 @@
+package com.parcha.spoilnot.feature.tutorial
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.parcha.spoilnot.EmulatorSupport
+import com.parcha.spoilnot.HiltTestActivity
+import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
+import com.parcha.spoilnot.core.navigation.AppShell
+import com.parcha.spoilnot.core.prefs.AppPreferences
+import com.parcha.spoilnot.feature.auth.domain.AuthUser
+import com.parcha.spoilnot.feature.household.domain.Role
+import com.parcha.spoilnot.feature.household.domain.Session
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import javax.inject.Inject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** The app tour in the real shell (DESIGN 5.8): it follows real taps on the tabs and is remembered once skipped. */
+@HiltAndroidTest
+@RunWith(AndroidJUnit4::class)
+class TourUiTest {
+    @get:Rule(order = 0)
+    val hilt = HiltAndroidRule(this)
+
+    @get:Rule(order = 1)
+    val compose = createAndroidComposeRule<HiltTestActivity>()
+
+    @Inject lateinit var preferences: AppPreferences
+
+    private val session = Session.InHousehold(AuthUser("u1", "u1@example.com", "Sam", true), "Sam", "h1", Role.Member)
+
+    private fun str(id: Int, vararg args: Any) =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(id, *args)
+
+    @Before
+    fun tourNotTakenYet() {
+        hilt.inject()
+        EmulatorSupport.skipAppTour(done = false)
+    }
+
+    @After
+    fun noTourForOtherTests() = EmulatorSupport.skipAppTour()
+
+    @Test
+    fun followsTheTabsAndSkipIsRemembered() {
+        compose.setContent { SpoilNotTheme { AppShell(session) } }
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasText(str(R.string.tour_start))).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("coach_mark_next").performClick() // Start the tour
+        compose.onNodeWithText(str(R.string.tour_progress, 1, 9)).assertIsDisplayed()
+        compose.onNodeWithTag("coach_mark_next").performClick() // Home, then "Tap Pantry"
+        compose.onNodeWithText(str(R.string.tour_open_pantry)).assertIsDisplayed()
+
+        // A real tap through the hole opens the tab, and the tour moves on with it.
+        compose.onNode(hasText(str(R.string.tab_pantry)) and isSelectable()).performTouchInput { click() }
+        compose.onNodeWithTag("screen_pantry").assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.tour_progress, 3, 9)).assertIsDisplayed()
+
+        // Next on "Tap Recipes" switches the tab for the user.
+        compose.onNodeWithTag("coach_mark_next").performClick()
+        compose.onNodeWithTag("coach_mark_next").performClick()
+        compose.onNodeWithText(str(R.string.tour_open_recipes)).assertIsDisplayed()
+        compose.onNodeWithTag("coach_mark_next").performClick()
+        compose.onNodeWithTag("screen_recipes").assertIsDisplayed()
+
+        compose.onNodeWithTag("coach_mark_skip").performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasText(str(R.string.tour_skip))).fetchSemanticsNodes().isEmpty()
+        }
+        assertTrue(runBlocking { preferences.tourDone.first() })
+    }
+}

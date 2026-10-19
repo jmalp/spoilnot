@@ -29,10 +29,13 @@ fun MacrobenchmarkScope.grantPermissions() {
     permissions.forEach { device.executeShellCommand("pm grant $packageName $it") }
 }
 
-/** Signs in to the perf household when the app shows the welcome screen; does nothing when already signed in. */
+/**
+ * Signs in to the perf household when the app shows the welcome screen (does nothing when already signed in), then
+ * skips the app tour if it shows.
+ */
 fun MacrobenchmarkScope.signInIfNeeded() {
     device.wait(Until.hasObject(By.text(Pattern.compile("Pantry|Sign in"))), TIMEOUT_MS)
-    val signIn = device.findObject(button("Sign in")) ?: return
+    val signIn = device.findObject(button("Sign in")) ?: return skipTourIfShown()
     signIn.click()
     type(field("Email"), PERF_EMAIL)
     type(field("Password"), PERF_PASSWORD)
@@ -42,6 +45,13 @@ fun MacrobenchmarkScope.signInIfNeeded() {
     check(device.wait(Until.hasObject(By.text("Pantry")), TIMEOUT_MS)) {
         "Sign-in failed: run PantryScrollPerfTest with -e perf true first, with the emulators running"
     }
+    skipTourIfShown()
+}
+
+/** Skips the app tour (DESIGN 5.8) when it shows, so it never covers what is being measured. */
+fun MacrobenchmarkScope.skipTourIfShown() {
+    device.wait(Until.findObject(button("Skip tour")), 2_000L)?.click()
+    device.waitForIdle()
 }
 
 /** A Compose button: the clickable node around the label. */
