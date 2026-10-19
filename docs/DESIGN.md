@@ -1135,6 +1135,8 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-18 | Insights: monthly counts of batches used up and thrown away, the Home card *Your kitchen this month* and the Insights screen with charts | 5.6, 5.7, 8.2, 9.7, 12.3, 13.4, RUNBOOK, QA, PRIVACY |
 | 2026-10-18 | Preset color themes (Fiery Palette, Summer Fun, Enchanted Forest, Watermelon Sorbet, Contrast Pop) and the Colors picker, replacing the wallpaper switch | 5.6, 6.4, Appendix B, QA |
 | 2026-10-18 | Changes-only listeners with tombstones: about 60% fewer reads (1,890 instead of 4,760 per household per day); the reminder job skips and purges tombstones; exports leave them out | 8.1, 8.5, 9.7, 9.8, 10.3, 12.3, 13.4, RUNBOOK, QA |
+| 2026-10-19 | Beta 4 (1.0.0-beta.4, build 5) with Insights, color themes, the baseline profile and changes-only listeners; rules deployed to both projects | 13.3, RUNBOOK |
+| 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
