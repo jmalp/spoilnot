@@ -6,8 +6,6 @@ you before it expires, and keeps a grocery list that everyone in the home can se
 I designed it and directed its construction, and [Claude Code](https://claude.com/claude-code) wrote the code. This
 README covers what the app does and, in more detail, how I planned, guided and checked the work.
 
-*Jomar Malpica*
-
 ## Why I built it
 
 Two problems in a shared home kept coming up for me. Food got thrown away because nobody noticed it was about to
