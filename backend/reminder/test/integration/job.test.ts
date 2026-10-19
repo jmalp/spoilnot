@@ -58,6 +58,17 @@ beforeEach(async () => {
   stock('s3', 'Eggs', '2026-10-13');
   stock('s4', 'Rice', '2027-06-01');
   stock('s5', 'Salt', null);
+  // Deleted batches are tombstones (DESIGN 9.8): never in a digest; removed after 7 days.
+  const deletedLongAgo = Timestamp.fromDate(new Date('2026-10-01T00:00:00Z'));
+  const deletedToday = Timestamp.fromDate(new Date('2026-10-12T08:00:00Z'));
+  batch.set(db.doc('households/h1/stock/gone'), {
+    productName: 'Ham', expiryDate: '2026-10-13', dateType: 'use_by', quantity: 1, location: 'fridge', deletedAt: deletedToday,
+  });
+  batch.set(db.doc('households/h1/stock/old-gone'), { productName: 'Old', expiryDate: '2026-09-20', quantity: 1, deletedAt: deletedLongAgo });
+  batch.set(db.doc('households/h1/groceryLists/g1'), { name: 'Groceries', isDefault: true });
+  batch.set(db.doc('households/h1/groceryLists/g1/items/i-old'), { name: 'Bread', deletedAt: deletedLongAgo });
+  batch.set(db.doc('households/h1/groceryLists/g1/items/i-live'), { name: 'Milk' });
+  batch.set(db.doc('households/h1/recipes/r-old'), { title: 'Soup', deletedAt: deletedLongAgo });
   const old = Timestamp.fromDate(new Date('2026-09-01T00:00:00Z'));
   const recent = Timestamp.fromDate(new Date('2026-10-10T00:00:00Z'));
   batch.set(db.doc('households/h1/activity/old'), { type: 'stock_added', createdAt: old });
@@ -93,6 +104,10 @@ describe('reminder job against the emulator', () => {
 
     assert.equal(summary.prunedActivity, 1);
     assert.equal(summary.prunedJoinRequests, 1);
+    assert.equal(summary.prunedTombstones, 3);
+    assert.equal((await db.doc('households/h1/stock/gone').get()).exists, true, 'a recent tombstone stays');
+    assert.equal((await db.doc('households/h1/groceryLists/g1/items/i-live').get()).exists, true);
+    assert.equal((await db.doc('households/h1/stock/old-gone').get()).exists, false);
     assert.equal((await db.doc('households/h1/activity/new').get()).exists, true);
     assert.equal((await db.doc('households/h1/joinRequests/fresh').get()).exists, true);
   });

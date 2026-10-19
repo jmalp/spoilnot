@@ -25,6 +25,9 @@ const REMINDER_RUNS_PER_DAY = 24;
 // Of the day's writes, this many finish a batch (used up or thrown away) and also bump the month's Insights counts.
 const FINISHES_PER_HOUSEHOLD = 10;
 const MONTH = '2026-10';
+// Deleted documents wait as tombstones for 2 days (DESIGN 9.8): about this many per day, and twice that in place.
+const TOMBSTONES_PER_DAY = 15;
+const TOMBSTONES = 2 * TOMBSTONES_PER_DAY;
 
 const env = await initializeTestEnvironment({
   projectId: 'demo-quota-sim',
@@ -71,6 +74,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     for (let i = 0; i < 5; i++) await put(`households/${hid}/groceryLists/party/items/i${i}`, { name: `Party ${i}`, checked: false, ...stamp(owner) });
     for (let i = 0; i < 15; i++) await put(`households/${hid}/recipes/r${i}`, { title: `Recipe ${i}`, ingredients: [], steps: [], ...stamp(owner) });
     await put(`households/${hid}/stats/${MONTH}`, { used: 20, expired: 2, thrownByDay: { 3: 2 }, updatedAt: new Date(), updatedBy: owner });
+    // Tombstones in place (read by every full read and the export).
+    for (let i = 0; i < TOMBSTONES; i++) await put(`households/${hid}/stock/t${i}`, { productId: 'p0', productName: 'Gone', unit: 'pcs', category: 'other', quantity: 0, expiryDate: null, dateType: 'use_by', location: 'fridge', note: null, ...stamp(owner), deletedAt: new Date() });
     for (let i = 0; i < 40; i++) await put(`households/${hid}/activity/a${i}`, { type: 'stock_added', actorUid: owner, actorName: 'User 0', params: {}, createdAt: new Date(Date.now() - i * 3_600_000) });
     await batch.commit();
   }
@@ -91,62 +96,69 @@ function once(ref) {
   });
 }
 
-/** One app start, with the listeners the app attaches (DESIGN 9.1). */
-async function open(db, uid, hid, isOwner, withRecipes) {
+/**
+ * One app start, with the listeners the app attaches (DESIGN 9.1). After v1 (DESIGN 9.8) products, stock, grocery
+ * items and recipes are read in full only on a phone's first open of the day; later opens read only what changed
+ * since the previous open (the app starts 5 minutes before its newest cached change; in reality a few documents
+ * more). Each query costs at least one read.
+ */
+async function open(db, uid, hid, isOwner, withRecipes, since) {
   const h = `households/${hid}`;
+  const synced = (path) => (since ? query(collection(db, path), where('updatedAt', '>', since)) : collection(db, path));
   const targets = [
     doc(db, `users/${uid}`), // session and notification settings
     doc(db, `${h}/members/${uid}`), // membership watcher
     doc(db, 'config/app'), // update gate
-    collection(db, `${h}/products`), // pantry, Home, restock engine (one listener each in the SDK)
-    collection(db, `${h}/stock`),
+    synced(`${h}/products`), // pantry, Home, restock engine (one listener each in the SDK)
+    synced(`${h}/stock`),
     collection(db, `${h}/groceryLists`),
-    collection(db, `${h}/groceryLists/default/items`), // Home's grocery card and the list
+    synced(`${h}/groceryLists/default/items`), // Home's grocery card and the list
     query(collection(db, `${h}/activity`), orderBy('createdAt', 'desc'), limit(10)), // Home > Recent activity
     query(collection(db, `${h}/stats`), where(documentId(), '>=', MONTH)), // Home > Your kitchen this month
   ];
   if (isOwner) targets.push(collection(db, `${h}/joinRequests`)); // owner's badge
-  if (withRecipes) targets.push(collection(db, `${h}/recipes`)); // first visit to Recipes
+  if (withRecipes) targets.push(synced(`${h}/recipes`)); // Recipes, when visited
   await Promise.all(targets.map(once));
   // Rules: every household-scoped query checks membership with one exists() (users and config need none).
   reads.ruleLookups += targets.length - 3;
 }
 
 const started = Date.now();
+const WRITES_PER_ROUND = Math.ceil(WRITES_PER_HOUSEHOLD / OPENS_PER_DAY);
 for (let h = 0; h < HOUSEHOLDS; h++) {
   const hid = `h${h}`;
-  for (let p = 0; p < PHONES; p++) {
-    const uid = `${hid}-u${p}`;
-    const db = env.authenticatedContext(uid).firestore();
-    for (let o = 0; o < OPENS_PER_DAY; o++) await open(db, uid, hid, p === 0, o < RECIPE_VISITS_PER_DAY);
-  }
-  // A day's writes (DESIGN 9.7: about 40), made by phone 1 while phone 2 is open and listening.
   const writer = env.authenticatedContext(`${hid}-u1`).firestore();
-  const watcher = env.authenticatedContext(`${hid}-u2`).firestore();
-  let delivered = 0;
-  const stop = onSnapshot(collection(watcher, `households/${hid}/stock`), (snap) => {
-    delivered += snap.docChanges().length;
-  });
-  await new Promise((r) => setTimeout(r, 300));
-  const initial = delivered;
-  for (let w = 0; w < WRITES_PER_HOUSEHOLD; w++) {
-    await updateDoc(doc(writer, `households/${hid}/stock/s${w % 60}`), {
-      quantity: 2 + w, updatedAt: serverTimestamp(), updatedBy: `${hid}-u1`,
-    });
+  const phones = Array.from({ length: PHONES }, (_, p) => env.authenticatedContext(`${hid}-u${p}`).firestore());
+  const lastOpen = new Array(PHONES).fill(null);
+  let w = 0;
+  for (let o = 0; o < OPENS_PER_DAY; o++) {
+    // The day's writes (DESIGN 9.7: about 40) happen between opens, made by phone 1.
+    if (o > 0) {
+      for (let i = 0; i < WRITES_PER_ROUND && w < WRITES_PER_HOUSEHOLD; i++, w++) {
+        await updateDoc(doc(writer, `households/${hid}/stock/s${w % 60}`), {
+          quantity: 2 + w, updatedAt: serverTimestamp(), updatedBy: `${hid}-u1`,
+        });
+      }
+    }
+    for (let p = 0; p < PHONES; p++) {
+      const since = lastOpen[p];
+      lastOpen[p] = new Date();
+      // Recipes: visited on the first three opens.
+      await open(phones[p], `${hid}-u${p}`, hid, p === 0, o < RECIPE_VISITS_PER_DAY, since);
+    }
   }
-  await new Promise((r) => setTimeout(r, 500));
-  stop();
   writes += WRITES_PER_HOUSEHOLD + FINISHES_PER_HOUSEHOLD;
-  reads.listeners += delivered - initial; // the open phone receives each change
   reads.ruleLookups += WRITES_PER_HOUSEHOLD; // isMember on each write
 }
 
-// Scheduled jobs (backend/reminder): the users query every hour; housekeeping once a day (households, then two
-// queries per household, each at least one read); once a day per user a stock query and a devices read; the
-// nightly export reads every household document once.
+// Scheduled jobs (backend/reminder): the users query every hour; housekeeping once a day (households, then per
+// household the activity and join request queries, the lists, and a tombstone query for products, stock, recipes
+// and each list's items, each at least one read, plus the tombstones it deletes); once a day per user a stock query
+// and a devices read; the nightly export reads every household document once, tombstones included.
 const users = HOUSEHOLDS * PHONES;
-const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1; // + this month's stats
-reads.jobs = REMINDER_RUNS_PER_DAY * users + (HOUSEHOLDS + 2 * HOUSEHOLDS) + users * 2 + HOUSEHOLDS * perHousehold;
+const housekeeping = HOUSEHOLDS + HOUSEHOLDS * (2 + 1 + 3 + 2) + HOUSEHOLDS * TOMBSTONES_PER_DAY;
+const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1 + TOMBSTONES; // + this month's stats
+reads.jobs = REMINDER_RUNS_PER_DAY * users + housekeeping + users * 2 + HOUSEHOLDS * perHousehold;
 writes += users; // lastDigestDate once a day
 
 const total = reads.listeners + reads.ruleLookups + reads.jobs;

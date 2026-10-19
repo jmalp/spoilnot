@@ -5,6 +5,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.GeoPoint
 import com.parcha.spoilnot.BuildConfig
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.Tombstones.isTombstone
 import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.feature.settings.domain.ExportData
 import com.parcha.spoilnot.feature.settings.domain.ExportDoc
@@ -27,7 +28,10 @@ class FirestoreHouseholdExporter @Inject constructor(
     override suspend fun export(householdId: String): String {
         val db = firestore.current
         val base = "households/$householdId"
-        suspend fun all(path: String) = db.collection(path).get().awaitMapped().documents.map { it.toExport() }
+
+        // Deleted documents wait as tombstones for the daily job (DESIGN 9.8); they are not exported.
+        suspend fun all(path: String) =
+            db.collection(path).get().awaitMapped().documents.filterNot { it.isTombstone() }.map { it.toExport() }
         val lists = db.collection("$base/groceryLists").get().awaitMapped().documents
         val data = ExportData(
             household = db.document(base).get().awaitMapped().takeIf { it.exists() }?.toExport(),

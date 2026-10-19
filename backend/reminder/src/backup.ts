@@ -56,10 +56,12 @@ function doc(id: string, data: DocumentData): JsonDoc {
   return { id, ...(toJson(data) as Record<string, Json>) };
 }
 
-/** One household, read in full. */
+/** One household, read in full. Tombstones (deleted documents waiting for the daily job, DESIGN 9.8) are left out. */
 export async function exportHousehold(db: Firestore, householdId: string, now: Date, appVersion: string): Promise<HouseholdExport> {
   const base = db.doc(`households/${householdId}`);
-  const all = async (path: string) => (await db.collection(path).get()).docs.map((d) => doc(d.id, d.data()));
+  const all = async (path: string) => (await db.collection(path).get()).docs
+    .filter((d) => d.get('deletedAt') == null)
+    .map((d) => doc(d.id, d.data()));
   const household = await base.get();
   const lists = await base.collection('groceryLists').get();
   return {

@@ -24,7 +24,9 @@
 
 ## Patterns
 - Repositories read `FirestoreProvider.current` or collect `.instance`; never keep a `FirebaseFirestore` reference (it is replaced when local data is cleared).
-- Household-scoped listeners use `snapshotFlow().retryAfterOwnWrites(db)`.
+- Household-scoped listeners use `snapshotFlow().retryAfterOwnWrites(db)`; products, stock, grocery items and recipes
+  use `liveDocuments(db, syncLog)` (changes-only, DESIGN 9.8). Deleting those writes a tombstone
+  (`Tombstones.fields`); every reader skips documents with `deletedAt`.
 - Session state (signed out, gate, joining, in household) comes only from `SessionManager`.
 - Pantry actions go through `PantryService`, which returns `PantryChange` plans; `PantryRepository.apply` writes them. Destructive actions return an `Undo`.
 - String resources: escape apostrophes (`\'`). A bad string fails the resource build, not `compileDevDebugKotlin`, so check `BUILD SUCCESSFUL`.

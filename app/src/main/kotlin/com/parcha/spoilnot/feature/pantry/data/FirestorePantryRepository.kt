@@ -3,6 +3,8 @@ package com.parcha.spoilnot.feature.pantry.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -26,18 +28,19 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class FirestorePantryRepository @Inject constructor(private val firestore: FirestoreProvider) : PantryRepository {
+class FirestorePantryRepository @Inject constructor(
+    private val firestore: FirestoreProvider,
+    private val syncLog: SyncLog,
+) : PantryRepository {
+    // Changes-only listeners (DESIGN 9.8); each batch keeps its pending-sync flag from the cache.
     override fun observe(householdId: String): Flow<PantryData> = firestore.instance.flatMapLatest { db ->
-        val products = db.collection(
-            products(householdId),
-        ).snapshotFlow(MetadataChanges.INCLUDE).retryAfterOwnWrites(db)
-        // Metadata changes too, so each batch knows whether it still has unsent writes (pending-sync icon).
-        val stock = db.collection(stock(householdId)).snapshotFlow(MetadataChanges.INCLUDE).retryAfterOwnWrites(db)
+        val products = db.collection(products(householdId)).liveDocuments(db, syncLog)
+        val stock = db.collection(stock(householdId)).liveDocuments(db, syncLog)
         combine(products, stock) { p, s ->
             PantryData(
                 products = p.documents.map { it.toProduct() },
                 batches = s.documents.map { it.toBatch() },
-                fromCache = p.metadata.isFromCache || s.metadata.isFromCache,
+                fromCache = p.fromCache || s.fromCache,
             )
         }
     }.distinctUntilChanged()

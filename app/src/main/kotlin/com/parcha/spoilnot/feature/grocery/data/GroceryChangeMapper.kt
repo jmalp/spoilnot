@@ -7,6 +7,7 @@ import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
+import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository.Companion.items
@@ -90,7 +91,12 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                 ) + stamp,
             )
 
-            is GroceryChange.DeleteItem -> batch.delete(item(db, hid, change.listId, change.itemId))
+            // A tombstone, so other phones' change listeners see the deletion (DESIGN 9.8).
+            is GroceryChange.DeleteItem -> if (change.tombstone) {
+                batch.set(item(db, hid, change.listId, change.itemId), Tombstones.fields(actor), SetOptions.merge())
+            } else {
+                batch.delete(item(db, hid, change.listId, change.itemId))
+            }
 
             is GroceryChange.LogEvent -> batch.set(
                 db.document("households/$hid/activity/${change.eventId}"),
@@ -113,6 +119,8 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     "source" to ItemSource.LowStock.wire,
                     "productId" to change.productId,
                     "quantity" to change.quantity,
+                    // Coming back after being removed: no longer a tombstone.
+                    Tombstones.FIELD to FieldValue.delete(),
                 ) + stamp
                 val all = if (change.writeCreated) {
                     fields + Stamps.created(actor) + mapOf("note" to null, "recipeId" to null)

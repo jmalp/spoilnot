@@ -34,6 +34,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 9. Settings > Appearance > Colors: pick each preset in light and dark. The whole app changes at once, expiry chips keep
    their colors, text stays readable, and TalkBack reads each swatch as a selected or unselected radio button with its
    name. Restart the app: the choice is kept.
+10. Changes-only sync: with both phones open, delete a grocery item and throw away a batch on Phone A; both
+    disappear on Phone B. Close the app on Phone B, make three changes on Phone A (add, edit, delete), reopen Phone B:
+    all three show. Offline on Phone B, delete something, reconnect: Phone A sees it go.
 
 ## 3. Conditions
 

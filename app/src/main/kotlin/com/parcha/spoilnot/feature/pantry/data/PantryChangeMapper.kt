@@ -7,6 +7,7 @@ import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
+import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository.Companion.TYPE_ADDED
@@ -87,7 +88,9 @@ class PantryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     stamp,
             )
 
-            is PantryChange.DeleteBatch -> batch.delete(db.document("${stock(hid)}/${change.batchId}"))
+            // A tombstone, so other phones' change listeners see the deletion (DESIGN 9.8).
+            is PantryChange.DeleteBatch ->
+                batch.set(db.document("${stock(hid)}/${change.batchId}"), Tombstones.fields(actor), SetOptions.merge())
 
             is PantryChange.LogEvent -> batch.set(
                 db.document("${activity(hid)}/${change.eventId}"),

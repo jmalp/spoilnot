@@ -419,6 +419,7 @@ app/src/androidTest/      instrumented and Compose UI tests
 - `nameKey` is the name lowercased, trimmed, with whitespace collapsed and diacritics removed. It is used for matching and de-duplication.
 - Limits: names up to 80 characters, notes up to 500, arrays up to 100 items, documents far below 1 MiB.
 - Write every field explicitly (use null, not a missing field) unless it is documented as optional. New fields MUST be optional on read with defaults, because phones will run different versions.
+- **Tombstones (after v1, 9.8).** Products, stock batches, grocery items and recipes are deleted by merging `deletedAt` (the server time) and the update stamp into the document, not by deleting it, so other phones' change listeners see the deletion. Every reader skips documents with `deletedAt`; restoring (Undo) writes the document without it. The reminder job deletes tombstones after 2 days. Deleting a whole list or household still deletes for real.
 
 **8.2 Collections**
 
@@ -568,7 +569,7 @@ updatedBy: uidAnna
 
 **8.5 Invariants (MUST)**
 
-1. A stock batch with `quantity <= 0` is hidden by the UI and deleted by whichever client notices it first (idempotent).
+1. A stock batch with `quantity <= 0` is hidden by the UI and deleted (a tombstone after v1) by whichever client notices it first (idempotent).
 2. `productName`, `unit` and `category` on a batch equal the product's values. Renaming or editing a product updates its batches in the same batched write (chunk at 400 operations).
 3. A product's `unit` cannot change while it has batches.
 4. `nameKey` is unique among a household's products. The client looks it up before creating and reuses the match.
@@ -635,8 +636,16 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
-- So the free quota supports roughly 10 active households' worth of reads. The reminder job adds a few hundred reads a day.
+- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes.
+- So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
+
+**9.8 Changes-only listeners (after v1).** Most reads were phones re-reading every document after more than 30 minutes away. Products, stock, grocery items and recipes are now each read with two listeners (`liveDocuments` in `core/firebase/DeltaSync.kt`):
+
+- a **cache** listener on the whole collection (free; it shows the phone's copy, its own unsent writes and whatever the other listener brings in), and
+- a **server** listener on `updatedAt` after the newest cached change minus 5 minutes, which costs one read per changed document (at least one per query).
+
+The first open of a collection, an empty cache, and any open more than 20 hours after the last full read use a full server listener instead, recorded per phone (`SyncLog`). That daily full read also drops anything kept by mistake, so tombstones (8.1) only need to outlive it. `fromCache` and the offline banner come from the server listener; the pending-sync icon from the cache. The quota simulation puts a typical household at about 1,890 reads a day (from about 4,760), so about 18 households fit under the 70% line. Older app builds would show tombstones as items, so the release that adds this raises `config/app.minSupportedBuild` (docs/RUNBOOK.md).
 
 ## 10. Notification system
 
@@ -677,7 +686,7 @@ group due by householdId
 for each household:
   lo = min(local.date of its due users) - 14 days
   hi = max(local.date of its due users) + 3 days
-  batches = query stock where expiryDate >= lo and expiryDate <= hi
+  batches = query stock where expiryDate >= lo and expiryDate <= hi   # tombstones skipped (after v1, 9.8)
   for each due user u:
     items = []
     for b in batches:
@@ -693,7 +702,7 @@ for each household:
     delete tokens that returned unregistered or invalid-argument errors
     if any send succeeded:
       update u { lastDigestDate: local.date, lastExpiredThrough: local.date minus 1 day }
-prune activity documents older than 30 days and join requests older than 7 days
+prune activity documents older than 30 days and join requests older than 7 days (after v1 also tombstones older than 2 days, 9.8)
 ```
 
 Message shape per device token:
@@ -1034,7 +1043,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 - **Update gate:** on launch read `config/app.minSupportedBuild`; if the installed `versionCode` is lower, show a full-screen “Please update” with a link.
 - **Runbook** (`docs/RUNBOOK.md`): rotate the service account key, regenerate an invite code by hand, check quota usage, re-enable the workflow, restore from an export.
 
-**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days.
+**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days.
 
 ## 14. Milestones for Claude Code
 
@@ -1125,6 +1134,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-18 | Beta 3 (1.0.0-beta.3, build 4) | 13.3 |
 | 2026-10-18 | Insights: monthly counts of batches used up and thrown away, the Home card *Your kitchen this month* and the Insights screen with charts | 5.6, 5.7, 8.2, 9.7, 12.3, 13.4, RUNBOOK, QA, PRIVACY |
 | 2026-10-18 | Preset color themes (Fiery Palette, Summer Fun, Enchanted Forest, Watermelon Sorbet, Contrast Pop) and the Colors picker, replacing the wallpaper switch | 5.6, 6.4, Appendix B, QA |
+| 2026-10-18 | Changes-only listeners with tombstones: about 60% fewer reads (1,890 instead of 4,760 per household per day); the reminder job skips and purges tombstones; exports leave them out | 8.1, 8.5, 9.7, 9.8, 10.3, 12.3, 13.4, RUNBOOK, QA |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

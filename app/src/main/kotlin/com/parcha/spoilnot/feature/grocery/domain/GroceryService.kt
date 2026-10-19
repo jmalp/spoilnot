@@ -218,7 +218,7 @@ class GroceryService @Inject constructor(
         writer.apply(
             householdId,
             actor,
-            items.map { GroceryChange.DeleteItem(list.id, it) } + GroceryChange.DeleteList(list.id),
+            items.map { GroceryChange.DeleteItem(list.id, it, tombstone = false) } + GroceryChange.DeleteList(list.id),
         )
     }
 

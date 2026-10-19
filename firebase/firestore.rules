@@ -24,6 +24,14 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time;
     }
     function codeOk(c) { return c is string && c.matches('^[A-HJ-NP-Z2-9]{10}$'); }
+    // After v1 (DESIGN 9.8): a deleted product, batch, item or recipe stays as a tombstone with deletedAt, set to the
+    // write's time; later merges may keep it. Restoring writes the document without it.
+    function tombstoneOk() {
+      return !('deletedAt' in request.resource.data)
+        || request.resource.data.deletedAt == request.time
+        || (resource != null && 'deletedAt' in resource.data
+            && request.resource.data.deletedAt == resource.data.deletedAt);
+    }
 
     match /config/{doc} {
       allow read: if signedIn();
@@ -133,13 +141,13 @@ service cloud.firestore {
 
       match /products/{id} {
         allow read, delete: if isMember(hid);
-        allow create, update: if isMember(hid) && stamped()
+        allow create, update: if isMember(hid) && stamped() && tombstoneOk()
           && s(request.resource.data.name, 1, 80)
           && (request.resource.data.minQuantity == null || request.resource.data.minQuantity is number);
       }
       match /stock/{id} {
         allow read, delete: if isMember(hid);
-        allow create, update: if isMember(hid) && stamped()
+        allow create, update: if isMember(hid) && stamped() && tombstoneOk()
           && request.resource.data.quantity is number && request.resource.data.quantity >= 0
           && (request.resource.data.expiryDate == null
               || (request.resource.data.expiryDate is string
@@ -181,12 +189,12 @@ service cloud.firestore {
         allow delete: if isMember(hid) && (resource.data.isDefault != true || isOwner(hid));
         match /items/{itemId} {
           allow read, delete: if isMember(hid);
-          allow create, update: if isMember(hid) && stamped() && s(request.resource.data.name, 1, 80);
+          allow create, update: if isMember(hid) && stamped() && tombstoneOk() && s(request.resource.data.name, 1, 80);
         }
       }
       match /recipes/{id} {
         allow read, delete: if isMember(hid);
-        allow create, update: if isMember(hid) && stamped() && s(request.resource.data.title, 1, 200)
+        allow create, update: if isMember(hid) && stamped() && tombstoneOk() && s(request.resource.data.title, 1, 200)
           && request.resource.data.ingredients.size() <= 100
           && request.resource.data.steps.size() <= 100;
       }
