@@ -90,6 +90,11 @@ data class Product(
     val createdAt: Instant?,
     /** How much was added the last time, in [unit]: the usual amount for recipe grocery items (after v1). */
     val lastAddedQuantity: Double? = null,
+    /**
+     * Other names this product goes by in recipes, as name keys, learned when someone renames a recipe grocery item
+     * to this product (after v1, DESIGN 5.5). At most [PantryLimits.MAX_ALIASES].
+     */
+    val aliases: List<String> = emptyList(),
 ) {
     val isStaple: Boolean get() = minQuantity != null
 }
@@ -188,6 +193,9 @@ data class PantryEvent(
 }
 
 object PantryLimits {
+    /** Recipe names remembered per product (DESIGN 5.5); the rules allow this many. */
+    const val MAX_ALIASES = 30
+
     const val MAX_NAME_LENGTH = 80
     const val MAX_NOTE_LENGTH = 200
 

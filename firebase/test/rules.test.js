@@ -15,6 +15,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  arrayUnion,
   deleteField,
   increment,
   query,
@@ -784,5 +785,21 @@ describe('tombstones and change queries', () => {
     await assertSucceeds(getDocs(query(collection(as('bob'), `households/${HID}/stock`), where('updatedAt', '>', since))));
     await assertFails(getDocs(query(collection(as('carol'), `households/${HID}/stock`), where('updatedAt', '>', since))));
     await assertFails(setDoc(doc(as('carol'), `households/${HID}/stock/s1`), tombstone('carol'), { merge: true }));
+  });
+});
+
+describe('recipe names taught to products', () => {
+  it('members add a name to a product, up to 30, and items may say which name they came from', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/products/p1`), product('bob', { aliases: ['scallion'] })));
+    await assertSucceeds(updateDoc(doc(db, `households/${HID}/products/p1`), {
+      aliases: arrayUnion('green onion'), updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }));
+    const many = Array.from({ length: 31 }, (_, i) => `name ${i}`);
+    await assertFails(setDoc(doc(db, `households/${HID}/products/p2`), product('bob', { aliases: many })));
+    await assertFails(setDoc(doc(db, `households/${HID}/products/p3`), product('bob', { aliases: 'scallion' })));
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i1`), groceryItem('bob', { aliasOf: 'scallion' })));
+    await assertFails(setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i2`), groceryItem('bob', { aliasOf: '' })));
+    await assertFails(setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i3`), groceryItem('bob', { aliasOf: 'x'.repeat(81) })));
   });
 });

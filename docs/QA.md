@@ -41,6 +41,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     onion, diced" and "½ tbsp soy sauce" to the list. The sheet shows "Adds as Onions × <your usual amount>" and
     "Adds as Soy sauce". On the list: "Onions" with the usual amount and the note "<recipe>: 1 extra large onion,
     diced", and "Soy sauce" with no amount. Check them off and Add to pantry: the onions add to the existing product.
+12. Change: with "Green onions" in the pantry, add a recipe with "3 scallions, sliced". Tap Change on that line, type
+    "onion", pick Green onions, Save, and add. On the list it is "Green onions". Open the sheet again (or on the other
+    phone): "3 scallions" now adds as Green onions by itself.
 
 ## 3. Conditions
 

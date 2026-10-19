@@ -130,6 +130,41 @@ class GroceryServiceTest {
     }
 
     @Test
+    fun `a renamed recipe item teaches its product the recipe name when it reaches the pantry`() = runTest {
+        val onions = product("onion", "Onions")
+        val data = PantryData(listOf(onions), emptyList(), false)
+        val renamed = item("i1", "Onions").copy(aliasOf = "scallion")
+        val newName = item("i2", "Green onions").copy(aliasOf = "spring onion")
+        service.addToPantry(
+            "h",
+            actor,
+            "g1",
+            listOf(
+                PantryEntry(renamed, 1.0, QuantityUnit.Pieces, TODAY.plusDays(7), Location.Fridge),
+                PantryEntry(newName, 1.0, QuantityUnit.Pieces, TODAY.plusDays(7), Location.Fridge),
+            ),
+            emptyList(),
+            data,
+        )
+        val changes = writer.last
+        assertTrue(PantryChange.AddAlias("onion", "scallion") in changes)
+        val created = changes.filterIsInstance<PantryChange.CreateProduct>().single().product
+        assertEquals("Green onions", created.name)
+        assertEquals(listOf("spring onion"), created.aliases)
+        // Already known: nothing to add.
+        val taught = onions.copy(aliases = listOf("scallion"))
+        service.addToPantry(
+            "h",
+            actor,
+            "g1",
+            listOf(PantryEntry(renamed, 1.0, QuantityUnit.Pieces, TODAY.plusDays(7), Location.Fridge)),
+            emptyList(),
+            PantryData(listOf(taught), emptyList(), false),
+        )
+        assertTrue(writer.last.none { it is PantryChange.AddAlias })
+    }
+
+    @Test
     fun `add to pantry is one write with new and existing products, merged batches and items removed`() = runTest {
         val milk = product("milk", recent = listOf(7))
         val existing = batch("m1", "milk", quantity = 1.0, inDays = 7)

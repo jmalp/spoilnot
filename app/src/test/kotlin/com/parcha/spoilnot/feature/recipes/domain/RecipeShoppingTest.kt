@@ -53,15 +53,14 @@ class RecipeShoppingTest {
         assertEquals(onion, ProductLink.find("Onion", products))
         assertEquals(onion, ProductLink.find("Onions", products))
         assertEquals(pepper, ProductLink.find("Ground black pepper", products))
-        assertEquals("milk", ProductLink.find("Milk", products)?.id) // the only product with every word, plus one
+        assertNull("a product with more words is something else", ProductLink.find("Milk", products))
     }
 
     @Test
     fun `no link when it would be a guess`() {
-        val products =
-            listOf(product("pepper", "Pepper"), product("yellow", "Yellow onion"), product("red", "Red onion"))
+        val products = listOf(product("pepper", "Pepper"), product("green", "Green onions"))
         assertNull("two more words is another product", ProductLink.find("Red bell pepper", products))
-        assertNull("two onions could be meant", ProductLink.find("Onion", products))
+        assertNull("green onions are not onions", ProductLink.find("Onion", products))
         assertNull(ProductLink.find("Soy sauce", products))
     }
 
@@ -70,5 +69,13 @@ class RecipeShoppingTest {
         val pepper = product("pepper", "Pepper")
         val bell = product("bell", "Bell pepper")
         assertEquals(bell, ProductLink.find("Green bell pepper", listOf(pepper, bell)))
+    }
+
+    @Test
+    fun `a name the household taught a product wins`() {
+        val greenOnions = product("green", "Green onions").copy(aliases = listOf("scallion"))
+        val products = listOf(product("onion", "Onion"), greenOnions)
+        assertEquals(greenOnions, ProductLink.find("Scallions", products))
+        assertEquals(greenOnions, ProductLink.find("scallion", products))
     }
 }

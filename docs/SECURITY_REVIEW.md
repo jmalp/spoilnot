@@ -48,6 +48,9 @@ Re-reviewed against 12.1: the documents hold numbers only, readable only by memb
 (or unchanged on a later merge); members may query `updatedAt` ranges. 4 tests ("tombstones and change queries"),
 70 in total.
 
+**After v1:** recipe names (2026-10-19): products accept `aliases` only as a list of at most 30; grocery items accept
+`aliasOf` only as null or a string of 1 to 80 characters. 1 test ("recipe names taught to products"), 71 in total.
+
 Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
 deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed).
 

@@ -154,5 +154,6 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
         "source" to item.source.wire,
         "productId" to item.productId,
         "recipeId" to item.recipeId,
+        "aliasOf" to item.aliasOf,
     )
 }

@@ -399,6 +399,11 @@
     <string name="recipe_pantry_hint">Items that look like they\'re in your pantry start unchecked.</string>
     <string name="recipe_probably_in_pantry">Probably in pantry</string>
     <string name="recipe_adds_as">Adds as %1$s</string>
+    <string name="recipe_change_item">Change</string>
+    <string name="recipe_change_item_description">Change what %1$s is added as</string>
+    <string name="recipe_change_title">Add to the list as</string>
+    <string name="recipe_change_in_pantry">In your pantry</string>
+    <string name="recipe_change_remembered">Next time, this ingredient is added this way by itself.</string>
     <string name="recipe_on_the_list">Already on the list</string>
     <string name="recipe_select_all">Select all</string>
     <string name="recipe_select_none">Select none</string>

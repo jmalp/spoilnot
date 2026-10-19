@@ -143,7 +143,10 @@ service cloud.firestore {
         allow read, delete: if isMember(hid);
         allow create, update: if isMember(hid) && stamped() && tombstoneOk()
           && s(request.resource.data.name, 1, 80)
-          && (request.resource.data.minQuantity == null || request.resource.data.minQuantity is number);
+          && (request.resource.data.minQuantity == null || request.resource.data.minQuantity is number)
+          // After v1 (DESIGN 5.5): recipe names the household taught this product.
+          && (!('aliases' in request.resource.data)
+              || (request.resource.data.aliases is list && request.resource.data.aliases.size() <= 30));
       }
       match /stock/{id} {
         allow read, delete: if isMember(hid);
@@ -189,7 +192,10 @@ service cloud.firestore {
         allow delete: if isMember(hid) && (resource.data.isDefault != true || isOwner(hid));
         match /items/{itemId} {
           allow read, delete: if isMember(hid);
-          allow create, update: if isMember(hid) && stamped() && tombstoneOk() && s(request.resource.data.name, 1, 80);
+          allow create, update: if isMember(hid) && stamped() && tombstoneOk() && s(request.resource.data.name, 1, 80)
+            // After v1 (DESIGN 5.5): the recipe name a renamed item came from, taught to its product later.
+            && (!('aliasOf' in request.resource.data) || request.resource.data.aliasOf == null
+                || s(request.resource.data.aliasOf, 1, 80));
         }
       }
       match /recipes/{id} {

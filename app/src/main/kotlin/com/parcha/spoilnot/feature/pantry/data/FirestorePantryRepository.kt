@@ -113,6 +113,7 @@ class FirestorePantryRepository @Inject constructor(
             }.orEmpty(),
             createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
             lastAddedQuantity = getDouble("lastAddedQuantity"),
+            aliases = (get("aliases") as? List<*>)?.filterIsInstance<String>().orEmpty(),
         )
 
         fun DocumentSnapshot.toBatch() = StockBatch(

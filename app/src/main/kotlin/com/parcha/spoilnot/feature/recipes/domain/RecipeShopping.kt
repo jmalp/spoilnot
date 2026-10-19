@@ -68,10 +68,11 @@ object ShoppingName {
 
 /**
  * Finds the household product a recipe ingredient means (DESIGN 5.5, after v1), in stock or not, so the grocery
- * item uses its name, unit and category, and Add to pantry adds to it instead of creating a near-duplicate. Words
- * are compared singular. A product matches when its words are all in the ingredient with at most one more ("Black
- * pepper" for "ground black pepper"), or when it is the only product that has every word of the ingredient plus at
- * most one more ("Yellow onion" for "onion"). The product with the most shared words wins.
+ * item uses its name, unit and category, and Add to pantry adds to it instead of creating a near-duplicate. Names
+ * the household taught a product ([Product.aliases], from Change) come first. Otherwise words are compared singular,
+ * and a product matches when its words are all in the ingredient with at most one more ("Black pepper" for "ground
+ * black pepper"); the most shared words win. A product with more words than the ingredient never matches: "Green
+ * onions" is not "onion".
  */
 object ProductLink {
     fun find(name: String, products: List<Product>): Product? {
@@ -79,11 +80,11 @@ object ProductLink {
         products.firstOrNull { it.nameKey == key }?.let { return it }
         val wanted = PantryMatch.words(name)
         if (wanted.isEmpty()) return null
+        // A name someone taught a product, by renaming a recipe item, wins over a word match.
+        products.firstOrNull { p -> p.aliases.any { it == key || PantryMatch.words(it) == wanted } }?.let { return it }
         val words = products.associateWith { PantryMatch.words(it.nameKey) }.filterValues { it.isNotEmpty() }
         val contained = words.filter { (_, w) -> wanted.containsAll(w) && wanted.size - w.size <= 1 }
-        if (contained.isNotEmpty()) return contained.best()
-        val containing = words.filter { (_, w) -> w.containsAll(wanted) && w.size - wanted.size <= 1 }
-        return containing.keys.singleOrNull()
+        return if (contained.isEmpty()) null else contained.best()
     }
 
     private fun Map<Product, Set<String>>.best(): Product = entries.sortedWith(
