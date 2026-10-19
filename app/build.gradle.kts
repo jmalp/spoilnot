@@ -22,8 +22,8 @@ android {
         applicationId = "com.parcha.spoilnot"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "1.0.0-beta.5"
+        versionCode = 7
+        versionName = "1.0.0-beta.6"
 
         testInstrumentationRunner = "com.parcha.spoilnot.HiltTestRunner"
     }
