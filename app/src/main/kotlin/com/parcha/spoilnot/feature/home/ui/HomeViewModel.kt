@@ -2,6 +2,11 @@ package com.parcha.spoilnot.feature.home.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.ui.UiMessage
+import com.parcha.spoilnot.core.ui.messageRes
+import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
@@ -13,7 +18,9 @@ import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
 import com.parcha.spoilnot.feature.insights.domain.StatsRepository
 import com.parcha.spoilnot.feature.insights.ui.insightsFlow
+import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
+import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.ui.todayFlow
 import com.parcha.spoilnot.feature.recipes.domain.RecipeStore
 import com.parcha.spoilnot.feature.recipes.domain.UseItUp
@@ -23,7 +30,9 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +43,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * The Home tab (DESIGN 5.6): what needs attention, low stock, the grocery list, this month's kitchen (5.7) and recent
@@ -43,7 +54,8 @@ import kotlinx.coroutines.flow.stateIn
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    session: SessionManager,
+    private val session: SessionManager,
+    private val pantryService: PantryService,
     pantry: PantryRepository,
     grocery: GroceryRepository,
     activity: ActivityRepository,
@@ -102,6 +114,37 @@ class HomeViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+
+    private val _messages = Channel<UiMessage>(Channel.BUFFERED)
+    val messages: Flow<UiMessage> = _messages.receiveAsFlow()
+
+    /** "Throw away expired" (DESIGN 5.6): every expired batch, reason Expired, in one write with Undo. */
+    fun throwAwayExpired() {
+        val me = session.session.value as? Session.InHousehold ?: return
+        val expired = state.value.summary?.expired.orEmpty()
+        viewModelScope.launch {
+            try {
+                val undo = pantryService.throwAwayAll(
+                    me.householdId,
+                    Actor(me.user.uid, me.displayName),
+                    expired,
+                    DiscardReason.Expired,
+                ) ?: return@launch
+                _messages.send(UiMessage(R.string.home_threw_away_expired, expired.size.toString(), undo))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _messages.send(UiMessage(e.messageRes()))
+            }
+        }
+    }
+
+    fun undo(undo: Undo) {
+        val me = session.session.value as? Session.InHousehold ?: return
+        viewModelScope.launch {
+            runCatching { pantryService.undo(me.householdId, Actor(me.user.uid, me.displayName), undo) }
+        }
+    }
 
     private companion object {
         /** DESIGN 5.6: the last 10 events. */

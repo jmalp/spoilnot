@@ -49,6 +49,22 @@ class UseItUpTest {
     }
 
     @Test
+    fun `a taught name still links, and the skipped lines change nothing`() {
+        val scallions = product("scallions", "Scallions").copy(aliases = listOf("green onion"))
+        val data = PantryData(
+            pantry.products + scallions,
+            pantry.batches + batch("g1", "scallions", inDays = 2),
+            false,
+        )
+        val stir = recipe("stir", "Stir fry", ingredients = listOf("3 green onions, sliced", "1 cup rice", "salt"))
+        val result = UseItUp.suggestions(listOf(stir), data, TODAY)
+        assertEquals(listOf("scallions"), result.single().uses.map { it.product.id })
+        // The same links as matching every line against every product.
+        val all = RecipeIngredients.linked(stir, data.products).map { it.product?.id }
+        assertEquals(listOf("scallions", "rice", null), all)
+    }
+
+    @Test
     fun `at most three, favorites first among equals`() {
         val recipes = (1..5).map {
             recipe("r$it", "Recipe $it", favorite = it == 4, ingredients = listOf("1 cup yogurt"))

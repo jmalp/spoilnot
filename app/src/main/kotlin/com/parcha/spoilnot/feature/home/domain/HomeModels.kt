@@ -6,6 +6,7 @@ import com.parcha.spoilnot.feature.pantry.domain.ExpiryStatus
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryList
 import com.parcha.spoilnot.feature.pantry.domain.PantryRow
+import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -53,6 +54,8 @@ data class HomeSummary(
     /** Expired and expiring within 3 days, soonest first. */
     val attention: List<PantryRow>,
     val expiredCount: Int,
+    /** Every expired batch, for "Throw away expired" (after v1). */
+    val expired: List<StockBatch> = emptyList(),
     /** Staples below Keep at least, out of stock first. */
     val lowStock: List<PantryRow>,
     val groceryCount: Int,
@@ -73,6 +76,9 @@ object HomeDashboard {
         return HomeSummary(
             attention = attention,
             expiredCount = attention.count { it.status == ExpiryStatus.Expired },
+            expired = pantry.batches.filter {
+                it.quantity > 0 && ExpiryStatus.of(it.expiryDate, today) == ExpiryStatus.Expired
+            },
             lowStock = rows.filter {
                 it.isLow || it.isOut
             }.sortedWith(compareByDescending<PantryRow> { it.isOut }.thenBy { it.name.lowercase() }),

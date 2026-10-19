@@ -39,6 +39,8 @@ class HomeDashboardTest {
         val s = HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY)
         assertEquals(listOf("Yogurt", "Milk", "Cheese"), s.attention.map { it.name })
         assertEquals(1, s.expiredCount)
+        // Every expired batch, for Throw away expired (after v1).
+        assertEquals(listOf("b2"), s.expired.map { it.id })
     }
 
     @Test

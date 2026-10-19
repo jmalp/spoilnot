@@ -49,6 +49,7 @@ import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.Product
+import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
@@ -178,9 +179,7 @@ internal fun CandidateRow(
         Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
             Text(candidate.ingredient.raw, style = MaterialTheme.typography.bodyLarge)
             // What lands on the list: the shopping name and amount, not the recipe's wording (DESIGN 5.5).
-            val amount = candidate.quantity?.let {
-                " × " + formatQuantity(it) + candidate.unit?.let { u -> " " + stringResource(u.label()) }.orEmpty()
-            }.orEmpty()
+            val amount = candidate.quantity?.let { " × " + amountText(it, candidate.unit) }.orEmpty()
             val changeDescription = descriptionFor(candidate)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

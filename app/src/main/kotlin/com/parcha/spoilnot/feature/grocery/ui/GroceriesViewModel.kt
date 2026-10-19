@@ -212,8 +212,16 @@ class GroceriesViewModel @Inject constructor(
         }
     }
 
-    fun edit(item: GroceryItem, quantity: Double?, unit: QuantityUnit?, note: String?, category: Category?) =
-        act { hid, actor -> service.edit(hid, actor, listId(), item, quantity, unit, note, category) }
+    fun edit(
+        item: GroceryItem,
+        quantity: Double?,
+        unit: QuantityUnit?,
+        note: String?,
+        category: Category?,
+        name: String? = null,
+    ) = act { hid, actor ->
+        service.edit(hid, actor, listId(), item, quantity, unit, note, category, name, state.value.pantry.products)
+    }
 
     fun createList(name: String) = act { hid, actor -> selectedListId.value = service.createList(hid, actor, name) }
 

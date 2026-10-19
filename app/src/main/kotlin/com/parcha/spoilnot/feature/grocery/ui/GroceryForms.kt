@@ -43,6 +43,7 @@ import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
+import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.PantryEntry
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.Location
@@ -220,15 +221,16 @@ private fun EntryCard(draft: EntryDraft, today: LocalDate) {
     }
 }
 
-/** Quantity, unit, note and category (aisle) of one item. */
+/** Name (after v1), quantity, unit, note and category (aisle) of one item. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditItemSheet(
     item: GroceryItem,
-    onSave: (quantity: Double?, unit: QuantityUnit?, note: String?, category: Category?) -> Unit,
+    onSave: (name: String, quantity: Double?, unit: QuantityUnit?, note: String?, category: Category?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheet = rememberFormSheet()
+    var name by rememberSaveable { mutableStateOf(item.name) }
     var quantity by rememberSaveable { mutableStateOf(item.quantity?.let(::formatQuantity).orEmpty()) }
     var unit by rememberSaveable { mutableStateOf(item.unit ?: QuantityUnit.Pieces) }
     var note by rememberSaveable { mutableStateOf(item.note.orEmpty()) }
@@ -254,6 +256,13 @@ fun EditItemSheet(
         ) {
             Text(stringResource(R.string.grocery_edit_item, item.name), style = MaterialTheme.typography.headlineSmall)
             FormTextField(
+                value = name,
+                onValueChange = { name = it.take(GroceryRules.MAX_NAME_LENGTH) },
+                label = stringResource(R.string.field_name),
+                error = if (name.isBlank()) stringResource(R.string.error_name_required) else null,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            )
+            FormTextField(
                 value = quantity,
                 onValueChange = { quantity = it },
                 label = stringResource(R.string.field_quantity),
@@ -276,7 +285,11 @@ fun EditItemSheet(
                 note = it.take(200)
             }, label = stringResource(R.string.field_notes))
             PrimaryButton(stringResource(R.string.action_save), onClick = {
-                if (qtyError == null) onSave(qty, if (qty != null) unit else null, note, category)
+                if (qtyError == null &&
+                    name.isNotBlank()
+                ) {
+                    onSave(name, qty, if (qty != null) unit else null, note, category)
+                }
             }, modifier = Modifier.heightIn(min = 48.dp))
         }
     }

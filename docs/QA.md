@@ -56,6 +56,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 16. Store order: put items from Bakery, Produce and Dairy on the list (from pantry products, so they have aisles).
     In the store, check off Bakery first, then Produce, then Dairy. Next time those aisles show in that order on both
     phones; another list keeps its own order.
+17. Quick wins: quick-add "bananas" and "frozen peas": they group under Produce and Frozen. Edit an item and rename it
+    to the name of a pantry product: Add to pantry adds to that product. With two expired items, Home shows Throw
+    away all 2 expired; tap it, then Undo. On a new household, the empty Home cards are one row each. The
+    notification explanation appears on the third dated item, not the first. Pantry and grocery rows show "2", not
+    "2 pcs". At font size 200%, Settings > Units shows radio buttons with full labels.
 
 ## 3. Conditions
 

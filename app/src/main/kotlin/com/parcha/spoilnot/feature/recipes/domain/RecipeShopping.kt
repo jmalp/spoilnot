@@ -75,15 +75,33 @@ object ShoppingName {
  * onions" is not "onion".
  */
 object ProductLink {
-    fun find(name: String, products: List<Product>): Product? {
+    /**
+     * The household's products with their words worked out once, for linking many ingredients (Use it up, I cooked
+     * this) without splitting every product name again for each line (after v1).
+     */
+    class Index(products: List<Product>) {
+        internal val byKey: Map<String, Product> = buildMap { products.forEach { putIfAbsent(it.nameKey, it) } }
+        internal val aliases: List<Pair<Product, List<Pair<String, Set<String>>>>> = products
+            .filter { it.aliases.isNotEmpty() }
+            .map { p -> p to p.aliases.map { it to PantryMatch.words(it) } }
+        internal val words: Map<Product, Set<String>> =
+            products.associateWith { PantryMatch.words(it.nameKey) }.filterValues { it.isNotEmpty() }
+
+        /** Every word that could link an ingredient to [product]: its name's and its aliases'. */
+        fun linkWords(product: Product): Set<String> =
+            words[product].orEmpty() + product.aliases.flatMap { PantryMatch.words(it) }
+    }
+
+    fun find(name: String, products: List<Product>): Product? = find(name, Index(products))
+
+    fun find(name: String, index: Index, wanted: Set<String> = PantryMatch.words(name)): Product? {
         val key = NameKey.of(name)
-        products.firstOrNull { it.nameKey == key }?.let { return it }
-        val wanted = PantryMatch.words(name)
+        index.byKey[key]?.let { return it }
         if (wanted.isEmpty()) return null
         // A name someone taught a product, by renaming a recipe item, wins over a word match.
-        products.firstOrNull { p -> p.aliases.any { it == key || PantryMatch.words(it) == wanted } }?.let { return it }
-        val words = products.associateWith { PantryMatch.words(it.nameKey) }.filterValues { it.isNotEmpty() }
-        val contained = words.filter { (_, w) -> wanted.containsAll(w) && wanted.size - w.size <= 1 }
+        index.aliases.firstOrNull { (_, aliases) -> aliases.any { (alias, w) -> alias == key || w == wanted } }
+            ?.let { return it.first }
+        val contained = index.words.filter { (_, w) -> wanted.containsAll(w) && wanted.size - w.size <= 1 }
         return if (contained.isEmpty()) null else contained.best()
     }
 

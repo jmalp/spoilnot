@@ -52,8 +52,18 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
     @Test
     fun homeCards() {
         val pantry = PantryData(
-            listOf(product("milk"), product("yogurt"), product("oil", name = "Olive oil", min = 1.0)),
-            listOf(batch("m1", "milk", inDays = 1), batch("y1", "yogurt", inDays = -1)),
+            listOf(
+                product("milk"),
+                product("yogurt"),
+                product("cheese"),
+                product("oil", name = "Olive oil", min = 1.0),
+            ),
+            // Two expired: Throw away all 2 expired. No activity: the compact card (after v1).
+            listOf(
+                batch("m1", "milk", inDays = 1),
+                batch("y1", "yogurt", inDays = -1),
+                batch("c1", "cheese", inDays = -3),
+            ),
             fromCache = false,
         )
         val summary = HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY)
@@ -85,5 +95,27 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_cards_$suffix.png")
+    }
+
+    /** Nothing needs doing: the empty cards are one compact row each (after v1). */
+    @Test
+    fun calmCards() {
+        val pantry = PantryData(listOf(product("rice")), listOf(batch("r1", "rice", inDays = 90)), fromCache = false)
+        val summary = HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY)
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
+                    Surface {
+                        Column(
+                            Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) { HomeCards(summary, TODAY, "me", HomeNavigation({}, {}, {}, {})) }
+                    }
+                }
+            }
+        }
+        val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
+        compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_calm_$suffix.png")
     }
 }

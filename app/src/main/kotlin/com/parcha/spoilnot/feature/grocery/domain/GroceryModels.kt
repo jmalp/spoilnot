@@ -77,6 +77,15 @@ sealed interface GroceryChange : HouseholdChange {
         val category: Category?,
     ) : GroceryChange
 
+    /** A new name (after v1), relinked to the household's product of that name, if any. */
+    data class RenameItem(
+        val listId: String,
+        val itemId: String,
+        val name: String,
+        val nameKey: String,
+        val productId: String?,
+    ) : GroceryChange
+
     data class AddToItem(val listId: String, val itemId: String, val delta: Double) : GroceryChange
 
     data class SetChecked(val listId: String, val itemId: String, val checked: Boolean) : GroceryChange

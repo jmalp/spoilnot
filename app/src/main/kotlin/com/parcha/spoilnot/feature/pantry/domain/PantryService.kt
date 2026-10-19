@@ -226,13 +226,25 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
      * Deletes the batch, logs why (DESIGN 5.2) and counts it for Insights. Undo restores the batch, removes the log
      * entry and takes the count back off the same month.
      */
-    suspend fun throwAway(householdId: String, actor: Actor, batch: StockBatch, reason: DiscardReason): Undo {
-        val eventId = writer.newId()
-        val counted = StatsChange.thrownAway(today(), reason)
-        writer.apply(
-            householdId,
-            actor,
-            listOf(
+    suspend fun throwAway(householdId: String, actor: Actor, batch: StockBatch, reason: DiscardReason): Undo =
+        throwAwayAll(householdId, actor, listOf(batch), reason)!!
+
+    /**
+     * Throws [batches] away for [reason] in one write (DESIGN 5.6, after v1: "Throw away expired" on Home), each
+     * logged and counted as [throwAway] does. One Undo puts them all back. Null when there is nothing to do.
+     */
+    suspend fun throwAwayAll(
+        householdId: String,
+        actor: Actor,
+        batches: List<StockBatch>,
+        reason: DiscardReason,
+    ): Undo? {
+        if (batches.isEmpty()) return null
+        val changes = mutableListOf<HouseholdChange>()
+        val undo = mutableListOf<HouseholdChange>()
+        for (batch in batches) {
+            val eventId = writer.newId()
+            changes += listOf(
                 PantryChange.DeleteBatch(batch.id),
                 PantryChange.LogEvent(
                     eventId,
@@ -242,12 +254,15 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
                     batch.quantity,
                     reason,
                 ),
-                counted,
-            ),
-        )
-        return Undo(
-            listOf(PantryChange.RestoreBatch(batch), PantryChange.DeleteEvent(eventId), StatsChange.undo(counted)),
-        )
+            )
+            undo += listOf(PantryChange.RestoreBatch(batch), PantryChange.DeleteEvent(eventId))
+        }
+        // One count for all of them: one write to this month's stats instead of one each.
+        val counted = StatsChange.thrownAway(today(), reason, batches.size)
+        changes += counted
+        undo += StatsChange.undo(counted)
+        writer.apply(householdId, actor, changes)
+        return Undo(undo)
     }
 
     /** Typed changes. A quantity of 0 uses the batch up. */

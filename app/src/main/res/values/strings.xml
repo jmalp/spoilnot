@@ -197,6 +197,10 @@
     <string name="category_cooked">Cooked</string>
     <string name="category_other">Other</string>
     <string name="unit_pcs">pcs</string>
+    <plurals name="amount_pieces">
+        <item quantity="one">%s piece</item>
+        <item quantity="other">%s pieces</item>
+    </plurals>
     <string name="unit_g">g</string>
     <string name="unit_kg">kg</string>
     <string name="unit_oz">oz</string>
@@ -234,7 +238,7 @@
     <string name="action_add_first_item">Add your first item</string>
     <string name="pantry_no_matches">Nothing matches. Try another filter or search.</string>
     <string name="action_add_item">Add item</string>
-    <string name="row_description">%1$s, %2$s %3$s, %4$s, %5$s</string>
+    <string name="row_description">%1$s, %2$s, %3$s, %4$s</string>
     <string name="row_description_out">%1$s, out of stock</string>
     <string name="action_minus_one">Remove one</string>
     <string name="action_plus_one">Add one</string>
@@ -492,6 +496,11 @@
         <item quantity="other">See all %d in Pantry</item>
     </plurals>
     <string name="home_use_it_up">Use it up</string>
+    <plurals name="home_throw_away_expired">
+        <item quantity="one">Throw away %d expired</item>
+        <item quantity="other">Throw away all %d expired</item>
+    </plurals>
+    <string name="home_threw_away_expired">Threw away %1$s expired items</string>
     <string name="home_use_it_up_uses">Uses %1$s</string>
     <string name="home_use_it_up_open">Open recipe</string>
     <string name="home_recent_activity">Recent activity</string>

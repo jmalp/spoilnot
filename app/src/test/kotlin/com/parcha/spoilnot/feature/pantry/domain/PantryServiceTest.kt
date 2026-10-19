@@ -253,6 +253,32 @@ class PantryServiceTest {
     }
 
     @Test
+    fun `throwing away several is one write, counted once, and one undo`() = runTest {
+        val a = batch("m1", "milk", inDays = -1)
+        val b = batch("y1", "yogurt", inDays = -3)
+        val undo = service.throwAwayAll("h", actor, listOf(a, b), DiscardReason.Expired)!!
+        val counted = StatsChange.CountThrownAway(YearMonth.from(TODAY), TODAY.dayOfMonth, DiscardReason.Expired, 2)
+        assertEquals(5, repo.last.size)
+        assertEquals(
+            listOf(PantryChange.DeleteBatch("m1"), PantryChange.DeleteBatch("y1")),
+            repo.last.filterIsInstance<PantryChange.DeleteBatch>(),
+        )
+        assertEquals(
+            2,
+            repo.last.filterIsInstance<PantryChange.LogEvent>().count {
+                it.reason == DiscardReason.Expired
+            },
+        )
+        assertEquals(counted, repo.last.last())
+        assertEquals(
+            listOf(PantryChange.RestoreBatch(a), PantryChange.RestoreBatch(b)),
+            undo.changes.filterIsInstance<PantryChange.RestoreBatch>(),
+        )
+        assertEquals(counted.copy(delta = -2), undo.changes.last())
+        assertNull(service.throwAwayAll("h", actor, emptyList(), DiscardReason.Expired))
+    }
+
+    @Test
     fun `editing to zero uses the batch up, moving keeps everything else`() = runTest {
         val b = batch("m1", "milk", quantity = 2.0)
         val undo = service.edit("h", actor, b, BatchEdit(0.0, null, DateType.UseBy, Location.Fridge, null))

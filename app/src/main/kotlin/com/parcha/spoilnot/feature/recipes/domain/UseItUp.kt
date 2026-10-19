@@ -12,14 +12,32 @@ data class LinkedIngredient(val ingredient: Ingredient, val product: Product?)
 /** Recipe lines matched to the household's products, the same way the grocery sheet does. */
 object RecipeIngredients {
     fun linked(recipe: Recipe, products: List<Product>): List<LinkedIngredient> =
+        linked(recipe, ProductLink.Index(products))
+
+    /**
+     * With [only] set, lines sharing no word with it are not looked up: every link needs a shared word (the same
+     * name, an alias, or all of the product's words), so they could not link to anything in it anyway.
+     */
+    fun linked(recipe: Recipe, index: ProductLink.Index, only: Set<String>? = null): List<LinkedIngredient> =
         recipe.content.ingredients.map { ingredient ->
-            val parsed = if (ingredient.qty == null && ingredient.name == null) {
-                IngredientParser.parse(ingredient.raw)
+            val name = shoppingName(ingredient)
+            val wanted = PantryMatch.words(name)
+            val product = if (only != null && wanted.none { it in only }) {
+                null
             } else {
-                ingredient
+                ProductLink.find(name, index, wanted)
             }
-            LinkedIngredient(ingredient, ProductLink.find(ShoppingName.of(parsed.name ?: parsed.raw), products))
+            LinkedIngredient(ingredient, product)
         }
+
+    private fun shoppingName(ingredient: Ingredient): String {
+        val parsed = if (ingredient.qty == null && ingredient.name == null) {
+            IngredientParser.parse(ingredient.raw)
+        } else {
+            ingredient
+        }
+        return ShoppingName.of(parsed.name ?: parsed.raw)
+    }
 }
 
 /** One expiring product a suggested recipe uses, with the batch that expires first. */
@@ -44,9 +62,12 @@ object UseItUp {
             .groupBy { it.productId }
             .mapValues { (_, batches) -> batches.minBy { it.expiryDate!! } }
         if (expiring.isEmpty()) return emptyList()
+        val index = ProductLink.Index(pantry.products)
+        // Only lines that share a word with an expiring product are linked (after v1, for large recipe boxes).
+        val expiringWords = pantry.products.filter { it.id in expiring }.flatMap { index.linkWords(it) }.toSet()
         return recipes
             .mapNotNull { recipe ->
-                val uses = RecipeIngredients.linked(recipe, pantry.products)
+                val uses = RecipeIngredients.linked(recipe, index, expiringWords)
                     .mapNotNull { it.product }
                     .distinctBy { it.id }
                     .mapNotNull { product -> expiring[product.id]?.let { ExpiringUse(product, it) } }

@@ -86,6 +86,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryLayout
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
+import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
 import kotlinx.coroutines.launch
@@ -226,8 +227,8 @@ fun GroceriesScreen(
         )
     }
     editing?.let { item ->
-        EditItemSheet(item, onSave = { q, u, n, c ->
-            viewModel.edit(item, q, u, n, c)
+        EditItemSheet(item, onSave = { name, q, u, n, c ->
+            viewModel.edit(item, q, u, n, c, name)
             editing = null
         }, onDismiss = { editing = null })
     }
@@ -308,9 +309,8 @@ internal fun GroceryRow(
                             color = nameColor(item.checked),
                         )
                         item.quantity?.let {
-                            val unit = item.unit?.let { u -> " " + stringResource(u.label()) }.orEmpty()
                             Text(
-                                "× ${formatQuantity(it)}$unit",
+                                "× ${amountText(it, item.unit)}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

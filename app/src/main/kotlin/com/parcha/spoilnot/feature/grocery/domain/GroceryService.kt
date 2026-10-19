@@ -13,6 +13,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
+import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import java.time.LocalDate
@@ -113,7 +114,8 @@ class GroceryService @Inject constructor(
             quantity = request.quantity,
             unit = request.unit ?: product?.unit?.takeIf { request.quantity != null },
             note = null,
-            category = product?.category,
+            // Typed names get a guessed aisle, so they sort into the store order (DESIGN 5.3).
+            category = product?.category ?: AisleGuess.of(request.name, pantryData.products),
             checked = false,
             checkedBy = null,
             source = ItemSource.Manual,
@@ -190,11 +192,21 @@ class GroceryService @Inject constructor(
         unit: QuantityUnit?,
         note: String?,
         category: Category?,
-    ) = writer.apply(
-        householdId,
-        actor,
-        listOf(GroceryChange.UpdateItem(listId, item.id, quantity, unit, note?.trim()?.ifEmpty { null }, category)),
-    )
+        name: String? = null,
+        products: List<Product> = emptyList(),
+    ) {
+        val changes = mutableListOf<HouseholdChange>(
+            GroceryChange.UpdateItem(listId, item.id, quantity, unit, note?.trim()?.ifEmpty { null }, category),
+        )
+        // Renaming (after v1, DESIGN 5.3) relinks the item to the product of its new name.
+        val clean = name?.let(NameKey::clean)?.take(GroceryRules.MAX_NAME_LENGTH)?.trim()
+        if (!clean.isNullOrEmpty() && clean != item.name) {
+            val key = NameKey.of(clean)
+            val product = products.firstOrNull { it.nameKey == key }
+            changes += GroceryChange.RenameItem(listId, item.id, product?.name ?: clean, key, product?.id)
+        }
+        writer.apply(householdId, actor, changes)
+    }
 
     suspend fun delete(householdId: String, actor: Actor, listId: String, item: GroceryItem): Undo {
         writer.apply(householdId, actor, listOf(GroceryChange.DeleteItem(listId, item.id)))
