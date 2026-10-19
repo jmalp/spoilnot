@@ -127,7 +127,7 @@ Regenerate it after large UI changes (new screens, a new list), with the Firebas
 
 It seeds the emulator-only 500-batch household (`PantryScrollPerfTest`), runs `BaselineProfileGenerator` in the
 `benchmark` module against the dev benchmark build (start, sign in, every tab, Insights, Pantry scrolls, Add item), and
-copies the result into the app. Review the diff and commit it. `--measure` also runs `StartupBenchmark` and
+copies the result into the app (the benchmarks tap Skip tour when the app tour shows). Review the diff and commit it. `--measure` also runs `StartupBenchmark` and
 `PantryScrollBenchmark` without and with the profile and prints the medians; `--measure-only` runs just the
 benchmarks with the profile already in the app. Emulator numbers compare builds; they
 are not phone timings.

@@ -1187,6 +1187,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Insights: tap a month for its counts, share used and reasons; TalkBack reads each month on its own | 5.7, QA |
 | 2026-10-19 | Recent activity reads only new events (changes-only), about 1,790 reads per household per day instead of 1,930 | 9.7, 9.8, RUNBOOK |
 | 2026-10-19 | App tour: a short follow-along tour for new users, replayable from Settings | 5.6, 5.8, QA, PRIVACY |
+| 2026-10-19 | Baseline profile regenerated after the quick wins, compact Add to pantry, Insights months and the app tour (16,568 rules). On the emulator: cold start median 435 → 426 ms; first Pantry scroll frame CPU time P90 8.2 → 6.2 ms, P99 20.4 → 9.9 ms | 13.1, RUNBOOK |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
