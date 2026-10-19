@@ -34,10 +34,14 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -56,6 +60,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
+import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
 import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
@@ -77,6 +82,7 @@ class HomeNavigation(
     val openPantry: (PantryFilter) -> Unit,
     val openGroceries: () -> Unit,
     val reviewJoinRequests: () -> Unit,
+    val throwAwayExpired: () -> Unit = {},
     val openInsights: () -> Unit = {},
     val openRecipe: (String) -> Unit = {},
 )
@@ -92,10 +98,24 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    MessageEffect(viewModel.messages, snackbar, viewModel::undo)
+    val nav = remember(navigation) {
+        HomeNavigation(
+            navigation.openSettings,
+            navigation.openPantry,
+            navigation.openGroceries,
+            navigation.reviewJoinRequests,
+            throwAwayExpired = viewModel::throwAwayExpired,
+            openInsights = navigation.openInsights,
+            openRecipe = navigation.openRecipe,
+        )
+    }
     TabScaffold(
         title = stringResource(R.string.tab_home),
         onOpenSettings = navigation.openSettings,
         modifier = modifier.testTag("screen_home"),
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             if (state.offline && state.summary != null) OfflineBanner()
@@ -108,7 +128,7 @@ fun HomeScreen(
                 if (summary == null) {
                     repeat(4) { SkeletonCard() }
                 } else {
-                    HomeCards(summary, state.today, state.myUid, navigation, state.insights, state.useItUp)
+                    HomeCards(summary, state.today, state.myUid, nav, state.insights, state.useItUp)
                 }
             }
         }
@@ -137,11 +157,23 @@ internal fun HomeCards(
             pluralStringResource(R.plurals.home_see_all, summary.attention.size, summary.attention.size) to
                 { navigation.openPantry(attentionFilter) }
         },
+        calm = if (summary.attention.isEmpty()) stringResource(R.string.home_attention_none) else null,
     ) {
-        if (summary.attention.isEmpty()) {
-            Calm(stringResource(R.string.home_attention_none))
-        } else {
-            summary.attention.take(CARD_ROWS).forEach { row -> AttentionRow(row, today) }
+        summary.attention.take(CARD_ROWS).forEach { row -> AttentionRow(row, today) }
+        // Several expired at once: one tap instead of a swipe and a reason each (after v1).
+        if (summary.expired.size >= 2) {
+            OutlinedButton(
+                onClick = navigation.throwAwayExpired,
+                modifier = Modifier.heightIn(min = 48.dp).testTag("home_throw_away_expired"),
+            ) {
+                Text(
+                    pluralStringResource(
+                        R.plurals.home_throw_away_expired,
+                        summary.expired.size,
+                        summary.expired.size,
+                    ),
+                )
+            }
         }
     }
     if (useItUp.isNotEmpty()) UseItUpCard(useItUp, today, navigation.openRecipe)
@@ -155,12 +187,9 @@ internal fun HomeCards(
             pluralStringResource(R.plurals.home_see_all, summary.lowStock.size, summary.lowStock.size) to
                 { navigation.openPantry(PantryFilter.LowStock) }
         },
+        calm = if (summary.lowStock.isEmpty()) stringResource(R.string.home_low_stock_none) else null,
     ) {
-        if (summary.lowStock.isEmpty()) {
-            Calm(stringResource(R.string.home_low_stock_none))
-        } else {
-            summary.lowStock.take(CARD_ROWS).forEach { row -> LowStockRow(row) }
-        }
+        summary.lowStock.take(CARD_ROWS).forEach { row -> LowStockRow(row) }
     }
     HomeCard(
         title = stringResource(R.string.home_grocery_list),
@@ -182,12 +211,9 @@ internal fun HomeCards(
         title = stringResource(R.string.home_recent_activity),
         icon = Icons.Rounded.History,
         tag = "card_home_activity",
+        calm = if (summary.recent.isEmpty()) stringResource(R.string.home_activity_none) else null,
     ) {
-        if (summary.recent.isEmpty()) {
-            Calm(stringResource(R.string.home_activity_none))
-        } else {
-            summary.recent.forEach { ActivityLine(it, myUid) }
-        }
+        summary.recent.forEach { ActivityLine(it, myUid) }
     }
 }
 
@@ -264,8 +290,36 @@ private fun HomeCard(
     icon: ImageVector,
     tag: String,
     action: Pair<String, () -> Unit>? = null,
+    /** Nothing to show: one compact row with a check instead of a full card (after v1). */
+    calm: String? = null,
     content: @Composable () -> Unit,
 ) {
+    if (calm != null) {
+        OutlinedCard(modifier = Modifier.fillMaxWidth().testTag(tag)) {
+            Row(
+                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.semantics {
+                            heading()
+                        },
+                    )
+                    Text(
+                        calm,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        return
+    }
     // Outlined, with solid buttons: tonal buttons on tonal cards were hard to see in light mode (beta feedback).
     OutlinedCard(modifier = Modifier.fillMaxWidth().testTag(tag)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -313,14 +367,6 @@ private fun LowStockRow(row: PantryRow) {
             modifier = Modifier.weight(1f),
         )
         Badge(stringResource(if (row.isOut) R.string.badge_out else R.string.badge_low))
-    }
-}
-
-@Composable
-private fun Calm(text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

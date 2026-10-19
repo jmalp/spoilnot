@@ -115,13 +115,17 @@ private fun PurchaseRow(
     val scope = rememberCoroutineScope()
     val swipe = rememberSwipeToDismissBoxState()
     LaunchedEffect(batch.id, batch.quantity) { swipe.reset() }
-    val unit = stringResource(batch.unit.label())
+    val amount = amountText(batch.quantity, batch.unit)
     val location = stringResource(batch.location.label())
     val status = statusText(batch.expiryDate, batch.dateType, today)
     val opened = if (batch.openedOn != null) stringResource(R.string.row_opened_suffix) else ""
-    val description =
-        stringResource(R.string.row_description, item.name, formatQuantity(batch.quantity), unit, status, location) +
-            opened
+    val description = stringResource(
+        R.string.row_description,
+        item.name,
+        amountDescription(batch.quantity, batch.unit),
+        status,
+        location,
+    ) + opened
     val editLabel = stringResource(R.string.action_edit)
 
     Column(modifier.fillMaxWidth().testTag("pantry_item_${batch.id}")) {
@@ -173,7 +177,7 @@ private fun PurchaseRow(
                             }
                         }
                         Text(
-                            "${formatQuantity(batch.quantity)} $unit",
+                            amount,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -189,7 +193,7 @@ private fun PurchaseRow(
 @Composable
 private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier: Modifier) {
     val product = item.product
-    val unit = stringResource(product.unit.label())
+    val amount = amountText(0.0, product.unit)
     val location = stringResource(product.defaultLocation.label())
     val description = stringResource(R.string.row_description_out, product.name)
     Column(modifier.fillMaxWidth().testTag("pantry_item_out_${product.id}")) {
@@ -212,7 +216,7 @@ private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier:
                 NameLine(product.name, low = false, out = true, pending = false)
                 LocationLabel(product.defaultLocation, location)
             }
-            Text("0 $unit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(amount, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
         HorizontalDivider()
     }

@@ -196,6 +196,26 @@ fun DiscardReason.label(): Int = when (this) {
     DiscardReason.Other -> R.string.reason_other
 }
 
+/** "2" or "500 g" (after v1): a count of pieces needs no unit, so rows don't say "2 pcs". */
+@Composable
+fun amountText(quantity: Double, unit: QuantityUnit?): String = if (unit == null || unit == QuantityUnit.Pieces) {
+    formatQuantity(quantity)
+} else {
+    "${formatQuantity(quantity)} ${stringResource(unit.label())}"
+}
+
+/** The amount for TalkBack: "2 pieces", "500 g". */
+@Composable
+fun amountDescription(quantity: Double, unit: QuantityUnit?): String =
+    if (unit == null || unit == QuantityUnit.Pieces) {
+        pluralStringResource(R.plurals.amount_pieces, pluralCount(quantity), formatQuantity(quantity))
+    } else {
+        amountText(quantity, unit)
+    }
+
+/** The plural form for a possibly fractional amount: exactly 1 is singular, anything else plural. */
+private fun pluralCount(quantity: Double): Int = if (quantity == 1.0) 1 else 2
+
 private val QUANTITY = DecimalFormat("0.##")
 
 /** 2, 1.5 or 0.25: no trailing zeros. */

@@ -32,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.Segmented
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.prefs.ThemeMode
 import com.parcha.spoilnot.feature.auth.domain.Units
@@ -88,28 +89,6 @@ fun AppearanceCard(
                 },
                 onPick = onUnits,
             )
-        }
-    }
-}
-
-@Composable
-private fun <T> Segmented(
-    label: String,
-    options: List<T>,
-    selected: T,
-    optionLabel: @Composable (T) -> String,
-    onPick: (T) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            options.forEachIndexed { i, option ->
-                SegmentedButton(
-                    selected = option == selected,
-                    onClick = { onPick(option) },
-                    shape = SegmentedButtonDefaults.itemShape(i, options.size),
-                ) { Text(optionLabel(option), maxLines = 1) }
-            }
         }
     }
 }

@@ -196,7 +196,9 @@ Saving writes a batch. If a batch for the same product, date and location alread
 
 **Lists.** Each household has a default list named “Groceries”. Users can add more lists (for example “Costco”), rename and delete them. Low-stock items always go to the default list.
 
-**Items.** Name (required), optional quantity and unit, note, category (used to group by aisle), checked state, who added it and when, and a source badge (Manual, Low stock, Recipe). Adding a name that is already on the list unchecked shows “Already on the list” with Increase quantity or Add anyway.
+**Items.** Name (required), optional quantity and unit, note, category (used to group by aisle), checked state, who added it and when, and a source badge (Manual, Low stock, Recipe). Adding a name that is already on the list unchecked shows “Already on the list” with Increase quantity or Add anyway. After v1, tapping an item's Edit also changes its name; the item then links to the household product of that name, if there is one, or to none.
+
+**Aisle guess (after v1).** An item typed without a matching product gets a guessed aisle so it groups (and follows the store order) instead of landing in Other: first from the household's own products (the product with the most words that are all in the name, so "oat milk, barista" takes the household's Oat milk aisle), then from a built-in English word list where longer phrases win ("peanut butter" is a pantry staple, "frozen peas" frozen). Unknown names stay in Other. The same guess applies to recipe ingredients that link to no product.
 
 **Interactions.** A quick-add field stays at the top; typing suggests pantry products and previously used names. Tap to check (strike-through; the item moves to a collapsed In cart section). Swipe to delete with Undo. Items are sorted by category, then time added. Clear checked removes everything in the cart.
 
@@ -218,7 +220,7 @@ The system design is in section 10. Behavior:
 - It groups items by stage: **Throw away** (expired and not yet reported), **Today**, **Tomorrow**, **In 2 to 3 days**. Each of the stages 3, 2, 1 and 0 days can be switched off. Best-before items use softer wording (“past best before”).
 - Expired items are reported once by default. Setting: Expired reminder = once, every day until removed, or never.
 - Tapping the notification opens the Pantry filtered to Expiring soon.
-- Permission is requested after the first dated item is saved, after a short explanation screen. If denied, Settings shows a banner with a button that opens the system settings.
+- Permission is requested after the third dated item is saved (after v1; it was the first), after a short explanation screen, so reminders already have something to remind about. If denied, Settings shows a banner with a button that opens the system settings.
 - Settings has **Send test notification**, which fires a local notification to verify permission and channel.
 
 Example for three items. Title: “3 items need attention”. Body: “Throw away: Milk. Tomorrow: Yogurt, Eggs.”
@@ -257,7 +259,9 @@ After v1, each ingredient is added as something you would buy, and the sheet sho
 
 **Home** (first tab) has five cards: *Needs attention* (expired and expiring within 3 days; opens the filtered Pantry), after v1 *Use it up* (below), *Low stock* (products below Keep at least), *Grocery list* (item count; opens the list), *Your kitchen this month* (after v1, 5.7; opens Insights) and *Recent activity* (last 10 events such as “Sam added Eggs to Groceries”). The household owner also sees a *Join requests* card while someone is waiting for approval.
 
-**Use it up (after v1).** Up to three saved recipes that use food expiring today or within 3 days (not expired), with what each uses and when ("Uses Spinach (Tomorrow), Yogurt (3 days)"); tapping one opens the recipe. Recipes using the most expiring products come first, then the one using the soonest, then favorites. Ingredients are matched to products the same way as Add to grocery list (5.5: shopping name, remembered names, word match). The card shows only when there is a match. Home therefore reads the recipes on every open (with the changes-only listener, 9.8), not only after the first visit to Recipes.
+After v1, a card with nothing to show (nothing needs attention, staples stocked, no activity yet) is one compact row with a check and its title, so the cards with something to do stand out. With two or more expired batches, Needs attention has **Throw away all N expired**: one write that throws them away with the reason Expired, logs each, counts them once for Insights, and one Undo puts them all back.
+
+**Use it up (after v1).** Up to three saved recipes that use food expiring today or within 3 days (not expired), with what each uses and when ("Uses Spinach (Tomorrow), Yogurt (3 days)"); tapping one opens the recipe. Recipes using the most expiring products come first, then the one using the soonest, then favorites. Ingredients are matched to products the same way as Add to grocery list (5.5: shopping name, remembered names, word match). The card shows only when there is a match. Home therefore reads the recipes on every open (with the changes-only listener, 9.8), not only after the first visit to Recipes. To stay quick with a large recipe box, product words are worked out once per pass, and only lines sharing a word with an expiring product (or one of its remembered names) are matched; every link needs such a word, so the result is the same.
 
 **Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason), and after v1 a recipe cooked. Events older than 30 days are pruned by the reminder job.
 
@@ -323,7 +327,7 @@ Status MUST never rely on color alone: always icon plus text. Text contrast at l
 
 **App icon.** "Fresh jar": a cream (#F5FBF5) jar with a leaf cut out of it on the brand green (#2E7D5B). The same shape is the monochrome (themed icon) layer, the notification icon and the welcome screen's mark.
 
-**6.5 Component patterns.** `SearchBar`, horizontally scrolling `FilterChip` rows, filled tonal `Card`s, list rows with a leading status icon, `SwipeToDismissBox` rows with background actions, `ModalBottomSheet` with a drag handle, snackbars with Undo, `SingleChoiceSegmentedButtonRow`, skeleton shimmer on first load only, and an `ExtendedFloatingActionButton` that collapses on scroll. Use `Scaffold` with edge-to-edge insets, support predictive back, and provide an adaptive launcher icon with a monochrome layer (themed icons).
+**6.5 Component patterns.** `SearchBar`, horizontally scrolling `FilterChip` rows, filled tonal `Card`s, list rows with a leading status icon, `SwipeToDismissBox` rows with background actions, `ModalBottomSheet` with a drag handle, snackbars with Undo, `SingleChoiceSegmentedButtonRow` (after v1: a list of radio buttons at font scale 1.5 and above, so labels are never cut off), skeleton shimmer on first load only, and an `ExtendedFloatingActionButton` that collapses on scroll. Amounts in pieces show as just the number ("× 2", "2"), and TalkBack reads "2 pieces"; other units keep their symbol ("500 g") (after v1). Use `Scaffold` with edge-to-edge insets, support predictive back, and provide an adaptive launcher icon with a monochrome layer (themed icons).
 
 **Form sheets** (Add item, Edit, Add to pantry, Edit grocery item, Add to grocery list) close only when dragged past half their height; a quick flick never closes them, and Back or tapping outside still does. They stop below the status bar and pad only the bottom (navigation bar and keyboard), so their height never changes while they move.
 
@@ -1166,6 +1170,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | I cooked this: a recipe takes what it used off the pantry, soonest-expiring first, with Undo and a "cooked" activity event | 5.5, 5.6, 8.2, QA |
 | 2026-10-19 | Use it up on Home: saved recipes that use the most food expiring soon | 5.6, 9.7, QA, RUNBOOK |
 | 2026-10-19 | README rewritten from the owner's point of view: the app's purpose and features, and how it was designed and built with Claude Code; the developer commands moved out (they are in CLAUDE.md and the RUNBOOK) | README |
+| 2026-10-19 | Quick wins: aisle guess for typed grocery items, rename grocery items, Throw away all expired on Home, compact empty Home cards, the notification prompt after the third dated item, amounts without "pcs", stacked choices at large text sizes, and faster Use it up matching | 5.3, 5.4, 5.6, 6.5, QA |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

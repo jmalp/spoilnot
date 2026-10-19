@@ -82,6 +82,11 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                 ) + stamp,
             )
 
+            is GroceryChange.RenameItem -> batch.update(
+                item(db, hid, change.listId, change.itemId),
+                mapOf("name" to change.name, "nameKey" to change.nameKey, "productId" to change.productId) + stamp,
+            )
+
             is GroceryChange.AddToItem ->
                 batch.update(
                     item(db, hid, change.listId, change.itemId),

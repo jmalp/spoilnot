@@ -109,6 +109,35 @@ class GroceryServiceTest {
     }
 
     @Test
+    fun `a typed name without a product gets a guessed aisle`() = runTest {
+        service.quickAdd("h", actor, "g1", "3 bananas", emptyList(), empty)
+        val created = (writer.last[0] as GroceryChange.CreateItem).item
+        assertEquals(Category.Produce, created.category)
+        assertNull(created.productId)
+        service.quickAdd("h", actor, "g1", "batteries", emptyList(), empty)
+        assertNull((writer.last[0] as GroceryChange.CreateItem).item.category)
+    }
+
+    @Test
+    fun `renaming an item relinks it to the product of its new name`() = runTest {
+        val beans = product("beans", "Black beans", category = Category.PantryStaples)
+        val item = item("i1", "Beans").copy(productId = "old")
+        service.edit("h", actor, "g1", item, 2.0, null, " note ", null, "black  BEANS ", listOf(beans))
+        assertEquals(
+            listOf(
+                GroceryChange.UpdateItem("g1", "i1", 2.0, null, "note", null),
+                GroceryChange.RenameItem("g1", "i1", "Black beans", "black beans", "beans"),
+            ),
+            writer.last,
+        )
+        // A name no product has keeps the typed spelling and unlinks; the same name writes no rename.
+        service.edit("h", actor, "g1", item, null, null, null, null, "Pinto beans", listOf(beans))
+        assertEquals(GroceryChange.RenameItem("g1", "i1", "Pinto beans", "pinto beans", null), writer.last[1])
+        service.edit("h", actor, "g1", item, null, null, null, null, "Beans", listOf(beans))
+        assertEquals(1, writer.last.size)
+    }
+
+    @Test
     fun `increase adds to an existing quantity or starts from one`() = runTest {
         service.increase("h", actor, "g1", item("i1", "Eggs").copy(quantity = 6.0), QuickAdd("eggs", 6.0, null))
         assertEquals(GroceryChange.AddToItem("g1", "i1", 6.0), writer.last.single())

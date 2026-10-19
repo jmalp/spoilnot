@@ -108,7 +108,7 @@ class PantryComponentsTest {
         compose.setContent {
             SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, {}) }
         }
-        compose.onNode(hasContentDescription("Milk, 2 pcs, Expires tomorrow, Fridge")).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Milk, 2 pieces, Expires tomorrow, Fridge")).assertIsDisplayed()
     }
 
     @Test

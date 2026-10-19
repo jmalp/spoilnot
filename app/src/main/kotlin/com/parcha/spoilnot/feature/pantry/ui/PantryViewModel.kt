@@ -76,7 +76,10 @@ class PantryViewModel @Inject constructor(
     private val deepLinks: DeepLinkRouter,
     private val appPreferences: AppPreferences,
 ) : ViewModel() {
-    /** True once the first dated item is saved and the notification explanation has not been shown (DESIGN 5.4). */
+    /**
+     * True once the third dated item is saved and the notification explanation has not been shown (DESIGN 5.4): by
+     * then reminders have something to remind about (after v1; it was the first).
+     */
     val askForNotifications = MutableStateFlow(false)
 
     data class UiState(
@@ -152,9 +155,11 @@ class PantryViewModel @Inject constructor(
 
     /** Saves the Add item sheet; returns false when it could not be saved. */
     fun add(draft: StockDraft, onDone: () -> Unit) = act { hid, actor ->
-        val result = service.add(hid, actor, draft, currentData())
+        val before = currentData()
+        val result = service.add(hid, actor, draft, before)
         onDone()
         if (draft.expiryDate != null &&
+            before.batches.count { it.expiryDate != null } + 1 >= NOTIFICATION_PROMPT_DATED &&
             !appPreferences.hasShownNotificationExplainer()
         ) {
             askForNotifications.value = true
@@ -219,6 +224,9 @@ class PantryViewModel @Inject constructor(
         }
     }
 }
+
+/** Dated items in the pantry before the app explains notifications and asks for permission (after v1). */
+internal const val NOTIFICATION_PROMPT_DATED = 3
 
 /** Server rejections of pantry writes; a vanished item means someone else deleted it (DESIGN 9.4). */
 @StringRes

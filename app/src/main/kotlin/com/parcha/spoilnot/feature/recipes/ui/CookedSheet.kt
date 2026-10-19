@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
 import com.parcha.spoilnot.feature.pantry.ui.parseQuantity
@@ -121,7 +122,7 @@ internal fun CookRow(
             Column {
                 Text(line.product.name, style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    stringResource(R.string.recipe_cooked_have, "${formatQuantity(line.inStock)} $unit"),
+                    stringResource(R.string.recipe_cooked_have, amountText(line.inStock, line.product.unit)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

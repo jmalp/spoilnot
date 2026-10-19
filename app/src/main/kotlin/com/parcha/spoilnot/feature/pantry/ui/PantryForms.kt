@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.Segmented
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -557,30 +558,6 @@ private fun LocationChoice(selected: Location, onPick: (Location) -> Unit) {
                     label = { Text(stringResource(location.label())) },
                     leadingIcon = { Icon(location.icon(), contentDescription = null, modifier = Modifier.size(18.dp)) },
                     modifier = Modifier.semantics { role = Role.RadioButton },
-                )
-            }
-        }
-    }
-}
-
-/** A single-choice segmented control (DESIGN 6.5). */
-@Composable
-fun <T> Segmented(
-    label: String,
-    options: List<T>,
-    selected: T,
-    optionLabel: @Composable (T) -> String,
-    onPick: (T) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            options.forEachIndexed { index, option ->
-                SegmentedButton(
-                    selected = option == selected,
-                    onClick = { onPick(option) },
-                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                    label = { Text(optionLabel(option), maxLines = 1) },
                 )
             }
         }

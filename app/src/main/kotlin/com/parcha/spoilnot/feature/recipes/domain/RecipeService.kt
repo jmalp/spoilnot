@@ -4,6 +4,7 @@ import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
+import com.parcha.spoilnot.feature.grocery.domain.AisleGuess
 import com.parcha.spoilnot.feature.grocery.domain.GroceryChange
 import com.parcha.spoilnot.feature.grocery.domain.GroceryEventType
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
@@ -214,7 +215,7 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
                 quantity = c.quantity,
                 unit = c.unit,
                 note = c.note,
-                category = product?.category ?: c.inPantry?.category,
+                category = product?.category ?: c.inPantry?.category ?: AisleGuess.of(c.name, pantry.products),
                 checked = false,
                 checkedBy = null,
                 source = ItemSource.Recipe,
