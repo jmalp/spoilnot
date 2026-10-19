@@ -14,7 +14,7 @@
     <string name="back">Back</string>
     <string name="loading">Loading</string>
 
-    <string name="empty_recipes">Saved recipes will show up here.</string>
+    <string name="empty_recipes">Save recipes from any website, or write down your own.</string>
 
     <!-- Common actions -->
     <string name="action_cancel">Cancel</string>
@@ -302,7 +302,8 @@
 
     <!-- Groceries (DESIGN 5.3) -->
     <string name="grocery_quick_add">Add an item</string>
-    <string name="grocery_lists">Lists</string>
+    <string name="grocery_lists">Change list</string>
+    <string name="grocery_list_switcher">List: %1$s</string>
     <string name="grocery_new_list">New list</string>
     <string name="grocery_rename_list">Rename list</string>
     <string name="grocery_delete_list">Delete list</string>

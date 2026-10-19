@@ -197,9 +197,9 @@ Saving writes a batch. If a batch for the same product, date and location alread
 
 ### 5.3 Grocery lists and automatic restocking
 
-**Lists.** Each household has a default list named “Groceries”. Users can add more lists (for example “Costco”), rename and delete them. Low-stock items always go to the default list.
+**Lists.** Each household has a default list named “Groceries”. Users can add more lists (for example “Costco”), rename and delete them. Low-stock items always go to the default list. After v1 the list's name in the top bar is the switcher ("Groceries ▾"), with the lists and New, Rename and Delete list; a bare list icon did not say which list was open.
 
-**Items.** Name (required), optional quantity and unit, note, category (used to group by aisle), checked state, who added it and when, and a source badge (Manual, Low stock, Recipe). Adding a name that is already on the list unchecked shows “Already on the list” with Increase quantity or Add anyway. After v1, tapping an item's Edit also changes its name; the item then links to the household product of that name, if there is one, or to none.
+**Items.** Name (required), optional quantity and unit, note, category (used to group by aisle), checked state, who added it and when, and a source badge (Manual, Low stock, Recipe). Adding a name that is already on the list unchecked shows “Already on the list” with Increase quantity or Add anyway. After v1, tapping an item's Edit also changes its name; the item then links to the household product of that name, if there is one, or to none. After v1 each source badge has its own icon (Low stock, Recipe) and Back in stock sits on the same line as the badges with its Remove.
 
 **Aisle guess (after v1).** An item typed without a matching product gets a guessed aisle so it groups (and follows the store order) instead of landing in Other: first from the household's own products (the product with the most words that are all in the name, so "oat milk, barista" takes the household's Oat milk aisle), then from a built-in English word list where longer phrases win ("peanut butter" is a pantry staple, "frozen peas" frozen). Unknown names stay in Other. The same guess applies to recipe ingredients that link to no product.
 
@@ -230,7 +230,7 @@ Example for three items. Title: “3 items need attention”. Body: “Throw awa
 
 ### 5.5 Recipes
 
-**Recipe box.** Cards with image, title, total time and a favorite star. Search by title, ingredient and tag. Chips: All, Favorites, and user tags. Sort: recent, A to Z.
+**Recipe box.** Cards with image, title, total time and a favorite star. Search by title, ingredient and tag. Chips: All, Favorites, and user tags. Sort: recent, A to Z. After v1 a recipe without a photo shows its first letter on one of the theme's container colors (chosen by the title, so it stays the same), titles always take two lines and the time row keeps its place, so cards side by side match. An empty box offers the three ways to add one right there: Paste a link, Browse the web, Create manually.
 
 **Add a recipe** (FAB with three choices)
 
@@ -268,7 +268,7 @@ After v1, a card with nothing to show (nothing needs attention, staples stocked,
 
 **Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason), and after v1 a recipe cooked. Events older than 30 days are pruned by the reminder job.
 
-**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4); metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle. After v1, *Take the app tour* starts the tour (5.8) again.
+**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4; the chosen swatch's check sits on its own dot so it shows on any color); metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle. After v1, *Take the app tour* starts the tour (5.8) again.
 
 ### 5.7 Insights (after v1)
 
@@ -340,7 +340,7 @@ Status MUST never rely on color alone: always icon plus text. Text contrast at l
 
 **App icon.** "Fresh jar": a cream (#F5FBF5) jar with a leaf cut out of it on the brand green (#2E7D5B). The same shape is the monochrome (themed icon) layer, the notification icon and the welcome screen's mark.
 
-**6.5 Component patterns.** `SearchBar`, horizontally scrolling `FilterChip` rows, filled tonal `Card`s, list rows with a leading status icon, `SwipeToDismissBox` rows with background actions, `ModalBottomSheet` with a drag handle, snackbars with Undo, `SingleChoiceSegmentedButtonRow` (after v1: a list of radio buttons at font scale 1.5 and above, so labels are never cut off), skeleton shimmer on first load only, and an `ExtendedFloatingActionButton` that collapses on scroll. Amounts in pieces show as just the number ("× 2", "2"), and TalkBack reads "2 pieces"; other units keep their symbol ("500 g") (after v1). Use `Scaffold` with edge-to-edge insets, support predictive back, and provide an adaptive launcher icon with a monochrome layer (themed icons).
+**6.5 Component patterns.** After v1: content cards are outlined everywhere (Home, Insights, Settings, Household), filled cards are kept for recipe tiles, highlights such as join requests and errors; search and quick-add fields are pills; an empty screen offers its ways to start under its sentence. `SearchBar`, horizontally scrolling `FilterChip` rows, filled tonal `Card`s, list rows with a leading status icon, `SwipeToDismissBox` rows with background actions, `ModalBottomSheet` with a drag handle, snackbars with Undo, `SingleChoiceSegmentedButtonRow` (after v1: a list of radio buttons at font scale 1.5 and above, so labels are never cut off), skeleton shimmer on first load only, and an `ExtendedFloatingActionButton` that collapses on scroll. Amounts in pieces show as just the number ("× 2", "2"), and TalkBack reads "2 pieces"; other units keep their symbol ("500 g") (after v1). Use `Scaffold` with edge-to-edge insets, support predictive back, and provide an adaptive launcher icon with a monochrome layer (themed icons).
 
 **Form sheets** (Add item, Edit, Add to pantry, Edit grocery item, Add to grocery list) close only when dragged past half their height; a quick flick never closes them, and Back or tapping outside still does. They stop below the status bar and pad only the bottom (navigation bar and keyboard), so their height never changes while they move.
 
@@ -1192,6 +1192,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | App tour: a short follow-along tour for new users, replayable from Settings | 5.6, 5.8, QA, PRIVACY |
 | 2026-10-19 | Baseline profile regenerated after the quick wins, compact Add to pantry, Insights months and the app tour (16,568 rules). On the emulator: cold start median 435 → 426 ms; first Pantry scroll frame CPU time P90 8.2 → 6.2 ms, P99 20.4 → 9.9 ms | 13.1, RUNBOOK |
 | 2026-10-19 | UX polish 1: compact tab title bars, simpler pantry rows (one status, "× 3" amounts), expired backlog folded into a header, a tidier Add item form (stepper beside unit, wrapping date chips, location tiles), rounded tour highlight, number-aware name sorting | 5.2, 5.8, 6.4, QA |
+| 2026-10-19 | UX polish 2: recipe cards with a tinted initial and equal heights, empty Recipes with its three ways to add, the grocery list name as the switcher, badge icons and a one-line Back in stock, outlined cards and pill fields everywhere, aligned recipe-to-list rows, a visible swatch check | 5.3, 5.5, 5.6, 6.5, QA |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

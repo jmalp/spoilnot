@@ -32,22 +32,37 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 
 /** A remote image cached on the device; missing or failed images show a placeholder (DESIGN 11.6). */
 @Composable
-fun RecipeImage(url: String?, modifier: Modifier = Modifier) {
+fun RecipeImage(url: String?, modifier: Modifier = Modifier, title: String? = null) {
+    // Without a photo (after v1): the recipe's first letter on one of the theme's container colors, chosen by the
+    // title so each card keeps its color; the grey book on every card looked unfinished.
+    val initial = title?.trim()?.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()
+    val tones = listOf(
+        MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer,
+    )
+    val (background, foreground) = if (initial == null) {
+        MaterialTheme.colorScheme.surfaceContainerHigh to MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        tones[Math.floorMod(NameKey.of(title).hashCode(), tones.size)]
+    }
     val placeholder = @Composable {
-        Box(
-            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.AutoMirrored.Outlined.MenuBook,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(40.dp),
-            )
+        Box(Modifier.fillMaxSize().background(background), contentAlignment = Alignment.Center) {
+            if (initial != null) {
+                Text(initial.toString(), style = MaterialTheme.typography.displayMedium, color = foreground)
+            } else {
+                Icon(
+                    Icons.AutoMirrored.Outlined.MenuBook,
+                    contentDescription = null,
+                    tint = foreground,
+                    modifier = Modifier.size(40.dp),
+                )
+            }
         }
     }
     if (url == null) {
@@ -83,7 +98,7 @@ fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onToggleFavorite: () -> Unit,
     val time = durationText(recipe.content.totalMinutes)
     Card(onClick = onOpen, modifier = modifier.testTag("recipe_card")) {
         Box {
-            RecipeImage(recipe.content.imageUrl, Modifier.fillMaxWidth().aspectRatio(4f / 3f))
+            RecipeImage(recipe.content.imageUrl, Modifier.fillMaxWidth().aspectRatio(4f / 3f), recipe.title)
             IconToggleButton(
                 checked = recipe.favorite,
                 onCheckedChange = { onToggleFavorite() },
@@ -109,10 +124,14 @@ fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onToggleFavorite: () -> Unit,
             Text(
                 recipe.title,
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 3,
+                // Two lines on every card, and the time row's space kept, so cards side by side match (after v1).
+                minLines = 2,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (time != null) {
+            if (time == null) {
+                Text(" ", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+            } else {
                 val description = stringResource(R.string.recipe_total_time, time)
                 Row(
                     Modifier.padding(top = 4.dp).clearAndSetSemantics { contentDescription = description },

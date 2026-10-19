@@ -14,12 +14,12 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.School
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -54,7 +54,7 @@ fun AppearanceCard(
     onColorTheme: (ColorTheme) -> Unit,
     onUnits: (Units) -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth().testTag("card_appearance")) {
+    OutlinedCard(Modifier.fillMaxWidth().testTag("card_appearance")) {
         CardTitle(stringResource(R.string.settings_appearance))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Segmented(
@@ -116,7 +116,7 @@ private fun SwitchRow(
 /** Export household data as JSON (DESIGN 13.4). */
 @Composable
 fun DataCard(busy: Boolean, onExport: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
         CardTitle(stringResource(R.string.settings_data))
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_export)) },
@@ -141,7 +141,7 @@ fun PrivacyAndAboutCard(
     onOpenAbout: () -> Unit,
     onTakeTour: () -> Unit = {},
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
         SwitchRow(
             title = stringResource(R.string.settings_crash_reports),
             summary = stringResource(R.string.settings_crash_reports_summary),
