@@ -241,11 +241,21 @@ Example for three items. Title: “3 items need attention”. Body: “Throw awa
 
 ### 5.6 Home, activity and settings
 
-**Home** (first tab) has four cards: *Needs attention* (expired and expiring within 3 days; opens the filtered Pantry), *Low stock* (products below Keep at least), *Grocery list* (item count; opens the list) and *Recent activity* (last 10 events such as “Sam added Eggs to Groceries”). The household owner also sees a *Join requests* card while someone is waiting for approval.
+**Home** (first tab) has five cards: *Needs attention* (expired and expiring within 3 days; opens the filtered Pantry), *Low stock* (products below Keep at least), *Grocery list* (item count; opens the list), *Your kitchen this month* (after v1, 5.7; opens Insights) and *Recent activity* (last 10 events such as “Sam added Eggs to Groceries”). The household owner also sees a *Join requests* card while someone is waiting for approval.
 
 **Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason). Events older than 30 days are pruned by the reminder job.
 
 **Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Material You colors on Android 12 and later; metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle.
+
+### 5.7 Insights (after v1)
+
+How the household is doing at using food before it spoils, shown so it feels good to look at rather than as a scolding.
+
+- **What is counted.** A batch (one purchase) counts once when it is finished: **used** when it is used up (swipe right, Used up, Use 1 or an edit down to 0) and **thrown away** with its reason. Using part of a batch counts only when it is finished. Counts are of batches, not quantities, because units differ. Undo takes the count back off the same month. Counting starts with the version that added it; nothing earlier is filled in.
+- **Home card** *Your kitchen this month*: a small ring with the share used (solid for used, dashed for thrown away), the counts ("11 used · 1 thrown away"), a friendly line by share (90% or more "Amazing! Almost nothing went to waste.", 75% "Nice work!", 50% "Good start.", below that an encouraging line pointing to Needs attention) and *See insights*. With nothing finished yet, it explains what it will show.
+- **Insights screen:** this month's ring with a legend; the last 6 months as bars (solid used, striped thrown away, the number above each bar); the best month (highest share used, at least 5 batches, when two months qualify); the streak (days since anything was thrown away, or days of counting with nothing thrown away); why things were thrown away (striped bars by reason); a note on what is counted.
+- **Accessibility.** Thrown away is never shown by color alone: dashed in the ring, striped in bars, always with a text legend and numbers. Each chart has a spoken summary. Charts grow in over 700 ms, or appear at once with reduce motion on. Colors come from the theme (primary for used, tertiary for thrown away).
+- **Months** follow the phone's local date.
 
 ## 6. UX and visual design
 
@@ -507,6 +517,11 @@ households/{hid}/activity/{eventId}:
   actorUid, actorName: string
   params: { name, quantity, reason, listName }    # whatever applies to the type
   createdAt: timestamp
+households/{hid}/stats/{yyyy-MM}:     # after v1: Insights counts for one month (5.7), written with increments
+  used: int                           # batches used up
+  expired, spoiled, didnt_like, other: int   # batches thrown away, by reason
+  thrownByDay: { "1".."31": int }     # batches thrown away per day of the month, for the streak
+  updatedAt, updatedBy
 
 config/app:                           # read-only for clients; edited in the console
   minSupportedBuild: int
@@ -615,6 +630,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
+- After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
 - So the free quota supports roughly 10 active households' worth of reads. The reminder job adds a few hundred reads a day.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
@@ -944,6 +960,12 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time;
         allow delete: if isOwner(hid);   // household deletion; routine pruning uses the Admin SDK
       }
+      match /stats/{month} {             // after v1 (5.7); see firebase/firestore.rules for the full checks
+        allow read: if isMember(hid);
+        allow create, update: if isMember(hid) && stamped()      // yyyy-MM ids, known fields, whole counts >= 0
+          && month.matches('^[0-9]{4}-(0[1-9]|1[0-2])$');
+        allow delete: if isOwner(hid);   // household deletion only
+      }
     }
   }
 }
@@ -1008,7 +1030,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 - **Update gate:** on launch read `config/app.minSupportedBuild`; if the installed `versionCode` is lower, show a full-screen “Please update” with a link.
 - **Runbook** (`docs/RUNBOOK.md`): rotate the service account key, regenerate an invite code by hand, check quota usage, re-enable the workflow, restore from an export.
 
-**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days.
+**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days.
 
 ## 14. Milestones for Claude Code
 
@@ -1097,6 +1119,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-18 | New launcher icon "Fresh jar" (the owner's choice of three) | 6.4, DECISIONS |
 | 2026-10-18 | Form sheets stop below the status bar (fixes endless shaking after a flick down) | 6.5, DECISIONS |
 | 2026-10-18 | Beta 3 (1.0.0-beta.3, build 4) | 13.3 |
+| 2026-10-18 | Insights: monthly counts of batches used up and thrown away, the Home card *Your kitchen this month* and the Insights screen with charts | 5.6, 5.7, 8.2, 9.7, 12.3, 13.4, RUNBOOK, QA, PRIVACY |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

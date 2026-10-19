@@ -35,9 +35,10 @@ describe('restore plan', () => {
     stock: [{ id: 's1', productId: 'p1', quantity: 2, expiryDate: '2026-10-20' }],
     groceryLists: [{ id: 'g1', name: 'Groceries', isDefault: true, items: [{ id: 'i1', name: 'Eggs' }] }],
     recipes: [{ id: 'r1', title: 'Pie', createdAt: '2026-10-01T08:00:00.000Z' }],
+    stats: [{ id: '2026-10', used: 4, spoiled: 1, thrownByDay: { '3': 1 } }],
   };
 
-  it('writes products, stock, lists with items and recipes, but never the household or members', () => {
+  it('writes products, stock, lists with items, recipes and stats, but never the household or members', () => {
     const plan = planRestore(file, 'h2');
     assert.deepEqual(plan.writes.map((w) => w.path), [
       'households/h2/products/p1',
@@ -45,10 +46,16 @@ describe('restore plan', () => {
       'households/h2/groceryLists/g1',
       'households/h2/groceryLists/g1/items/i1',
       'households/h2/recipes/r1',
+      'households/h2/stats/2026-10',
     ]);
     assert.equal(plan.writes[0]!.data.id, undefined);
     assert.equal(plan.writes[2]!.data.items, undefined);
     assert.ok(plan.writes[4]!.data.createdAt instanceof Timestamp);
+  });
+
+  it('restores files from before stats existed', () => {
+    const { stats: _stats, ...older } = file;
+    assert.equal(planRestore(older, 'h2').writes.length, 5);
   });
 
   it('refuses other files and newer formats', () => {

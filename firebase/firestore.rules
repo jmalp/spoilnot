@@ -147,6 +147,28 @@ service cloud.firestore {
           && request.resource.data.location in ['fridge', 'freezer', 'pantry', 'other']
           && request.resource.data.dateType in ['use_by', 'best_before'];
       }
+      // Insights (after v1, DESIGN 5.7): one document per month of batch counts, written with increments.
+      match /stats/{month} {
+        function count(f) {
+          return !(f in request.resource.data)
+            || (request.resource.data[f] is int && request.resource.data[f] >= 0
+                && request.resource.data[f] <= 100000);
+        }
+        function byDayOk() {
+          return !('thrownByDay' in request.resource.data)
+            || (request.resource.data.thrownByDay is map
+                && request.resource.data.thrownByDay.keys().hasOnly(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31']));
+        }
+        allow read: if isMember(hid);
+        allow create, update: if isMember(hid) && stamped()
+          && month.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
+          && request.resource.data.keys().hasOnly(
+               ['used', 'expired', 'spoiled', 'didnt_like', 'other', 'thrownByDay', 'updatedAt', 'updatedBy'])
+          && count('used') && count('expired') && count('spoiled') && count('didnt_like') && count('other')
+          && byDayOk();
+        // Counts are deleted only with the household.
+        allow delete: if isOwner(hid);
+      }
       match /groceryLists/{listId} {
         allow read: if isMember(hid);
         // existsAfter (deviation): the default list is created in the same batch as the household; any later list

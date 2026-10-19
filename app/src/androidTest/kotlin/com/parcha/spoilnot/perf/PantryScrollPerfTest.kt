@@ -86,11 +86,15 @@ class PantryScrollPerfTest {
         FirebaseAuth.getInstance().signOut()
         // A fixed emulator account, so the release-like benchmark build can sign in to the same data.
         if (runCatching { session.signIn(PERF_EMAIL, PASSWORD) }.isSuccess) {
-            withTimeout(15_000) { session.session.first { it is Session.InHousehold } }
-            return@runBlocking
+            val signedIn = withTimeout(15_000) {
+                session.session.first { it is Session.InHousehold || it is Session.NoHousehold }
+            }
+            // The account outlives a cleared Firestore emulator (the rules tests clear it); seed again then.
+            if (signedIn is Session.InHousehold) return@runBlocking
+        } else {
+            session.signUp("Pat", PERF_EMAIL, PASSWORD)
+            withTimeout(15_000) { session.session.first { it is Session.NoHousehold } }
         }
-        session.signUp("Pat", PERF_EMAIL, PASSWORD)
-        withTimeout(15_000) { session.session.first { it is Session.NoHousehold } }
         val uid = checkNotNull(FirebaseAuth.getInstance().currentUser).uid
         val hid = households.createHousehold(uid, "Pat", "Perf home", InviteCodes.generate())
         withTimeout(15_000) { session.session.first { it is Session.InHousehold } }

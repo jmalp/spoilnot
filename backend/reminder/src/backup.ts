@@ -19,6 +19,8 @@ export interface HouseholdExport {
   stock: JsonDoc[];
   groceryLists: Array<JsonDoc & { items: JsonDoc[] }>;
   recipes: JsonDoc[];
+  /** Insights counts, one document per month (added after v1; older files have none). */
+  stats?: JsonDoc[];
 }
 
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -73,6 +75,7 @@ export async function exportHousehold(db: Firestore, householdId: string, now: D
       lists.docs.map(async (l) => ({ ...doc(l.id, l.data()), items: await all(`${l.ref.path}/items`) })),
     ),
     recipes: await all(`${base.path}/recipes`),
+    stats: await all(`${base.path}/stats`),
   };
 }
 
@@ -88,7 +91,8 @@ export interface RestorePlan {
 }
 
 /**
- * What a restore writes: products, stock, grocery lists and their items, and recipes, each document set as it was.
+ * What a restore writes: products, stock, grocery lists and their items, recipes and Insights counts, each document
+ * set as it was.
  * The household and its members are never restored: they decide who has access, and the export may be older than a
  * removal. Documents created after the export are left alone.
  */
@@ -110,6 +114,7 @@ export function planRestore(file: HouseholdExport, householdId: string): Restore
     for (const item of items) add(`${base}/groceryLists/${list.id}/items/${item.id}`, item);
   }
   for (const r of file.recipes) add(`${base}/recipes/${r.id}`, r);
+  for (const m of file.stats ?? []) add(`${base}/stats/${m.id}`, m);
   return { householdId, writes };
 }
 

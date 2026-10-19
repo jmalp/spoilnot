@@ -4,10 +4,12 @@ import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.core.write.HouseholdWriter
+import com.parcha.spoilnot.feature.insights.domain.StatsChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import java.time.Clock
+import java.time.YearMonth
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -105,12 +107,13 @@ class PantryServiceTest {
     }
 
     @Test
-    fun `minus one at one uses the batch up and can be undone`() = runTest {
+    fun `minus one at one uses the batch up, counts it, and undo takes both back`() = runTest {
         val b = batch("m1", "milk", quantity = 1.0)
         val undo = service.adjust("h", actor, b, -1.0)
-        assertEquals(listOf(PantryChange.DeleteBatch("m1")), repo.last)
+        val month = YearMonth.from(TODAY)
+        assertEquals(listOf(PantryChange.DeleteBatch("m1"), StatsChange.CountUsedUp(month, 1)), repo.last)
         service.undo("h", actor, undo!!)
-        assertEquals(listOf(PantryChange.RestoreBatch(b)), repo.last)
+        assertEquals(listOf(PantryChange.RestoreBatch(b), StatsChange.CountUsedUp(month, -1)), repo.last)
     }
 
     @Test
@@ -130,15 +133,25 @@ class PantryServiceTest {
         assertEquals(PantryEvent.Type.Discarded, event.type)
         assertEquals(DiscardReason.Spoiled, event.reason)
         assertEquals(2.0, event.quantity!!, 0.0)
-        assertEquals(listOf(PantryChange.RestoreBatch(b), PantryChange.DeleteEvent(event.eventId)), undo.changes)
+        val counted = StatsChange.CountThrownAway(YearMonth.from(TODAY), TODAY.dayOfMonth, DiscardReason.Spoiled, 1)
+        assertEquals(counted, repo.last[2])
+        assertEquals(
+            listOf(
+                PantryChange.RestoreBatch(b),
+                PantryChange.DeleteEvent(event.eventId),
+                counted.copy(delta = -1),
+            ),
+            undo.changes,
+        )
     }
 
     @Test
     fun `editing to zero uses the batch up, moving keeps everything else`() = runTest {
         val b = batch("m1", "milk", quantity = 2.0)
         val undo = service.edit("h", actor, b, BatchEdit(0.0, null, DateType.UseBy, Location.Fridge, null))
-        assertEquals(listOf(PantryChange.DeleteBatch("m1")), repo.last)
-        assertEquals(listOf(PantryChange.RestoreBatch(b)), undo!!.changes)
+        val month = YearMonth.from(TODAY)
+        assertEquals(listOf(PantryChange.DeleteBatch("m1"), StatsChange.CountUsedUp(month, 1)), repo.last)
+        assertEquals(listOf(PantryChange.RestoreBatch(b), StatsChange.CountUsedUp(month, -1)), undo!!.changes)
         service.move("h", actor, b, Location.Freezer)
         val edit = (repo.last.single() as PantryChange.UpdateBatch).edit
         assertEquals(BatchEdit(2.0, b.expiryDate, b.dateType, Location.Freezer, null), edit)

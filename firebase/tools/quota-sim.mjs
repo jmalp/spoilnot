@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import {
-  collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch,
+  collection, doc, documentId, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 const QUOTA = { reads: 50_000, writes: 20_000 };
@@ -22,6 +22,9 @@ const OPENS_PER_DAY = 8;
 const RECIPE_VISITS_PER_DAY = 3;
 const WRITES_PER_HOUSEHOLD = 40;
 const REMINDER_RUNS_PER_DAY = 24;
+// Of the day's writes, this many finish a batch (used up or thrown away) and also bump the month's Insights counts.
+const FINISHES_PER_HOUSEHOLD = 10;
+const MONTH = '2026-10';
 
 const env = await initializeTestEnvironment({
   projectId: 'demo-quota-sim',
@@ -67,6 +70,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     for (let i = 0; i < 20; i++) await put(`households/${hid}/groceryLists/default/items/i${i}`, { name: `Item ${i}`, checked: false, ...stamp(owner) });
     for (let i = 0; i < 5; i++) await put(`households/${hid}/groceryLists/party/items/i${i}`, { name: `Party ${i}`, checked: false, ...stamp(owner) });
     for (let i = 0; i < 15; i++) await put(`households/${hid}/recipes/r${i}`, { title: `Recipe ${i}`, ingredients: [], steps: [], ...stamp(owner) });
+    await put(`households/${hid}/stats/${MONTH}`, { used: 20, expired: 2, thrownByDay: { 3: 2 }, updatedAt: new Date(), updatedBy: owner });
     for (let i = 0; i < 40; i++) await put(`households/${hid}/activity/a${i}`, { type: 'stock_added', actorUid: owner, actorName: 'User 0', params: {}, createdAt: new Date(Date.now() - i * 3_600_000) });
     await batch.commit();
   }
@@ -99,6 +103,7 @@ async function open(db, uid, hid, isOwner, withRecipes) {
     collection(db, `${h}/groceryLists`),
     collection(db, `${h}/groceryLists/default/items`), // Home's grocery card and the list
     query(collection(db, `${h}/activity`), orderBy('createdAt', 'desc'), limit(10)), // Home > Recent activity
+    query(collection(db, `${h}/stats`), where(documentId(), '>=', MONTH)), // Home > Your kitchen this month
   ];
   if (isOwner) targets.push(collection(db, `${h}/joinRequests`)); // owner's badge
   if (withRecipes) targets.push(collection(db, `${h}/recipes`)); // first visit to Recipes
@@ -131,7 +136,7 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
   }
   await new Promise((r) => setTimeout(r, 500));
   stop();
-  writes += WRITES_PER_HOUSEHOLD;
+  writes += WRITES_PER_HOUSEHOLD + FINISHES_PER_HOUSEHOLD;
   reads.listeners += delivered - initial; // the open phone receives each change
   reads.ruleLookups += WRITES_PER_HOUSEHOLD; // isMember on each write
 }
@@ -140,7 +145,7 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
 // queries per household, each at least one read); once a day per user a stock query and a devices read; the
 // nightly export reads every household document once.
 const users = HOUSEHOLDS * PHONES;
-const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15;
+const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1; // + this month's stats
 reads.jobs = REMINDER_RUNS_PER_DAY * users + (HOUSEHOLDS + 2 * HOUSEHOLDS) + users * 2 + HOUSEHOLDS * perHousehold;
 writes += users; // lastDigestDate once a day
 

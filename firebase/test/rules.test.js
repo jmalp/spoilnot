@@ -15,6 +15,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  increment,
   writeBatch,
 } from 'firebase/firestore';
 
@@ -670,5 +671,68 @@ describe('recipes', () => {
   it('outsiders cannot read or write recipes', async () => {
     await assertFails(getDocs(collection(as('carol'), `households/${HID}/recipes`)));
     await assertFails(setDoc(doc(as('carol'), `households/${HID}/recipes/r3`), recipe('carol')));
+  });
+});
+
+describe('insights stats', () => {
+  const path = (month = '2026-10') => `households/${HID}/stats/${month}`;
+  const counted = (uid, fields) => ({ ...fields, updatedAt: serverTimestamp(), updatedBy: uid });
+
+  it('members count used and thrown away batches with increments, and read them', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, path()), counted('bob', { used: increment(1) }), { merge: true }));
+    await assertSucceeds(setDoc(doc(as('alice'), path()), counted('alice', {
+      spoiled: increment(1), thrownByDay: { 18: increment(1) },
+    }), { merge: true }));
+    const snap = await assertSucceeds(getDoc(doc(db, path())));
+    if (snap.data().used !== 1 || snap.data().thrownByDay['18'] !== 1) throw new Error('counts not applied');
+    await assertSucceeds(getDocs(collection(db, `households/${HID}/stats`)));
+  });
+
+  it('a throw away writes the batch delete, the event and the count in one batch, and Undo takes it back', async () => {
+    const db = as('bob');
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `households/${HID}/stock/s1`), stock('bob'));
+    });
+    const b = writeBatch(db);
+    b.delete(doc(db, `households/${HID}/stock/s1`));
+    b.set(doc(db, `households/${HID}/activity/e1`), {
+      type: 'discarded', actorUid: 'bob', actorName: 'Bob', productId: 'p1',
+      params: { name: 'Milk', quantity: 2, reason: 'expired' }, createdAt: serverTimestamp(),
+    });
+    b.set(doc(db, path()), counted('bob', { expired: increment(1), thrownByDay: { 3: increment(1) } }), { merge: true });
+    await assertSucceeds(b.commit());
+    await assertSucceeds(setDoc(doc(db, path()), counted('bob', {
+      expired: increment(-1), thrownByDay: { 3: increment(-1) },
+    }), { merge: true }));
+  });
+
+  it('counts are whole numbers from 0, with known fields, a real month and a stamp', async () => {
+    const db = as('bob');
+    await assertFails(setDoc(doc(db, path()), counted('bob', { used: -1 })));
+    await assertFails(setDoc(doc(db, path()), counted('bob', { used: 1.5 })));
+    await assertFails(setDoc(doc(db, path()), counted('bob', { used: 'many' })));
+    await assertFails(setDoc(doc(db, path()), counted('bob', { used: 1, notes: 'x' })));
+    await assertFails(setDoc(doc(db, path()), counted('bob', { thrownByDay: { 32: 1 } })));
+    await assertFails(setDoc(doc(db, path()), counted('bob', { thrownByDay: 3 })));
+    await assertFails(setDoc(doc(db, path('2026-13')), counted('bob', { used: 1 })));
+    await assertFails(setDoc(doc(db, path('october')), counted('bob', { used: 1 })));
+    await assertFails(setDoc(doc(db, path()), { used: 1 }));
+    await assertFails(setDoc(doc(db, path()), counted('alice', { used: 1 })));
+    await assertSucceeds(setDoc(doc(db, path()), counted('bob', { used: 0 })));
+  });
+
+  it('only the owner deletes counts (with the household)', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), path()), counted('bob', { used: 2 })));
+    await assertFails(deleteDoc(doc(as('bob'), path())));
+    await assertSucceeds(deleteDoc(doc(as('alice'), path())));
+  });
+
+  it('outsiders cannot read or write counts', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), path()), counted('bob', { used: 2 })));
+    await assertFails(getDoc(doc(as('carol'), path())));
+    await assertFails(getDocs(collection(as('erin'), `households/${HID}/stats`)));
+    await assertFails(setDoc(doc(as('carol'), path()), counted('carol', { used: increment(1) }), { merge: true }));
+    await assertFails(getDoc(doc(anon(), path())));
   });
 });

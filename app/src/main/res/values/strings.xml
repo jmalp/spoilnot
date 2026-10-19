@@ -457,6 +457,41 @@
     </plurals>
     <string name="home_recent_activity">Recent activity</string>
     <string name="home_activity_none">Changes by anyone in the household show up here.</string>
+
+    <!-- Insights (DESIGN 5.7) -->
+    <string name="insights_title">Your kitchen</string>
+    <string name="insights_card_title">Your kitchen this month</string>
+    <string name="insights_see">See insights</string>
+    <string name="insights_percent">%1$d%%</string>
+    <string name="insights_counts">%1$d used · %2$d thrown away</string>
+    <string name="insights_mood_nothing">Use up or throw away items, and this shows how your kitchen is doing.</string>
+    <string name="insights_mood_great">Amazing! Almost nothing went to waste.</string>
+    <string name="insights_mood_good">Nice work! Most of what you bought got used.</string>
+    <string name="insights_mood_okay">Good start. Needs attention on Home shows what to use first.</string>
+    <string name="insights_mood_low">Every item you use counts. Needs attention on Home shows what to use first.</string>
+    <string name="insights_ring_description">This month: %1$d used, %2$d thrown away, %3$d%% used.</string>
+    <string name="insights_ring_empty">Nothing used up or thrown away this month yet.</string>
+    <string name="insights_legend_used">Used</string>
+    <string name="insights_legend_thrown">Thrown away</string>
+    <string name="insights_section_months">Last 6 months</string>
+    <string name="insights_months_none">Each month\'s bars show up here as items are used up or thrown away.</string>
+    <string name="insights_months_description">Used and thrown away in the last 6 months. %1$s</string>
+    <string name="insights_month_entry">%1$s: %2$d used, %3$d thrown away</string>
+    <string name="insights_section_reasons">Why things were thrown away</string>
+    <string name="insights_reasons_none">Nothing thrown away in the last 6 months.</string>
+    <string name="insights_section_streak">Streak</string>
+    <plurals name="insights_streak_days">
+        <item quantity="one">%d day with nothing thrown away</item>
+        <item quantity="other">%d days with nothing thrown away</item>
+    </plurals>
+    <plurals name="insights_streak_never">
+        <item quantity="one">Nothing thrown away in %d day of counting</item>
+        <item quantity="other">Nothing thrown away in %d days of counting</item>
+    </plurals>
+    <string name="insights_streak_today">Something was thrown away today. Tomorrow starts a new streak.</string>
+    <string name="insights_streak_none">Your streak starts when you use up or throw away an item.</string>
+    <string name="insights_best_month">Best month: %1$s, %2$d%% used</string>
+    <string name="insights_counting_note">Counts items when they are used up or thrown away, since this version of the app. Using part of an item counts once it is finished.</string>
     <string name="activity_you">You</string>
     <string name="activity_the_list">the grocery list</string>
     <string name="activity_just_now">Just now</string>

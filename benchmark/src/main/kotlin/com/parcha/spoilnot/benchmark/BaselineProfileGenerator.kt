@@ -24,6 +24,7 @@ class BaselineProfileGenerator {
         signInIfNeeded()
         openTab("Home")
         flingList(times = 1)
+        openAndCloseInsights()
         openTab("Pantry")
         flingList()
         openAndCloseAddItem()

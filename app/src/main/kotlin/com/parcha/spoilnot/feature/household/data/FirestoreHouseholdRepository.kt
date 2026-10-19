@@ -324,7 +324,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         const val BATCH_LIMIT = 400
 
         /** Members go last so the owner keeps access while the rest is deleted. */
-        val FLAT_SUBCOLLECTIONS = listOf("products", "stock", "recipes", "activity", "joinRequests", "members")
+        val FLAT_SUBCOLLECTIONS = listOf("products", "stock", "recipes", "activity", "stats", "joinRequests", "members")
 
         fun householdPath(hid: String) = "households/$hid"
 

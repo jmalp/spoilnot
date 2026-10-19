@@ -67,6 +67,10 @@ data class RecipeBrowserRoute(
 @Serializable
 data class CookModeRoute(val recipeId: String, val servings: Int?, val tab: TopLevelDestination) : NavKey
 
+/** Insights (DESIGN 5.7), opened from Home's "Your kitchen this month" card. */
+@Serializable
+data class InsightsRoute(val tab: TopLevelDestination) : NavKey
+
 /** Settings > About, pushed on the same tab as Settings. */
 @Serializable
 data class AboutRoute(val tab: TopLevelDestination) : NavKey
