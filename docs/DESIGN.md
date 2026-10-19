@@ -245,7 +245,7 @@ Example for three items. Title: “3 items need attention”. Body: “Throw awa
 
 **Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason). Events older than 30 days are pruned by the reminder job.
 
-**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Material You colors on Android 12 and later; metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle.
+**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4); metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle.
 
 ### 5.7 Insights (after v1)
 
@@ -281,7 +281,11 @@ How the household is doing at using food before it spoils, shown so it feels goo
 
 **6.4 Design tokens**
 
-**Color.** Build the light and dark `ColorScheme`s from the seed `#2E7D5B` (leafy green) with the Material Theme Builder. On Android 12 and later, dynamic color (Material You, through `dynamicLightColorScheme` and `dynamicDarkColorScheme`) is an Appearance option, on by default. Status colors are fixed and are not taken from the dynamic scheme, so they stay recognizable:
+**Color.** Build the light and dark `ColorScheme`s from the seed `#2E7D5B` (leafy green) with the Material Theme Builder. On Android 12 and later, dynamic color (Material You, through `dynamicLightColorScheme` and `dynamicDarkColorScheme`) is an Appearance option, on by default.
+
+**Color themes (after v1).** Settings > Appearance > Colors offers *Wallpaper* (Material You, Android 12 and later, the default), *Spoil Not green* and five presets from the owner's Coolors palettes: *Fiery Palette*, *Summer Fun*, *Enchanted Forest*, *Watermelon Sorbet* and *Contrast Pop*. Each preset names four palette colors (main, second, accent, background tint) in `tools/themes/themes.json`; `tools/themes/generate-themes.mjs` builds the light and dark schemes with Material Color Utilities (fidelity variant) into `PresetColors.kt`. `ColorThemesContrastTest` checks every fixed theme: text 4.5:1 on its background, chart and icon colors 3:1, and the status colors on its surfaces. The choice is stored on the phone; the picker shows each theme as a swatch with its name and marks the choice with a ring and a check. Older phones keep their choice (the old switch off means Spoil Not green).
+
+Status colors are fixed and are not taken from the dynamic scheme or any theme, so they stay recognizable:
 
 | Status | Light | Dark | Icon |
 | --- | --- | --- | --- |
@@ -1120,6 +1124,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-18 | Form sheets stop below the status bar (fixes endless shaking after a flick down) | 6.5, DECISIONS |
 | 2026-10-18 | Beta 3 (1.0.0-beta.3, build 4) | 13.3 |
 | 2026-10-18 | Insights: monthly counts of batches used up and thrown away, the Home card *Your kitchen this month* and the Insights screen with charts | 5.6, 5.7, 8.2, 9.7, 12.3, 13.4, RUNBOOK, QA, PRIVACY |
+| 2026-10-18 | Preset color themes (Fiery Palette, Summer Fun, Enchanted Forest, Watermelon Sorbet, Contrast Pop) and the Colors picker, replacing the wallpaper switch | 5.6, 6.4, Appendix B, QA |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
@@ -1162,6 +1167,7 @@ spoilnot/
   docs/                   DESIGN.md, DECISIONS.md, RUNBOOK.md, PRIVACY.md, import-test-sites.md
   benchmark/              macrobenchmarks and the baseline profile generator (never shipped)
   scripts/                emulators.sh, release-beta.sh, baseline-profile.sh
+  tools/themes/           preset color theme definitions and their generator (not part of the app build)
   .github/workflows/      ci.yml, reminders.yml, nightly-export.yml, restore.yml, secret-scan.yml
   CLAUDE.md
 ```

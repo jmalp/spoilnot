@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.insights.domain.Insights
 import com.parcha.spoilnot.feature.insights.domain.MonthStats
@@ -50,7 +51,7 @@ class InsightsScreenshotTest(private val dark: Boolean, private val fontScale: F
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                SpoilNotTheme(darkTheme = dark, dynamicColor = false) {
+                SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
                     Surface { InsightsContent(summary) }
                 }
             }

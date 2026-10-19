@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
@@ -25,7 +26,7 @@ class RecipeComponentsTest {
     fun `the card shows the total time and toggles the favorite star`() {
         var toggles = 0
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
                 RecipeCard(Recipe("a", RecipeContent(title = "Chili", totalMinutes = 75)), {}, { toggles++ })
             }
         }
@@ -39,7 +40,7 @@ class RecipeComponentsTest {
     fun `checklist lines tick off and show group headings`() {
         val checked = mutableStateListOf<Int>()
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
                 IngredientChecklist(listOf("Dough" to "2 cups flour", null to "1 egg"), checked)
             }
         }

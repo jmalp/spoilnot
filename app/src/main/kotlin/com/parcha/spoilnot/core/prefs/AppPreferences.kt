@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,15 +23,25 @@ enum class ThemeMode { System, Light, Dark }
 class AppPreferences @Inject constructor(@param:ApplicationContext private val context: Context) {
     private val explainerShown = booleanPreferencesKey("notification_explainer_shown")
     private val themeModeKey = stringPreferencesKey("theme_mode")
+
+    /** Before the preset themes: the Material You switch. Read only, to keep an older choice. */
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val crashReportsKey = booleanPreferencesKey("crash_reports")
+
+    private val colorThemeKey = stringPreferencesKey("color_theme")
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         ThemeMode.entries.firstOrNull { it.name == prefs[themeModeKey] } ?: ThemeMode.System
     }
 
-    /** Material You colors on Android 12 and later, on by default (DESIGN 6.4). */
-    val dynamicColor: Flow<Boolean> = context.dataStore.data.map { it[dynamicColorKey] != false }
+    /**
+     * Settings > Appearance > Colors (DESIGN 6.4), Wallpaper by default. Phones from before the presets keep their
+     * choice: the old "Colors from your wallpaper" switch turned off means the Spoil Not green.
+     */
+    val colorTheme: Flow<ColorTheme> = context.dataStore.data.map { prefs ->
+        ColorTheme.fromId(prefs[colorThemeKey])
+            ?: if (prefs[dynamicColorKey] == false) ColorTheme.SpoilNot else ColorTheme.Wallpaper
+    }
 
     /** Crash reports, on by default with an off switch (DESIGN 2 telemetry). */
     val crashReports: Flow<Boolean> = context.dataStore.data.map { it[crashReportsKey] != false }
@@ -39,8 +50,8 @@ class AppPreferences @Inject constructor(@param:ApplicationContext private val c
         context.dataStore.edit { it[themeModeKey] = mode.name }
     }
 
-    suspend fun setDynamicColor(enabled: Boolean) {
-        context.dataStore.edit { it[dynamicColorKey] = enabled }
+    suspend fun setColorTheme(theme: ColorTheme) {
+        context.dataStore.edit { it[colorThemeKey] = theme.id }
     }
 
     suspend fun setCrashReports(enabled: Boolean) {

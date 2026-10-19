@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
@@ -42,7 +43,7 @@ class PantryComponentsTest {
     private val noActions = BatchActions({}, {}, {}, {}, {})
 
     private fun chip(days: Long?, type: DateType = DateType.UseBy) = compose.setContent {
-        SpoilNotTheme(dynamicColor = false) { StatusChip(days?.let { TODAY.plusDays(it) }, type, TODAY) }
+        SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { StatusChip(days?.let { TODAY.plusDays(it) }, type, TODAY) }
     }
 
     @Test
@@ -78,7 +79,7 @@ class PantryComponentsTest {
     fun rowReadsNameQuantityStatusAndLocation() {
         val item = items(listOf(product("milk")), listOf(batch("m1", "milk", quantity = 2.0, inDays = 1))).single()
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, noActions, {}) }
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, {}) }
         }
         compose.onNode(hasContentDescription("Milk, 2 pcs, Expires tomorrow, Fridge")).assertIsDisplayed()
     }
@@ -88,7 +89,7 @@ class PantryComponentsTest {
         val item = items(listOf(product("oil", name = "Olive oil", min = 1.0)), emptyList()).single()
         var opened: PantryItem? = null
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
         }
         compose.onNode(hasContentDescription("Olive oil, out of stock")).assertIsDisplayed()
         compose.onNodeWithText("Out", useUnmergedTree = true).assertIsDisplayed()
@@ -101,7 +102,7 @@ class PantryComponentsTest {
         val item = items(listOf(product("milk")), listOf(batch("m1", "milk"))).single()
         var opened: PantryItem? = null
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
         }
         compose.onNodeWithTag("pantry_item_m1").onChildAt(0).performClick()
         assertEquals("m1", (opened as PantryItem.Purchase).batch.id)
@@ -119,7 +120,7 @@ class PantryComponentsTest {
         )
         val item = items(listOf(product("milk")), listOf(batch("m1", "milk", quantity = 2.0))).single()
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { PantryItemRow(item, TODAY, actions, {}) }
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, actions, {}) }
         }
         listOf("Use 1", "Add 1", "Used up", "Throw away", "Move").forEach { entry ->
             compose.onNodeWithContentDescription("Options for this batch").performClick()
@@ -132,7 +133,7 @@ class PantryComponentsTest {
     fun addFormValidatesAndSavesDecimals() {
         var saved: StockDraft? = null
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
                 AddItemForm(emptyList(), emptySet(), TODAY) {
                     saved =
                         it
@@ -161,7 +162,7 @@ class PantryComponentsTest {
         val rice = product("rice", unit = QuantityUnit.Kilograms, recent = listOf(30))
         var saved: StockDraft? = null
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
                 AddItemForm(listOf(rice), setOf("rice"), TODAY) {
                     saved =
                         it
@@ -180,7 +181,9 @@ class PantryComponentsTest {
     fun theAutoAddSwitchRevealsKeepAtLeastAndRequiresIt() {
         var saved: StockDraft? = null
         compose.setContent {
-            SpoilNotTheme(dynamicColor = false) { AddItemForm(emptyList(), emptySet(), TODAY) { saved = it } }
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                AddItemForm(emptyList(), emptySet(), TODAY) { saved = it }
+            }
         }
         compose.onNodeWithTag("field_name").performTextInput("Eggs")
         compose.onNodeWithTag("field_keep_at_least").assertDoesNotExist()

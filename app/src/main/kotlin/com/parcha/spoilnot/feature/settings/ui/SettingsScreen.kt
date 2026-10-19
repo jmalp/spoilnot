@@ -171,7 +171,7 @@ fun SettingsScreen(
                 device = device,
                 units = units,
                 onThemeMode = { viewModel.setThemeMode(it) },
-                onDynamicColor = { viewModel.setDynamicColor(it) },
+                onColorTheme = { viewModel.setColorTheme(it) },
                 onUnits = viewModel::setUnits,
             )
             DataCard(busy = state.busy, onExport = { saveExport.launch(viewModel.exportFileName()) })

@@ -32,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.prefs.ThemeMode
 import com.parcha.spoilnot.feature.auth.domain.Units
 
@@ -42,13 +43,13 @@ private fun CardTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 16.dp, top = 16.dp))
 }
 
-/** System, Light or Dark; Material You on Android 12 and later; metric or imperial (DESIGN 5.6). */
+/** System, Light or Dark; the color theme (DESIGN 6.4); metric or imperial (DESIGN 5.6). */
 @Composable
 fun AppearanceCard(
     device: SettingsViewModel.Device,
     units: Units,
     onThemeMode: (ThemeMode) -> Unit,
-    onDynamicColor: (Boolean) -> Unit,
+    onColorTheme: (ColorTheme) -> Unit,
     onUnits: (Units) -> Unit,
 ) {
     Card(Modifier.fillMaxWidth().testTag("card_appearance")) {
@@ -69,6 +70,7 @@ fun AppearanceCard(
                 },
                 onPick = onThemeMode,
             )
+            ColorThemePicker(device.colorTheme, onColorTheme)
             Segmented(
                 label = stringResource(R.string.settings_units),
                 options = listOf(Units.Metric, Units.Imperial),
@@ -85,15 +87,6 @@ fun AppearanceCard(
                     )
                 },
                 onPick = onUnits,
-            )
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            SwitchRow(
-                title = stringResource(R.string.settings_dynamic_color),
-                summary = stringResource(R.string.settings_dynamic_color_summary),
-                checked = device.dynamicColor,
-                onChange = onDynamicColor,
-                icon = { Icon(Icons.Rounded.Palette, contentDescription = null) },
             )
         }
     }
