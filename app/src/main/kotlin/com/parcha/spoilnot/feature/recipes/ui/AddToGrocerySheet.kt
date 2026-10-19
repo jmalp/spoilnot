@@ -60,6 +60,7 @@ fun AddToGrocerySheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
+        contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier,
     ) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
