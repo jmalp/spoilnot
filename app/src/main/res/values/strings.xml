@@ -533,7 +533,9 @@
     <string name="insights_legend_thrown">Thrown away</string>
     <string name="insights_section_months">Last 6 months</string>
     <string name="insights_months_none">Each month\'s bars show up here as items are used up or thrown away.</string>
-    <string name="insights_months_description">Used and thrown away in the last 6 months. %1$s</string>
+    <string name="insights_month_details">%1$d used · %2$d thrown away · %3$d%% used</string>
+    <string name="insights_month_nothing">Nothing used up or thrown away.</string>
+    <string name="insights_month_reasons">Thrown away: %1$s</string>
     <string name="insights_month_entry">%1$s: %2$d used, %3$d thrown away</string>
     <string name="insights_section_reasons">Why things were thrown away</string>
     <string name="insights_reasons_none">Nothing thrown away in the last 6 months.</string>

@@ -64,6 +64,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 18. Add to pantry: check off five items and tap Add to pantry. Each is one line ("2 · Fridge · Oct 26") and the
     button says Add all 5 to pantry. Tap one line: its editor opens; turn on Skip: the line says Skipped and the
     button Add 4 to pantry. Clear a quantity and confirm: that line opens with the error.
+19. Insights: the latest month is highlighted with its details below. Tap an earlier month: it is highlighted and the
+    details change (counts, % used, reasons). With TalkBack, swipe through the months: each is read on its own with
+    "selected" on the chosen one, and the new details are announced.
 
 ## 3. Conditions
 
