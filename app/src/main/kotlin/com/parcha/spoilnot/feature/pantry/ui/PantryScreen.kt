@@ -67,6 +67,7 @@ import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
+import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.core.ui.rememberRemoteChanges
 import com.parcha.spoilnot.core.ui.remoteHighlight
@@ -79,6 +80,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryItemGroup
 import com.parcha.spoilnot.feature.pantry.domain.PantrySort
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
+import com.parcha.spoilnot.feature.tutorial.domain.TourTarget
 import java.time.LocalDate
 
 @Composable
@@ -128,7 +130,7 @@ fun PantryScreen(
                     expanded = fabExpanded,
                     icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.action_add_item)) },
-                    modifier = Modifier.testTag("fab_add_item"),
+                    modifier = Modifier.testTag("fab_add_item").coachMark(TourTarget.AddItem.key),
                 )
             }
         },
@@ -256,7 +258,7 @@ private fun PantryList(
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(bottom = 96.dp),
-        modifier = Modifier.fillMaxSize().testTag("pantry_list"),
+        modifier = Modifier.fillMaxSize().testTag("pantry_list").coachMark(TourTarget.PantryList.key),
     ) {
         shown.forEach { group ->
             val header = group.location?.label() ?: group.category?.label()
@@ -426,7 +428,7 @@ private fun EmptyPantry(onAdd: () -> Unit) {
         PrimaryButton(
             stringResource(R.string.action_add_first_item),
             onClick = onAdd,
-            modifier = Modifier.testTag("button_add_first_item"),
+            modifier = Modifier.testTag("button_add_first_item").coachMark(TourTarget.AddItem.key),
         )
     }
 }

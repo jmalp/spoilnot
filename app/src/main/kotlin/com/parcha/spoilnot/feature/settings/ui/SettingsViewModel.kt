@@ -80,6 +80,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setCrashReports(enabled: Boolean) = viewModelScope.launch { preferences.setCrashReports(enabled) }
 
+    /** Starts the app tour again (DESIGN 5.8); the shell picks it up and shows Home. */
+    fun takeTour() = viewModelScope.launch { preferences.setTourDone(false) }
+
     fun setUnits(units: Units) = run {
         val me = session.session.value as? Session.InHousehold ?: return@run
         users.setUnits(me.user.uid, units)

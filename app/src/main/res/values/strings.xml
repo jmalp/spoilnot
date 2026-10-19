@@ -615,4 +615,23 @@
     <string name="action_add_stock">Add stock</string>
     <string name="unit_locked_short">Set while in stock</string>
     <string name="error_keep_at_least">Enter how many to keep, above 0.</string>
+    <!-- App tour (after v1, DESIGN 5.8) -->
+    <string name="tour_welcome_title">Welcome to Spoil Not</string>
+    <string name="tour_welcome">A one-minute tour of the app. Follow along by tapping what is highlighted, or tap Next.</string>
+    <string name="tour_home">Home starts with what needs you: food expiring soon. Below are staples running low, your grocery list and what your household did.</string>
+    <string name="tour_open_pantry">Tap Pantry to see everything you have.</string>
+    <string name="tour_add_item">Tap Add item to add food. Pick a date with one tap, and Spoil Not reminds you before it expires.</string>
+    <string name="tour_pantry_rows">Swipe a row right when it\'s used up and left to throw it away. Undo is always there. Tap a row to edit it, and ⋮ has Mark opened and more.</string>
+    <string name="tour_open_recipes">Tap Recipes.</string>
+    <string name="tour_add_recipe">Save recipes from any website: share a page to Spoil Not or open the built-in browser. A recipe can put what you\'re missing on the grocery list.</string>
+    <string name="tour_open_groceries">Tap Groceries for your shopping list.</string>
+    <string name="tour_quick_add">Type what you need here. In the store, check things off, then Add to pantry puts them all away at once.</string>
+    <string name="tour_invite">Invite your household from here: Household, then Invite people. You can take this tour again from Settings.</string>
+    <string name="tour_progress">%1$d of %2$d</string>
+    <string name="tour_start">Start the tour</string>
+    <string name="tour_next">Next</string>
+    <string name="tour_skip">Skip tour</string>
+    <string name="tour_done">Done</string>
+    <string name="settings_take_tour">Take the app tour</string>
+    <string name="settings_take_tour_summary">A one-minute walk through the app</string>
 </resources>

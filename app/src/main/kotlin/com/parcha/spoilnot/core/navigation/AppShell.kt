@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -49,6 +50,9 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.CoachMarks
+import com.parcha.spoilnot.core.designsystem.component.LocalCoachMarks
+import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.error.QuotaSignal
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
@@ -71,6 +75,11 @@ import com.parcha.spoilnot.feature.recipes.ui.RecipesNavigation
 import com.parcha.spoilnot.feature.recipes.ui.RecipesScreen
 import com.parcha.spoilnot.feature.settings.ui.AboutScreen
 import com.parcha.spoilnot.feature.settings.ui.SettingsScreen
+import com.parcha.spoilnot.feature.tutorial.domain.TourEvent
+import com.parcha.spoilnot.feature.tutorial.domain.TourTab
+import com.parcha.spoilnot.feature.tutorial.domain.TourTarget
+import com.parcha.spoilnot.feature.tutorial.ui.TourOverlay
+import com.parcha.spoilnot.feature.tutorial.ui.TourViewModel
 
 /** Waiting join requests, shown as a badge on the Settings avatar for the owner (DESIGN 5.1). */
 val LocalJoinRequestCount = compositionLocalOf { 0 }
@@ -81,7 +90,15 @@ fun AppShell(
     session: Session.InHousehold,
     modifier: Modifier = Modifier,
     shellViewModel: ShellViewModel = hiltViewModel(),
+    tourViewModel: TourViewModel = hiltViewModel(),
 ) {
+    val tourStep by tourViewModel.step.collectAsStateWithLifecycle()
+    // A tap on a marked element can move a follow-along step on (DESIGN 5.8).
+    val coachMarks = remember {
+        CoachMarks { key ->
+            TourTarget.entries.firstOrNull { it.key == key }?.let { tourViewModel.on(TourEvent.TargetTapped(it)) }
+        }
+    }
     val pendingJoinRequests by shellViewModel.pendingJoinRequests.collectAsStateWithLifecycle()
     val deepLink by shellViewModel.deepLink.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(TabNavigator.START) }
@@ -91,6 +108,13 @@ fun AppShell(
     }
 
     val openSettings = { navigator.navigate(SettingsRoute(navigator.currentTab)) }
+    // Each tour step starts on its tab (Next may move on to another one).
+    LaunchedEffect(tourStep) {
+        tourStep?.tab?.let { tab ->
+            val destination = tab.destination()
+            if (navigator.currentTab != destination) navigator.showRoot(destination)
+        }
+    }
     // A tapped digest or a Home card opens the Pantry tab at its root; the Pantry screen applies the filter.
     LaunchedEffect(deepLink) {
         when (val link = deepLink) {
@@ -240,42 +264,71 @@ fun AppShell(
         entriesByTab.getValue(TabNavigator.START) + entriesByTab.getValue(currentTab)
     }
 
-    CompositionLocalProvider(LocalJoinRequestCount provides pendingJoinRequests, LocalUnits provides session.units) {
-        Scaffold(
-            modifier = modifier,
-            contentWindowInsets = WindowInsets(0),
-            bottomBar = {
-                NavigationBar {
-                    TopLevelDestination.entries.forEach { tab ->
-                        val selected = tab == currentTab
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { navigator.selectTab(tab) },
-                            icon = {
-                                Icon(if (selected) tab.selectedIcon else tab.unselectedIcon, contentDescription = null)
-                            },
-                            label = { Text(stringResource(tab.label)) },
-                        )
+    CompositionLocalProvider(
+        LocalJoinRequestCount provides pendingJoinRequests,
+        LocalUnits provides session.units,
+        LocalCoachMarks provides coachMarks,
+    ) {
+        Box(modifier) {
+            Scaffold(
+                contentWindowInsets = WindowInsets(0),
+                bottomBar = {
+                    NavigationBar {
+                        TopLevelDestination.entries.forEach { tab ->
+                            val selected = tab == currentTab
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = {
+                                    navigator.selectTab(tab)
+                                    tourViewModel.on(TourEvent.TabOpened(tab.tourTab()))
+                                },
+                                modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
+                                icon = {
+                                    Icon(
+                                        if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                        contentDescription = null,
+                                    )
+                                },
+                                label = { Text(stringResource(tab.label)) },
+                            )
+                        }
                     }
+                },
+            ) { padding ->
+                val quotaDay by QuotaSignal.exhaustedOn.collectAsStateWithLifecycle()
+                val reduceMotion = rememberReduceMotion()
+                Column(Modifier.padding(padding).consumeWindowInsets(padding)) {
+                    // DESIGN 6.7: the free daily quota was reached; it resets at midnight Pacific time.
+                    if (quotaDay != null && QuotaSignal.isExhausted()) QuotaBanner()
+                    NavDisplay(
+                        entries = visibleEntries,
+                        onBack = { navigator.goBack() },
+                        modifier = Modifier.weight(1f),
+                        transitionSpec = { sharedAxis(forward = true, reduceMotion) },
+                        popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                        predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                    )
                 }
-            },
-        ) { padding ->
-            val quotaDay by QuotaSignal.exhaustedOn.collectAsStateWithLifecycle()
-            val reduceMotion = rememberReduceMotion()
-            Column(Modifier.padding(padding).consumeWindowInsets(padding)) {
-                // DESIGN 6.7: the free daily quota was reached; it resets at midnight Pacific time.
-                if (quotaDay != null && QuotaSignal.isExhausted()) QuotaBanner()
-                NavDisplay(
-                    entries = visibleEntries,
-                    onBack = { navigator.goBack() },
-                    modifier = Modifier.weight(1f),
-                    transitionSpec = { sharedAxis(forward = true, reduceMotion) },
-                    popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
-                    predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
-                )
             }
+            tourStep?.let { TourOverlay(it, coachMarks, tourViewModel::on) }
         }
     }
+}
+
+private fun TourTab.destination(): TopLevelDestination = when (this) {
+    TourTab.Home -> TopLevelDestination.Home
+    TourTab.Pantry -> TopLevelDestination.Pantry
+    TourTab.Recipes -> TopLevelDestination.Recipes
+    TourTab.Groceries -> TopLevelDestination.Groceries
+}
+
+private fun TopLevelDestination.tourTab(): TourTab = TourTab.entries.first { it.destination() == this }
+
+private fun TopLevelDestination.tourTarget(): TourTarget? = when (this) {
+    TopLevelDestination.Home -> null
+    TopLevelDestination.Pantry -> TourTarget.PantryTab
+    TopLevelDestination.Recipes -> TourTarget.RecipesTab
+    TopLevelDestination.Groceries -> TourTarget.GroceriesTab
 }
 
 /** A failed import's title, image and link for Create manually (DESIGN 11.2). */

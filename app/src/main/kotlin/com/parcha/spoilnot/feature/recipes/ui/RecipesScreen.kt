@@ -69,10 +69,12 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
+import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.RecipeFilter
 import com.parcha.spoilnot.feature.recipes.domain.RecipeSort
 import com.parcha.spoilnot.feature.recipes.domain.SourceUrl
+import com.parcha.spoilnot.feature.tutorial.domain.TourTarget
 import kotlinx.coroutines.launch
 
 /** Where the recipe box can send the user. */
@@ -113,7 +115,7 @@ fun RecipesScreen(
                 expanded = fabExpanded,
                 icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.recipe_add)) },
-                modifier = Modifier.testTag("fab_add_recipe"),
+                modifier = Modifier.testTag("fab_add_recipe").coachMark(TourTarget.AddRecipe.key),
             )
         },
     ) { padding ->

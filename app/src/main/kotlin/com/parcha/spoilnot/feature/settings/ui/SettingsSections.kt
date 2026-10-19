@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -132,9 +133,14 @@ fun DataCard(busy: Boolean, onExport: () -> Unit) {
     }
 }
 
-/** Crash reports, with an off switch (DESIGN 2, 7.5), and About. */
+/** Crash reports, with an off switch (DESIGN 2, 7.5), the app tour (after v1, 5.8) and About. */
 @Composable
-fun PrivacyAndAboutCard(crashReports: Boolean, onCrashReports: (Boolean) -> Unit, onOpenAbout: () -> Unit) {
+fun PrivacyAndAboutCard(
+    crashReports: Boolean,
+    onCrashReports: (Boolean) -> Unit,
+    onOpenAbout: () -> Unit,
+    onTakeTour: () -> Unit = {},
+) {
     Card(Modifier.fillMaxWidth()) {
         SwitchRow(
             title = stringResource(R.string.settings_crash_reports),
@@ -143,6 +149,13 @@ fun PrivacyAndAboutCard(crashReports: Boolean, onCrashReports: (Boolean) -> Unit
             onChange = onCrashReports,
             icon = { Icon(Icons.Rounded.BugReport, contentDescription = null) },
             modifier = Modifier.testTag("row_crash_reports"),
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_take_tour)) },
+            supportingContent = { Text(stringResource(R.string.settings_take_tour_summary)) },
+            leadingContent = { Icon(Icons.Rounded.School, contentDescription = null) },
+            colors = transparent,
+            modifier = Modifier.toggleable(false, role = Role.Button) { onTakeTour() }.testTag("row_take_tour"),
         )
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_about)) },

@@ -9,6 +9,7 @@ import com.parcha.spoilnot.core.firebase.FirebaseEmulators
 import com.parcha.spoilnot.core.firebase.FirestoreHouseholdWriter
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.feature.auth.data.FirebaseAuthRepository
 import com.parcha.spoilnot.feature.auth.data.FirestoreUserRepository
@@ -47,6 +48,7 @@ object EmulatorSupport {
 
     fun requireEmulatorAndNetworkAccess() {
         assumeTrue("Only dev debug builds use the emulators", BuildConfig.FIREBASE_EMULATOR_HOST.isNotBlank())
+        skipAppTour()
         if (Build.VERSION.SDK_INT >= 37) {
             val instrumentation = InstrumentationRegistry.getInstrumentation()
             instrumentation.uiAutomation.grantRuntimePermission(
@@ -54,6 +56,11 @@ object EmulatorSupport {
                 ACCESS_LOCAL_NETWORK,
             )
         }
+    }
+
+    /** UI tests start without the app tour over the screen (DESIGN 5.8); `TourUiTest` turns it on. */
+    fun skipAppTour(done: Boolean = true) = kotlinx.coroutines.runBlocking {
+        AppPreferences(InstrumentationRegistry.getInstrumentation().targetContext.applicationContext).setTourDone(done)
     }
 
     fun uniqueEmail(prefix: String) = "$prefix-${UUID.randomUUID().toString().take(8)}@example.com"
