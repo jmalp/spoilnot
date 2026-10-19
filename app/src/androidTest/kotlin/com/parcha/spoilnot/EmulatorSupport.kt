@@ -16,6 +16,7 @@ import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository
 import com.parcha.spoilnot.feature.grocery.data.GroceryChangeMapper
 import com.parcha.spoilnot.feature.grocery.domain.GroceryService
 import com.parcha.spoilnot.feature.grocery.domain.RestockRunner
+import com.parcha.spoilnot.feature.home.data.FirestoreActivityRepository
 import com.parcha.spoilnot.feature.household.data.FirestoreHouseholdRepository
 import com.parcha.spoilnot.feature.household.data.FirestoreLocalData
 import com.parcha.spoilnot.feature.household.domain.Session
@@ -109,6 +110,7 @@ class TestPhone(private val name: String) : AutoCloseable {
     val recipeRepository = FirestoreRecipeRepository(firestore, syncLog)
     val recipes = RecipeService(writer)
     val stats = FirestoreStatsRepository(firestore)
+    val activity = FirestoreActivityRepository(firestore, syncLog)
 
     /** Every phone runs the restock engine (DESIGN 9.6). Started by [startRestock]. */
     private val restock =
