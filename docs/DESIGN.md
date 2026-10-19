@@ -1137,6 +1137,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-18 | Changes-only listeners with tombstones: about 60% fewer reads (1,890 instead of 4,760 per household per day); the reminder job skips and purges tombstones; exports leave them out | 8.1, 8.5, 9.7, 9.8, 10.3, 12.3, 13.4, RUNBOOK, QA |
 | 2026-10-19 | Beta 4 (1.0.0-beta.4, build 5) with Insights, color themes, the baseline profile and changes-only listeners; rules deployed to both projects | 13.3, RUNBOOK |
 | 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
+| 2026-10-19 | README rewritten from the owner's point of view: the app's purpose and features, and how it was designed and built with Claude Code; the developer commands moved out (they are in CLAUDE.md and the RUNBOOK) | README |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
