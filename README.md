@@ -49,102 +49,49 @@ The app is in beta with a small group of testers through Firebase App Distributi
 ## How I built it with Claude Code
 
 The project went from an empty repository to a tested beta in about a week, with the design work done beforehand.
-Claude Code wrote the code; the planning, the decisions and the review were mine. These are the practices that made
-that work.
+Claude Code wrote the code; the planning, the decisions and the review were mine.
 
 ### 1. I started with a design document, not code
 
-Before anything was built, I worked through the whole product with Claude in a chat and turned it into a single
-specification: [docs/DESIGN.md](docs/DESIGN.md). I treated it the way I would a spec for a development team. It
-covers:
-
-- the features, screen by screen, with wireframes and empty, error, offline and quota states;
-- the data model, sync behavior, security rules and a rules test matrix;
-- a budget for the free Firebase quota, with the math to back it up;
-- performance budgets, accessibility requirements and a manual QA script;
-- the steps that only I could do (creating accounts, keys and signing certificates), listed up front;
-- eight milestones (M0 to M7), each with acceptance criteria;
-- requirement levels (MUST, SHOULD, MAY), so the agent knew what was negotiable.
-
-Vendor facts such as quotas, pricing and library versions were checked before the build started and recorded in the
-document with their sources, so the agent never relied on guesses about cost or limits.
+Before anything was built, I worked through the product with Claude in a chat and turned it into one specification,
+[docs/DESIGN.md](docs/DESIGN.md). It defines every screen, the data model, the security rules and a budget for the
+free Firebase quota, and splits the work into eight milestones with acceptance criteria. It also lists up front the
+steps only I could do, such as creating accounts and signing keys.
 
 ### 2. I turned the plan into rules the agent follows every time
 
-[CLAUDE.md](CLAUDE.md) holds the rules Claude Code reads at the start of every session. A few examples:
-
-- Composables and ViewModels never touch Firebase; only data repositories do. Business logic is pure Kotlin with an
-  injectable clock and unit tests.
-- Never add Cloud Functions or any paid Google Cloud service. Never commit secrets.
-- Every destructive action has Undo, and status is never conveyed by color alone.
-- The exact commands to run before a task counts as finished: formatting, lint, unit tests, both build flavors,
-  the security rules tests, screenshot tests and the instrumented tests on an emulator.
-
-When something needed to hold in every later session, it went into this file. One example is my rule that every
-change also updates the design document.
+[CLAUDE.md](CLAUDE.md) holds the rules Claude Code reads at the start of every session. They cover the architecture
+(no Firebase code in the UI layer, business logic in tested pure Kotlin), hard limits like no paid services and no
+committed secrets, and the full set of checks that must pass before any task counts as done.
 
 ### 3. I built it in milestones, and nothing moved forward until the last one passed
 
-Each milestone started the same way: Claude Code listed what it needed from me, I did those steps (Firebase
-projects, the upload keystore, service accounts, console settings), and only then did it start.
-
-Each milestone ended with its acceptance checks and a summary, which I reviewed before the next one began. Every
-milestone was its own pull request, and nothing merged until CI passed and I approved it. Two-phone scenarios were tested against the Firebase emulators, such as a
-second person joining with a code or a removed member losing access within five seconds.
+Each milestone started with Claude Code listing what it needed from me, such as Firebase projects, keys and console
+settings, and ended with its acceptance checks and a summary I reviewed. Every milestone was its own pull request,
+and nothing merged until CI passed and I approved it.
 
 ### 4. I kept the decisions that matter with me
 
-Anything with real-world consequences needed my approval in the moment, every time:
-
-- deploying security rules to the live projects;
-- sending a build or an invite to testers;
-- anything involving keys or personal data. Tester emails live in a git-ignored file, and keystore passwords never
-  appear in a session.
-
-I also made the product calls myself:
-
-- **App Check.** I skipped it because it requires a paid Play Console account, and recorded why.
-- **Icon.** I picked the launcher icon from three proposals.
-- **Order of work.** After v1, I set the order of the next features.
-- **Cuts.** I dropped a planned feature, a notification for join requests, when it no longer seemed worth it.
+Anything with real-world consequences, like deploying security rules or sending a build to testers, needed my
+approval each time, and keys and personal data never entered the repository. The product calls were mine too: which
+icon to ship, what to build next, and what to cut or skip when the cost outweighed the value.
 
 ### 5. I tested with real people and fed back what I saw
 
-The app went to testers in four betas, and their feedback produced concrete changes:
-
-- one row per purchase in the pantry instead of expandable groups;
-- a single form for adding and editing items;
-- a "Cooked" category for leftovers;
-- form sheets that close only after a deliberate drag past halfway;
-- better button contrast on the Home cards;
-- a fix for a sheet that kept shaking after a flick.
-
-For larger requests, I had Claude Code restate the list of changes in its own words before writing any code, then
-approved it or corrected it. That one step caught misunderstandings early.
-
-I also watched the work as it ran. During one benchmark I noticed the test was swiping on the phone's home screen
-instead of inside the app. Pointing that out led straight to the bug in the test.
+Four betas went to testers, and their feedback reshaped the pantry, the add and edit forms and several smaller
+interactions. For larger requests I had Claude Code restate the changes in its own words before writing any code,
+which caught misunderstandings early.
 
 ### 6. I held the line on quality, security and cost
 
-- **Tests at every level.** Around 260 unit and screenshot tests, 70 security rules tests, about 30 instrumented
-  tests (including two-phone flows) and integration tests for the reminder job, all running in CI.
-- **A security review against the design.** Claude Code reviewed the app section by section, and I completed the
-  console steps and signed it off ([docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md)). That covered restricted API
-  keys, the password policy, email enumeration protection and two-factor authentication on GitHub.
-- **Cost as a requirement.** A simulation replays a day of ten households against the emulator. When it showed the
-  free read quota would run out at about seven households, I made cheaper syncing a priority. The change cut reads by
-  about 60%, so roughly eighteen households now fit.
-- **Operations.** A one-command release script that refuses to upload unless the build is signed with the right key,
-  nightly exports with a restore workflow, secret scanning and dependency updates. All of it is documented in
-  [docs/RUNBOOK.md](docs/RUNBOOK.md).
+The app has about 360 automated tests across unit, screenshot, security-rule and two-phone instrumented tests, all
+running in CI. I signed off a security review against the design. When a simulation showed the free quota would run
+out at about seven households, I made cheaper syncing a priority, which cut reads by about 60%.
 
 ### 7. Every change leaves a record
 
-Every deviation from the design goes in [docs/DECISIONS.md](docs/DECISIONS.md), with the date, the decision and the
-reason. After v1, I made the design document a living one: every change updates the sections it affects and adds a
-line to a change log at the end, in the same pull request as the code and its tests. Anyone can trace why the app is
-the way it is.
+Every deviation from the design goes in [docs/DECISIONS.md](docs/DECISIONS.md) with its reason. After v1, every
+change also updates the design document in the same pull request, so anyone can trace why the app is the way it is.
 
 ## What I took from it
 
