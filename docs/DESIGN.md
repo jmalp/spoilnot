@@ -662,7 +662,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
-- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930.
+- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790.
 - So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
@@ -672,6 +672,8 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - a **server** listener on `updatedAt` after the newest cached change minus 5 minutes, which costs one read per changed document (at least one per query).
 
 The first open of a collection, an empty cache, and any open more than 20 hours after the last full read use a full server listener instead, recorded per phone (`SyncLog`). That daily full read also drops anything kept by mistake, so tombstones (8.1) only need to outlive it. `fromCache` and the offline banner come from the server listener; the pending-sync icon from the cache. The quota simulation puts a typical household at about 1,890 reads a day (from about 4,760), so about 18 households fit under the 70% line. Older app builds would show tombstones as items, so the release that adds this raises `config/app.minSupportedBuild` (docs/RUNBOOK.md).
+
+Recent activity (after v1) works the same way without tombstones, since events are only added (`liveNewest`): a cache listener on the newest 10 by `createdAt`, and a server listener on `createdAt` after the newest cached event minus 5 minutes, or the newest 10 on the daily full read. A new event costs one read per phone instead of the newest ten on every open. Removing an event (Undo of a throw-away, the 30-day pruning) shows at once when the phone saw the event arrive and by the next daily full read otherwise. The quota simulation puts a typical household at about 1,790 reads a day.
 
 ## 10. Notification system
 
@@ -1173,6 +1175,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Quick wins: aisle guess for typed grocery items, rename grocery items, Throw away all expired on Home, compact empty Home cards, the notification prompt after the third dated item, amounts without "pcs", stacked choices at large text sizes, and faster Use it up matching | 5.3, 5.4, 5.6, 6.5, QA |
 | 2026-10-19 | Add to pantry is one summary line per item with Add all; tapping a line edits it | 5.3, QA |
 | 2026-10-19 | Insights: tap a month for its counts, share used and reasons; TalkBack reads each month on its own | 5.7, QA |
+| 2026-10-19 | Recent activity reads only new events (changes-only), about 1,790 reads per household per day instead of 1,930 | 9.7, 9.8, RUNBOOK |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

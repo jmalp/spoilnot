@@ -179,21 +179,22 @@ deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 del
 household or a new feature.
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
-2026-10-19 with changes-only listeners and Use it up (30 products, 60 batches, 25 grocery items, 15 recipes, this
+2026-10-19 with changes-only listeners, Use it up and changes-only Recent activity (30 products, 60 batches, 25 grocery items, 15 recipes, this
 month's counts and 30 tombstones per household; 4 phones opening the app 8 times a day, the first open a full read,
-Home reading recipes on every open, the 40 daily writes spread between opens, 10 of them finishing a batch):
+Home reading recipes on every open, the 40 daily writes spread between opens, each logging an activity event, 10 of
+them finishing a batch):
 
 | Reads | Per day | Share of 50,000 |
 | --- | --- | --- |
-| App listeners | 13,640 | |
+| App listeners | 12,240 | |
 | Security-rule lookups | 2,720 | |
 | Scheduled jobs (reminders, housekeeping, export) | 2,960 | |
-| **Total for 10 households** | **19,320** | **38.6%** |
-| Per household | about 1,930 | 3.9% |
+| **Total for 10 households** | **17,920** | **35.8%** |
+| Per household | about 1,790 | 3.6% |
 
-Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household).
-So the free plan holds about 18 households of this size under the 70% warning line. The largest
-remaining costs are each phone's daily full read, Recent activity (10 reads per open) and rule lookups. If usage nears 70%: check for a
+Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and
+19,320 before Recent activity read only new events. So the free plan holds about 19 households of this size under the
+70% warning line. The largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 
 ## Scheduled workflows

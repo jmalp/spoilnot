@@ -1,10 +1,9 @@
 package com.parcha.spoilnot.feature.home.data
 
 import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.Query
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
-import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
-import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.liveNewest
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
 import com.parcha.spoilnot.feature.home.domain.ActivityRepository
 import com.parcha.spoilnot.feature.home.domain.ActivityType
@@ -21,17 +20,17 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class FirestoreActivityRepository @Inject constructor(private val firestore: FirestoreProvider) : ActivityRepository {
-    // A single-field order uses the automatic index (DESIGN 8.4).
+class FirestoreActivityRepository @Inject constructor(
+    private val firestore: FirestoreProvider,
+    private val syncLog: SyncLog,
+) : ActivityRepository {
+    // Changes-only (after v1, DESIGN 9.8): new events cost one read each instead of the newest ten on every open.
+    // Single-field order and range use the automatic indexes (DESIGN 8.4).
     override fun observeRecent(householdId: String, limit: Int): Flow<List<ActivityEvent>> = firestore.instance
         .flatMapLatest { db ->
-            db.collection("households/$householdId/activity")
-                .orderBy("createdAt", Query.Direction.DESCENDING)
-                .limit(limit.toLong())
-                .snapshotFlow()
-                .retryAfterOwnWrites(db)
+            db.collection("households/$householdId/activity").liveNewest(db, syncLog, "createdAt", limit.toLong())
         }
-        .map { snapshot -> snapshot.documents.mapNotNull { it.toEvent() } }
+        .map { live -> live.documents.mapNotNull { it.toEvent() } }
         .distinctUntilChanged()
 
     private fun DocumentSnapshot.toEvent(): ActivityEvent? {
