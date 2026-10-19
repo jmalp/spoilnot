@@ -61,15 +61,19 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
                 typicalShelfLifeDays = ShelfLife.median(recent),
                 recentShelfLifeDays = recent,
                 createdAt = null,
+                lastAddedQuantity = draft.quantity,
             ).also { changes += PantryChange.CreateProduct(it) }
         } else {
             val recent = ShelfLife.record(existing.recentShelfLifeDays, today(), draft.expiryDate)
             val hasStock = data.batches.any { it.productId == existing.id && it.quantity > 0 }
+            // The unit is fixed once a product has stock (invariant 3).
+            val unit = if (hasStock) existing.unit else draft.unit
             val updated = existing.copy(
-                // The unit is fixed once a product has stock (invariant 3).
-                unit = if (hasStock) existing.unit else draft.unit,
+                unit = unit,
                 recentShelfLifeDays = recent,
                 typicalShelfLifeDays = ShelfLife.median(recent) ?: existing.typicalShelfLifeDays,
+                // An amount in another unit would be meaningless in this one.
+                lastAddedQuantity = if (unit == draft.unit) draft.quantity else existing.lastAddedQuantity,
             ).withKeepAtLeast(draft.minQuantity, draft.autoAddToGrocery, draft.buyQuantity, existing)
             if (updated != existing) changes += PantryChange.UpdateProduct(updated)
             updated

@@ -37,6 +37,10 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 10. Changes-only sync: with both phones open, delete a grocery item and throw away a batch on Phone A; both
     disappear on Phone B. Close the app on Phone B, make three changes on Phone A (add, edit, delete), reopen Phone B:
     all three show. Offline on Phone B, delete something, reconnect: Phone A sees it go.
+11. Recipe to groceries: with "Onions" in the pantry (any amount, even out of stock), add a recipe with "1 extra large
+    onion, diced" and "½ tbsp soy sauce" to the list. The sheet shows "Adds as Onions × <your usual amount>" and
+    "Adds as Soy sauce". On the list: "Onions" with the usual amount and the note "<recipe>: 1 extra large onion,
+    diced", and "Soy sauce" with no amount. Check them off and Add to pantry: the onions add to the existing product.
 
 ## 3. Conditions
 

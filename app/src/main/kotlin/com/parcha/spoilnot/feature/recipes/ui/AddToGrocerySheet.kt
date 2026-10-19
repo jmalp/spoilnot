@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
+import com.parcha.spoilnot.feature.pantry.ui.label
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
 
 /**
@@ -132,6 +134,15 @@ internal fun CandidateRow(candidate: GroceryCandidate, selected: Boolean, onChan
         Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(12.dp))
         Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
             Text(candidate.ingredient.raw, style = MaterialTheme.typography.bodyLarge)
+            // What lands on the list: the shopping name and amount, not the recipe's wording (DESIGN 5.5).
+            val amount = candidate.quantity?.let {
+                " × " + formatQuantity(it) + candidate.unit?.let { u -> " " + stringResource(u.label()) }.orEmpty()
+            }.orEmpty()
+            Text(
+                stringResource(R.string.recipe_adds_as, candidate.name + amount),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             val tag = when {
                 candidate.inPantry != null ->
                     Icons.Rounded.Kitchen to

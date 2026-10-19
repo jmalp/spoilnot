@@ -80,6 +80,7 @@ class FirestorePantryRepository @Inject constructor(
             "restockArmed" to p.restockArmed,
             "typicalShelfLifeDays" to p.typicalShelfLifeDays,
             "recentShelfLifeDays" to p.recentShelfLifeDays,
+            "lastAddedQuantity" to p.lastAddedQuantity,
         )
 
         fun batchFields(b: StockBatch) = mapOf(
@@ -111,6 +112,7 @@ class FirestorePantryRepository @Inject constructor(
                 (it as? Number)?.toInt()
             }.orEmpty(),
             createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
+            lastAddedQuantity = getDouble("lastAddedQuantity"),
         )
 
         fun DocumentSnapshot.toBatch() = StockBatch(

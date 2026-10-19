@@ -151,7 +151,10 @@ class RecipeFlowTest {
             bob.groceryRepository.observeItems(householdId, list.id).first { it.size == 3 }
         }
         assertTrue(items.all { it.source == ItemSource.Recipe && it.recipeId == id })
-        assertEquals(setOf("chicken thighs", "curry paste", "rice"), items.map { it.name }.toSet())
-        assertEquals("2 tbsp", items.single { it.name == "curry paste" }.note)
+        // Shopping names, with the recipe line as the note and no recipe measure as the amount (DESIGN 5.5).
+        assertEquals(setOf("Chicken thighs", "Curry paste", "Rice"), items.map { it.name }.toSet())
+        val paste = items.single { it.name == "Curry paste" }
+        assertEquals("Chicken curry: 2 tbsp curry paste", paste.note)
+        assertEquals(null, paste.quantity)
     }
 }

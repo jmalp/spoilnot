@@ -46,6 +46,25 @@ class PantryServiceTest {
         PantryData(products, batches, fromCache = false)
 
     @Test
+    fun `each add remembers its amount on the product, in the product's unit only`() = runTest {
+        service.add("h", actor, draft(name = "Onions", quantity = 3.0, unit = QuantityUnit.Pounds), data())
+        assertEquals(3.0, (repo.last[0] as PantryChange.CreateProduct).product.lastAddedQuantity!!, 0.0)
+        val onions = product("onions", "Onions", unit = QuantityUnit.Pounds).copy(lastAddedQuantity = 3.0)
+        service.add(
+            "h",
+            actor,
+            draft(name = "Onions", quantity = 2.0, unit = QuantityUnit.Pounds),
+            data(listOf(onions)),
+        )
+        assertEquals(2.0, (repo.last[0] as PantryChange.UpdateProduct).product.lastAddedQuantity!!, 0.0)
+        // With stock the unit stays pounds, so an amount in pieces is not remembered.
+        val stocked = data(listOf(onions), listOf(batch("o1", "onions")))
+        service.add("h", actor, draft(name = "Onions", quantity = 5.0), stocked)
+        val updated = repo.last.filterIsInstance<PantryChange.UpdateProduct>().singleOrNull()?.product
+        assertEquals(3.0, (updated ?: onions).lastAddedQuantity!!, 0.0)
+    }
+
+    @Test
     fun `a new name creates a product, a batch and an added event`() = runTest {
         val result = service.add("h", actor, draft(name = "  Greek   yogurt "), data())
         val product = (repo.last[0] as PantryChange.CreateProduct).product
