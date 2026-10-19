@@ -242,6 +242,26 @@
     <string name="action_throw_away">Throw away</string>
     <string name="action_edit">Edit</string>
     <string name="action_move">Move</string>
+    <string name="action_mark_opened">Mark opened</string>
+    <string name="pantry_opened">Opened</string>
+    <string name="row_opened_suffix">, opened</string>
+    <string name="opened_title">Mark %1$s opened</string>
+    <string name="opened_how_many">How many did you open?</string>
+    <string name="opened_count">%1$d of %2$s</string>
+    <string name="opened_fewer">One fewer</string>
+    <string name="opened_more">One more</string>
+    <string name="opened_use_within">Use within</string>
+    <plurals name="opened_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="opened_one_week">1 week</string>
+    <string name="opened_two_weeks">2 weeks</string>
+    <string name="opened_one_month">1 month</string>
+    <string name="opened_new_date">New date: %1$s</string>
+    <string name="opened_keeps_date">Keeps its date, %1$s, which is sooner.</string>
+    <string name="opened_remembered">Next time you open %1$s, this is chosen for you.</string>
+    <string name="undo_opened">%1$s marked opened</string>
     <string name="batch_options">Options for this batch</string>
     <string name="action_undo">Undo</string>
     <string name="undo_used_up">%1$s used up</string>

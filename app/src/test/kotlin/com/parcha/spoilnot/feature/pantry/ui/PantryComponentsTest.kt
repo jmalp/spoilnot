@@ -76,6 +76,33 @@ class PantryComponentsTest {
     private fun items(products: List<Product>, batches: List<StockBatch>) = PantryItems.all(products, batches, TODAY)
 
     @Test
+    fun anOpenedRowSaysSoAndItsMenuNoLongerOffersMarkOpened() {
+        val sealed = items(listOf(product("milk")), listOf(batch("m1", "milk", inDays = 3))).single()
+        var marked: String? = null
+        val actions = BatchActions({}, {}, {}, {}, {}, onOpened = { marked = it.id })
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(sealed, TODAY, actions, {}) }
+        }
+        compose.onNodeWithTag("menu_m1").performClick()
+        compose.onNodeWithText("Mark opened").performClick()
+        assertEquals("m1", marked)
+    }
+
+    @Test
+    fun anOpenedRowReadsOpened() {
+        val opened = items(
+            listOf(product("milk")),
+            listOf(batch("m1", "milk", inDays = 3).copy(openedOn = TODAY)),
+        ).single()
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(opened, TODAY, noActions, {}) }
+        }
+        compose.onNodeWithText("Opened").assertExists()
+        compose.onNodeWithTag("menu_m1").performClick()
+        compose.onNodeWithText("Mark opened").assertDoesNotExist()
+    }
+
+    @Test
     fun rowReadsNameQuantityStatusAndLocation() {
         val item = items(listOf(product("milk")), listOf(batch("m1", "milk", quantity = 2.0, inDays = 1))).single()
         compose.setContent {

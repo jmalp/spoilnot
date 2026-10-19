@@ -803,3 +803,19 @@ describe('recipe names taught to products', () => {
     await assertFails(setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i3`), groceryItem('bob', { aliasOf: 'x'.repeat(81) })));
   });
 });
+
+describe('opened batches', () => {
+  it('a batch may record when it was opened, as a date; a product how long it keeps once opened', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/stock/s1`), stock('bob', { openedOn: '2026-10-19', expiryDate: '2026-10-24' })));
+    await assertSucceeds(updateDoc(doc(db, `households/${HID}/stock/s1`), {
+      openedOn: null, expiryDate: '2026-10-30', updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }));
+    await assertFails(setDoc(doc(db, `households/${HID}/stock/s2`), stock('bob', { openedOn: 'today' })));
+    await assertFails(setDoc(doc(db, `households/${HID}/stock/s3`), stock('bob', { openedOn: 20261019 })));
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/products/p1`), product('bob', { openedShelfLifeDays: 5 })));
+    await assertFails(setDoc(doc(db, `households/${HID}/products/p2`), product('bob', { openedShelfLifeDays: 0 })));
+    await assertFails(setDoc(doc(db, `households/${HID}/products/p3`), product('bob', { openedShelfLifeDays: 2.5 })));
+    await assertFails(setDoc(doc(db, `households/${HID}/products/p4`), product('bob', { openedShelfLifeDays: 400 })));
+  });
+});

@@ -96,6 +96,7 @@ fun PantryScreen(
     var addingFor by remember { mutableStateOf<Product?>(null) }
     var throwing by remember { mutableStateOf<StockBatch?>(null) }
     var moving by remember { mutableStateOf<StockBatch?>(null) }
+    var opening by remember { mutableStateOf<StockBatch?>(null) }
     var editing by remember { mutableStateOf<StockBatch?>(null) }
     val listState = rememberLazyListState()
     // Collapses while scrolling or away from the top (DESIGN 6.5); derived so scrolling does not recompose the screen.
@@ -111,6 +112,7 @@ fun PantryScreen(
         onUsedUp = viewModel::usedUp,
         onThrowAway = { throwing = it },
         onMove = { moving = it },
+        onOpened = { opening = it },
     )
 
     TabScaffold(
@@ -199,6 +201,19 @@ fun PantryScreen(
             moving =
                 null
         })
+    }
+    opening?.let { batch ->
+        val product = state.data.products.firstOrNull { it.id == batch.productId }
+        OpenedSheet(
+            batch = batch,
+            rememberedDays = product?.openedShelfLifeDays,
+            today = state.today,
+            onSave = { count, days ->
+                viewModel.markOpened(batch, count, days, product)
+                opening = null
+            },
+            onDismiss = { opening = null },
+        )
     }
     editing?.let { batch ->
         val product = state.data.products.firstOrNull { it.id == batch.productId }

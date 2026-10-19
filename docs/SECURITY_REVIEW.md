@@ -51,6 +51,9 @@ Re-reviewed against 12.1: the documents hold numbers only, readable only by memb
 **After v1:** recipe names (2026-10-19): products accept `aliases` only as a list of at most 30; grocery items accept
 `aliasOf` only as null or a string of 1 to 80 characters. 1 test ("recipe names taught to products"), 71 in total.
 
+**After v1:** opened batches (2026-10-19): stock accepts `openedOn` only as null or a `YYYY-MM-DD` string, products
+`openedShelfLifeDays` only as null or a whole number from 1 to 365. 1 test ("opened batches"), 72 in total.
+
 Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
 deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed).
 

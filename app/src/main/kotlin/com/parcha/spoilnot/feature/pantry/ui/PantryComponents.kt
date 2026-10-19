@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
@@ -79,6 +80,8 @@ data class BatchActions(
     val onUsedUp: (StockBatch) -> Unit,
     val onThrowAway: (StockBatch) -> Unit,
     val onMove: (StockBatch) -> Unit,
+    /** Mark opened (after v1, DESIGN 5.2); offered only while the batch is sealed. */
+    val onOpened: (StockBatch) -> Unit = {},
 )
 
 /**
@@ -115,8 +118,10 @@ private fun PurchaseRow(
     val unit = stringResource(batch.unit.label())
     val location = stringResource(batch.location.label())
     val status = statusText(batch.expiryDate, batch.dateType, today)
+    val opened = if (batch.openedOn != null) stringResource(R.string.row_opened_suffix) else ""
     val description =
-        stringResource(R.string.row_description, item.name, formatQuantity(batch.quantity), unit, status, location)
+        stringResource(R.string.row_description, item.name, formatQuantity(batch.quantity), unit, status, location) +
+            opened
     val editLabel = stringResource(R.string.action_edit)
 
     Column(modifier.fillMaxWidth().testTag("pantry_item_${batch.id}")) {
@@ -164,6 +169,7 @@ private fun PurchaseRow(
                             ) {
                                 StatusChip(batch.expiryDate, batch.dateType, today)
                                 LocationLabel(batch.location, location)
+                                if (batch.openedOn != null) OpenedLabel()
                             }
                         }
                         Text(
@@ -238,6 +244,25 @@ private fun NameLine(name: String, low: Boolean, out: Boolean, pending: Boolean)
     }
 }
 
+/** "Opened", with an icon, so it never relies on color (DESIGN 6.4). */
+@Composable
+private fun OpenedLabel() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(
+            Icons.Rounded.LockOpen,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.pantry_opened),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
 @Composable
 private fun LocationLabel(location: Location, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -266,9 +291,10 @@ private fun PurchaseMenu(batch: StockBatch, actions: BatchActions) {
             Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.batch_options))
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            listOf(
+            listOfNotNull(
                 R.string.action_use_one to actions.onMinus,
                 R.string.action_add_one to actions.onPlus,
+                (R.string.action_mark_opened to actions.onOpened).takeIf { batch.openedOn == null },
                 R.string.action_used_up to actions.onUsedUp,
                 R.string.action_throw_away to actions.onThrowAway,
                 R.string.action_move to actions.onMove,

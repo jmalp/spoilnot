@@ -46,6 +46,55 @@ class PantryServiceTest {
         PantryData(products, batches, fromCache = false)
 
     @Test
+    fun `opening a whole batch shortens its date, remembers the days and undoes`() = runTest {
+        val milk = product("milk")
+        val b = batch("m1", "milk", quantity = 1.0, inDays = 20)
+        val undo = service.markOpened("h", actor, b, 1.0, 5, milk)
+        assertEquals(
+            listOf(
+                PantryChange.MarkOpened("m1", TODAY, TODAY.plusDays(5)),
+                PantryChange.SetOpenedShelfLife("milk", 5),
+            ),
+            repo.last,
+        )
+        assertEquals(listOf(PantryChange.MarkOpened("m1", null, TODAY.plusDays(20))), undo.changes)
+    }
+
+    @Test
+    fun `opening never moves the date later, and a remembered number of days is not written again`() = runTest {
+        val milk = product("milk").copy(openedShelfLifeDays = 7)
+        service.markOpened("h", actor, batch("m1", "milk", inDays = 2), 1.0, 7, milk)
+        assertEquals(listOf(PantryChange.MarkOpened("m1", TODAY, TODAY.plusDays(2))), repo.last)
+        service.markOpened("h", actor, batch("m2", "milk", inDays = null), 1.0, 7, milk)
+        assertEquals(listOf(PantryChange.MarkOpened("m2", TODAY, TODAY.plusDays(7))), repo.last)
+    }
+
+    @Test
+    fun `opening some of a batch in pieces moves them to their own batch`() = runTest {
+        val yogurts = batch("y1", "yogurt", quantity = 6.0, inDays = 14)
+        val undo = service.markOpened("h", actor, yogurts, 1.0, 3, null)
+        val part = (repo.last[1] as PantryChange.CreateBatch).batch
+        assertEquals(PantryChange.AddToBatch("y1", -1.0), repo.last[0])
+        assertEquals(1.0, part.quantity, 0.0)
+        assertEquals(TODAY, part.openedOn)
+        assertEquals(TODAY.plusDays(3), part.expiryDate)
+        assertEquals(listOf(PantryChange.DeleteBatch(part.id), PantryChange.AddToBatch("y1", 1.0)), undo.changes)
+    }
+
+    @Test
+    fun `new stock is not added to an opened batch`() = runTest {
+        val opened = batch("m1", "milk", quantity = 1.0, inDays = 7).copy(openedOn = TODAY)
+        service.add(
+            "h",
+            actor,
+            draft(name = "Milk", quantity = 1.0, inDays = 7),
+            data(listOf(product("milk")), listOf(opened)),
+        )
+        assertTrue(repo.last.any { it is PantryChange.CreateBatch })
+        assertTrue(repo.last.none { it is PantryChange.AddToBatch })
+    }
+
+    @Test
     fun `using takes the batch that expires first, uses up whole batches and undoes everything`() = runTest {
         val soon = batch("e1", "egg", quantity = 2.0, inDays = 2)
         val later = batch("e2", "egg", quantity = 6.0, inDays = 9)
