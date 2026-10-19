@@ -9,6 +9,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
+import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
@@ -149,6 +150,48 @@ class RecipeServiceTest {
         assertEquals("oil", items[0].productId)
         assertEquals(Category.PantryStaples, items[0].category)
         assertNull(items[1].productId)
+    }
+
+    @Test
+    fun `renaming a line to a pantry product uses it and teaches it the recipe's name`() = runTest {
+        val greenOnions = product("green", "Green onions").copy(lastAddedQuantity = 2.0)
+        val pantry = PantryData(listOf(greenOnions), emptyList(), false)
+        val r = recipe("r1", "Stir fry", ingredients = listOf("3 scallions, sliced"))
+        val original = RecipeGrocery.candidates(r, pantry, emptyList()).single()
+        assertEquals("Scallions", original.name)
+        assertNull(original.product)
+        val renamed = RecipeGrocery.rename(original, "green onions", pantry.products)
+        assertEquals("Green onions", renamed.name)
+        assertEquals(greenOnions, renamed.product)
+        assertEquals(2.0, renamed.quantity!!, 0.0)
+        assertEquals("scallions", renamed.aliasOf)
+        service.addToGrocery("h1", actor, "list1", r, listOf(renamed), pantry)
+        val changes = writer.applied.single()
+        assertTrue(PantryChange.AddAlias("green", "scallions") in changes)
+        assertNull(changes.filterIsInstance<GroceryChange.CreateItem>().single().item.aliasOf)
+        // Next time the recipe line finds the product by itself.
+        val taught = greenOnions.copy(aliases = listOf("scallions"))
+        val again = RecipeGrocery.candidates(r, PantryData(listOf(taught), emptyList(), false), emptyList()).single()
+        assertEquals("Green onions", again.name)
+    }
+
+    @Test
+    fun `renaming to a new name is remembered on the item until it becomes a product`() = runTest {
+        val r = recipe("r1", ingredients = listOf("2 scallions"))
+        val empty = PantryData(emptyList(), emptyList(), false)
+        val renamed = RecipeGrocery.rename(
+            RecipeGrocery.candidates(r, empty, emptyList()).single(),
+            "Spring onions",
+            emptyList(),
+        )
+        assertEquals(2.0, renamed.quantity!!, 0.0) // the recipe's count still applies
+        service.addToGrocery("h1", actor, "list1", r, listOf(renamed), empty)
+        val item = writer.applied.single().filterIsInstance<GroceryChange.CreateItem>().single().item
+        assertEquals("Spring onions", item.name)
+        assertEquals("scallions", item.aliasOf)
+        // Renaming back to the recipe's own name teaches nothing.
+        val back = RecipeGrocery.rename(renamed, "scallions", emptyList())
+        assertNull(back.aliasOf)
     }
 
     @Test

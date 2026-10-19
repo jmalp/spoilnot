@@ -4,11 +4,14 @@ import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
+import com.parcha.spoilnot.feature.pantry.domain.AddPlan
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
+import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
+import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
@@ -253,15 +256,37 @@ class GroceryService @Inject constructor(
                 ),
                 data,
             )
-            changes += plan.changes
+            val learned = learnAlias(entry.item.aliasOf, plan)
+            changes += learned.changes
             changes += GroceryChange.DeleteItem(listId, entry.item.id)
-            data = plan.after
+            data = learned.after
         }
         changes += skipped.map { GroceryChange.DeleteItem(listId, it.id) }
         if (changes.isNotEmpty()) writer.apply(householdId, actor, changes)
     }
 
     suspend fun undo(householdId: String, actor: Actor, undo: Undo) = writer.apply(householdId, actor, undo.changes)
+
+    /**
+     * A renamed recipe item teaches its product the recipe's name (DESIGN 5.5): a new product is created with it, an
+     * existing one gets it added, unless it already has it, it is the product's own name, or the product is full.
+     */
+    private fun learnAlias(alias: String?, plan: AddPlan): AddPlan {
+        if (alias.isNullOrEmpty()) return plan
+        val created = plan.changes.filterIsInstance<PantryChange.CreateProduct>().firstOrNull()
+        val product = plan.after.products.firstOrNull { it.id == plan.result.productId } ?: return plan
+        if (alias == product.nameKey || alias in product.aliases || product.aliases.size >= PantryLimits.MAX_ALIASES) {
+            return plan
+        }
+        val taught = product.copy(aliases = product.aliases + alias)
+        val changes = if (created != null) {
+            plan.changes.map { if (it == created) PantryChange.CreateProduct(taught) else it }
+        } else {
+            plan.changes + PantryChange.AddAlias(product.id, alias)
+        }
+        val after = plan.after.copy(products = plan.after.products.map { if (it.id == product.id) taught else it })
+        return plan.copy(changes = changes, after = after)
+    }
 
     private fun cleanListName(name: String): String {
         val clean = NameKey.clean(name)

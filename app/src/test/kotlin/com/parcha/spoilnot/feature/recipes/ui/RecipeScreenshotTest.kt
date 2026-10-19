@@ -99,13 +99,27 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
         val onions = product("onion", "Onions", unit = QuantityUnit.Pounds)
         Column(Modifier.padding(16.dp)) {
             val egg = product("egg", "Eggs")
-            CandidateRow(GroceryCandidate(eggs, "Eggs", 3.0, null, "Pancakes: 3 large eggs", egg, egg, false), false) {}
+            CandidateRow(
+                GroceryCandidate(
+                    eggs,
+                    "Eggs",
+                    3.0,
+                    null,
+                    "Pancakes: 3 large eggs",
+                    egg,
+                    egg,
+                    false,
+                ),
+                false,
+                onChange = {
+                },
+            )
             val salt = IngredientParser.parse("Salt to taste")
             CandidateRow(
                 GroceryCandidate(salt, "Salt", null, null, "Pancakes: Salt to taste", null, null, true),
                 false,
-            ) {
-            }
+                onChange = {},
+            )
             val onion = IngredientParser.parse("1 extra large onion, diced")
             CandidateRow(
                 GroceryCandidate(
@@ -119,7 +133,8 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                     false,
                 ),
                 true,
-            ) {}
+                onChange = {},
+            )
         }
     }
 

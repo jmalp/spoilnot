@@ -37,6 +37,11 @@ data class GroceryItem(
     val createdBy: String?,
     val createdAt: Instant?,
     val pendingSync: Boolean = false,
+    /**
+     * The recipe name (a name key) someone renamed this item from, remembered on the product it becomes when added
+     * to the pantry (after v1, DESIGN 5.5).
+     */
+    val aliasOf: String? = null,
 )
 
 /** One write in a grocery plan, applied by the HouseholdWriter together with any pantry changes. */

@@ -41,10 +41,17 @@ class PantryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     mapOf("restockArmed" to change.armed) + stamp,
                 )
 
+            // Aliases are written only here and by AddAlias (an array union), so edits never drop one.
             is PantryChange.CreateProduct ->
                 batch.set(
                     db.document("${products(hid)}/${change.product.id}"),
-                    productFields(change.product) + created + stamp,
+                    productFields(change.product) + mapOf("aliases" to change.product.aliases) + created + stamp,
+                )
+
+            is PantryChange.AddAlias ->
+                batch.update(
+                    db.document("${products(hid)}/${change.productId}"),
+                    mapOf("aliases" to FieldValue.arrayUnion(change.alias)) + stamp,
                 )
 
             is PantryChange.UpdateProduct ->

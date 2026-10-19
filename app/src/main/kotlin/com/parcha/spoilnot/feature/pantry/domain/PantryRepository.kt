@@ -24,6 +24,9 @@ sealed interface PantryChange : HouseholdChange {
     /** The restock engine's own flag only, so it never overwrites someone's concurrent product edit (DESIGN 9.6). */
     data class SetRestockArmed(val productId: String, val armed: Boolean) : PantryChange
 
+    /** Remembers that recipes call [productId] [alias] (a name key), without touching its other fields. */
+    data class AddAlias(val productId: String, val alias: String) : PantryChange
+
     data class CreateBatch(val batch: StockBatch) : PantryChange
 
     /** Adds [delta] with an atomic increment, so +1 and -1 from two phones commute (DESIGN 9.3). */

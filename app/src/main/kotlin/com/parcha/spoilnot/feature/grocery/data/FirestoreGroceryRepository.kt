@@ -78,6 +78,7 @@ class FirestoreGroceryRepository @Inject constructor(
             createdBy = getString("createdBy"),
             createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
             pendingSync = metadata.hasPendingWrites(),
+            aliasOf = getString("aliasOf"),
         )
     }
 }
