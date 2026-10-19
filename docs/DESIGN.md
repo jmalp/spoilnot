@@ -244,6 +244,7 @@ After v1, each ingredient is added as something you would buy, and the sheet sho
 - **Shopping amount.** Recipe measures (teaspoons, cups, grams) are never the item's amount. A linked product brings its usual amount: its Buy quantity, or how much was added last time (`lastAddedQuantity`). Otherwise only a count is kept ("3 eggs", "2 cans tomatoes").
 - **Note.** The recipe and its line ("Pancakes: 1 extra large onion, diced"). Lines that become the same item are added once, with their notes joined and counts added up.
 - **Change.** Each line has a Change button that opens "Add to the list as": a name field with the household's products that contain what is typed. Picking a product uses its name and usual amount.
+- **I cooked this (after v1).** Next to Add to grocery list, *I cooked this* opens "What did you use?": every in-stock product the recipe uses (matched as above), with how much the household has and an amount at the detail screen's servings. Lines the pantry can count start checked with the recipe's amount (a count for a product kept in pieces, or the same unit: "500 g rice" from rice in grams); measures it cannot count ("2 tbsp soy sauce" from a bottle) start unchecked with the whole stock, so checking means "finished it". Amounts can be changed. The amounts come off the batches that expire first; a batch taken to 0 is used up and counted for Insights (5.7). Recent activity shows "Sam cooked Omelette". One Undo puts everything back.
 - **Learning.** A change teaches the household's app the recipe's name for that product (`aliases`, name keys, at most 30 per product). A change to an existing product is remembered when the items are added; one to a new name rides on the grocery item (`aliasOf`) and is remembered when Add to pantry creates or finds the product. From then on that ingredient links to the product by itself, before any word matching. Changing a line back to the recipe's own name teaches nothing.
 
 **Duplicates.** Saving a URL that is already in the box shows “Already saved” with Open or Save a copy.
@@ -254,7 +255,7 @@ After v1, each ingredient is added as something you would buy, and the sheet sho
 
 **Use it up (after v1).** Up to three saved recipes that use food expiring today or within 3 days (not expired), with what each uses and when ("Uses Spinach (Tomorrow), Yogurt (3 days)"); tapping one opens the recipe. Recipes using the most expiring products come first, then the one using the soonest, then favorites. Ingredients are matched to products the same way as Add to grocery list (5.5: shopping name, remembered names, word match). The card shows only when there is a match. Home therefore reads the recipes on every open (with the changes-only listener, 9.8), not only after the first visit to Recipes.
 
-**Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason). Events older than 30 days are pruned by the reminder job.
+**Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason), and after v1 a recipe cooked. Events older than 30 days are pruned by the reminder job.
 
 **Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4); metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle.
 
@@ -532,7 +533,7 @@ households/{hid}/recipes/{recipeId}:
   importMethod: manual | web
   createdAt, createdBy, updatedAt, updatedBy
 households/{hid}/activity/{eventId}:
-  type: stock_added | grocery_added | grocery_checked | recipe_saved | member_joined | discarded
+  type: stock_added | grocery_added | grocery_checked | recipe_saved | member_joined | discarded | recipe_cooked (after v1)
   actorUid, actorName: string
   params: { name, quantity, reason, listName }    # whatever applies to the type
   createdAt: timestamp
@@ -1153,6 +1154,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
 | 2026-10-19 | Recipe ingredients go on the grocery list with shopping names, linked to the household's products, with shopping amounts and the recipe line as the note; products remember the amount last added | 5.5, 8.2, QA |
 | 2026-10-19 | Change in the Add to grocery list sheet, and the household's app remembers each change as a recipe name for that product; an ingredient no longer links to a product with more words | 5.5, 8.2, 12.3, QA |
+| 2026-10-19 | I cooked this: a recipe takes what it used off the pantry, soonest-expiring first, with Undo and a "cooked" activity event | 5.5, 5.6, 8.2, QA |
 | 2026-10-19 | Use it up on Home: saved recipes that use the most food expiring soon | 5.6, 9.7, QA, RUNBOOK |
 | 2026-10-19 | README rewritten from the owner's point of view: the app's purpose and features, and how it was designed and built with Claude Code; the developer commands moved out (they are in CLAUDE.md and the RUNBOOK) | README |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |

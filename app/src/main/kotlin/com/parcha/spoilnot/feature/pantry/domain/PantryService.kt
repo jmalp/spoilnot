@@ -138,6 +138,46 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
     }
 
     /**
+     * Takes [amounts] (product id to amount, in the product's unit) off the pantry in one write (DESIGN 5.5, "I cooked
+     * this"): the batch that expires first goes first, a batch taken to 0 is used up and counted for Insights, and
+     * [extra] (such as the activity event) is written with it. Amounts above the stock take what there is. One Undo
+     * puts every batch, count and [undoExtra] back. Returns null when there is nothing to take.
+     */
+    suspend fun use(
+        householdId: String,
+        actor: Actor,
+        amounts: Map<String, Double>,
+        data: PantryData,
+        extra: List<HouseholdChange> = emptyList(),
+        undoExtra: List<HouseholdChange> = emptyList(),
+    ): Undo? {
+        val changes = mutableListOf<HouseholdChange>()
+        val undo = mutableListOf<HouseholdChange>()
+        for ((productId, amount) in amounts) {
+            var left = amount
+            val batches = data.batches
+                .filter { it.productId == productId && it.quantity > 0 }
+                .sortedWith(compareBy(nullsLast()) { it: StockBatch -> it.expiryDate }.thenBy { it.createdAt })
+            for (batch in batches) {
+                if (left <= EPSILON) break
+                if (left >= batch.quantity - EPSILON) {
+                    val counted = StatsChange.usedUp(today())
+                    changes += listOf(PantryChange.DeleteBatch(batch.id), counted)
+                    undo += listOf(PantryChange.RestoreBatch(batch), StatsChange.undo(counted))
+                    left -= batch.quantity
+                } else {
+                    changes += PantryChange.AddToBatch(batch.id, -left)
+                    undo += PantryChange.AddToBatch(batch.id, left)
+                    left = 0.0
+                }
+            }
+        }
+        if (changes.isEmpty()) return null
+        writer.apply(householdId, actor, changes + extra)
+        return Undo(undo + undoExtra)
+    }
+
+    /**
      * Deletes the batch, logs why (DESIGN 5.2) and counts it for Insights. Undo restores the batch, removes the log
      * entry and takes the count back off the same month.
      */
@@ -295,3 +335,6 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         )
     }
 }
+
+/** Quantities are doubles; amounts this close count as equal. */
+private const val EPSILON = 1e-9

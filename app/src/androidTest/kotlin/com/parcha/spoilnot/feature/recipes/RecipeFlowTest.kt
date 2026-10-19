@@ -10,7 +10,13 @@ import com.parcha.spoilnot.TestPhone
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.Session
+import com.parcha.spoilnot.feature.pantry.domain.Category
+import com.parcha.spoilnot.feature.pantry.domain.DateType
+import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
+import com.parcha.spoilnot.feature.pantry.domain.StockDraft
+import com.parcha.spoilnot.feature.recipes.domain.Cooking
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeBoxData
@@ -18,6 +24,7 @@ import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
 import com.parcha.spoilnot.feature.recipes.domain.RecipeLines
 import com.parcha.spoilnot.feature.recipes.domain.SaveResult
+import java.time.LocalDate
 import kotlin.time.measureTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -156,5 +163,52 @@ class RecipeFlowTest {
         val paste = items.single { it.name == "Curry paste" }
         assertEquals("Chicken curry: 2 tbsp curry paste", paste.note)
         assertEquals(null, paste.quantity)
+    }
+
+    @Test
+    fun cookingTakesWhatTheRecipeUsedOffThePantryAndUndoPutsItBack() = runBlocking {
+        val today = LocalDate.now()
+        val egg = StockDraft(
+            "Eggs", 6.0, QuantityUnit.Pieces, today.plusDays(10), DateType.UseBy, Location.Fridge, Category.Dairy,
+            null, null, false, null,
+        )
+        val empty = withTimeout(20_000) { alice.pantryRepository.observe(householdId).first { !it.fromCache } }
+        alice.pantry.add(householdId, alice.actor, egg, empty)
+        val omelette =
+            RecipeContent(title = "Omelette", ingredients = RecipeLines.ingredients("3 large eggs\nSalt to taste"))
+        alice.recipes.save(householdId, alice.actor, omelette, emptyList())
+        val recipe = alice.box { it.recipes.isNotEmpty() }.recipes.single()
+        val pantry = withTimeout(20_000) {
+            alice.pantryRepository.observe(householdId).first { d ->
+                !d.fromCache &&
+                    d.batches.any { it.quantity == 6.0 }
+            }
+        }
+
+        val lines = Cooking.lines(recipe, pantry)
+        assertEquals(listOf("Eggs"), lines.map { it.product.name })
+        val (event, removeEvent) = alice.recipes.cookedEvent(recipe)
+        val undo = alice.pantry.use(
+            householdId,
+            alice.actor,
+            lines.associate { it.product.id to it.defaultAmount },
+            pantry,
+            listOf(event),
+            listOf(removeEvent),
+        )!!
+        withTimeout(20_000) {
+            bob.pantryRepository.observe(householdId).first { d -> d.batches.singleOrNull()?.quantity == 3.0 }
+        }
+        val cooked = withTimeout(20_000) {
+            bob.firestore.current.collection("households/$householdId/activity")
+                .whereEqualTo("type", "recipe_cooked").get().await()
+        }
+        assertEquals("Omelette", cooked.documents.single().get("params.name"))
+
+        alice.pantry.undo(householdId, alice.actor, undo)
+        withTimeout(20_000) {
+            bob.pantryRepository.observe(householdId).first { d -> d.batches.singleOrNull()?.quantity == 6.0 }
+        }
+        Unit
     }
 }

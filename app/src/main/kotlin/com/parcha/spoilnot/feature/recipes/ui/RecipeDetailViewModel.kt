@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.recipes.ui
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.ui.UiMessage
+import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
@@ -10,6 +11,9 @@ import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
+import com.parcha.spoilnot.feature.pantry.domain.PantryService
+import com.parcha.spoilnot.feature.recipes.domain.CookLine
+import com.parcha.spoilnot.feature.recipes.domain.Cooking
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
@@ -41,6 +45,7 @@ class RecipeDetailViewModel @AssistedInject constructor(
     pantry: PantryRepository,
     groceries: GroceryRepository,
     private val service: RecipeService,
+    private val pantryService: PantryService,
     private val events: RecipeEvents,
 ) : RecipeScopeViewModel(session) {
     @AssistedFactory
@@ -99,6 +104,44 @@ class RecipeDetailViewModel @AssistedInject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GroceryState())
+
+    /** The "I cooked this" sheet (DESIGN 5.5): the pantry products this recipe uses, at the chosen servings. */
+    data class CookState(
+        val lines: List<CookLine> = emptyList(),
+        val pantry: PantryData = PantryData(emptyList(), emptyList(), fromCache = true),
+        val loading: Boolean = true,
+    )
+
+    private val cookFactor = MutableStateFlow<Double?>(null)
+
+    val cook: StateFlow<CookState> = combine(householdId, cookFactor) { hid, factor -> factor?.let { hid to it } }
+        .flatMapLatest { open ->
+            val (hid, factor) = open ?: return@flatMapLatest flowOf(CookState())
+            if (hid == null) return@flatMapLatest flowOf(CookState())
+            combine(state, pantry.observe(hid).catch { }) { s, p ->
+                CookState(s.recipe?.let { Cooking.lines(it, p, factor) }.orEmpty(), p, loading = false)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CookState())
+
+    /** Opens the sheet at [factor] times the recipe's servings, or closes it with null. */
+    fun openCookSheet(factor: Double?) {
+        cookFactor.value = factor
+    }
+
+    /** Takes [amounts] (product id to amount) off the pantry and logs "cooked", with Undo for all of it. */
+    fun cooked(amounts: Map<String, Double>) {
+        val recipe = state.value.recipe ?: return
+        val pantryData = cook.value.pantry
+        act { hid, actor ->
+            val (event, removeEvent) = service.cookedEvent(recipe)
+            val undo = pantryService.use(hid, actor, amounts, pantryData, listOf(event), listOf(removeEvent))
+            cookFactor.value = null
+            show(UiMessage(R.string.recipe_cooked_done, recipe.title, undo))
+        }
+    }
+
+    fun undo(undo: Undo) = act { hid, actor -> pantryService.undo(hid, actor, undo) }
 
     fun openGrocerySheet(open: Boolean) {
         sheetOpen.value = open

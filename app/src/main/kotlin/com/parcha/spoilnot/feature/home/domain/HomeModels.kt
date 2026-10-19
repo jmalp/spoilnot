@@ -18,6 +18,9 @@ enum class ActivityType(val wire: String) {
     RecipeSaved("recipe_saved"),
     MemberJoined("member_joined"),
     Discarded("discarded"),
+
+    /** After v1: someone used "I cooked this" on a recipe. */
+    Cooked("recipe_cooked"),
     ;
 
     companion object {

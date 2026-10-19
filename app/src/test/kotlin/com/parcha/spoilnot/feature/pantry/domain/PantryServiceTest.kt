@@ -46,6 +46,45 @@ class PantryServiceTest {
         PantryData(products, batches, fromCache = false)
 
     @Test
+    fun `using takes the batch that expires first, uses up whole batches and undoes everything`() = runTest {
+        val soon = batch("e1", "egg", quantity = 2.0, inDays = 2)
+        val later = batch("e2", "egg", quantity = 6.0, inDays = 9)
+        val noDate = batch("e3", "egg", quantity = 1.0, inDays = null)
+        val data = data(listOf(product("egg")), listOf(later, noDate, soon))
+        val extra = PantryChange.DeleteEvent("x")
+        val undo = service.use("h", actor, mapOf("egg" to 5.0), data, listOf(extra), listOf(extra))!!
+        val month = YearMonth.from(TODAY)
+        assertEquals(
+            listOf(
+                PantryChange.DeleteBatch("e1"),
+                StatsChange.CountUsedUp(month, 1),
+                PantryChange.AddToBatch("e2", -3.0),
+                extra,
+            ),
+            repo.last,
+        )
+        assertEquals(
+            listOf(
+                PantryChange.RestoreBatch(soon),
+                StatsChange.CountUsedUp(month, -1),
+                PantryChange.AddToBatch("e2", 3.0),
+                extra,
+            ),
+            undo.changes,
+        )
+    }
+
+    @Test
+    fun `using more than there is takes it all, and nothing to take writes nothing`() = runTest {
+        val only = batch("m1", "milk", quantity = 1.0)
+        service.use("h", actor, mapOf("milk" to 3.0), data(listOf(product("milk")), listOf(only)))
+        assertEquals(PantryChange.DeleteBatch("m1"), repo.last.first())
+        val before = repo.last
+        assertNull(service.use("h", actor, mapOf("milk" to 1.0), data(listOf(product("milk")))))
+        assertEquals(before, repo.last)
+    }
+
+    @Test
     fun `each add remembers its amount on the product, in the product's unit only`() = runTest {
         service.add("h", actor, draft(name = "Onions", quantity = 3.0, unit = QuantityUnit.Pounds), data())
         assertEquals(3.0, (repo.last[0] as PantryChange.CreateProduct).product.lastAddedQuantity!!, 0.0)

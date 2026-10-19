@@ -71,6 +71,9 @@ sealed interface RecipeChange : HouseholdChange {
 
     /** The recipe_saved event in the activity log (DESIGN 8.2). */
     data class LogSaved(val eventId: String, val recipeId: String, val title: String) : RecipeChange
+
+    /** "Sam cooked Green curry" in Recent activity (after v1). */
+    data class LogCooked(val eventId: String, val recipeId: String, val title: String) : RecipeChange
 }
 
 /** Limits from DESIGN 11.6, also enforced by the security rules. */

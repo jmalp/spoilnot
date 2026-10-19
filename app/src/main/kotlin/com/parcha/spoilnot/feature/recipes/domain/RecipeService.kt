@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.recipes.domain
 
 import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryChange
@@ -238,6 +239,12 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
     }
 
     suspend fun undo(householdId: String, actor: Actor, undo: Undo) = writer.apply(householdId, actor, undo.changes)
+
+    /** The "cooked" activity event for [recipe] and the change that removes it again (Undo). */
+    fun cookedEvent(recipe: Recipe): Pair<HouseholdChange, HouseholdChange> {
+        val eventId = writer.newId()
+        return RecipeChange.LogCooked(eventId, recipe.id, recipe.title) to PantryChange.DeleteEvent(eventId)
+    }
 
     /** DESIGN 11.6 limits; the title is required. */
     fun validated(content: RecipeContent): RecipeContent {
