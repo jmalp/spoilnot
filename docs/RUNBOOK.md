@@ -179,17 +179,17 @@ deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 del
 household or a new feature.
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
-2026-10-18 with changes-only listeners (30 products, 60 batches, 25 grocery items, 15 recipes, this month's counts
-and 30 tombstones per household; 4 phones opening the app 8 times a day, the first open a full read, the 40 daily
-writes spread between opens, 10 of them finishing a batch):
+2026-10-19 with changes-only listeners and Use it up (30 products, 60 batches, 25 grocery items, 15 recipes, this
+month's counts and 30 tombstones per household; 4 phones opening the app 8 times a day, the first open a full read,
+Home reading recipes on every open, the 40 daily writes spread between opens, 10 of them finishing a batch):
 
 | Reads | Per day | Share of 50,000 |
 | --- | --- | --- |
-| App listeners | 13,440 | |
-| Security-rule lookups | 2,520 | |
+| App listeners | 13,640 | |
+| Security-rule lookups | 2,720 | |
 | Scheduled jobs (reminders, housekeeping, export) | 2,960 | |
-| **Total for 10 households** | **18,920** | **37.8%** |
-| Per household | about 1,890 | 3.8% |
+| **Total for 10 households** | **19,320** | **38.6%** |
+| Per household | about 1,930 | 3.9% |
 
 Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household).
 So the free plan holds about 18 households of this size under the 70% warning line. The largest

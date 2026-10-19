@@ -24,6 +24,8 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
+import com.parcha.spoilnot.feature.recipes.domain.UseItUp
+import com.parcha.spoilnot.feature.recipes.domain.recipe
 import java.time.YearMonth
 import org.junit.Rule
 import org.junit.Test
@@ -56,6 +58,11 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
         )
         val summary = HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY)
         val navigation = HomeNavigation({}, {}, {}, {})
+        val useItUp = UseItUp.suggestions(
+            listOf(recipe("r1", "Creamy milk pudding", ingredients = listOf("2 cups milk")), recipe("r2", "Toast")),
+            pantry,
+            TODAY,
+        )
         val october = YearMonth.from(TODAY)
         val insights = Insights.summary(
             listOf(
@@ -71,7 +78,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
                         Column(
                             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) { HomeCards(summary, TODAY, "me", navigation, insights) }
+                        ) { HomeCards(summary, TODAY, "me", navigation, insights, useItUp) }
                     }
                 }
             }

@@ -19,7 +19,6 @@ const QUOTA = { reads: 50_000, writes: 20_000 };
 const HOUSEHOLDS = Number(process.env.HOUSEHOLDS ?? 10);
 const PHONES = 4;
 const OPENS_PER_DAY = 8;
-const RECIPE_VISITS_PER_DAY = 3;
 const WRITES_PER_HOUSEHOLD = 40;
 const REMINDER_RUNS_PER_DAY = 24;
 // Of the day's writes, this many finish a batch (used up or thrown away) and also bump the month's Insights counts.
@@ -102,7 +101,7 @@ function once(ref) {
  * since the previous open (the app starts 5 minutes before its newest cached change; in reality a few documents
  * more). Each query costs at least one read.
  */
-async function open(db, uid, hid, isOwner, withRecipes, since) {
+async function open(db, uid, hid, isOwner, since) {
   const h = `households/${hid}`;
   const synced = (path) => (since ? query(collection(db, path), where('updatedAt', '>', since)) : collection(db, path));
   const targets = [
@@ -117,7 +116,7 @@ async function open(db, uid, hid, isOwner, withRecipes, since) {
     query(collection(db, `${h}/stats`), where(documentId(), '>=', MONTH)), // Home > Your kitchen this month
   ];
   if (isOwner) targets.push(collection(db, `${h}/joinRequests`)); // owner's badge
-  if (withRecipes) targets.push(synced(`${h}/recipes`)); // Recipes, when visited
+  targets.push(synced(`${h}/recipes`)); // Home > Use it up reads the recipes on every open (after v1)
   await Promise.all(targets.map(once));
   // Rules: every household-scoped query checks membership with one exists() (users and config need none).
   reads.ruleLookups += targets.length - 3;
@@ -143,8 +142,7 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
     for (let p = 0; p < PHONES; p++) {
       const since = lastOpen[p];
       lastOpen[p] = new Date();
-      // Recipes: visited on the first three opens.
-      await open(phones[p], `${hid}-u${p}`, hid, p === 0, o < RECIPE_VISITS_PER_DAY, since);
+      await open(phones[p], `${hid}-u${p}`, hid, p === 0, since);
     }
   }
   writes += WRITES_PER_HOUSEHOLD + FINISHES_PER_HOUSEHOLD;

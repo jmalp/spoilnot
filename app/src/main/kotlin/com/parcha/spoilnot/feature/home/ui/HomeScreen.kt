@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.rounded.DonutLarge
 import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.RestaurantMenu
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -64,7 +66,9 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
 import com.parcha.spoilnot.feature.pantry.domain.PantryRow
 import com.parcha.spoilnot.feature.pantry.ui.Badge
 import com.parcha.spoilnot.feature.pantry.ui.StatusChip
+import com.parcha.spoilnot.feature.pantry.ui.chipText
 import com.parcha.spoilnot.feature.pantry.ui.label
+import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import java.time.LocalDate
 
 /** Where the Home cards lead. */
@@ -74,6 +78,7 @@ class HomeNavigation(
     val openGroceries: () -> Unit,
     val reviewJoinRequests: () -> Unit,
     val openInsights: () -> Unit = {},
+    val openRecipe: (String) -> Unit = {},
 )
 
 /** How many rows a card lists before "See all". */
@@ -103,7 +108,7 @@ fun HomeScreen(
                 if (summary == null) {
                     repeat(4) { SkeletonCard() }
                 } else {
-                    HomeCards(summary, state.today, state.myUid, navigation, state.insights)
+                    HomeCards(summary, state.today, state.myUid, navigation, state.insights, state.useItUp)
                 }
             }
         }
@@ -117,6 +122,7 @@ internal fun HomeCards(
     myUid: String,
     navigation: HomeNavigation,
     insights: InsightsSummary? = null,
+    useItUp: List<UseItUpSuggestion> = emptyList(),
 ) {
     // Expired only: the Expiring soon filter would hide them.
     val attentionFilter =
@@ -138,6 +144,7 @@ internal fun HomeCards(
             summary.attention.take(CARD_ROWS).forEach { row -> AttentionRow(row, today) }
         }
     }
+    if (useItUp.isNotEmpty()) UseItUpCard(useItUp, today, navigation.openRecipe)
     HomeCard(
         title = stringResource(R.string.home_low_stock),
         icon = Icons.Rounded.Inventory2,
@@ -180,6 +187,47 @@ internal fun HomeCards(
             Calm(stringResource(R.string.home_activity_none))
         } else {
             summary.recent.forEach { ActivityLine(it, myUid) }
+        }
+    }
+}
+
+/**
+ * "Use it up" (DESIGN 5.6, after v1): saved recipes that use food expiring soon, each with what it uses and when that
+ * expires. Shown only when there is a match.
+ */
+@Composable
+private fun UseItUpCard(suggestions: List<UseItUpSuggestion>, today: LocalDate, onOpen: (String) -> Unit) {
+    HomeCard(
+        title = stringResource(R.string.home_use_it_up),
+        icon = Icons.Rounded.RestaurantMenu,
+        tag = "card_home_use_it_up",
+    ) {
+        suggestions.forEach { suggestion ->
+            // map is inline, so the composable chip text can be read for each use.
+            val uses = suggestion.uses.map { use ->
+                "${use.product.name} (${chipText(use.batch.expiryDate, use.batch.dateType, today)})"
+            }.joinToString(", ")
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClickLabel = stringResource(R.string.home_use_it_up_open)) {
+                        onOpen(suggestion.recipe.id)
+                    }
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = 4.dp),
+            ) {
+                Text(
+                    suggestion.recipe.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    stringResource(R.string.home_use_it_up_uses, uses),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

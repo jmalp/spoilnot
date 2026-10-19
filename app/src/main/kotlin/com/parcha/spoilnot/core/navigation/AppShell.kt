@@ -120,6 +120,7 @@ fun AppShell(
                     openGroceries = { navigator.showRoot(TopLevelDestination.Groceries) },
                     reviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
                     openInsights = { navigator.navigate(InsightsRoute(navigator.currentTab)) },
+                    openRecipe = openRecipe,
                 ),
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
             )
