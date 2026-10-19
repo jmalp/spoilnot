@@ -398,6 +398,7 @@
     <string name="recipe_add_to_list">Add to grocery list</string>
     <string name="recipe_pantry_hint">Items that look like they\'re in your pantry start unchecked.</string>
     <string name="recipe_probably_in_pantry">Probably in pantry</string>
+    <string name="recipe_adds_as">Adds as %1$s</string>
     <string name="recipe_on_the_list">Already on the list</string>
     <string name="recipe_select_all">Select all</string>
     <string name="recipe_select_none">Select none</string>

@@ -237,6 +237,13 @@ Example for three items. Title: “3 items need attention”. Body: “Throw awa
 
 **Add to grocery list.** Choose all or some ingredients. Ones that look like pantry items are pre-unchecked and tagged “In pantry” (simple name matching, section 11.5). Added items carry the source Recipe.
 
+After v1, each ingredient is added as something you would buy, and the sheet shows it under the line ("Adds as Onions × 3 lb"):
+
+- **Shopping name.** Size, preparation and freshness words are dropped ("1 extra-large onion, finely diced" becomes "Onion"), as is anything after a comma, in parentheses, after "or", and phrases such as "to taste" or "for garnish". Words that change what is bought stay (ground, whole, frozen, baby, hot).
+- **Linked to the household's product.** If a product means the same thing, in stock or not, the item takes its name, unit and category and its product link, so Add to pantry adds to that product instead of creating a near-duplicate. A product matches when its words are all in the ingredient with at most one more ("Black pepper" for "ground black pepper"), or when it is the only product with every word of the ingredient plus at most one more ("Yellow onion" for "onion"); the most shared words win. An unchecked item already on the list for the same product counts as already on the list.
+- **Shopping amount.** Recipe measures (teaspoons, cups, grams) are never the item's amount. A linked product brings its usual amount: its Buy quantity, or how much was added last time (`lastAddedQuantity`). Otherwise only a count is kept ("3 eggs", "2 cans tomatoes").
+- **Note.** The recipe and its line ("Pancakes: 1 extra large onion, diced"). Lines that become the same item are added once, with their notes joined and counts added up.
+
 **Duplicates.** Saving a URL that is already in the box shows “Already saved” with Open or Save a copy.
 
 ### 5.6 Home, activity and settings
@@ -476,6 +483,7 @@ households/{hid}/products/{productId}:
   buyQuantity: number | null
   restockArmed: bool                  # restock engine state (9.6); true when created
   typicalShelfLifeDays: int | null
+  lastAddedQuantity: number | null      # after v1: the amount added last time, in unit (5.5 recipe grocery amounts)
   createdAt, createdBy, updatedAt, updatedBy
 households/{hid}/stock/{stockId}:     # one batch
   productId: string
@@ -1137,6 +1145,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-18 | Changes-only listeners with tombstones: about 60% fewer reads (1,890 instead of 4,760 per household per day); the reminder job skips and purges tombstones; exports leave them out | 8.1, 8.5, 9.7, 9.8, 10.3, 12.3, 13.4, RUNBOOK, QA |
 | 2026-10-19 | Beta 4 (1.0.0-beta.4, build 5) with Insights, color themes, the baseline profile and changes-only listeners; rules deployed to both projects | 13.3, RUNBOOK |
 | 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
+| 2026-10-19 | Recipe ingredients go on the grocery list with shopping names, linked to the household's products, with shopping amounts and the recipe line as the note; products remember the amount last added | 5.5, 8.2, QA |
 | 2026-10-19 | README rewritten from the owner's point of view: the app's purpose and features, and how it was designed and built with Claude Code; the developer commands moved out (they are in CLAUDE.md and the RUNBOOK) | README |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 

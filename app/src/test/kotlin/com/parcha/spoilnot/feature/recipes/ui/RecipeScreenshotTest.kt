@@ -20,6 +20,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
 import com.parcha.spoilnot.feature.recipes.domain.IngredientParser
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
@@ -95,12 +96,30 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
     @Test
     fun groceryCandidates() = snap("recipe_grocery_candidates") {
         val eggs = IngredientParser.parse("3 large eggs")
+        val onions = product("onion", "Onions", unit = QuantityUnit.Pounds)
         Column(Modifier.padding(16.dp)) {
-            CandidateRow(GroceryCandidate(eggs, "large eggs", 3.0, null, null, product("egg", "Eggs"), false), false) {}
+            val egg = product("egg", "Eggs")
+            CandidateRow(GroceryCandidate(eggs, "Eggs", 3.0, null, "Pancakes: 3 large eggs", egg, egg, false), false) {}
             val salt = IngredientParser.parse("Salt to taste")
-            CandidateRow(GroceryCandidate(salt, "Salt to taste", null, null, null, null, true), false) {}
-            val flour = IngredientParser.parse("2 cups flour")
-            CandidateRow(GroceryCandidate(flour, "flour", null, null, "2 cup", null, false), true) {}
+            CandidateRow(
+                GroceryCandidate(salt, "Salt", null, null, "Pancakes: Salt to taste", null, null, true),
+                false,
+            ) {
+            }
+            val onion = IngredientParser.parse("1 extra large onion, diced")
+            CandidateRow(
+                GroceryCandidate(
+                    onion,
+                    "Onions",
+                    3.0,
+                    QuantityUnit.Pounds,
+                    "Pancakes: 1 extra large onion, diced",
+                    onions,
+                    null,
+                    false,
+                ),
+                true,
+            ) {}
         }
     }
 

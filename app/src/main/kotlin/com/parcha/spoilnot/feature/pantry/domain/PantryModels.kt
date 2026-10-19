@@ -88,6 +88,8 @@ data class Product(
     /** Shelf lives of the most recent batches, newest last (deviation, see docs/DECISIONS.md). */
     val recentShelfLifeDays: List<Int>,
     val createdAt: Instant?,
+    /** How much was added the last time, in [unit]: the usual amount for recipe grocery items (after v1). */
+    val lastAddedQuantity: Double? = null,
 ) {
     val isStaple: Boolean get() = minQuantity != null
 }

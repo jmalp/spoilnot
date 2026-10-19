@@ -24,11 +24,15 @@ sealed interface SaveResult {
 /** One ingredient in the Add to grocery list sheet (DESIGN 5.5). */
 data class GroceryCandidate(
     val ingredient: Ingredient,
+    /** The shopping name: the linked product's name, or the cleaned ingredient name ("Onion"). */
     val name: String,
+    /** A shopping amount: the product's usual amount, or a count from the recipe ("3 eggs"); never a measure. */
     val quantity: Double?,
     val unit: QuantityUnit?,
-    /** The measure that has no grocery unit, such as "2 tbsp", kept as the item's note. */
+    /** Where it comes from, with the recipe's amount: "Pancakes: 1 extra large onion, diced". */
     val note: String?,
+    /** The household product this ingredient means, in stock or not (after v1); null for a new one. */
+    val product: Product?,
     /** "Probably in pantry": pre-unchecked, never decided silently (DESIGN 11.5). */
     val inPantry: Product?,
     /** Already on the list unchecked; also pre-unchecked so it is not added twice. */
@@ -37,47 +41,77 @@ data class GroceryCandidate(
     val selectedByDefault: Boolean get() = inPantry == null && !onList
 }
 
+/**
+ * Recipe ingredients as grocery items (DESIGN 5.5, after v1): shopping names, linked to the household's products,
+ * with shopping amounts. Recipe measures (a tablespoon, a cup, 200 g) are what the recipe uses, not what is bought,
+ * so they stay in the note.
+ */
 object RecipeGrocery {
-    private val GROCERY_UNITS = mapOf(
-        "g" to QuantityUnit.Grams,
-        "kg" to QuantityUnit.Kilograms,
-        "ml" to QuantityUnit.Milliliters,
-        "l" to QuantityUnit.Liters,
-        "oz" to QuantityUnit.Ounces,
-        "lb" to QuantityUnit.Pounds,
-    )
-
     /** Units counted as pieces: "2 cans tomatoes" is 2 of an item called tomatoes. */
     private val COUNTED = setOf("can", "package", null)
 
+    /** Longest note kept on a grocery item. */
+    const val MAX_NOTE_LENGTH = 200
+
     fun candidates(recipe: Recipe, pantry: PantryData, listItems: List<GroceryItem>): List<GroceryCandidate> {
-        val onList = listItems.filter { !it.checked }.map { it.nameKey }.toSet()
+        val unchecked = listItems.filter { !it.checked }
+        val onListKeys = unchecked.map { it.nameKey }.toSet()
+        val onListProducts = unchecked.mapNotNull { it.productId }.toSet()
         return recipe.content.ingredients.map { ingredient ->
-            val parsed = if (ingredient.qty == null &&
-                ingredient.name == null
-            ) {
+            val parsed = if (ingredient.qty == null && ingredient.name == null) {
                 IngredientParser.parse(ingredient.raw)
             } else {
                 ingredient
             }
-            val name = NameKey.clean(parsed.name ?: parsed.raw).take(GroceryRules.MAX_NAME_LENGTH).trim()
-            val unit = GROCERY_UNITS[parsed.unit]
-            val counted = parsed.qty != null && parsed.unit in COUNTED
+            val cleaned = ShoppingName.of(parsed.name ?: parsed.raw)
+            val product = ProductLink.find(cleaned, pantry.products)
+            val name = (product?.name ?: cleaned).take(GroceryRules.MAX_NAME_LENGTH).trim()
+            val usual = product?.let { it.buyQuantity ?: it.lastAddedQuantity }
+            val count = parsed.qty?.takeIf {
+                parsed.unit in COUNTED &&
+                    (product == null || product.unit == QuantityUnit.Pieces)
+            }
             GroceryCandidate(
                 ingredient = ingredient,
                 name = name,
-                quantity = parsed.qty?.takeIf { unit != null || counted },
-                unit = unit,
-                note = if (parsed.qty != null && unit == null && !counted) {
-                    "${Scaling.formatQuantity(parsed.qty)} ${parsed.unit}"
-                } else {
-                    null
-                },
+                quantity = usual ?: count,
+                unit = if (usual != null) product.unit else null,
+                note = note(recipe.content.title, ingredient.raw),
+                product = product,
                 inPantry = PantryMatch.productFor(parsed.raw, pantry),
-                onList = NameKey.of(name) in onList,
+                onList = NameKey.of(name) in onListKeys || (product != null && product.id in onListProducts),
             )
         }
     }
+
+    private fun note(title: String, raw: String): String {
+        val text = "${title.trim()}: ${raw.trim()}".trim()
+        return if (text.length <= MAX_NOTE_LENGTH) text else text.take(MAX_NOTE_LENGTH - 1).trimEnd() + "…"
+    }
+
+    /**
+     * The items to add for [chosen]: one per shopping name, so "1 onion, diced" and "1 onion, sliced" become one
+     * Onion. Quantities add up when both have one in the same unit; notes are joined.
+     */
+    fun merge(chosen: List<GroceryCandidate>): List<GroceryCandidate> = chosen
+        .filter { it.name.isNotEmpty() }
+        .groupBy { NameKey.of(it.name) }
+        .values
+        .map { same ->
+            same.reduce { a, b ->
+                val quantity = when {
+                    a.quantity == null -> b.quantity
+                    b.quantity == null -> a.quantity
+                    a.unit == b.unit && a.product == null -> a.quantity + b.quantity
+                    else -> a.quantity // a product's usual amount covers both
+                }
+                val notes = listOfNotNull(a.note, b.note).joinToString("; ")
+                a.copy(
+                    quantity = quantity,
+                    note = if (notes.length <= MAX_NOTE_LENGTH) notes else notes.take(MAX_NOTE_LENGTH - 1) + "…",
+                )
+            }
+        }
 }
 
 /** Recipe box rules (DESIGN 5.5). Plans go to the HouseholdWriter. */
@@ -125,9 +159,9 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
         pantry: PantryData,
         listName: String? = null,
     ): Int {
-        val items = chosen.filter { it.name.isNotEmpty() }.map { c ->
+        val items = RecipeGrocery.merge(chosen).map { c ->
             val key = NameKey.of(c.name)
-            val product = pantry.products.firstOrNull { it.nameKey == key }
+            val product = c.product ?: pantry.products.firstOrNull { it.nameKey == key }
             GroceryItem(
                 id = writer.newId(),
                 name = product?.name ?: c.name,
