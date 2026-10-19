@@ -250,7 +250,9 @@ After v1, each ingredient is added as something you would buy, and the sheet sho
 
 ### 5.6 Home, activity and settings
 
-**Home** (first tab) has five cards: *Needs attention* (expired and expiring within 3 days; opens the filtered Pantry), *Low stock* (products below Keep at least), *Grocery list* (item count; opens the list), *Your kitchen this month* (after v1, 5.7; opens Insights) and *Recent activity* (last 10 events such as “Sam added Eggs to Groceries”). The household owner also sees a *Join requests* card while someone is waiting for approval.
+**Home** (first tab) has five cards: *Needs attention* (expired and expiring within 3 days; opens the filtered Pantry), after v1 *Use it up* (below), *Low stock* (products below Keep at least), *Grocery list* (item count; opens the list), *Your kitchen this month* (after v1, 5.7; opens Insights) and *Recent activity* (last 10 events such as “Sam added Eggs to Groceries”). The household owner also sees a *Join requests* card while someone is waiting for approval.
+
+**Use it up (after v1).** Up to three saved recipes that use food expiring today or within 3 days (not expired), with what each uses and when ("Uses Spinach (Tomorrow), Yogurt (3 days)"); tapping one opens the recipe. Recipes using the most expiring products come first, then the one using the soonest, then favorites. Ingredients are matched to products the same way as Add to grocery list (5.5: shopping name, remembered names, word match). The card shows only when there is a match. Home therefore reads the recipes on every open (with the changes-only listener, 9.8), not only after the first visit to Recipes.
 
 **Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason). Events older than 30 days are pruned by the reminder job.
 
@@ -648,7 +650,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
-- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes.
+- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930.
 - So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
@@ -1151,6 +1153,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
 | 2026-10-19 | Recipe ingredients go on the grocery list with shopping names, linked to the household's products, with shopping amounts and the recipe line as the note; products remember the amount last added | 5.5, 8.2, QA |
 | 2026-10-19 | Change in the Add to grocery list sheet, and the household's app remembers each change as a recipe name for that product; an ingredient no longer links to a product with more words | 5.5, 8.2, 12.3, QA |
+| 2026-10-19 | Use it up on Home: saved recipes that use the most food expiring soon | 5.6, 9.7, QA, RUNBOOK |
 | 2026-10-19 | README rewritten from the owner's point of view: the app's purpose and features, and how it was designed and built with Claude Code; the developer commands moved out (they are in CLAUDE.md and the RUNBOOK) | README |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 

@@ -461,6 +461,9 @@
         <item quantity="one">See %d in Pantry</item>
         <item quantity="other">See all %d in Pantry</item>
     </plurals>
+    <string name="home_use_it_up">Use it up</string>
+    <string name="home_use_it_up_uses">Uses %1$s</string>
+    <string name="home_use_it_up_open">Open recipe</string>
     <string name="home_recent_activity">Recent activity</string>
     <string name="home_activity_none">Changes by anyone in the household show up here.</string>
 

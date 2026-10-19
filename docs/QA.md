@@ -44,6 +44,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 12. Change: with "Green onions" in the pantry, add a recipe with "3 scallions, sliced". Tap Change on that line, type
     "onion", pick Green onions, Save, and add. On the list it is "Green onions". Open the sheet again (or on the other
     phone): "3 scallions" now adds as Green onions by itself.
+13. Use it up: give Spinach a date tomorrow and Yogurt one in 3 days; save a recipe using both and another using only
+    yogurt. Home shows Use it up with the two-ingredient recipe first ("Uses Spinach (Tomorrow), Yogurt (3 days)");
+    tapping it opens the recipe. With nothing expiring soon, the card is gone.
 
 ## 3. Conditions
 

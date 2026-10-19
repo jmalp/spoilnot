@@ -15,6 +15,9 @@ import com.parcha.spoilnot.feature.insights.domain.StatsRepository
 import com.parcha.spoilnot.feature.insights.ui.insightsFlow
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.ui.todayFlow
+import com.parcha.spoilnot.feature.recipes.domain.RecipeStore
+import com.parcha.spoilnot.feature.recipes.domain.UseItUp
+import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -45,6 +48,7 @@ class HomeViewModel @Inject constructor(
     grocery: GroceryRepository,
     activity: ActivityRepository,
     stats: StatsRepository,
+    recipes: RecipeStore,
     clock: Clock,
 ) : ViewModel() {
     data class UiState(
@@ -56,6 +60,8 @@ class HomeViewModel @Inject constructor(
         val myUid: String = "",
         /** This month's counts (DESIGN 5.7); null until loaded. */
         val insights: InsightsSummary? = null,
+        /** Saved recipes that use food expiring soon (DESIGN 5.6). */
+        val useItUp: List<UseItUpSuggestion> = emptyList(),
     )
 
     /** Only the current month: one document per open (DESIGN 9.7). */
@@ -78,8 +84,20 @@ class HomeViewModel @Inject constructor(
                 val recent: Flow<List<ActivityEvent>> = activity.observeRecent(hid, RECENT)
                     .catch { emit(emptyList()) }
                     .onStart { emit(emptyList()) }
-                combine(pantry.observe(hid).catch { }, items, recent, todayFlow(clock), insights) { p, i, r, today, s ->
-                    UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid, s)
+                val box = recipes.box.map { it?.recipes.orEmpty() }
+                val home =
+                    combine(
+                        pantry.observe(hid).catch {
+                        },
+                        items,
+                        recent,
+                        todayFlow(clock),
+                        insights,
+                    ) { p, i, r, today, s ->
+                        UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid, s) to p
+                    }
+                combine(home, box) { (state, p), saved ->
+                    state.copy(useItUp = UseItUp.suggestions(saved, p, state.today))
                 }
             }
         }
