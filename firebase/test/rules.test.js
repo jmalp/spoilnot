@@ -819,3 +819,14 @@ describe('opened batches', () => {
     await assertFails(setDoc(doc(db, `households/${HID}/products/p4`), product('bob', { openedShelfLifeDays: 400 })));
   });
 });
+
+describe('store order', () => {
+  it('members save a list\'s aisle order, as a short list, and nothing else changes with it', async () => {
+    const ref = doc(as('bob'), `households/${HID}/groceryLists/g1`);
+    await assertSucceeds(updateDoc(ref, { aisleOrder: ['produce', 'dairy', 'bakery'], updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { aisleOrder: 'produce', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { aisleOrder: Array.from({ length: 31 }, (_, i) => `a${i}`), updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { aisleOrder: ['dairy'], isDefault: false, updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('carol'), `households/${HID}/groceryLists/g1`), { aisleOrder: ['dairy'] }));
+  });
+});

@@ -53,6 +53,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 15. Mark opened: with 6 yogurts dated in 2 weeks, ⋮ > Mark opened, 1 of 6, 3 days. Two rows: 1 yogurt "Opened" expiring
     in 3 days, 5 sealed ones keep their date; Undo makes it one row again. Mark a milk with 2 days left opened for 1
     week: it keeps its date. Open another yogurt: 3 days is already chosen.
+16. Store order: put items from Bakery, Produce and Dairy on the list (from pantry products, so they have aisles).
+    In the store, check off Bakery first, then Produce, then Dairy. Next time those aisles show in that order on both
+    phones; another list keeps its own order.
 
 ## 3. Conditions
 

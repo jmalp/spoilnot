@@ -200,6 +200,8 @@ Saving writes a batch. If a batch for the same product, date and location alread
 
 **Interactions.** A quick-add field stays at the top; typing suggests pantry products and previously used names. Tap to check (strike-through; the item moves to a collapsed In cart section). Swipe to delete with Undo. Items are sorted by category, then time added. Clear checked removes everything in the cart.
 
+**Store order (after v1).** Aisles (item categories) on each list follow the order the household walks that store, learned from check-offs and saved on the list (`aisleOrder`), since lists are often for different stores. During a trip (check-offs on one list with no gap over 2 hours), when the first item of an aisle goes into the cart and the saved order puts that aisle before one already visited this trip, it moves to just after the last visited one; the first aisle of a trip changes nothing. A few trips settle the order; aisles never seen keep the default order after the learned ones. Items without a category stay in Other.
+
 **Done shopping, then Pantry.** When at least one item is checked, an **Add to pantry** button appears. It opens a sheet with one row per checked item: name, quantity, unit, expiry quick chips (pre-filled from typical shelf life) and location. Confirming creates the stock batches, creates products that do not exist yet, and removes those items from the list in a single batched write. Skip removes an item without adding stock.
 
 **Keep at least and automatic add.** Each product has *Keep at least N* and *Add to grocery list automatically*. When total stock drops below N, the product is added once to the default list as a Low stock item with quantity equal to the buy quantity (default: N minus current stock, minimum 1). The state machine is in section 9.6. Guarantees:
@@ -507,6 +509,7 @@ households/{hid}/stock/{stockId}:     # one batch
 households/{hid}/groceryLists/{listId}:
   name: string
   isDefault: bool
+  aisleOrder: [category]              # after v1: the store's aisle order, learned from check-offs (5.3)
   createdAt, updatedAt
 households/{hid}/groceryLists/{listId}/items/{itemId}:   # low-stock items use itemId = low_ + productId
   name, nameKey: string
@@ -1003,7 +1006,7 @@ service cloud.firestore {
 }
 ```
 
-Notes on the draft: after v1 the deployed rules (`firebase/firestore.rules`) also check tombstones (`deletedAt`, 9.8) on products, stock, items and recipes, recipe names on products (`aliases`, at most 30) and on items (`aliasOf`), opened batches (`openedOn`, a date) and products (`openedShelfLifeDays`, 1 to 365), and the Insights `stats` documents (5.7). The reminder job uses the Admin SDK, which bypasses rules. The household creation batch (household, owner member, invite code, user profile update) relies on `getAfter` and `existsAfter`. Always write `expiryDate` explicitly (null when there is none), because the stock rule reads it. To delete a household, the owner deletes every subcollection first, then the owner's own member document and the household document in the same batch.
+Notes on the draft: after v1 the deployed rules (`firebase/firestore.rules`) also check tombstones (`deletedAt`, 9.8) on products, stock, items and recipes, recipe names on products (`aliases`, at most 30) and on items (`aliasOf`), opened batches (`openedOn`, a date) and products (`openedShelfLifeDays`, 1 to 365), a list's `aisleOrder` (at most 30), and the Insights `stats` documents (5.7). The reminder job uses the Admin SDK, which bypasses rules. The household creation batch (household, owner member, invite code, user profile update) relies on `getAfter` and `existsAfter`. Always write `expiryDate` explicitly (null when there is none), because the stock rule reads it. To delete a household, the owner deletes every subcollection first, then the owner's own member document and the household document in the same batch.
 
 Joining takes two steps: the person creates a join request with a valid code, then the owner approves it in one batch that sets the request to approved and creates the member document (the rules accept a member document for someone else only in that case). Declining sets the request to declined; the person's app shows the result and deletes the request.
 
@@ -1158,6 +1161,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
 | 2026-10-19 | Recipe ingredients go on the grocery list with shopping names, linked to the household's products, with shopping amounts and the recipe line as the note; products remember the amount last added | 5.5, 8.2, QA |
 | 2026-10-19 | Change in the Add to grocery list sheet, and the household's app remembers each change as a recipe name for that product; an ingredient no longer links to a product with more words | 5.5, 8.2, 12.3, QA |
+| 2026-10-19 | Store order: each grocery list learns its store's aisle order from check-offs | 5.3, 8.2, 12.3, QA |
 | 2026-10-19 | Mark opened: a shorter date for opened food, the opened part of a batch in pieces on its own row, and each product remembers how long it keeps once opened | 5.2, 8.2, 12.3, QA |
 | 2026-10-19 | I cooked this: a recipe takes what it used off the pantry, soonest-expiring first, with Undo and a "cooked" activity event | 5.5, 5.6, 8.2, QA |
 | 2026-10-19 | Use it up on Home: saved recipes that use the most food expiring soon | 5.6, 9.7, QA, RUNBOOK |
