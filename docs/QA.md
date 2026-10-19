@@ -61,6 +61,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     away all 2 expired; tap it, then Undo. On a new household, the empty Home cards are one row each. The
     notification explanation appears on the third dated item, not the first. Pantry and grocery rows show "2", not
     "2 pcs". At font size 200%, Settings > Units shows radio buttons with full labels.
+18. Add to pantry: check off five items and tap Add to pantry. Each is one line ("2 · Fridge · Oct 26") and the
+    button says Add all 5 to pantry. Tap one line: its editor opens; turn on Skip: the line says Skipped and the
+    button Add 4 to pantry. Clear a quantity and confirm: that line opens with the error.
 
 ## 3. Conditions
 

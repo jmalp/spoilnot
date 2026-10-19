@@ -204,7 +204,7 @@ Saving writes a batch. If a batch for the same product, date and location alread
 
 **Store order (after v1).** Aisles (item categories) on each list follow the order the household walks that store, learned from check-offs and saved on the list (`aisleOrder`), since lists are often for different stores. During a trip (check-offs on one list with no gap over 2 hours), when the first item of an aisle goes into the cart and the saved order puts that aisle before one already visited this trip, it moves to just after the last visited one; the first aisle of a trip changes nothing. A few trips settle the order; aisles never seen keep the default order after the learned ones. Items without a category stay in Other.
 
-**Done shopping, then Pantry.** When at least one item is checked, an **Add to pantry** button appears. It opens a sheet with one row per checked item: name, quantity, unit, expiry quick chips (pre-filled from typical shelf life) and location. Confirming creates the stock batches, creates products that do not exist yet, and removes those items from the list in a single batched write. Skip removes an item without adding stock.
+**Done shopping, then Pantry.** When at least one item is checked, an **Add to pantry** button appears. It opens a sheet with one row per checked item: name, quantity, unit, expiry quick chips (pre-filled from typical shelf life) and location. After v1 each row is one line summing up what will be added ("2 · Fridge · Oct 26"); tapping it opens that row's editor, and the button reads **Add all N to pantry** when nothing is skipped (Remove from the list when everything is). An invalid amount opens its row. Confirming creates the stock batches, creates products that do not exist yet, and removes those items from the list in a single batched write. Skip removes an item without adding stock.
 
 **Keep at least and automatic add.** Each product has *Keep at least N* and *Add to grocery list automatically*. When total stock drops below N, the product is added once to the default list as a Low stock item with quantity equal to the buy quantity (default: N minus current stock, minimum 1). The state machine is in section 9.6. Guarantees:
 
@@ -1171,6 +1171,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Use it up on Home: saved recipes that use the most food expiring soon | 5.6, 9.7, QA, RUNBOOK |
 | 2026-10-19 | README rewritten from the owner's point of view: the app's purpose and features, and how it was designed and built with Claude Code; the developer commands moved out (they are in CLAUDE.md and the RUNBOOK) | README |
 | 2026-10-19 | Quick wins: aisle guess for typed grocery items, rename grocery items, Throw away all expired on Home, compact empty Home cards, the notification prompt after the third dated item, amounts without "pcs", stacked choices at large text sizes, and faster Use it up matching | 5.3, 5.4, 5.6, 6.5, QA |
+| 2026-10-19 | Add to pantry is one summary line per item with Add all; tapping a line edits it | 5.3, QA |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
