@@ -16,6 +16,17 @@ I'm a software developer, and I wanted to learn agentic software engineering pro
 snippets, but running a whole project with an AI agent doing the implementation while I own the product, the
 architecture and the quality bar. A small app that solves a real problem at home was a good way to practice that.
 
+## What I took from it
+
+- **The spec does the heavy lifting.** The more precise the design document and its acceptance criteria were, the
+  less I had to correct later.
+- **The agent needs firm boundaries.** It works best with clear rules on architecture, cost and security, and a
+  person deciding anything that touches real users, real data or real money.
+- **Small checkpoints beat one big review.** Milestones, acceptance checks and beta rounds gave me regular points to
+  steer instead of one large reveal at the end.
+- **Owning the product is still the job.** Most of my time went into deciding what to build, testing it with people
+  and reviewing what came back. Writing code was the smallest part.
+
 ## What the app does
 
 - **Pantry.** Everything in the house, with quantity, where it is stored (fridge, freezer, pantry) and its expiry
@@ -90,17 +101,6 @@ out at about seven households, I made cheaper syncing a priority, which cut read
 
 Every deviation from the design goes in [docs/DECISIONS.md](docs/DECISIONS.md) with its reason. After v1, every
 change also updates the design document in the same pull request, so anyone can trace why the app is the way it is.
-
-## What I took from it
-
-- **The spec does the heavy lifting.** The more precise the design document and its acceptance criteria were, the
-  less I had to correct later.
-- **The agent needs firm boundaries.** It works best with clear rules on architecture, cost and security, and a
-  person deciding anything that touches real users, real data or real money.
-- **Small checkpoints beat one big review.** Milestones, acceptance checks and beta rounds gave me regular points to
-  steer instead of one large reveal at the end.
-- **Owning the product is still the job.** Most of my time went into deciding what to build, testing it with people
-  and reviewing what came back. Writing code was the smallest part.
 
 ## Documentation
 
