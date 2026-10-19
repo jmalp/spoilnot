@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "spoilnot"
 include(":app")
+include(":benchmark")

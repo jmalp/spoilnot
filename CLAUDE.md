@@ -1,5 +1,8 @@
 # Spoil Not
 - Source of truth: docs/DESIGN.md. Deviations go in docs/DECISIONS.md (date, decision, reason).
+- v1 (M0–M7) is done. Every change from now on, in the same PR: update the DESIGN sections it affects, add a row to
+  DESIGN section 17 (Changes after v1), add DECISIONS entries, and keep tests and the other docs (RUNBOOK, QA,
+  PRIVACY, SECURITY_REVIEW) at the milestones' quality bar.
 - Android only. Stack: Kotlin, Jetpack Compose with Material 3, Navigation 3, Hilt, Coroutines and Flow, Firebase (Auth, Firestore, FCM) on the free Spark plan. Latest stable versions through gradle/libs.versions.toml.
 - Never add Cloud Functions, Cloud Storage or any paid Google Cloud service. Never commit secrets.
 - Composables and ViewModels never use Firebase classes. Only feature/*/data/ repositories touch Firestore (core/firebase only provides the SDK instances).
@@ -27,9 +30,10 @@
 - String resources: escape apostrophes (`\'`). A bad string fails the resource build, not `compileDevDebugKotlin`, so check `BUILD SUCCESSFUL`.
 
 ## Before finishing a task
-- `./gradlew spotlessApply` then `./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug`
+- `./gradlew spotlessApply` then `./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug :benchmark:compileBenchmarkKotlin`
 - `cd firebase && npm test` (rules tests in the Firestore emulator)
 - After UI changes: `./gradlew recordRoborazziDevDebug` and look at `app/build/outputs/roborazzi/*.png` (light/dark, font 1.0/2.0)
 - With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest` (includes the two-user household tests)
 - Recipe import changes: also run `LiveImportTest` against the real sites (command in docs/import-test-sites.md)
 - Changes to listeners or scheduled jobs: `cd firebase && npm run quota-sim` and compare with docs/RUNBOOK.md
+- Large UI changes (new screens or lists): `./scripts/baseline-profile.sh` and commit the new profile

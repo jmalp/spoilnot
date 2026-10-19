@@ -70,6 +70,7 @@ android {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
+            proguardFiles("benchmark-rules.pro")
             configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
         }
     }
@@ -162,6 +163,8 @@ dependencies {
     implementation(libs.androidx.browser)
     implementation(libs.aboutlibraries.compose.m3)
     implementation(libs.androidx.core.splashscreen)
+    // Installs the baseline profile (src/main/baselineProfiles) on phones that get the APK outside Google Play.
+    implementation(libs.androidx.profileinstaller)
     // AGP pins test dependencies to the app's versions; the test libraries need these slightly newer ones
     // (the app alone would resolve concurrent-futures 1.1.0 and fragment 1.5.1).
     implementation(libs.androidx.concurrent.futures)

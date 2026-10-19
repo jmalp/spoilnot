@@ -4,6 +4,7 @@ on:
   pull_request:
     paths: &paths
       - 'app/**'
+      - 'benchmark/**'
       - 'gradle/**'
       - '*.gradle.kts'
       - 'gradle.properties'
@@ -36,8 +37,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
-      - name: Format, lint, unit tests, build both flavors
-        run: ./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug
+      - name: Format, lint, unit tests, build both flavors, compile the benchmarks
+        run: ./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug :benchmark:compileBenchmarkKotlin
       - name: Upload reports on failure
         if: failure()
         uses: actions/upload-artifact@v7

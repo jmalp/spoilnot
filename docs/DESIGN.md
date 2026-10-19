@@ -31,6 +31,7 @@ This is the single source of truth for building Spoil Not v1. It is written for 
 - Some steps only the human can do: creating accounts, pasting keys, paying fees. They are listed in section 3. When you reach one, stop and ask the human for it with exact step-by-step instructions. Never invent credentials and never commit secrets.
 - Vendor facts (prices, free quotas, package status) were verified on October 7, 2026 and are listed with sources in Appendix C. Use the latest stable versions of the Android Gradle Plugin, Kotlin, Jetpack Compose and the Firebase BoM at build time, and re-verify anything that affects cost or security.
 - Record every deviation from this document in `docs/DECISIONS.md` (date, decision, reason).
+- **After v1.** Milestones M0 to M7 are complete (October 18, 2026). The document is now kept up to date with the app: every change updates the sections it affects and adds a row to section 17, and every decision still goes in `docs/DECISIONS.md`. Changes keep the same bar as the milestones: tests, checks and the other documents (runbook, QA script, privacy summary, security review) updated in the same pull request.
 
 ## 1. Product overview
 
@@ -290,7 +291,11 @@ Status MUST never rely on color alone: always icon plus text. Text contrast at l
 
 **Icons and haptics.** Material Symbols (rounded). Light haptic on check-off, medium on delete.
 
+**App icon.** "Fresh jar": a cream (#F5FBF5) jar with a leaf cut out of it on the brand green (#2E7D5B). The same shape is the monochrome (themed icon) layer, the notification icon and the welcome screen's mark.
+
 **6.5 Component patterns.** `SearchBar`, horizontally scrolling `FilterChip` rows, filled tonal `Card`s, list rows with a leading status icon, `SwipeToDismissBox` rows with background actions, `ModalBottomSheet` with a drag handle, snackbars with Undo, `SingleChoiceSegmentedButtonRow`, skeleton shimmer on first load only, and an `ExtendedFloatingActionButton` that collapses on scroll. Use `Scaffold` with edge-to-edge insets, support predictive back, and provide an adaptive launcher icon with a monochrome layer (themed icons).
+
+**Form sheets** (Add item, Edit, Add to pantry, Edit grocery item, Add to grocery list) close only when dragged past half their height; a quick flick never closes them, and Back or tapping outside still does. They stop below the status bar and pad only the bottom (navigation bar and keyboard), so their height never changes while they move.
 
 **6.6 Wireframes.** In these sketches (SK) is the avatar button that opens Settings; the row icons are ! urgent, \~ soon, ok fresh, o out of stock.
 
@@ -991,8 +996,9 @@ Joining takes two steps: the person creates a join request with a valid code, th
 - **Instrumented tests (`androidTest` with the Compose test rule and the Firebase emulators):** sign up, create a household, a second user requests to join with the code and the owner approves, add a pantry item, low-stock auto-add, propagation between two clients, an offline write followed by reconnect.
 - **Manual QA script per milestone:** physical devices (two different brands if possible), offline mode, time zone change, a DST day, notification permission denied, battery saver, 200% font.
 - **Performance budgets:** cold start under 2.5 s on a mid-range Android phone, 60 fps scrolling with 500 batches, initial household sync under 2 s on 4G.
+- **Baseline profile:** release builds ship a baseline profile (`app/src/main/baselineProfiles/baseline-prof.txt`) so start-up and the first scroll run precompiled code; `androidx.profileinstaller` installs it on phones that get the APK outside Google Play, where Android compiles it during the next idle maintenance. The `benchmark` module generates it (`BaselineProfileGenerator`) and measures cold start and the first Pantry scroll with and without it (`StartupBenchmark`, `PantryScrollBenchmark`) against the dev benchmark build and the emulators. Regenerate it with `./scripts/baseline-profile.sh` after large UI changes (docs/RUNBOOK.md).
 
-**13.2 CI** (GitHub Actions). On pull requests and main: `./gradlew spotlessCheck lintDebug testDebugUnitTest assembleDebug`, rules tests against the emulator, and reminder job tests. Use path filters, Gradle caching and a concurrency group to protect the 2,000 free private-repository minutes.
+**13.2 CI** (GitHub Actions). On pull requests and main: `./gradlew spotlessCheck lintDebug testDebugUnitTest assembleDebug`, rules tests against the emulator, and reminder job tests. After v1, CI also compiles the `benchmark` module (`:benchmark:compileBenchmarkKotlin`); the benchmarks themselves need an Android device and run by hand. Use path filters, Gradle caching and a concurrency group to protect the 2,000 free private-repository minutes.
 
 **13.3 Release and distribution**
 
@@ -1074,9 +1080,24 @@ Each milestone ends with its acceptance checks passing and a short summary to th
 
 ## 16. Roadmap after v1
 
-- **Next:** barcode scanning with the free Open Food Facts database, on-device camera reading of expiry dates, “use it up” recipe suggestions based on expiring items, opened-package tracking (a new expiry once opened), waste statistics, a push notification for the owner when someone asks to join.
+- **In progress (owner's order, October 18, 2026):** a baseline profile for a faster first start and scroll, waste statistics with charts on Home and an Insights screen, preset color themes, then cheaper syncing that reads only what changed (fewer free-quota reads).
+- **Next:** barcode scanning with the free Open Food Facts database, on-device camera reading of expiry dates, “use it up” recipe suggestions based on expiring items, opened-package tracking (a new expiry once opened).
+- **Dropped:** a push notification for the owner when someone asks to join (the owner decided it is not useful enough, October 18, 2026).
 - **Later:** meal planner, home-screen widgets (Jetpack Glance), receipt scanning, recipe photo upload (needs file storage), custom storage locations, import from Paprika export files.
 - **Maybe:** Google sign-in (Credential Manager), multiple households, biometric app lock, push notifications for household activity (needs Cloud Functions on the Blaze plan), voice add.
+
+## 17. Changes after v1
+
+Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.md`; the sections listed were updated.
+
+| Date | Change | Sections |
+| --- | --- | --- |
+| 2026-10-18 | Beta feedback round 2 shipped in beta 2 (pantry rows per purchase, one Add and Edit form, Cooked category, half-drag form sheets) | 5.2, 6.5 (through DECISIONS) |
+| 2026-10-18 | One-command beta releases (`scripts/release-beta.sh`) | 13.3, RUNBOOK |
+| 2026-10-18 | New launcher icon "Fresh jar" (the owner's choice of three) | 6.4, DECISIONS |
+| 2026-10-18 | Form sheets stop below the status bar (fixes endless shaking after a flick down) | 6.5, DECISIONS |
+| 2026-10-18 | Beta 3 (1.0.0-beta.3, build 4) | 13.3 |
+| 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
 
@@ -1116,7 +1137,9 @@ spoilnot/
   backend/reminder/       Node.js reminder job (src/, test/, package.json)
   firebase/               firestore.rules, firestore.indexes.json, firebase.json, rules tests
   docs/                   DESIGN.md, DECISIONS.md, RUNBOOK.md, PRIVACY.md, import-test-sites.md
-  .github/workflows/      ci.yml, reminders.yml
+  benchmark/              macrobenchmarks and the baseline profile generator (never shipped)
+  scripts/                emulators.sh, release-beta.sh, baseline-profile.sh
+  .github/workflows/      ci.yml, reminders.yml, nightly-export.yml, restore.yml, secret-scan.yml
   CLAUDE.md
 ```
 
