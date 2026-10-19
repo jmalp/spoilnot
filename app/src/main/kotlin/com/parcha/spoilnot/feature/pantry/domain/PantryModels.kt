@@ -95,6 +95,8 @@ data class Product(
      * to this product (after v1, DESIGN 5.5). At most [PantryLimits.MAX_ALIASES].
      */
     val aliases: List<String> = emptyList(),
+    /** How many days it keeps once opened, as last chosen in Mark opened (after v1, DESIGN 5.2). */
+    val openedShelfLifeDays: Int? = null,
 ) {
     val isStaple: Boolean get() = minQuantity != null
 }
@@ -114,6 +116,8 @@ data class StockBatch(
     val createdAt: Instant?,
     /** True while a local change has not reached the server (DESIGN 6.7 pending-sync icon). */
     val pendingSync: Boolean = false,
+    /** When it was opened (after v1, DESIGN 5.2); null while sealed. */
+    val openedOn: LocalDate? = null,
 )
 
 /** What a person enters in the Add item sheet. */
@@ -193,6 +197,9 @@ data class PantryEvent(
 }
 
 object PantryLimits {
+    /** The longest "use within" for Mark opened (DESIGN 5.2); the rules allow this. */
+    const val MAX_OPENED_DAYS = 365
+
     /** Recipe names remembered per product (DESIGN 5.5); the rules allow this many. */
     const val MAX_ALIASES = 30
 

@@ -89,6 +89,19 @@ class PantryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                 ) + stamp,
             )
 
+            is PantryChange.MarkOpened -> batch.update(
+                db.document("${stock(hid)}/${change.batchId}"),
+                mapOf(
+                    "openedOn" to change.openedOn?.toString(),
+                    "expiryDate" to change.expiryDate?.toString(),
+                ) + stamp,
+            )
+
+            is PantryChange.SetOpenedShelfLife -> batch.update(
+                db.document("${products(hid)}/${change.productId}"),
+                mapOf("openedShelfLifeDays" to change.days) + stamp,
+            )
+
             is PantryChange.SyncBatchProduct -> batch.update(
                 db.document("${stock(hid)}/${change.batchId}"),
                 mapOf("productName" to change.name, "unit" to change.unit.wire, "category" to change.category.wire) +

@@ -50,6 +50,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 14. I cooked this: with 6 eggs and a bottle of soy sauce, open a recipe with "3 large eggs" and "2 tbsp soy sauce"
     and tap I cooked this. Eggs are checked with 3; Soy sauce is unchecked with 1. Take 1 item off: the pantry has 3
     eggs on both phones and Recent activity says you cooked it. Undo: 6 eggs again.
+15. Mark opened: with 6 yogurts dated in 2 weeks, ⋮ > Mark opened, 1 of 6, 3 days. Two rows: 1 yogurt "Opened" expiring
+    in 3 days, 5 sealed ones keep their date; Undo makes it one row again. Mark a milk with 2 days left opened for 1
+    week: it keeps its date. Open another yogurt: 3 days is already chosen.
 
 ## 3. Conditions
 

@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.pantry.domain
 
 import com.parcha.spoilnot.core.write.HouseholdChange
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
 /** The household's products and batches as the listeners currently see them (DESIGN 9.1). */
@@ -23,6 +24,12 @@ sealed interface PantryChange : HouseholdChange {
 
     /** The restock engine's own flag only, so it never overwrites someone's concurrent product edit (DESIGN 9.6). */
     data class SetRestockArmed(val productId: String, val armed: Boolean) : PantryChange
+
+    /** Marks a batch opened on [openedOn] with its new [expiryDate]; null [openedOn] puts it back (Undo). */
+    data class MarkOpened(val batchId: String, val openedOn: LocalDate?, val expiryDate: LocalDate?) : PantryChange
+
+    /** Remembers how long [productId] keeps once opened, without touching its other fields. */
+    data class SetOpenedShelfLife(val productId: String, val days: Int) : PantryChange
 
     /** Remembers that recipes call [productId] [alias] (a name key), without touching its other fields. */
     data class AddAlias(val productId: String, val alias: String) : PantryChange

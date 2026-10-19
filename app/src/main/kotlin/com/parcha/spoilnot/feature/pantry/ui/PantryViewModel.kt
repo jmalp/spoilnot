@@ -27,6 +27,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryQuery
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.domain.PantrySort
+import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -170,6 +171,12 @@ class PantryViewModel @Inject constructor(
 
     fun usedUp(batch: StockBatch) = act { hid, actor ->
         _messages.send(UiMessage(R.string.undo_used_up, batch.productName, service.usedUp(hid, actor, batch)))
+    }
+
+    /** Mark opened (DESIGN 5.2): [count] of [batch], to be used within [days]; with Undo. */
+    fun markOpened(batch: StockBatch, count: Double, days: Int, product: Product?) = act { hid, actor ->
+        val undo = service.markOpened(hid, actor, batch, count, days, product)
+        _messages.send(UiMessage(R.string.undo_opened, batch.productName, undo))
     }
 
     fun throwAway(batch: StockBatch, reason: DiscardReason) = act { hid, actor ->

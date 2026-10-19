@@ -178,6 +178,8 @@ Saving writes a batch. If a batch for the same product, date and location alread
 
 **Learning shelf life.** When a batch is saved, set the product's `typicalShelfLifeDays` to the median of (expiry date minus date added) over its last 5 batches. It is only used to pre-fill the date.
 
+**Opened (after v1).** A sealed batch's ⋮ menu has *Mark opened*: "Use within" 1 day, 3 days, 5 days, 1 week, 2 weeks or 1 month (and the product's remembered number if it is another), starting from what was chosen for that product last time (`openedShelfLifeDays`), else 1 week. The batch's date becomes today plus that, but never later than the date it has, and the sheet shows the result. For a batch kept in pieces with more than one, it asks how many were opened (default 1) and moves those to their own batch. Opened batches show "Opened" with an icon (and ", opened" to screen readers), no longer offer Mark opened, and new stock is not added to them. Undo puts the batch back.
+
 **Status rules.** With `days = expiryDate - today` in the user's local calendar:
 
 | days | Status | Use by wording | Best before wording |
@@ -490,6 +492,7 @@ households/{hid}/products/{productId}:
   typicalShelfLifeDays: int | null
   lastAddedQuantity: number | null      # after v1: the amount added last time, in unit (5.5 recipe grocery amounts)
   aliases: [string]                     # after v1: recipe names taught by Change (5.5), name keys, at most 30
+  openedShelfLifeDays: int | null       # after v1: days it keeps once opened, last chosen in Mark opened (5.2)
   createdAt, createdBy, updatedAt, updatedBy
 households/{hid}/stock/{stockId}:     # one batch
   productId: string
@@ -499,6 +502,7 @@ households/{hid}/stock/{stockId}:     # one batch
   dateType: use_by | best_before
   location: fridge | freezer | pantry | other
   note: string | null
+  openedOn: 'YYYY-MM-DD' | null       # after v1: when it was opened (5.2)
   createdAt, createdBy, updatedAt, updatedBy
 households/{hid}/groceryLists/{listId}:
   name: string
@@ -999,7 +1003,7 @@ service cloud.firestore {
 }
 ```
 
-Notes on the draft: after v1 the deployed rules (`firebase/firestore.rules`) also check tombstones (`deletedAt`, 9.8) on products, stock, items and recipes, recipe names on products (`aliases`, at most 30) and on items (`aliasOf`), and the Insights `stats` documents (5.7). The reminder job uses the Admin SDK, which bypasses rules. The household creation batch (household, owner member, invite code, user profile update) relies on `getAfter` and `existsAfter`. Always write `expiryDate` explicitly (null when there is none), because the stock rule reads it. To delete a household, the owner deletes every subcollection first, then the owner's own member document and the household document in the same batch.
+Notes on the draft: after v1 the deployed rules (`firebase/firestore.rules`) also check tombstones (`deletedAt`, 9.8) on products, stock, items and recipes, recipe names on products (`aliases`, at most 30) and on items (`aliasOf`), opened batches (`openedOn`, a date) and products (`openedShelfLifeDays`, 1 to 365), and the Insights `stats` documents (5.7). The reminder job uses the Admin SDK, which bypasses rules. The household creation batch (household, owner member, invite code, user profile update) relies on `getAfter` and `existsAfter`. Always write `expiryDate` explicitly (null when there is none), because the stock rule reads it. To delete a household, the owner deletes every subcollection first, then the owner's own member document and the household document in the same batch.
 
 Joining takes two steps: the person creates a join request with a valid code, then the owner approves it in one batch that sets the request to approved and creates the member document (the rules accept a member document for someone else only in that case). Declining sets the request to declined; the person's app shows the result and deletes the request.
 
@@ -1154,6 +1158,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
 | 2026-10-19 | Recipe ingredients go on the grocery list with shopping names, linked to the household's products, with shopping amounts and the recipe line as the note; products remember the amount last added | 5.5, 8.2, QA |
 | 2026-10-19 | Change in the Add to grocery list sheet, and the household's app remembers each change as a recipe name for that product; an ingredient no longer links to a product with more words | 5.5, 8.2, 12.3, QA |
+| 2026-10-19 | Mark opened: a shorter date for opened food, the opened part of a batch in pieces on its own row, and each product remembers how long it keeps once opened | 5.2, 8.2, 12.3, QA |
 | 2026-10-19 | I cooked this: a recipe takes what it used off the pantry, soonest-expiring first, with Undo and a "cooked" activity event | 5.5, 5.6, 8.2, QA |
 | 2026-10-19 | Use it up on Home: saved recipes that use the most food expiring soon | 5.6, 9.7, QA, RUNBOOK |
 | 2026-10-19 | README rewritten from the owner's point of view: the app's purpose and features, and how it was designed and built with Claude Code; the developer commands moved out (they are in CLAUDE.md and the RUNBOOK) | README |

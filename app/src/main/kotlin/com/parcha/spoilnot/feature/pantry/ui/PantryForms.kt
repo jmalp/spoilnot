@@ -499,7 +499,12 @@ private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDat
         ) {
             Icon(Icons.Rounded.CalendarMonth, contentDescription = null)
             Text(
-                value?.let { "${formatDate(it, today)} · ${statusText(it, DateType.UseBy, today)}" }
+                // Far-off dates read as the date itself; show it once ("Nov 2", not "Nov 2 · Nov 2").
+                value?.let {
+                    val date = formatDate(it, today)
+                    val status = statusText(it, DateType.UseBy, today)
+                    if (status == date) date else "$date · $status"
+                }
                     ?: stringResource(R.string.status_no_date),
                 Modifier.padding(start = 8.dp),
             )

@@ -81,6 +81,7 @@ class FirestorePantryRepository @Inject constructor(
             "typicalShelfLifeDays" to p.typicalShelfLifeDays,
             "recentShelfLifeDays" to p.recentShelfLifeDays,
             "lastAddedQuantity" to p.lastAddedQuantity,
+            "openedShelfLifeDays" to p.openedShelfLifeDays,
         )
 
         fun batchFields(b: StockBatch) = mapOf(
@@ -93,6 +94,7 @@ class FirestorePantryRepository @Inject constructor(
             "dateType" to b.dateType.wire,
             "location" to b.location.wire,
             "note" to b.note,
+            "openedOn" to b.openedOn?.toString(),
         )
 
         // New fields are optional on read with defaults, because phones run different versions (DESIGN 8.1).
@@ -114,6 +116,7 @@ class FirestorePantryRepository @Inject constructor(
             createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
             lastAddedQuantity = getDouble("lastAddedQuantity"),
             aliases = (get("aliases") as? List<*>)?.filterIsInstance<String>().orEmpty(),
+            openedShelfLifeDays = getLong("openedShelfLifeDays")?.toInt(),
         )
 
         fun DocumentSnapshot.toBatch() = StockBatch(
@@ -129,6 +132,7 @@ class FirestorePantryRepository @Inject constructor(
             note = getString("note"),
             createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
             pendingSync = metadata.hasPendingWrites(),
+            openedOn = getString("openedOn")?.let { parseDate(it) },
         )
 
         fun DocumentSnapshot.toEvent(): PantryEvent? {

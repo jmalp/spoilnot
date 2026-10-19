@@ -80,8 +80,9 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         }
 
         val target = data.batches.firstOrNull {
+            // An opened batch keeps to itself: new, sealed stock is not added to it.
             it.productId == product.id && it.expiryDate == draft.expiryDate && it.location == draft.location &&
-                it.quantity > 0
+                it.quantity > 0 && it.openedOn == null
         }
         var batches = data.batches
         val batchId = if (target != null) {
@@ -135,6 +136,50 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         val counted = StatsChange.usedUp(today())
         writer.apply(householdId, actor, listOf(PantryChange.DeleteBatch(batch.id), counted))
         return Undo(listOf(PantryChange.RestoreBatch(batch), StatsChange.undo(counted)))
+    }
+
+    /**
+     * Marks [count] of [batch] opened today, to be used within [days] (DESIGN 5.2, after v1). The date only ever
+     * moves earlier. Opening some of a batch kept in pieces ("1 of 6 yogurts") moves those to a batch of their own;
+     * otherwise the whole batch is opened. [product] remembers [days] for next time. Undo puts the batch back as it
+     * was (the remembered days stay).
+     */
+    suspend fun markOpened(
+        householdId: String,
+        actor: Actor,
+        batch: StockBatch,
+        count: Double,
+        days: Int,
+        product: Product?,
+    ): Undo {
+        require(days in 1..PantryLimits.MAX_OPENED_DAYS) { "Invalid days" }
+        val opened = today()
+        val byDays = opened.plusDays(days.toLong())
+        val expiry = batch.expiryDate?.let { minOf(it, byDays) } ?: byDays
+        val changes = mutableListOf<HouseholdChange>()
+        val undo = mutableListOf<HouseholdChange>()
+        val splits = batch.unit == QuantityUnit.Pieces && count > 0 && count < batch.quantity - EPSILON
+        if (splits) {
+            val part = batch.copy(
+                id = writer.newId(),
+                quantity = count,
+                expiryDate = expiry,
+                openedOn = opened,
+                createdAt = null,
+            )
+            changes += listOf(PantryChange.AddToBatch(batch.id, -count), PantryChange.CreateBatch(part))
+            undo += listOf(PantryChange.DeleteBatch(part.id), PantryChange.AddToBatch(batch.id, count))
+        } else {
+            changes += PantryChange.MarkOpened(batch.id, opened, expiry)
+            undo += PantryChange.MarkOpened(batch.id, batch.openedOn, batch.expiryDate)
+        }
+        if (product != null &&
+            product.openedShelfLifeDays != days
+        ) {
+            changes += PantryChange.SetOpenedShelfLife(product.id, days)
+        }
+        writer.apply(householdId, actor, changes)
+        return Undo(undo)
     }
 
     /**
