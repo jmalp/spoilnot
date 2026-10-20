@@ -76,6 +76,16 @@ fun SettingsScreen(
     val content by viewModel.content.collectAsStateWithLifecycle()
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    // Clear household data (owner, after v1): an "are you sure" step, then the owner's password.
+    var clearStep by rememberSaveable { mutableStateOf(ClearStep.None) }
+    val clearedText = stringResource(R.string.clear_household_done)
+    LaunchedEffect(state.householdCleared) {
+        if (state.householdCleared) {
+            clearStep = ClearStep.None
+            snackbar.showSnackbar(clearedText)
+            viewModel.dismissHouseholdCleared()
+        }
+    }
     val transparent = ListItemDefaults.colors(containerColor = Color.Transparent)
 
     DetailScaffold(
@@ -88,7 +98,9 @@ fun SettingsScreen(
             Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            ErrorText(state.error?.takeIf { !confirmDelete }?.let { stringResource(it) })
+            ErrorText(
+                state.error?.takeIf { !confirmDelete && clearStep == ClearStep.None }?.let { stringResource(it) },
+            )
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Text(
                     stringResource(R.string.settings_account),
@@ -195,7 +207,53 @@ fun SettingsScreen(
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) { Text(stringResource(R.string.action_delete_account)) }
+            if (content?.isOwner == true) {
+                TextButton(
+                    onClick = {
+                        viewModel.dismissError()
+                        clearStep = ClearStep.AreYouSure
+                    },
+                    enabled = !state.busy,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("button_clear_household"),
+                ) { Text(stringResource(R.string.action_clear_household)) }
+            }
         }
+    }
+
+    when (clearStep) {
+        ClearStep.None -> Unit
+
+        ClearStep.AreYouSure -> AlertDialog(
+            onDismissRequest = { clearStep = ClearStep.None },
+            title = { Text(stringResource(R.string.clear_household_title)) },
+            text = {
+                Text(stringResource(R.string.clear_household_body, content?.householdName.orEmpty()))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { clearStep = ClearStep.Password },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("clear_household_yes"),
+                ) { Text(stringResource(R.string.clear_household_yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { clearStep = ClearStep.None }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+
+        ClearStep.Password -> PasswordConfirmDialog(
+            title = stringResource(R.string.clear_household_password_title),
+            body = stringResource(R.string.clear_household_password_body),
+            action = stringResource(R.string.clear_household_confirm),
+            busy = state.busy,
+            error = state.error,
+            onDismiss = {
+                viewModel.dismissError()
+                clearStep = ClearStep.None
+            },
+            onConfirm = viewModel::clearHouseholdData,
+        )
     }
 
     if (confirmDelete) {
@@ -206,6 +264,45 @@ fun SettingsScreen(
             onDelete = viewModel::deleteAccount,
         )
     }
+}
+
+/** The steps of Clear household data. */
+private enum class ClearStep { None, AreYouSure, Password }
+
+/** A password field with a destructive action, for the last step of Clear household data. */
+@Composable
+private fun PasswordConfirmDialog(
+    title: String,
+    body: String,
+    action: String,
+    busy: Boolean,
+    error: Int?,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(body)
+                PasswordField(value = password, onValueChange = {
+                    password = it
+                }, onImeAction = { onConfirm(password) })
+                ErrorText(error?.let { stringResource(it) })
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(password) },
+                enabled = !busy && password.isNotEmpty(),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.testTag("clear_household_confirm"),
+            ) { Text(action) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 @Composable

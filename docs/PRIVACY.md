@@ -45,7 +45,8 @@ cleared when you sign out, leave a household or are removed from it.
 
 - **Export:** Settings > Data > Export household data saves everything above as a JSON file.
 - **Delete account:** Settings > Delete account removes your profile, devices and membership, then your sign-in.
-  Household data you added stays with the household; the owner can delete the whole household.
+  Household data you added stays with the household; the owner can delete the whole household, or clear its data
+  (Settings > Clear household data, after their password) and keep the household and its members.
 - **Notifications and crash reports** can be turned off in Settings.
 
 Questions: ask the person who invited you to the beta.

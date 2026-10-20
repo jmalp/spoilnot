@@ -142,6 +142,10 @@ To find an export: **Actions → nightly-export →** pick a run (its URL ends w
 
 ### Restore a household
 
+This is also the way back after an owner's **Clear household data** (Settings): pick the export from the night before
+the clear. It brings back products, stock, lists and their items, recipes and the monthly counts; the cleared
+activity does not come back.
+
 Restoring writes back the export's products, stock, grocery lists and their items, and recipes, exactly as they
 were. It never changes the household document or its members (they control access), and it leaves documents created
 after the export alone. Anything deleted since the export comes back; anything changed since goes back to the

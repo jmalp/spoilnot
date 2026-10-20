@@ -830,3 +830,48 @@ describe('store order', () => {
     await assertFails(updateDoc(doc(as('carol'), `households/${HID}/groceryLists/g1`), { aisleOrder: ['dairy'] }));
   });
 });
+
+// Settings > Clear household data (owner, after v1, DESIGN 5.1): the app's batch, as the owner and as a member.
+describe('clear household data', () => {
+  const tombstone = (uid) => ({ deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid });
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      const t = new Date('2026-10-01T00:00:00Z');
+      await setDoc(doc(db, `households/${HID}/stock/s1`), stock('bob'));
+      await setDoc(doc(db, `households/${HID}/recipes/r1`), recipe('bob'));
+      await setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i1`), groceryItem('bob'));
+      await setDoc(doc(db, `households/${HID}/groceryLists/g2`), { name: 'Party', isDefault: false, createdAt: t, updatedAt: t });
+      await setDoc(doc(db, `households/${HID}/groceryLists/g2/items/i2`), groceryItem('bob'));
+      await setDoc(doc(db, `households/${HID}/activity/a1`), { type: 'stock_added', actorUid: 'bob', actorName: 'Bob', params: {}, createdAt: t });
+      await setDoc(doc(db, `households/${HID}/stats/2026-10`), { used: 3, updatedAt: t, updatedBy: 'bob' });
+    });
+  });
+
+  function clearBatch(uid) {
+    const db = as(uid);
+    const h = `households/${HID}`;
+    const batch = writeBatch(db);
+    for (const path of ['stock/s1', 'recipes/r1', 'groceryLists/g1/items/i1']) {
+      batch.set(doc(db, `${h}/${path}`), tombstone(uid), { merge: true });
+    }
+    batch.update(doc(db, `${h}/groceryLists/g1`), { name: 'Groceries', aisleOrder: [], updatedAt: serverTimestamp() });
+    batch.delete(doc(db, `${h}/groceryLists/g2/items/i2`));
+    batch.delete(doc(db, `${h}/groceryLists/g2`));
+    batch.delete(doc(db, `${h}/activity/a1`));
+    batch.delete(doc(db, `${h}/stats/2026-10`));
+    batch.set(doc(db, `${h}/activity/reset`), {
+      type: 'household_reset', actorUid: uid, actorName: 'Someone', params: {}, createdAt: serverTimestamp(),
+    });
+    return batch;
+  }
+
+  it('the owner clears everything but the household and its members in one batch', async () => {
+    await assertSucceeds(clearBatch('alice').commit());
+  });
+
+  it('a member cannot (other people\'s activity and the counts are the owner\'s to delete)', async () => {
+    await assertFails(clearBatch('bob').commit());
+  });
+});

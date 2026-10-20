@@ -9,11 +9,13 @@ import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.prefs.ThemeMode
 import com.parcha.spoilnot.core.ui.messageRes
+import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.feature.auth.domain.AuthRepository
 import com.parcha.spoilnot.feature.auth.domain.ProfileDefaults
 import com.parcha.spoilnot.feature.auth.domain.Units
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
+import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
@@ -47,7 +49,7 @@ import kotlinx.coroutines.withContext
 class SettingsViewModel @Inject constructor(
     private val session: SessionManager,
     private val auth: AuthRepository,
-    households: HouseholdRepository,
+    private val households: HouseholdRepository,
     notificationPrefs: NotificationPrefsRepository,
     private val preferences: AppPreferences,
     private val users: UserRepository,
@@ -107,7 +109,14 @@ class SettingsViewModel @Inject constructor(
         .catch { }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    data class Content(val displayName: String, val email: String?, val householdName: String?, val memberCount: Int)
+    data class Content(
+        val displayName: String,
+        val email: String?,
+        val householdName: String?,
+        val memberCount: Int,
+        /** Only the owner sees Clear household data (after v1). */
+        val isOwner: Boolean = false,
+    )
 
     data class UiState(
         val busy: Boolean = false,
@@ -115,13 +124,15 @@ class SettingsViewModel @Inject constructor(
         val emailVerified: Boolean = true,
         val verificationSent: Boolean = false,
         val exported: Boolean = false,
+        /** Clear household data finished; the screen says so and closes its dialogs. */
+        val householdCleared: Boolean = false,
     )
 
     val content: StateFlow<Content?> = session.session
         .filterIsInstance<Session.InHousehold>()
         .flatMapLatest { me ->
             combine(households.observeHousehold(me.householdId), households.observeMembers(me.householdId)) { h, m ->
-                Content(me.displayName, me.user.email, h?.name, m.size)
+                Content(me.displayName, me.user.email, h?.name, m.size, me.role == Role.Owner)
             }
         }
         .catch { }
@@ -147,6 +158,20 @@ class SettingsViewModel @Inject constructor(
     fun signOut() = run { session.signOut() }
 
     fun deleteAccount(password: String) = run { session.deleteAccount(password) }
+
+    /**
+     * Clear household data (owner, after v1, DESIGN 5.1): the owner's password is checked first, then everything but
+     * the household, its members, invite code and join requests is wiped for everyone.
+     */
+    fun clearHouseholdData(password: String) = run {
+        val me = session.session.value as? Session.InHousehold ?: return@run
+        if (me.role != Role.Owner) return@run
+        auth.verifyPassword(password)
+        households.resetData(me.householdId, Actor(me.user.uid, me.displayName))
+        _state.update { it.copy(householdCleared = true) }
+    }
+
+    fun dismissHouseholdCleared() = _state.update { it.copy(householdCleared = false) }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 

@@ -330,6 +330,9 @@ class SessionManagerTest {
         override suspend fun transferOwnership(householdId: String, fromUid: String, toUid: String) = error("unused")
 
         override suspend fun deleteHousehold(household: Household, uid: String) = error("unused")
+
+        override suspend fun resetData(householdId: String, actor: com.parcha.spoilnot.core.write.Actor) =
+            error("unused")
     }
 
     private object NoDevices : DeviceRegistry {

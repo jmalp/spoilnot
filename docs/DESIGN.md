@@ -142,6 +142,7 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 - Member list with names, roles and join dates.
 - Invite card: the code in large type with Copy and Share (system share sheet with a ready-made message). Every member can see and share the code. The owner also gets Regenerate and Pause or Resume joining.
 - Owner only: approve or decline join requests (a badge on the Settings avatar and a Join requests card on Home show when someone is waiting; there is no push notification for this in v1), rename household, remove a member, transfer ownership, delete household. Members: leave household.
+- **Clear household data (owner, after v1).** The last button in Settings, after Delete account. It asks "Clear all household data?" (what goes, what stays, that it cannot be undone, and to export first), then the owner's password. It leaves the household as it was when created: the name, members, roles, invite code and join requests stay; every product, pantry purchase, recipe and grocery item is removed (as tombstones, so other phones' changes-only listeners drop them, 9.8), extra grocery lists, recent activity and Insights counts are deleted, and the default list is named Groceries again and forgets its store order. Last it logs "Sam cleared the household's data"; Recent activity never shows events from before the newest clear, so stale events cached on a phone stay hidden. There is no Undo; the nightly export and restore (13.4, RUNBOOK) bring the data back if needed.
 
 **Rules.** A user belongs to one household at a time; joining another requires leaving the first, with a confirmation that explains the local copy is cleared. The owner cannot leave without transferring ownership or deleting the household. A removed member is returned to the household gate within seconds while the app is open (membership watcher, section 9.1).
 
@@ -266,7 +267,7 @@ After v1, a card with nothing to show (nothing needs attention, staples stocked,
 
 **Use it up (after v1).** Up to three saved recipes that use food expiring today or within 3 days (not expired), with what each uses and when ("Uses Spinach (Tomorrow), Yogurt (3 days)"); tapping one opens the recipe. Recipes using the most expiring products come first, then the one using the soonest, then favorites. Ingredients are matched to products the same way as Add to grocery list (5.5: shopping name, remembered names, word match). The card shows only when there is a match. Home therefore reads the recipes on every open (with the changes-only listener, 9.8), not only after the first visit to Recipes. To stay quick with a large recipe box, product words are worked out once per pass, and only lines sharing a word with an expiring product (or one of its remembered names) are matched; every link needs such a word, so the result is the same.
 
-**Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason), and after v1 a recipe cooked. Events older than 30 days are pruned by the reminder job.
+**Activity log.** Clients write events for: pantry item added, grocery item added or checked, recipe saved, member joined, items thrown away (with reason), and after v1 a recipe cooked and the household's data cleared. Events older than 30 days are pruned by the reminder job.
 
 **Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4; the chosen swatch's check sits on its own dot so it shows on any color); metric or imperial defaults for new products), Data (Export household data as JSON), About (version, licenses, privacy summary), and a Crash reports toggle. After v1, *Take the app tour* starts the tour (5.8) again.
 
@@ -557,7 +558,7 @@ households/{hid}/recipes/{recipeId}:
   importMethod: manual | web
   createdAt, createdBy, updatedAt, updatedBy
 households/{hid}/activity/{eventId}:
-  type: stock_added | grocery_added | grocery_checked | recipe_saved | member_joined | discarded | recipe_cooked (after v1)
+  type: stock_added | grocery_added | grocery_checked | recipe_saved | member_joined | discarded | recipe_cooked, household_reset (after v1)
   actorUid, actorName: string
   params: { name, quantity, reason, listName }    # whatever applies to the type
   createdAt: timestamp
@@ -1195,6 +1196,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | UX polish 2: recipe cards with a tinted initial and equal heights, empty Recipes with its three ways to add, the grocery list name as the switcher, badge icons and a one-line Back in stock, outlined cards and pill fields everywhere, aligned recipe-to-list rows, a visible swatch check | 5.3, 5.5, 5.6, 6.5, QA |
 | 2026-10-19 | Baseline profile regenerated after UX polish 1 and 2 (16,700 rules). On a freshly booted emulator: cold start median 468 → 392 ms; first Pantry scroll frame CPU time P90 10.3 → 5.9 ms, P99 30.3 → 9.9 ms | 13.1, RUNBOOK |
 | 2026-10-19 | Feedback after beta 7: no Throw away all button (Home and Pantry), a readable welcome title in Fredoka, four equal date chips that toggle (no No expiry chip), Pantry filters without All that toggle, Add buttons that never shrink, bolder preset color themes | 5.2, 5.6, 6.4, 6.5, QA |
+| 2026-10-19 | Clear household data: the owner wipes everything but the household and its members, after a confirmation and their password | 5.1, 5.6, 8.2, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

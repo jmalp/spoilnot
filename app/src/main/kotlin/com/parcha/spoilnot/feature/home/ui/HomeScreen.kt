@@ -380,6 +380,8 @@ private fun ActivityLine(event: ActivityEvent, myUid: String) {
 
         ActivityType.MemberJoined -> stringResource(R.string.activity_member_joined, who)
 
+        ActivityType.HouseholdReset -> stringResource(R.string.activity_household_reset, who)
+
         ActivityType.Discarded -> event.reason?.let {
             stringResource(R.string.activity_discarded_reason, who, name, stringResource(it.label()).lowercase())
         } ?: stringResource(R.string.activity_discarded, who, name)

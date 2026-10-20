@@ -566,6 +566,7 @@
     <string name="activity_recipe_saved">%1$s saved the recipe %2$s</string>
     <string name="activity_recipe_cooked">%1$s cooked %2$s</string>
     <string name="activity_member_joined">%1$s joined the household</string>
+    <string name="activity_household_reset">%1$s cleared the household\'s data</string>
     <string name="activity_discarded">%1$s threw away %2$s</string>
     <string name="activity_discarded_reason">%1$s threw away %2$s (%3$s)</string>
 
@@ -635,4 +636,13 @@
     <string name="tour_done">Done</string>
     <string name="settings_take_tour">Take the app tour</string>
     <string name="settings_take_tour_summary">A one-minute walk through the app</string>
+    <!-- Clear household data (owner, after v1, DESIGN 5.1) -->
+    <string name="action_clear_household">Clear household data</string>
+    <string name="clear_household_title">Clear all household data?</string>
+    <string name="clear_household_body">Everything in %1$s is deleted for every member: the pantry, grocery lists, recipes, recent activity and Insights. The household, its members and its invite code stay. This can\'t be undone. To keep a copy, use Export first.</string>
+    <string name="clear_household_yes">Yes, clear everything</string>
+    <string name="clear_household_password_title">Confirm with your password</string>
+    <string name="clear_household_password_body">Enter your password to clear the household\'s data.</string>
+    <string name="clear_household_confirm">Clear data</string>
+    <string name="clear_household_done">Household data cleared</string>
 </resources>
