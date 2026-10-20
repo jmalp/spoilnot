@@ -76,6 +76,10 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     three or more expired items, the list starts with "N expired items": Show lists them, Throw away all removes them
     with Undo. Add item: the quantity stepper sits beside the unit, the date chips wrap, the four locations are tiles
     on one line (two lines at 200% text). "Bag 2" sorts before "Bag 10". The tour highlight has no light corners.
+22. Polish 2: recipes without photos show a colored initial and line up; an empty recipe box offers Paste a link,
+    Browse the web and Create manually. On Groceries, tap the list's name to switch lists. A low-stock item that is
+    back in stock shows "Back in stock · Remove" on one line. Settings cards are outlined. In Add to grocery list,
+    each checkbox lines up with its ingredient. Settings > Colors: the check is visible on every swatch.
 
 ## 3. Conditions
 

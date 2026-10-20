@@ -17,12 +17,12 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -89,7 +89,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             ErrorText(state.error?.takeIf { !confirmDelete }?.let { stringResource(it) })
-            Card(Modifier.fillMaxWidth()) {
+            OutlinedCard(Modifier.fillMaxWidth()) {
                 Text(
                     stringResource(R.string.settings_account),
                     style = MaterialTheme.typography.titleMedium,
@@ -122,7 +122,7 @@ fun SettingsScreen(
                     )
                 }
             }
-            Card(Modifier.fillMaxWidth()) {
+            OutlinedCard(Modifier.fillMaxWidth()) {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_household)) },
                     supportingContent = content?.householdName?.let { name ->
@@ -145,7 +145,7 @@ fun SettingsScreen(
                     modifier = Modifier.clickable(onClick = onOpenHousehold).testTag("row_household"),
                 )
             }
-            Card(Modifier.fillMaxWidth()) {
+            OutlinedCard(Modifier.fillMaxWidth()) {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_notifications)) },
                     supportingContent = notifications?.let { prefs ->

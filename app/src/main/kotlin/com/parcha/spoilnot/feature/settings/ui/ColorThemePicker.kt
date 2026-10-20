@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.settings.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -119,7 +120,20 @@ private fun Swatch(theme: ColorTheme, selected: Boolean, dark: Boolean, onClick:
                 )
             }
             when {
-                selected -> Icon(Icons.Rounded.Check, contentDescription = null, tint = scheme.onPrimary)
+                // On its own dot, so it shows on every part of the swatch (after v1; it vanished on light quarters).
+                selected -> Box(
+                    Modifier.size(
+                        24.dp,
+                    ).background(scheme.primary, CircleShape).border(1.5.dp, scheme.onPrimary, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = scheme.onPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
 
                 theme == ColorTheme.Wallpaper ->
                     Icon(Icons.Rounded.Wallpaper, contentDescription = null, tint = scheme.onPrimary)
@@ -129,6 +143,8 @@ private fun Swatch(theme: ColorTheme, selected: Boolean, dark: Boolean, onClick:
             theme.label(),
             style = MaterialTheme.typography.labelMedium,
             textAlign = TextAlign.Center,
+            // Every label takes two lines, so the swatches in a row line up.
+            minLines = 2,
             maxLines = 2,
         )
     }

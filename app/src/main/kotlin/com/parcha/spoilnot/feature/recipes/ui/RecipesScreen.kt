@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -41,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -126,10 +129,24 @@ fun RecipesScreen(
                     CircularProgressIndicator()
                 }
 
+                // The three ways to add a recipe, right where the box is empty (after v1).
                 state.boxEmpty -> EmptyState(
                     icon = Icons.AutoMirrored.Outlined.MenuBook,
                     message = stringResource(R.string.empty_recipes),
-                )
+                ) {
+                    Button(
+                        onClick = { pasting = true },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("empty_recipes_paste"),
+                    ) { Text(stringResource(R.string.recipe_add_paste)) }
+                    OutlinedButton(
+                        onClick = navigation.openBrowser,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("empty_recipes_browse"),
+                    ) { Text(stringResource(R.string.recipe_add_browse)) }
+                    TextButton(
+                        onClick = navigation.createManually,
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("empty_recipes_manual"),
+                    ) { Text(stringResource(R.string.recipe_add_manual)) }
+                }
 
                 else -> {
                     SearchField(state.query.search, viewModel::setSearch)
