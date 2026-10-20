@@ -1193,6 +1193,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Baseline profile regenerated after the quick wins, compact Add to pantry, Insights months and the app tour (16,568 rules). On the emulator: cold start median 435 → 426 ms; first Pantry scroll frame CPU time P90 8.2 → 6.2 ms, P99 20.4 → 9.9 ms | 13.1, RUNBOOK |
 | 2026-10-19 | UX polish 1: compact tab title bars, simpler pantry rows (one status, "× 3" amounts), expired backlog folded into a header, a tidier Add item form (stepper beside unit, wrapping date chips, location tiles), rounded tour highlight, number-aware name sorting | 5.2, 5.8, 6.4, QA |
 | 2026-10-19 | UX polish 2: recipe cards with a tinted initial and equal heights, empty Recipes with its three ways to add, the grocery list name as the switcher, badge icons and a one-line Back in stock, outlined cards and pill fields everywhere, aligned recipe-to-list rows, a visible swatch check | 5.3, 5.5, 5.6, 6.5, QA |
+| 2026-10-19 | Baseline profile regenerated after UX polish 1 and 2 (16,700 rules). On a freshly booted emulator: cold start median 468 → 392 ms; first Pantry scroll frame CPU time P90 10.3 → 5.9 ms, P99 30.3 → 9.9 ms | 13.1, RUNBOOK |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
