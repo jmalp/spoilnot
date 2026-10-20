@@ -6,6 +6,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -36,10 +39,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -56,6 +61,7 @@ import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -68,15 +74,19 @@ import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
+import com.parcha.spoilnot.core.designsystem.theme.StatusTone
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.core.ui.rememberRemoteChanges
 import com.parcha.spoilnot.core.ui.remoteHighlight
 import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
 import com.parcha.spoilnot.feature.notifications.ui.Notifications
+import com.parcha.spoilnot.feature.pantry.domain.ExpiredFold
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
 import com.parcha.spoilnot.feature.pantry.domain.PantryGrouping
 import com.parcha.spoilnot.feature.pantry.domain.PantryItem
 import com.parcha.spoilnot.feature.pantry.domain.PantryItemGroup
+import com.parcha.spoilnot.feature.pantry.domain.PantryQuery
 import com.parcha.spoilnot.feature.pantry.domain.PantrySort
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
@@ -149,6 +159,8 @@ fun PantryScreen(
                     FilterRow(state.query.filter, viewModel::setFilter)
                     PantryList(
                         groups = state.groups,
+                        query = state.query,
+                        onThrowAwayExpired = viewModel::throwAwayExpired,
                         today = state.today,
                         listState = listState,
                         actions = actions,
@@ -235,6 +247,8 @@ fun PantryScreen(
 @Composable
 private fun PantryList(
     groups: List<PantryItemGroup>,
+    query: PantryQuery,
+    onThrowAwayExpired: (List<StockBatch>) -> Unit,
     today: LocalDate,
     listState: LazyListState,
     actions: BatchActions,
@@ -255,12 +269,37 @@ private fun PantryList(
         EmptyState(icon = Icons.Rounded.Search, message = stringResource(R.string.pantry_no_matches))
         return
     }
+    // A backlog of expired food folds into one header (after v1); its rows show on request.
+    val fold = remember(shown, query) { ExpiredFold.of(shown, query) }
+    var showExpired by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(bottom = 96.dp),
         modifier = Modifier.fillMaxSize().testTag("pantry_list").coachMark(TourTarget.PantryList.key),
     ) {
-        shown.forEach { group ->
+        fold?.let { f ->
+            item(key = "expired-header") {
+                ExpiredHeader(
+                    count = f.expired.size,
+                    shown = showExpired,
+                    onToggle = { showExpired = !showExpired },
+                    onThrowAway = { onThrowAwayExpired(f.expired.map { it.batch }) },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+            if (showExpired) {
+                items(f.expired, key = { "expired-${it.key}" }) { item ->
+                    PantryItemRow(
+                        item = item,
+                        today = today,
+                        actions = actions,
+                        onOpen = onOpen,
+                        modifier = Modifier.animateItem().remoteHighlight(item.key in remote),
+                    )
+                }
+            }
+        }
+        (fold?.rest ?: shown).forEach { group ->
             val header = group.location?.label() ?: group.category?.label()
             val groupKey = group.location?.name ?: group.category?.name ?: "all"
             if (header != null) {
@@ -284,6 +323,49 @@ private fun PantryList(
                     onOpen = onOpen,
                     modifier = Modifier.animateItem().remoteHighlight(item.key in remote),
                 )
+            }
+        }
+    }
+}
+
+/** "65 expired" with Show and Throw away all, at the top of the list (after v1). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ExpiredHeader(
+    count: Int,
+    shown: Boolean,
+    onToggle: () -> Unit,
+    onThrowAway: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val expired = SpoilNotStatus.colors.forTone(StatusTone.Expired)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(expired.copy(alpha = 0.08f), MaterialTheme.shapes.medium)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("pantry_expired_header"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = expired)
+            Text(
+                pluralStringResource(R.plurals.pantry_expired_count, count, count),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onToggle, modifier = Modifier.testTag("pantry_expired_toggle")) {
+                Text(stringResource(if (shown) R.string.pantry_expired_hide else R.string.pantry_expired_show))
+            }
+            OutlinedButton(onClick = onThrowAway, modifier = Modifier.testTag("pantry_expired_throw_away")) {
+                Text(pluralStringResource(R.plurals.home_throw_away_expired, count, count))
             }
         }
     }

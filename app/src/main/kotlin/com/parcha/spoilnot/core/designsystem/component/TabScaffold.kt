@@ -13,7 +13,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -31,7 +31,10 @@ import com.parcha.spoilnot.core.navigation.LocalJoinRequestCount
 /** Content never grows wider than this on tablets and landscape (DESIGN 6.2). */
 val MaxContentWidth = 640.dp
 
-/** Scaffold for a main tab: large top app bar with the avatar button that opens Settings. */
+/**
+ * Scaffold for a main tab: a compact top app bar (after v1; the large one took a fifth of the screen) with the avatar
+ * button that opens Settings. [titleContent] replaces the plain title, for the grocery list switcher.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TabScaffold(
@@ -41,16 +44,20 @@ fun TabScaffold(
     actions: @Composable RowScope.() -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     snackbarHost: @Composable () -> Unit = {},
+    titleContent: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // Pinned: the bar stays and takes the scrolled-under color, so the title never jumps.
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = floatingActionButton,
         snackbarHost = snackbarHost,
         topBar = {
-            LargeTopAppBar(
-                title = { Text(title) },
+            TopAppBar(
+                title = {
+                    titleContent?.invoke() ?: Text(title, style = MaterialTheme.typography.headlineSmall)
+                },
                 actions = {
                     actions()
                     val requests = LocalJoinRequestCount.current

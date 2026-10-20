@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.recipes.domain
 
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
+import com.parcha.spoilnot.feature.pantry.domain.NaturalOrder
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import java.time.Instant
@@ -35,10 +36,10 @@ object RecipeBox {
         }
         return when (query.sort) {
             RecipeSort.Recent -> filtered.sortedWith(
-                compareByDescending<Recipe, Instant?>(nullsLast()) { it.createdAt }.thenBy { NameKey.of(it.title) },
+                compareByDescending<Recipe, Instant?>(nullsLast()) { it.createdAt }.thenBy(NaturalOrder) { it.title },
             )
 
-            RecipeSort.AToZ -> filtered.sortedBy { NameKey.of(it.title) }
+            RecipeSort.AToZ -> filtered.sortedWith(compareBy(NaturalOrder) { it.title })
         }
     }
 

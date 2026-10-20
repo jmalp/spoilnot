@@ -108,7 +108,7 @@ object PantryItems {
     }
 
     private fun sort(items: List<PantryItem>, sort: PantrySort): List<PantryItem> {
-        val byName = compareBy<PantryItem, String>(String.CASE_INSENSITIVE_ORDER) { it.name }
+        val byName = compareBy<PantryItem, String>(NaturalOrder) { it.name }
         val expiry = compareBy<PantryItem, LocalDate?>(nullsLast()) { (it as? PantryItem.Purchase)?.batch?.expiryDate }
         // Out rows have nothing to use up, so they go last.
         val outLast = compareBy<PantryItem> { it is PantryItem.Out }
@@ -126,4 +126,27 @@ object PantryItems {
     /** A purchase still waiting for its server timestamp is the newest of all. */
     private fun added(item: PantryItem): Instant =
         (item as? PantryItem.Purchase)?.let { it.batch.createdAt ?: Instant.MAX } ?: Instant.MIN
+}
+
+/**
+ * Expired purchases gathered into one header at the top of the pantry list (after v1), so a backlog of old food does
+ * not push everything else off the screen. Only when browsing (no search, any filter but Expired) and with at least
+ * [MIN] of them; [expired] keeps the list's order and [rest] is the list without them.
+ */
+data class ExpiredFold(val expired: List<PantryItem.Purchase>, val rest: List<PantryItemGroup>) {
+    companion object {
+        const val MIN = 3
+
+        fun of(groups: List<PantryItemGroup>, query: PantryQuery): ExpiredFold? {
+            if (query.search.isNotBlank() || query.filter == PantryFilter.Expired) return null
+            val expired = groups.flatMap { it.items }.filterIsInstance<PantryItem.Purchase>()
+                .filter { it.status == ExpiryStatus.Expired }
+            if (expired.size < MIN) return null
+            val ids = expired.mapTo(HashSet()) { it.key }
+            val rest = groups.map { g ->
+                g.copy(items = g.items.filterNot { it.key in ids })
+            }.filter { it.items.isNotEmpty() }
+            return ExpiredFold(expired, rest)
+        }
+    }
 }

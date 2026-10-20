@@ -124,7 +124,7 @@ object PantryList {
     }
 
     private fun sort(rows: List<PantryRow>, sort: PantrySort): List<PantryRow> {
-        val byName = compareBy<PantryRow, String>(String.CASE_INSENSITIVE_ORDER) { it.name }
+        val byName = compareBy<PantryRow, String>(NaturalOrder) { it.name }
         return when (sort) {
             PantrySort.Name -> rows.sortedWith(byName)
 

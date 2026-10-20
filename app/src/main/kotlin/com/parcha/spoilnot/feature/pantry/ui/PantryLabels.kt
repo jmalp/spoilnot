@@ -204,6 +204,17 @@ fun amountText(quantity: Double, unit: QuantityUnit?): String = if (unit == null
     "${formatQuantity(quantity)} ${stringResource(unit.label())}"
 }
 
+/**
+ * The amount at the end of a pantry row (after v1): "× 3" for pieces, nothing for a single one, "500 g" otherwise,
+ * so a bare "1" never sits there without saying what it counts.
+ */
+@Composable
+fun rowAmount(quantity: Double, unit: QuantityUnit): String? = when {
+    unit != QuantityUnit.Pieces -> amountText(quantity, unit)
+    quantity == 1.0 -> null
+    else -> "× ${formatQuantity(quantity)}"
+}
+
 /** The amount for TalkBack: "2 pieces", "500 g". */
 @Composable
 fun amountDescription(quantity: Double, unit: QuantityUnit?): String =

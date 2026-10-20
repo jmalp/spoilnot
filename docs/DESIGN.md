@@ -154,6 +154,7 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 - **Sort:** soonest expiry (default), name, recently added. **Group by:** none (default), location, category.
 - **Filter chips:** All, Fridge, Freezer, Pantry, Other, Expiring soon (within 3 days), Expired, Low stock. A search bar filters by name as you type.
 - Empty state: one sentence explaining the app and a button, “Add your first item”.
+- **After v1, row and list polish.** The status chip alone shows the status (a second status icon at the start of the row only repeated it). The amount at the end reads "× 3" for pieces, nothing for a single piece, and "500 g" for other units; an Out row shows only its badge. Names sort the way people expect: case and accents ignored and numbers by value ("Bag 2" before "Bag 10"), here and on the grocery list and in Recipes A to Z. With **3 or more expired** purchases, and no search or Expired filter, they fold into one header at the top ("65 expired items", *Show* and *Throw away all 65 expired*, one write and one Undo), so a backlog does not push everything else off the screen.
 
 **Add item** (extended FAB; a bottom sheet that grows to full screen)
 
@@ -169,6 +170,8 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 | Notes | Optional, up to 200 characters |
 | Keep at least (advanced) | Optional number. Helper text: “Add to the grocery list when fewer than this remain” |
 | Add to grocery list automatically (advanced) | Toggle, enabled only when Keep at least is set. Optional buy quantity |
+
+After v1 the form is laid out by how often each field changes: Name; a compact quantity stepper beside the Unit (stacked at large text sizes); the date button with its quick chips, which wrap onto a second line instead of running off the edge; Location as four equal tiles with an icon over the label (a 2 by 2 grid at large text sizes; the chosen one has a border, a fill and a bold label); then Category, which the product or the name usually fills in. Add to pantry uses the same date chips and location tiles.
 
 Saving writes a batch. If a batch for the same product, date and location already exists, its quantity is incremented instead of creating a duplicate.
 
@@ -282,7 +285,7 @@ How the household is doing at using food before it spoils, shown so it feels goo
 A short follow-along tour teaches new users the app and its main actions. The owner chose it instead of two other ideas from the post-v1 list.
 
 - **When.** Once per phone, the first time the household app opens (a local preference, `tour_done`; nothing is stored in Firestore). Finishing it or tapping *Skip tour* at any step ends it for good; Settings > *Take the app tour* starts it again.
-- **How it looks.** The screen is dimmed except for a hole around one element, outlined in the theme's primary color, with a card next to it ("3 of 9", the text, *Skip tour* and *Next*; *Done* on the last step). The card goes below a target in the top half and above one in the bottom half, or covers a target too tall to leave room. Taps on the dimmed part do nothing; taps in the hole reach the app.
+- **How it looks.** The screen is dimmed except for a rounded hole around one element, outlined in the theme's primary color, with a card next to it ("3 of 9", the text, *Skip tour* and *Next*; *Done* on the last step). The card goes below a target in the top half and above one in the bottom half, or covers a target too tall to leave room. Taps on the dimmed part do nothing; taps in the hole reach the app.
 - **Follow along.** Steps that point at a tab move on when the user opens that tab, and steps that point at a button (Add item, Add recipe) move on when it is tapped, so the user learns by doing. *Next* always works too, and opens the tab the next step needs.
 - **Steps.** Welcome; Home's Needs attention card; tap Pantry; Add item (dates and reminders); pantry rows (swipe right used up, left throw away, Undo, tap to edit, ⋮ for Mark opened); tap Recipes; Add recipe (share sheet, built-in browser, missing ingredients to the list); tap Groceries; the quick-add field (check off, Add to pantry); the Settings avatar (invite the household, replay the tour). A target that is not on screen (an empty pantry has no rows) shows its card in the middle.
 - **Accessibility.** The card is a pane announced politely when it changes, every step has a text and a button, so it works without seeing the highlight, and text follows the font scale (buttons wrap at 200%).
@@ -327,7 +330,7 @@ Status colors are fixed and are not taken from the dynamic scheme or any theme, 
 
 Status MUST never rely on color alone: always icon plus text. Text contrast at least 4.5:1.
 
-**Type.** Material 3 type scale, one bundled variable font (Manrope or Inter; no runtime font downloads), large top app bars on the main tabs, body text at least 14 sp, honor the system font scale up to 200%.
+**Type.** Material 3 type scale, one bundled variable font (Manrope or Inter; no runtime font downloads), compact top app bars on the main tabs (after v1; the large ones took a fifth of the screen before any content), body text at least 14 sp, honor the system font scale up to 200%.
 
 **Shape and surface.** M3 defaults: 16 dp cards, fully rounded chips and buttons, 28 dp bottom sheets, tonal surface levels instead of heavy shadows.
 
@@ -1188,6 +1191,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Recent activity reads only new events (changes-only), about 1,790 reads per household per day instead of 1,930 | 9.7, 9.8, RUNBOOK |
 | 2026-10-19 | App tour: a short follow-along tour for new users, replayable from Settings | 5.6, 5.8, QA, PRIVACY |
 | 2026-10-19 | Baseline profile regenerated after the quick wins, compact Add to pantry, Insights months and the app tour (16,568 rules). On the emulator: cold start median 435 → 426 ms; first Pantry scroll frame CPU time P90 8.2 → 6.2 ms, P99 20.4 → 9.9 ms | 13.1, RUNBOOK |
+| 2026-10-19 | UX polish 1: compact tab title bars, simpler pantry rows (one status, "× 3" amounts), expired backlog folded into a header, a tidier Add item form (stepper beside unit, wrapping date chips, location tiles), rounded tour highlight, number-aware name sorting | 5.2, 5.8, 6.4, QA |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
