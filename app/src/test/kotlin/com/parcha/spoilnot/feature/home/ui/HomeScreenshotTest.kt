@@ -58,7 +58,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
                 product("cheese"),
                 product("oil", name = "Olive oil", min = 1.0),
             ),
-            // Two expired: Throw away all 2 expired. No activity: the compact card (after v1).
+            // Two expired, and no activity: the compact card (after v1).
             listOf(
                 batch("m1", "milk", inDays = 1),
                 batch("y1", "yogurt", inDays = -1),

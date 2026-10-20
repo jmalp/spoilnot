@@ -283,7 +283,6 @@
     <string name="chip_plus_1_week">+1 week</string>
     <string name="chip_plus_2_weeks">+2 weeks</string>
     <string name="chip_plus_1_month">+1 month</string>
-    <string name="chip_no_expiry">No expiry</string>
     <string name="field_location">Location</string>
     <string name="field_category">Category</string>
     <string name="field_notes">Notes</string>
@@ -507,17 +506,12 @@
         <item quantity="other">See all %d in Pantry</item>
     </plurals>
     <string name="home_use_it_up">Use it up</string>
-    <plurals name="home_throw_away_expired">
-        <item quantity="one">Throw away %d expired</item>
-        <item quantity="other">Throw away all %d expired</item>
-    </plurals>
     <plurals name="pantry_expired_count">
         <item quantity="one">%d expired item</item>
         <item quantity="other">%d expired items</item>
     </plurals>
     <string name="pantry_expired_show">Show</string>
     <string name="pantry_expired_hide">Hide</string>
-    <string name="home_threw_away_expired">Threw away %1$s expired items</string>
     <string name="home_use_it_up_uses">Uses %1$s</string>
     <string name="home_use_it_up_open">Open recipe</string>
     <string name="home_recent_activity">Recent activity</string>

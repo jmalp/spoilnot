@@ -84,7 +84,6 @@ class HomeNavigation(
     val openPantry: (PantryFilter) -> Unit,
     val openGroceries: () -> Unit,
     val reviewJoinRequests: () -> Unit,
-    val throwAwayExpired: () -> Unit = {},
     val openInsights: () -> Unit = {},
     val openRecipe: (String) -> Unit = {},
 )
@@ -100,24 +99,10 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
-    MessageEffect(viewModel.messages, snackbar, viewModel::undo)
-    val nav = remember(navigation) {
-        HomeNavigation(
-            navigation.openSettings,
-            navigation.openPantry,
-            navigation.openGroceries,
-            navigation.reviewJoinRequests,
-            throwAwayExpired = viewModel::throwAwayExpired,
-            openInsights = navigation.openInsights,
-            openRecipe = navigation.openRecipe,
-        )
-    }
     TabScaffold(
         title = stringResource(R.string.tab_home),
         onOpenSettings = navigation.openSettings,
         modifier = modifier.testTag("screen_home"),
-        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             if (state.offline && state.summary != null) OfflineBanner()
@@ -130,7 +115,7 @@ fun HomeScreen(
                 if (summary == null) {
                     repeat(4) { SkeletonCard() }
                 } else {
-                    HomeCards(summary, state.today, state.myUid, nav, state.insights, state.useItUp)
+                    HomeCards(summary, state.today, state.myUid, navigation, state.insights, state.useItUp)
                 }
             }
         }
@@ -164,21 +149,6 @@ internal fun HomeCards(
         modifier = Modifier.coachMark(TourTarget.HomeCards.key),
     ) {
         summary.attention.take(CARD_ROWS).forEach { row -> AttentionRow(row, today) }
-        // Several expired at once: one tap instead of a swipe and a reason each (after v1).
-        if (summary.expired.size >= 2) {
-            OutlinedButton(
-                onClick = navigation.throwAwayExpired,
-                modifier = Modifier.heightIn(min = 48.dp).testTag("home_throw_away_expired"),
-            ) {
-                Text(
-                    pluralStringResource(
-                        R.plurals.home_throw_away_expired,
-                        summary.expired.size,
-                        summary.expired.size,
-                    ),
-                )
-            }
-        }
     }
     if (useItUp.isNotEmpty()) UseItUpCard(useItUp, today, navigation.openRecipe)
     HomeCard(

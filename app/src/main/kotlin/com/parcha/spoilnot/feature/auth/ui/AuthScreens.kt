@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,46 +49,51 @@ import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.MaxContentWidth
 import com.parcha.spoilnot.core.designsystem.component.PasswordField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.theme.Fredoka
 import com.parcha.spoilnot.feature.auth.domain.AccountValidation
 import com.parcha.spoilnot.feature.auth.domain.AccountValidation.NameProblem
 
 @Composable
 fun WelcomeScreen(onCreateAccount: () -> Unit, onSignIn: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .safeDrawingPadding()
-            .testTag("screen_welcome"),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier.widthIn(max = MaxContentWidth).verticalScroll(rememberScrollState()).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+    // A Surface, not just a background: it also sets the text color, which was black in dark mode (beta feedback).
+    Surface(modifier.fillMaxSize().testTag("screen_welcome")) {
+        Box(
+            modifier = Modifier.fillMaxSize().safeDrawingPadding(),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier.size(112.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center,
+            Column(
+                modifier = Modifier.widthIn(max = MaxContentWidth).verticalScroll(rememberScrollState()).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Icon(
-                    painterResource(R.drawable.ic_launcher_monochrome),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(112.dp),
+                Box(
+                    Modifier.size(112.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_launcher_monochrome),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(112.dp),
+                    )
+                }
+                Text(
+                    stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.displayMedium.copy(fontFamily = Fredoka),
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
                 )
-            }
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
-            Text(
-                stringResource(R.string.welcome_tagline),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.size(16.dp))
-            PrimaryButton(stringResource(R.string.action_create_account), onClick = onCreateAccount)
-            OutlinedButton(onClick = onSignIn, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.action_sign_in))
+                Text(
+                    stringResource(R.string.welcome_tagline),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.size(16.dp))
+                PrimaryButton(stringResource(R.string.action_create_account), onClick = onCreateAccount)
+                OutlinedButton(onClick = onSignIn, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.action_sign_in))
+                }
             }
         }
     }

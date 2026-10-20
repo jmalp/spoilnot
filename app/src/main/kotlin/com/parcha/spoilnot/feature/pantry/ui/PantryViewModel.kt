@@ -190,13 +190,6 @@ class PantryViewModel @Inject constructor(
         )
     }
 
-    /** Throw away all expired (after v1): the pantry list's header, one write and one Undo. */
-    fun throwAwayExpired(batches: List<StockBatch>) = act { hid, actor ->
-        service.throwAwayAll(hid, actor, batches, DiscardReason.Expired)?.let {
-            _messages.send(UiMessage(R.string.home_threw_away_expired, batches.size.toString(), it))
-        }
-    }
-
     /** The Edit window: the purchase and its product together. Returns through [onDone] once saved. */
     fun editItem(batch: StockBatch, edit: ItemEdit, onDone: () -> Unit) = act { hid, actor ->
         val undo = service.editItem(hid, actor, batch, edit, currentData())

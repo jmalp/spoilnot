@@ -47,7 +47,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -111,10 +110,6 @@ fun PantryScreen(
     var opening by remember { mutableStateOf<StockBatch?>(null) }
     var editing by remember { mutableStateOf<StockBatch?>(null) }
     val listState = rememberLazyListState()
-    // Collapses while scrolling or away from the top (DESIGN 6.5); derived so scrolling does not recompose the screen.
-    val fabExpanded by remember {
-        derivedStateOf { !listState.isScrollInProgress && listState.firstVisibleItemIndex == 0 }
-    }
 
     MessageEffect(viewModel.messages, snackbar, viewModel::undo)
 
@@ -137,7 +132,7 @@ fun PantryScreen(
             if (!state.pantryEmpty) {
                 ExtendedFloatingActionButton(
                     onClick = { adding = true },
-                    expanded = fabExpanded,
+                    expanded = true, // never shrinks while scrolling (beta feedback)
                     icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.action_add_item)) },
                     modifier = Modifier.testTag("fab_add_item").coachMark(TourTarget.AddItem.key),
@@ -160,7 +155,6 @@ fun PantryScreen(
                     PantryList(
                         groups = state.groups,
                         query = state.query,
-                        onThrowAwayExpired = viewModel::throwAwayExpired,
                         today = state.today,
                         listState = listState,
                         actions = actions,
@@ -248,7 +242,6 @@ fun PantryScreen(
 private fun PantryList(
     groups: List<PantryItemGroup>,
     query: PantryQuery,
-    onThrowAwayExpired: (List<StockBatch>) -> Unit,
     today: LocalDate,
     listState: LazyListState,
     actions: BatchActions,
@@ -283,7 +276,6 @@ private fun PantryList(
                     count = f.expired.size,
                     shown = showExpired,
                     onToggle = { showExpired = !showExpired },
-                    onThrowAway = { onThrowAwayExpired(f.expired.map { it.batch }) },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -328,16 +320,10 @@ private fun PantryList(
     }
 }
 
-/** "65 expired" with Show and Throw away all, at the top of the list (after v1). */
+/** "65 expired items" with Show, at the top of the list (after v1). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ExpiredHeader(
-    count: Int,
-    shown: Boolean,
-    onToggle: () -> Unit,
-    onThrowAway: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+internal fun ExpiredHeader(count: Int, shown: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     val expired = SpoilNotStatus.colors.forTone(StatusTone.Expired)
     Column(
         modifier
@@ -363,9 +349,6 @@ internal fun ExpiredHeader(
         ) {
             TextButton(onClick = onToggle, modifier = Modifier.testTag("pantry_expired_toggle")) {
                 Text(stringResource(if (shown) R.string.pantry_expired_hide else R.string.pantry_expired_show))
-            }
-            OutlinedButton(onClick = onThrowAway, modifier = Modifier.testTag("pantry_expired_throw_away")) {
-                Text(pluralStringResource(R.plurals.home_throw_away_expired, count, count))
             }
         }
     }
@@ -406,11 +389,15 @@ private fun FilterRow(selected: PantryFilter, onSelect: (PantryFilter) -> Unit) 
         Modifier.horizontalScroll(scroll).padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        PantryFilter.entries.forEach { filter ->
+        // No "All" chip (beta feedback): showing everything is the default, and tapping the chosen filter again
+        // goes back to it.
+        PantryFilter.entries.filter { it != PantryFilter.All }.forEach { filter ->
             FilterChip(
-                modifier = Modifier.onPlaced { starts[filter] = it.positionInParent().x.toInt() },
+                modifier = Modifier
+                    .onPlaced { starts[filter] = it.positionInParent().x.toInt() }
+                    .testTag("pantry_filter_${filter.name}"),
                 selected = filter == selected,
-                onClick = { onSelect(filter) },
+                onClick = { onSelect(if (filter == selected) PantryFilter.All else filter) },
                 label = { Text(stringResource(filter.label())) },
                 leadingIcon = if (filter == selected) {
                     { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }

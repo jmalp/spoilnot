@@ -54,8 +54,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val session: SessionManager,
-    private val pantryService: PantryService,
+    session: SessionManager,
     pantry: PantryRepository,
     grocery: GroceryRepository,
     activity: ActivityRepository,
@@ -114,37 +113,6 @@ class HomeViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
-
-    private val _messages = Channel<UiMessage>(Channel.BUFFERED)
-    val messages: Flow<UiMessage> = _messages.receiveAsFlow()
-
-    /** "Throw away expired" (DESIGN 5.6): every expired batch, reason Expired, in one write with Undo. */
-    fun throwAwayExpired() {
-        val me = session.session.value as? Session.InHousehold ?: return
-        val expired = state.value.summary?.expired.orEmpty()
-        viewModelScope.launch {
-            try {
-                val undo = pantryService.throwAwayAll(
-                    me.householdId,
-                    Actor(me.user.uid, me.displayName),
-                    expired,
-                    DiscardReason.Expired,
-                ) ?: return@launch
-                _messages.send(UiMessage(R.string.home_threw_away_expired, expired.size.toString(), undo))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _messages.send(UiMessage(e.messageRes()))
-            }
-        }
-    }
-
-    fun undo(undo: Undo) {
-        val me = session.session.value as? Session.InHousehold ?: return
-        viewModelScope.launch {
-            runCatching { pantryService.undo(me.householdId, Actor(me.user.uid, me.displayName), undo) }
-        }
-    }
 
     private companion object {
         /** DESIGN 5.6: the last 10 events. */
