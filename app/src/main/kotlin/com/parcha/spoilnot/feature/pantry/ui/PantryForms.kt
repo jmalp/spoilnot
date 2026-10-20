@@ -70,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
@@ -552,23 +553,74 @@ private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDat
 }
 
 /**
- * The quick date chips, wrapping onto a second line instead of running off the edge (after v1), shared by Add item
- * and Add to pantry.
+ * The quick date chips, shared by Add item and Add to pantry: four equal chips in one row (two rows at large text
+ * sizes). Tapping the chosen one again clears the date; there is no "No expiry" chip because no date is the default
+ * and the date button already says so (beta feedback).
  */
 @Composable
 internal fun DateChips(value: LocalDate?, today: LocalDate, onChange: (LocalDate?) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(
-            R.string.chip_plus_3_days to today.plusDays(3),
-            R.string.chip_plus_1_week to today.plusWeeks(1),
-            R.string.chip_plus_2_weeks to today.plusWeeks(2),
-            R.string.chip_plus_1_month to today.plusMonths(1),
-            R.string.chip_no_expiry to null,
-        ).forEach { (label, date) ->
-            FilterChip(selected = value == date, onClick = { onChange(date) }, label = { Text(stringResource(label)) })
+    val options = listOf(
+        R.string.chip_plus_3_days to today.plusDays(3),
+        R.string.chip_plus_1_week to today.plusWeeks(1),
+        R.string.chip_plus_2_weeks to today.plusWeeks(2),
+        R.string.chip_plus_1_month to today.plusMonths(1),
+    )
+    val perRow = if (LocalDensity.current.fontScale >= DATE_CHIPS_TWO_ROWS_FONT_SCALE) 2 else options.size
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.chunked(perRow).forEach { line ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                line.forEach { (label, date) ->
+                    val selected = value == date
+                    ToggleTile(
+                        text = stringResource(label),
+                        selected = selected,
+                        onClick = { onChange(if (selected) null else date) },
+                        modifier = Modifier.weight(1f).testTag("date_chip_$date"),
+                    )
+                }
+            }
         }
     }
 }
+
+/**
+ * A compact on/off tile for equal-width rows (the date chips): Material chips' fixed padding cut "+2 weeks" short in
+ * a quarter of the row. Chosen: border, fill and a bold label, so it never depends on color alone.
+ */
+@Composable
+private fun ToggleTile(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = MaterialTheme.shapes.small
+    Box(
+        modifier
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .border(
+                if (selected) 2.dp else 1.dp,
+                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape,
+            )
+            .toggleable(selected, role = Role.Checkbox, onValueChange = { onClick() })
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.Bold else null,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+    }
+}
+
+/** From this font scale the four date chips no longer fit one row. */
+private const val DATE_CHIPS_TWO_ROWS_FONT_SCALE = 1.3f
 
 /**
  * Location as four equal tiles, icon over label, in one row (a 2 by 2 grid at large text sizes; after v1, replacing

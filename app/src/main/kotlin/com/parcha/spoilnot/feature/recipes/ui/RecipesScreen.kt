@@ -50,7 +50,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -100,9 +99,6 @@ fun RecipesScreen(
     var choosing by rememberSaveable { mutableStateOf(false) }
     var pasting by rememberSaveable { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
-    val fabExpanded by remember {
-        derivedStateOf { !gridState.isScrollInProgress && gridState.firstVisibleItemIndex == 0 }
-    }
 
     MessageEffect(viewModel.messages, snackbar, viewModel::undo)
 
@@ -115,7 +111,7 @@ fun RecipesScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { choosing = true },
-                expanded = fabExpanded,
+                expanded = true, // never shrinks while scrolling (beta feedback)
                 icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.recipe_add)) },
                 modifier = Modifier.testTag("fab_add_recipe").coachMark(TourTarget.AddRecipe.key),

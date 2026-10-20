@@ -96,7 +96,7 @@ class PantryScreenshotTest(private val dark: Boolean, private val fontScale: Flo
     /** The folded expired backlog at the top of the list (after v1). */
     @Test
     fun expiredHeader() = snap("pantry_expired_header") {
-        ExpiredHeader(65, shown = false, onToggle = {}, onThrowAway = {})
+        ExpiredHeader(65, shown = false, onToggle = {})
     }
 
     @Test

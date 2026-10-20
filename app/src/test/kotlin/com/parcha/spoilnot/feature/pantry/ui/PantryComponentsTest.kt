@@ -1,5 +1,7 @@
 package com.parcha.spoilnot.feature.pantry.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -224,5 +226,27 @@ class PantryComponentsTest {
         assertTrue(saved!!.autoAddToGrocery)
         assertEquals(DateType.UseBy, saved!!.dateType)
         assertNull(saved!!.note)
+    }
+
+    @Test
+    fun dateChipsToggleAndHaveNoNoExpiryChip() {
+        var date: java.time.LocalDate? = null
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                var value by androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableStateOf<java.time.LocalDate?>(null)
+                }
+                DateChips(value, TODAY) {
+                    value = it
+                    date = it
+                }
+            }
+        }
+        compose.onNodeWithText("+3 days").performClick()
+        assertEquals(TODAY.plusDays(3), date)
+        // Tapping the chosen chip again clears the date (beta feedback).
+        compose.onNodeWithText("+3 days").performClick()
+        assertNull(date)
+        compose.onNodeWithText("No expiry").assertDoesNotExist()
     }
 }

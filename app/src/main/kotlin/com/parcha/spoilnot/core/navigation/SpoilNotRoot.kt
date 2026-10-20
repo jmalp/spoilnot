@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -27,21 +28,24 @@ import com.parcha.spoilnot.feature.update.ui.UpdateRequiredScreen
 fun SpoilNotRoot(modifier: Modifier = Modifier, viewModel: RootViewModel = hiltViewModel()) {
     val session by viewModel.session.collectAsStateWithLifecycle()
     val updateRequired by viewModel.updateRequired.collectAsStateWithLifecycle()
-    Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-        val outdated = updateRequired
-        if (outdated != null) {
-            UpdateRequiredScreen(outdated)
-            return@Box
-        }
-        when (val s = session) {
-            Session.Loading -> Loading()
+    // A Surface sets the text color for every top-level screen, so none falls back to black in dark mode.
+    Surface(modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
+            val outdated = updateRequired
+            if (outdated != null) {
+                UpdateRequiredScreen(outdated)
+                return@Box
+            }
+            when (val s = session) {
+                Session.Loading -> Loading()
 
-            Session.SignedOut -> AuthFlow()
+                Session.SignedOut -> AuthFlow()
 
-            is Session.NoHousehold -> key(s.user.uid) { HouseholdGateScreen(s) }
+                is Session.NoHousehold -> key(s.user.uid) { HouseholdGateScreen(s) }
 
-            // Keyed so nothing from a previous household or account survives (DESIGN 9.1).
-            is Session.InHousehold -> key(s.user.uid, s.householdId) { AppShell(s) }
+                // Keyed so nothing from a previous household or account survives (DESIGN 9.1).
+                is Session.InHousehold -> key(s.user.uid, s.householdId) { AppShell(s) }
+            }
         }
     }
 }

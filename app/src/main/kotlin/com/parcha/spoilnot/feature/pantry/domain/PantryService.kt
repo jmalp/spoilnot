@@ -230,8 +230,8 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         throwAwayAll(householdId, actor, listOf(batch), reason)!!
 
     /**
-     * Throws [batches] away for [reason] in one write (DESIGN 5.6, after v1: "Throw away expired" on Home), each
-     * logged and counted as [throwAway] does. One Undo puts them all back. Null when there is nothing to do.
+     * Throws [batches] away for [reason] in one write, each logged, counted for Insights once. One Undo puts them all
+     * back. Null when there is nothing to do. ([throwAway] uses it for one batch.)
      */
     suspend fun throwAwayAll(
         householdId: String,

@@ -58,8 +58,7 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     In the store, check off Bakery first, then Produce, then Dairy. Next time those aisles show in that order on both
     phones; another list keeps its own order.
 17. Quick wins: quick-add "bananas" and "frozen peas": they group under Produce and Frozen. Edit an item and rename it
-    to the name of a pantry product: Add to pantry adds to that product. With two expired items, Home shows Throw
-    away all 2 expired; tap it, then Undo. On a new household, the empty Home cards are one row each. The
+    to the name of a pantry product: Add to pantry adds to that product. On a new household, the empty Home cards are one row each. The
     notification explanation appears on the third dated item, not the first. Pantry and grocery rows show "2", not
     "2 pcs". At font size 200%, Settings > Units shows radio buttons with full labels.
 18. Add to pantry: check off five items and tap Add to pantry. Each is one line ("2 · Fridge · Oct 26") and the
@@ -73,13 +72,16 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     200% text the card stays readable and its buttons wrap. Restart the app: no tour. Settings > Take the app tour:
     it starts again; Skip tour ends it at any step.
 21. Polish 1: each tab's title is one compact bar. Pantry rows show one status chip and "× 3" (nothing for one). With
-    three or more expired items, the list starts with "N expired items": Show lists them, Throw away all removes them
-    with Undo. Add item: the quantity stepper sits beside the unit, the date chips wrap, the four locations are tiles
+    three or more expired items, the list starts with "N expired items": Show lists them. Add item: the quantity stepper sits beside the unit, the date chips wrap, the four locations are tiles
     on one line (two lines at 200% text). "Bag 2" sorts before "Bag 10". The tour highlight has no light corners.
 22. Polish 2: recipes without photos show a colored initial and line up; an empty recipe box offers Paste a link,
     Browse the web and Create manually. On Groceries, tap the list's name to switch lists. A low-stock item that is
     back in stock shows "Back in stock · Remove" on one line. Settings cards are outlined. In Add to grocery list,
     each checkbox lines up with its ingredient. Settings > Colors: the check is visible on every swatch.
+23. After beta 7: no Throw away all button on Home or in Pantry. Sign out in dark mode: "Spoil Not" is in the theme
+    color, in the rounded Fredoka font. Add item: four equal date chips, no No expiry; tap +3 days twice and the date
+    goes back to No expiry date. Pantry: no All chip; tap Fridge twice and everything shows again. Scroll Pantry and
+    Recipes: Add item and Add recipe keep their labels. Try each preset color: backgrounds and chips show the theme.
 
 ## 3. Conditions
 

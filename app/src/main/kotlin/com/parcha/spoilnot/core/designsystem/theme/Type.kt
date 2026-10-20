@@ -23,6 +23,19 @@ val Manrope =
         manrope(FontWeight.Bold),
     )
 
+/**
+ * Fredoka (after v1), a rounded display face bundled as one variable font, for the app's name on the welcome
+ * screen only; everything else stays Manrope. Licence in assets/licenses/fredoka-OFL.txt.
+ */
+val Fredoka =
+    FontFamily(
+        Font(
+            resId = R.font.fredoka,
+            weight = FontWeight.SemiBold,
+            variationSettings = FontVariation.Settings(FontVariation.weight(FontWeight.SemiBold.weight)),
+        ),
+    )
+
 private val Default = Typography()
 
 private fun TextStyle.manrope() = copy(fontFamily = Manrope)
