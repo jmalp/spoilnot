@@ -6,11 +6,19 @@ import com.parcha.spoilnot.EmulatorSupport.PASSWORD
 import com.parcha.spoilnot.EmulatorSupport.uniqueEmail
 import com.parcha.spoilnot.TestPhone
 import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.JoinRequestStatus
 import com.parcha.spoilnot.feature.household.domain.JoinState
 import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
+import com.parcha.spoilnot.feature.pantry.domain.Category
+import com.parcha.spoilnot.feature.pantry.domain.DateType
+import com.parcha.spoilnot.feature.pantry.domain.Location
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
+import com.parcha.spoilnot.feature.pantry.domain.StockDraft
+import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
+import java.time.LocalDate
 import kotlin.time.measureTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -160,6 +168,57 @@ class HouseholdFlowTest {
         bob.awaitSession { it is Session.SignedOut }
         val members = alice.households.observeMembers(householdId).first { it.size == 1 }
         assertEquals(listOf("Alice"), members.map { it.displayName })
+    }
+
+    /** Clear household data (owner, after v1, DESIGN 5.1): Bob's phone ends up with a household as new. */
+    @Test
+    fun ownerClearsHouseholdData_membersStayAndEveryPhoneSeesItEmpty() = runBlocking {
+        val householdId = aliceAndBobInOneHousehold()
+        val today = LocalDate.now()
+        alice.pantry.add(
+            householdId,
+            alice.actor,
+            StockDraft(
+                "Milk", 2.0, QuantityUnit.Pieces, today.plusDays(3), DateType.UseBy, Location.Fridge,
+                Category.Dairy, null, null, false, null,
+            ),
+            withTimeout(15_000) { alice.pantryRepository.observe(householdId).first { !it.fromCache } },
+        )
+        val defaultList = withTimeout(15_000) {
+            alice.groceryRepository.observeLists(householdId).first { it.isNotEmpty() }
+        }.single { it.isDefault }
+        alice.grocery.quickAdd(
+            householdId,
+            alice.actor,
+            defaultList.id,
+            "Eggs",
+            emptyList(),
+            alice.pantryRepository.observe(householdId).first { !it.fromCache },
+        )
+        alice.grocery.createList(householdId, alice.actor, "Party")
+        alice.recipes.save(householdId, alice.actor, RecipeContent(title = "Soup"), emptyList())
+        // Bob has it all on his phone first, so the clear has to reach his cache.
+        withTimeout(20_000) {
+            bob.pantryRepository.observe(householdId).first { !it.fromCache && it.batches.isNotEmpty() }
+            bob.groceryRepository.observeLists(householdId).first { it.size == 2 }
+            bob.recipeRepository.observe(householdId).first { it.recipes.isNotEmpty() }
+        }
+
+        alice.households.resetData(householdId, alice.actor)
+
+        withTimeout(20_000) {
+            bob.pantryRepository.observe(householdId).first { it.batches.isEmpty() && it.products.isEmpty() }
+            val lists = bob.groceryRepository.observeLists(householdId).first { it.size == 1 }
+            assertEquals(listOf("Groceries"), lists.map { it.name })
+            bob.groceryRepository.observeItems(householdId, lists.single().id).first { it.isEmpty() }
+            bob.recipeRepository.observe(householdId).first { it.recipes.isEmpty() }
+            val recent = bob.activity.observeRecent(householdId, 10)
+                .first { it.firstOrNull()?.type == ActivityType.HouseholdReset }
+            assertEquals(1, recent.size)
+        }
+        val members = alice.households.observeMembers(householdId).first { it.isNotEmpty() }
+        assertEquals(setOf("Alice", "Bob"), members.map { it.displayName }.toSet())
+        assertTrue(bob.sessionManager.session.value is Session.InHousehold)
     }
 
     private suspend fun aliceCreatesHousehold(): Pair<String, String> {

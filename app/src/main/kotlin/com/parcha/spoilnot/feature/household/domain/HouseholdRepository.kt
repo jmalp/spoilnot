@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.feature.household.domain
 
+import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import kotlinx.coroutines.flow.Flow
 
@@ -54,6 +55,15 @@ interface HouseholdRepository {
 
     /** Deletes every subcollection, then the household (Firestore does not cascade). Requires a connection. */
     suspend fun deleteHousehold(household: Household, uid: String)
+
+    /**
+     * Clear household data (owner, after v1, DESIGN 5.1): the household becomes as it was when created, keeping its
+     * name, members, invite code and join requests. Pantry, grocery items, products and recipes become tombstones so
+     * every phone's changes-only listeners drop them; extra grocery lists, activity and Insights counts are deleted;
+     * the default list gets its name back and forgets its store order; a household_reset event is logged last.
+     * Requires a connection. Cannot be undone.
+     */
+    suspend fun resetData(householdId: String, actor: Actor)
 }
 
 /** The on-device copy of household data. */

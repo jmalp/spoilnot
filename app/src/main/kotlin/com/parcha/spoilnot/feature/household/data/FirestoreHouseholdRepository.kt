@@ -5,16 +5,21 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.MetadataChanges
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.core.firebase.commitConfirmed
 import com.parcha.spoilnot.core.firebase.commitQueued
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.feature.auth.data.UserFields
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
+import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.household.domain.Household
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.HouseholdRules
@@ -281,6 +286,63 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             .delete(db.document(householdPath(household.id)))
             .update(db.document(UserFields.path(uid)), profilePointer(null))
             .commitConfirmed()
+    }
+
+    override suspend fun resetData(householdId: String, actor: Actor) {
+        val db = firestore.current
+        val base = householdPath(householdId)
+        suspend fun live(path: String) = db.collection(path).get(Source.SERVER).awaitMapped().documents
+            .filterNot { with(Tombstones) { it.isTombstone() } }
+        val ops = mutableListOf<(WriteBatch) -> Unit>()
+        val tombstone = Tombstones.fields(actor)
+        // Tombstones, not deletes: other phones read only what changed (DESIGN 9.8) and must see these go.
+        for (name in listOf("products", "stock", "recipes")) {
+            live("$base/$name").forEach { doc -> ops += { it.set(doc.reference, tombstone, SetOptions.merge()) } }
+        }
+        val lists = db.collection("$base/groceryLists").get(Source.SERVER).awaitMapped().documents
+        for (list in lists) {
+            val items = list.reference.collection("items").get(Source.SERVER).awaitMapped().documents
+            if (list.getBoolean("isDefault") == true) {
+                items.filterNot { with(Tombstones) { it.isTombstone() } }
+                    .forEach { doc -> ops += { it.set(doc.reference, tombstone, SetOptions.merge()) } }
+                ops += {
+                    it.update(
+                        list.reference,
+                        mapOf(
+                            "name" to HouseholdRules.DEFAULT_GROCERY_LIST_NAME,
+                            "aisleOrder" to emptyList<String>(),
+                            "updatedAt" to FieldValue.serverTimestamp(),
+                        ),
+                    )
+                }
+            } else {
+                // Nothing listens to a deleted list's items, so they go for real.
+                items.forEach { doc -> ops += { it.delete(doc.reference) } }
+                ops += { it.delete(list.reference) }
+            }
+        }
+        for (name in listOf("activity", "stats")) {
+            db.collection("$base/$name").get(Source.SERVER).awaitMapped().documents
+                .forEach { doc -> ops += { it.delete(doc.reference) } }
+        }
+        // Last, so Recent activity everywhere starts from here (older events cached on a phone are hidden).
+        ops += {
+            it.set(
+                db.collection("$base/activity").document(),
+                mapOf(
+                    "type" to ActivityType.HouseholdReset.wire,
+                    "actorUid" to actor.uid,
+                    "actorName" to actor.name,
+                    "params" to emptyMap<String, Any>(),
+                    "createdAt" to FieldValue.serverTimestamp(),
+                ),
+            )
+        }
+        ops.chunked(BATCH_LIMIT).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { op -> op(batch) }
+            batch.commitConfirmed()
+        }
     }
 
     /** Every document under the household, deepest first, read from the server so nothing is missed. */

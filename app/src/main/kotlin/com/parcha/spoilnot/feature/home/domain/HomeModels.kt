@@ -22,6 +22,9 @@ enum class ActivityType(val wire: String) {
 
     /** After v1: someone used "I cooked this" on a recipe. */
     Cooked("recipe_cooked"),
+
+    /** After v1: the owner cleared the household's data (DESIGN 5.1); older events are not shown. */
+    HouseholdReset("household_reset"),
     ;
 
     companion object {
@@ -43,6 +46,18 @@ data class ActivityEvent(
     val count: Int?,
     val createdAt: Instant?,
 )
+
+/** Recent activity rules (after v1). */
+object ActivityFeed {
+    /**
+     * [events] (newest first) up to and including the newest household_reset: events from before a reset can still
+     * sit in a phone's cache (changes-only reads, DESIGN 9.8) but describe data that is gone.
+     */
+    fun sinceReset(events: List<ActivityEvent>): List<ActivityEvent> {
+        val reset = events.indexOfFirst { it.type == ActivityType.HouseholdReset }
+        return if (reset < 0) events else events.take(reset + 1)
+    }
+}
 
 interface ActivityRepository {
     /** The newest [limit] events, newest first. Unknown types (from newer app versions) are skipped. */

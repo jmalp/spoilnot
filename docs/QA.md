@@ -82,6 +82,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     color, in the rounded Fredoka font. Add item: four equal date chips, no No expiry; tap +3 days twice and the date
     goes back to No expiry date. Pantry: no All chip; tap Fridge twice and everything shows again. Scroll Pantry and
     Recipes: Add item and Add recipe keep their labels. Try each preset color: backgrounds and chips show the theme.
+24. Clear household data: as a member, the button is not in Settings. As the owner, Settings > Clear household data:
+    Cancel changes nothing; Yes, clear everything asks for the password; a wrong password says so and clears
+    nothing; the right one clears it. On both phones: empty pantry, recipes and grocery list (named Groceries, no
+    extra lists), Insights empty, Recent activity shows only "<owner> cleared the household's data". Members, the
+    invite code and the household name are unchanged.
 
 ## 3. Conditions
 

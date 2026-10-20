@@ -5,6 +5,7 @@ import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.liveNewest
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
+import com.parcha.spoilnot.feature.home.domain.ActivityFeed
 import com.parcha.spoilnot.feature.home.domain.ActivityRepository
 import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
@@ -30,7 +31,7 @@ class FirestoreActivityRepository @Inject constructor(
         .flatMapLatest { db ->
             db.collection("households/$householdId/activity").liveNewest(db, syncLog, "createdAt", limit.toLong())
         }
-        .map { live -> live.documents.mapNotNull { it.toEvent() } }
+        .map { live -> ActivityFeed.sinceReset(live.documents.mapNotNull { it.toEvent() }) }
         .distinctUntilChanged()
 
     private fun DocumentSnapshot.toEvent(): ActivityEvent? {
