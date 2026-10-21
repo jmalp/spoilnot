@@ -12,7 +12,7 @@ Two problems in a shared home kept coming up for me. Food got thrown away becaus
 expire. And groceries were hard to coordinate: someone buys milk that is already in the fridge, or nobody buys the
 eggs because everyone assumed someone else would.
 
-I'm a software developer, and I wanted to learn agentic software engineering properly: not asking an AI for
+I wanted to learn agentic software engineering properly. Not asking an AI for
 snippets, but running a whole project with an AI agent doing the implementation while I own the product, the
 architecture and the quality bar. A small app that solves a real problem at home was a good way to practice that.
 
