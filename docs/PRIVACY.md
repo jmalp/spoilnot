@@ -44,6 +44,8 @@ cleared when you sign out, leave a household or are removed from it.
 ## Your controls
 
 - **Export:** Settings > Data > Export household data saves everything above as a JSON file.
+- **Backups:** every night the household data is saved, encrypted, as a private backup kept for 14 days, so it can be
+  restored after a mistake. Only the app's developer holds the key.
 - **Delete account:** Settings > Delete account removes your profile, devices and membership, then your sign-in.
   Household data you added stays with the household; the owner can delete the whole household, or clear its data
   (Settings > Clear household data, after their password) and keep the household and its members.

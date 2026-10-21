@@ -134,6 +134,8 @@ describe('reminder job against the emulator', () => {
     assert.equal(sender.sent.length, 0);
     assert.ok(summary.sent >= 2);
     assert.ok(lines.some((l) => l.includes('3 items need attention')));
+    // Logs are public with the repository: no user IDs and no item names.
+    assert.ok(lines.every((l) => !l.includes('alice') && !l.includes('Yogurt') && !l.includes('Milk')));
     assert.equal((await db.doc('users/alice').get()).get('lastDigestDate'), null);
     assert.equal((await db.doc('users/alice/devices/old').get()).exists, true);
     assert.equal((await db.doc('households/h1/activity/old').get()).exists, true);

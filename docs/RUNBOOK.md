@@ -135,8 +135,20 @@ are not phone timings.
 ## Nightly export and restore (DESIGN 13.4)
 
 `nightly-export.yml` runs at 07:17 UTC (about 3 AM Eastern) and saves every spoilnot-prod household as
-`<householdId>.json` in an artifact called `household-exports`, kept 14 days. The format is the same as the app's
-Settings > Export file. Artifacts of this private repository are visible only to people with access to it.
+`<householdId>.json`, encrypted together as `household-exports.tar.gz.enc` in an artifact called `household-exports`,
+kept 14 days. The format inside is the same as the app's Settings > Export file. The repository is public, and anyone
+signed in to GitHub can download artifacts, so the job encrypts with the `EXPORT_ENCRYPTION_KEY` secret (AES-256,
+PBKDF2) and fails rather than upload anything unencrypted.
+
+**Set up the key once** (and again only to rotate it; older exports then need the old key):
+
+```bash
+openssl rand -base64 32 | tee /dev/tty | gh secret set EXPORT_ENCRYPTION_KEY --repo jmalp/spoilnot
+```
+
+Save the printed key in your password manager: it is the only way to open an export outside GitHub. To open one on a
+computer: `openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in household-exports.tar.gz.enc | tar -xzf -` (it asks
+for the key).
 
 To find an export: **Actions → nightly-export →** pick a run (its URL ends with the run ID) **→ Artifacts**.
 
@@ -152,14 +164,16 @@ after the export alone. Anything deleted since the export comes back; anything c
 exported version.
 
 1. **Actions → restore-from-export → Run workflow.** Enter the export run's ID and leave the household empty: the
-   log lists each household ID in that export with its document counts (nothing is written).
-2. Run it again with the household ID and "apply" unticked. The log shows how many documents would be written,
-   by kind.
+   log lists the first four characters of each household ID in that export with its document counts (nothing is
+   written). Logs are public, so full IDs are never printed; the full ID is in the Firebase console under
+   `households`.
+2. Run it again with the first characters of the household ID (four or more, enough to match one export) and
+   "apply" unticked. The log shows how many documents would be written, by kind.
 3. Run it again with **apply** ticked.
 4. To restore into a different household (for example after the original was deleted, recreate one in the app,
    then find its ID in the Firebase console under `households`), fill in **target household**.
 
-From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<hid> -f apply=false`.
+From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<first characters> -f apply=false`.
 
 A file saved from Settings > Export can be restored the same way from a computer that has the service account key
 in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci && npm run build && node dist/restore-main.js
@@ -203,10 +217,15 @@ regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget
 
 ## Scheduled workflows
 
-`expiry-reminders` (hourly), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub can
-disable scheduled workflows in a repository with no activity for 60 days, and shows a banner on the Actions tab. To
-turn one back on: **Actions →** the workflow **→ Enable workflow** (or
+`expiry-reminders` (hourly), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub disables
+scheduled workflows in a public repository after 60 days without activity, and shows a banner on the Actions tab.
+`keepalive.yml` re-enables them (and itself) through the API on the 3rd of every month, which resets that clock. If
+one is disabled anyway: **Actions →** the workflow **→ Enable workflow** (or
 `gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check.
+
+**Logs are public.** Workflow logs show counts, dates and the first characters of household IDs only: the reminder
+job logs neither user IDs nor what is in a digest (a dry run shows the notification title, which is a count), and
+the export and restore print counts. Keep it that way when changing the jobs.
 
 ## Dependency updates
 

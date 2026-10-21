@@ -1,5 +1,5 @@
 // Nightly export (DESIGN 13.4, M7): every household's data to EXPORT_DIR/<householdId>.json, which the workflow
-// keeps as a private Actions artifact for 14 days. Reads only; changes nothing.
+// encrypts (EXPORT_ENCRYPTION_KEY) and keeps as an Actions artifact for 14 days. Reads only; changes nothing.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getFirestore } from 'firebase-admin/firestore';

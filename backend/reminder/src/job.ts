@@ -136,7 +136,8 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
         android: { priority: 'high', notification: { channelId: CHANNEL, tag: 'expiry_digest' } },
       }));
       if (dryRun) {
-        log(`[dry run] ${user.uid} (${local.date}): "${digest.title}" / "${digest.body}" to ${messages.length} device(s)`);
+        // Workflow logs are public with the repository: the title's count only, never a user ID or item names.
+        log(`[dry run] ${local.date}: "${digest.title}" to ${messages.length} device(s)`);
         summary.sent += messages.length;
         continue;
       }
@@ -146,7 +147,7 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
       summary.deadTokens += dead.length;
       const delivered = results.filter((r) => r.success).length;
       summary.sent += delivered;
-      log(`${user.uid} (${local.date}): ${delivered}/${messages.length} delivered`);
+      log(`${local.date}: ${delivered}/${messages.length} delivered`);
 
       // 6. Only a delivered digest counts; otherwise the next run retries.
       if (delivered > 0) await userRef.update(afterSend(local.date));

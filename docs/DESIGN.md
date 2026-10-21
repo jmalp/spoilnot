@@ -787,7 +787,7 @@ jobs:
 
 Pin the action versions to the current majors at build time.
 
-**Reliability (verified, Appendix C).** GitHub scheduled runs are best-effort: they can start 15 to 60 minutes late at busy times and are occasionally skipped; the minimum interval is 5 minutes; in public repositories schedules are disabled after 60 days without repository activity. The design tolerates this: reminders are stateless windows (an item inside the 3-day window appears in every daily digest), the job catches up at any time before 22:00, and `lastDigestDate` prevents duplicates. The hourly job uses about 720 billed minutes per month of the 2,000 free for private repositories, so keep CI frugal (path filters, caching). Make sure Actions failure notifications are enabled in your GitHub notification settings.
+**Reliability (verified, Appendix C).** GitHub scheduled runs are best-effort: they can start 15 to 60 minutes late at busy times and are occasionally skipped; the minimum interval is 5 minutes; in public repositories schedules are disabled after 60 days without repository activity. (After v1 the repository is public; `keepalive.yml` re-enables the scheduled workflows monthly.) The design tolerates this: reminders are stateless windows (an item inside the 3-day window appears in every daily digest), the job catches up at any time before 22:00, and `lastDigestDate` prevents duplicates. The hourly job uses about 720 billed minutes per month of the 2,000 free for private repositories, so keep CI frugal (path filters, caching). Make sure Actions failure notifications are enabled in your GitHub notification settings.
 
 **Service account.** Create a dedicated service account for the job with least privilege (Firestore read and write, and permission to send FCM messages; confirm the current role names in the Google Cloud console). Store its JSON key only as the `FIREBASE_SERVICE_ACCOUNT_JSON` repository secret. Rotate it yearly. Never commit it.
 
@@ -1085,7 +1085,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 - **Update gate:** on launch read `config/app.minSupportedBuild`; if the installed `versionCode` is lower, show a full-screen “Please update” with a link.
 - **Runbook** (`docs/RUNBOOK.md`): rotate the service account key, regenerate an invite code by hand, check quota usage, re-enable the workflow, restore from an export.
 
-**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days.
+**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days. After v1 the repository is public, so the export is encrypted (AES-256 with a key-stretched passphrase in the `EXPORT_ENCRYPTION_KEY` secret) before it is uploaded, the restore workflow decrypts it, and workflow logs never contain user IDs, full household IDs or household contents (docs/RUNBOOK.md).
 
 ## 14. Milestones for Claude Code
 
@@ -1197,6 +1197,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Baseline profile regenerated after UX polish 1 and 2 (16,700 rules). On a freshly booted emulator: cold start median 468 → 392 ms; first Pantry scroll frame CPU time P90 10.3 → 5.9 ms, P99 30.3 → 9.9 ms | 13.1, RUNBOOK |
 | 2026-10-19 | Feedback after beta 7: no Throw away all button (Home and Pantry), a readable welcome title in Fredoka, four equal date chips that toggle (no No expiry chip), Pantry filters without All that toggle, Add buttons that never shrink, bolder preset color themes | 5.2, 5.6, 6.4, 6.5, QA |
 | 2026-10-19 | Clear household data: the owner wipes everything but the household and its members, after a confirmation and their password | 5.1, 5.6, 8.2, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
+| 2026-10-20 | Ready for a public repository: encrypted nightly exports, logs without user IDs, household IDs or digest contents, restore by ID prefix, a monthly keep-alive for scheduled workflows | 10, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
