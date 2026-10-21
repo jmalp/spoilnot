@@ -1,7 +1,9 @@
 name: nightly-export
 
-# DESIGN 13.4 (M7): every night, each household's data as JSON (the app's export format), kept as a private
-# Actions artifact for 14 days. Read-only. Restore with the restore workflow (docs/RUNBOOK.md).
+# DESIGN 13.4 (M7): every night, each household's data as JSON (the app's export format), kept as an Actions
+# artifact for 14 days. Read-only. Restore with the restore workflow (docs/RUNBOOK.md).
+# The repository is public, so anyone signed in to GitHub can download artifacts: the exports are encrypted with
+# the EXPORT_ENCRYPTION_KEY secret (AES-256, PBKDF2) and the job refuses to upload them unencrypted.
 on:
   schedule:
     - cron: '17 7 * * *'
@@ -32,9 +34,24 @@ jobs:
           EXPECTED_PROJECT: spoilnot-prod
           EXPORT_DIR: ${{ runner.temp }}/exports
         run: npm ci && npm run build && node dist/export-main.js
+      - name: Encrypt
+        env:
+          EXPORT_ENCRYPTION_KEY: ${{ secrets.EXPORT_ENCRYPTION_KEY }}
+          EXPORT_DIR: ${{ runner.temp }}/exports
+        run: |
+          if [ -z "$(ls -A "$EXPORT_DIR" 2>/dev/null)" ]; then echo "Nothing exported."; exit 0; fi
+          if [ -z "$EXPORT_ENCRYPTION_KEY" ]; then
+            rm -rf "$EXPORT_DIR"
+            echo "::error::EXPORT_ENCRYPTION_KEY is not set; refusing to upload unencrypted exports (docs/RUNBOOK.md)."
+            exit 1
+          fi
+          tar -C "$EXPORT_DIR" -czf - . \
+            | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:EXPORT_ENCRYPTION_KEY \
+                -out "$RUNNER_TEMP/household-exports.tar.gz.enc"
+          rm -rf "$EXPORT_DIR"
       - uses: actions/upload-artifact@v7
         with:
           name: household-exports
-          path: ${{ runner.temp }}/exports/
+          path: ${{ runner.temp }}/household-exports.tar.gz.enc
           retention-days: 14
           if-no-files-found: ignore

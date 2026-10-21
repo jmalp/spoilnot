@@ -129,3 +129,8 @@ export async function applyRestore(db: Firestore, plan: RestorePlan): Promise<nu
   await writer.close();
   return plan.writes.length;
 }
+
+/** The first four characters of a household ID, enough to pick an export without publishing the ID. */
+export function shortId(id: string): string {
+  return id.length > 4 ? `${id.slice(0, 4)}…` : id;
+}

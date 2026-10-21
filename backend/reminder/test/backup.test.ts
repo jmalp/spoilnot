@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Timestamp } from 'firebase-admin/firestore';
-import { FORMAT, fromJson, planRestore, toJson, type HouseholdExport } from '../src/backup.ts';
+import { FORMAT, fromJson, planRestore, shortId, toJson, type HouseholdExport } from '../src/backup.ts';
 
 describe('export values', () => {
   it('timestamps become ISO strings and come back as timestamps; calendar dates stay strings', () => {
@@ -61,5 +61,12 @@ describe('restore plan', () => {
   it('refuses other files and newer formats', () => {
     assert.throws(() => planRestore({ ...file, format: 'other' } as unknown as HouseholdExport, 'h1'));
     assert.throws(() => planRestore({ ...file, formatVersion: 2 }, 'h1'));
+  });
+});
+
+describe('shortId', () => {
+  it('shows only the first four characters of a household ID in public logs', () => {
+    assert.equal(shortId('oQS9hyK4LlN9YDjp3kMl'), 'oQS9…');
+    assert.equal(shortId('h1'), 'h1');
   });
 });

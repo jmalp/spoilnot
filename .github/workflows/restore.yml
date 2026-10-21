@@ -2,6 +2,8 @@ name: restore-from-export
 
 # Restores one household from a nightly export (docs/RUNBOOK.md). Manual only, and a dry run unless "apply" is
 # ticked. Restores products, stock, grocery lists and recipes; never the household itself or its members.
+# The repository is public: exports are decrypted with EXPORT_ENCRYPTION_KEY, and households are named by the first
+# characters of their ID only (logs show the inputs).
 on:
   workflow_dispatch:
     inputs:
@@ -10,11 +12,11 @@ on:
         required: true
         type: string
       household_id:
-        description: 'Household ID (leave empty to list the households in the export)'
+        description: 'First 4 or more characters of the household ID (leave empty to list the exports)'
         required: false
         type: string
       target_household_id:
-        description: 'Household to write into (leave empty for the same one)'
+        description: 'Full ID of a different household to write into (leave empty for the same one)'
         required: false
         type: string
       apply:
@@ -47,18 +49,34 @@ jobs:
           run-id: ${{ inputs.export_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: ${{ runner.temp }}/exports
+      - name: Decrypt
+        env:
+          EXPORT_ENCRYPTION_KEY: ${{ secrets.EXPORT_ENCRYPTION_KEY }}
+        run: |
+          [ -n "$EXPORT_ENCRYPTION_KEY" ] || { echo "::error::EXPORT_ENCRYPTION_KEY is not set"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/plain"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:EXPORT_ENCRYPTION_KEY \
+              -in "$RUNNER_TEMP/exports/household-exports.tar.gz.enc" \
+            | tar -C "$RUNNER_TEMP/plain" -xzf -
       - name: Restore
         working-directory: backend/reminder
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           EXPECTED_PROJECT: spoilnot-prod
           SOURCE: ${{ inputs.household_id }}
-          TARGET: ${{ inputs.target_household_id || inputs.household_id }}
+          TARGET: ${{ inputs.target_household_id }}
           APPLY: ${{ inputs.apply && '--apply' || '' }}
         run: |
           npm ci && npm run build
           if [ -z "$SOURCE" ]; then
-            node dist/restore-main.js --list "$RUNNER_TEMP/exports"
-          else
-            node dist/restore-main.js "$RUNNER_TEMP/exports/$SOURCE.json" "$TARGET" $APPLY
+            node dist/restore-main.js --list "$RUNNER_TEMP/plain"
+            exit 0
           fi
+          shopt -s nullglob
+          matches=("$RUNNER_TEMP/plain/$SOURCE"*.json)
+          if [ "${#matches[@]}" -ne 1 ]; then
+            echo "::error::'$SOURCE' matches ${#matches[@]} export(s); give more characters of the household ID."
+            exit 1
+          fi
+          id=$(basename "${matches[0]}" .json)
+          node dist/restore-main.js "${matches[0]}" "${TARGET:-$id}" $APPLY
