@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { map, of } from 'rxjs';
 import { useObservable } from '../core/hooks';
 import { str, type StringId } from '../core/i18n';
 import { useNav } from '../core/NavProvider';
 import { useHouseholdSession, useServices } from '../core/services';
+import { DEFAULT_QUERY, type PantryQuery } from '../domain/pantry/items';
+import { HomeScreen } from './home/HomeScreen';
 import { HouseholdSettingsScreen } from './household/HouseholdSettingsScreen';
+import { InsightsScreen } from './insights/InsightsScreen';
 import { PantryScreen } from './pantry/PantryScreen';
 import { SettingsScreen } from './settings/SettingsScreen';
 import { top, type Route, type Tab } from '../core/navigation';
@@ -61,12 +64,41 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
     ),
     0,
   );
+  // The Pantry tab's search and filter live here, as its view model outlives the screen in the app.
+  const [pantryQuery, setPantryQuery] = useState<PantryQuery>(DEFAULT_QUERY);
   const openSettings = () => nav.navigate({ name: 'settings' });
   if (route.name === 'settings') {
     return <SettingsScreen onBack={nav.back} onOpenHousehold={() => nav.navigate({ name: 'householdSettings' })} />;
   }
   if (route.name === 'householdSettings') return <HouseholdSettingsScreen onBack={nav.back} />;
-  if (tab === 'pantry') return <PantryScreen onOpenSettings={openSettings} joinRequests={joinRequests} />;
+  if (route.name === 'insights') return <InsightsScreen onBack={nav.back} />;
+  if (tab === 'home') {
+    return (
+      <HomeScreen
+        joinRequests={joinRequests}
+        navigation={{
+          openSettings,
+          // A Home card opens the Pantry tab at its root with its filter (DeepLink.Pantry in the app).
+          openPantry: (filter) => {
+            setPantryQuery((q) => ({ ...q, filter }));
+            nav.showRoot('pantry');
+          },
+          openInsights: () => nav.navigate({ name: 'insights' }),
+          reviewJoinRequests: () => nav.navigate({ name: 'householdSettings' }),
+        }}
+      />
+    );
+  }
+  if (tab === 'pantry') {
+    return (
+      <PantryScreen
+        onOpenSettings={openSettings}
+        joinRequests={joinRequests}
+        query={pantryQuery}
+        onQueryChange={setPantryQuery}
+      />
+    );
+  }
   const item = TAB_ITEMS.find((t) => t.id === tab)!;
   return (
     <TabScaffold title={item.label} onOpenSettings={openSettings} joinRequests={joinRequests} testId={`screen_${tab}`}>

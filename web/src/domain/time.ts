@@ -67,3 +67,16 @@ export function sortedWith<T>(items: readonly T[], ...comparators: ((a: T, b: T)
     return 0;
   });
 }
+
+/** [months] later in the calendar, clamped to the month's last day (LocalDate.plusMonths: Jan 31 + 1 is Feb 28). */
+export function addMonths(date: LocalDate, months: number): LocalDate {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  const total = y * 12 + (m - 1) + months;
+  const year = Math.floor(total / 12);
+  const month = total - year * 12;
+  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
+}
+
+/** [months] after [month] (YearMonth.plusMonths). */
+export const plusMonths = (month: YearMonth, months: number): YearMonth => addMonths(`${month}-01`, months).slice(0, 7);

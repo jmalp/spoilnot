@@ -578,7 +578,10 @@ export const STRINGS = {
   "web_coming_soon": "This part of Spoil Not for iPhone is on its way.",
   "web_update_ready": "A new version of Spoil Not is ready",
   "web_update_reload": "Update",
-  "web_not_configured": "This copy of Spoil Not has no Firebase configuration."
+  "web_not_configured": "This copy of Spoil Not has no Firebase configuration.",
+  "web_select_date": "Select date",
+  "web_previous_month": "Previous month",
+  "web_next_month": "Next month"
 } as const;
 
 export const PLURALS = {

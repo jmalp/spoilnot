@@ -1,7 +1,9 @@
 // Changes-only listeners (DESIGN 9.8; core/firebase/DeltaSync in the app). See domain/sync.ts for the cursor.
 import {
   getDocsFromCache,
+  limit as limitTo,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   Timestamp,
@@ -105,6 +107,42 @@ export function liveDocuments(
           documents: local.docs.filter((d) => !Tombstones.is(d)),
           fromCache: server.metadata.fromCache,
         })),
+      );
+    }),
+  );
+}
+
+/**
+ * The newest [limit] documents of an append-only collection by [field] (liveNewest in the app), such as Recent
+ * activity: the cache listener shows the newest ones the phone has, and the server listener reads only documents newer
+ * than the newest cached one (less the cursor margin), or the newest [limit] on the daily full read. Removals that
+ * happen while a document is in the server listener's result (Undo) show at once; others by the next full read.
+ */
+export function liveNewest(
+  db: Firestore,
+  collection: CollectionReference,
+  log: SyncLog,
+  field: string,
+  limit: number,
+): Observable<LiveDocuments> {
+  const newestQuery = query(collection, orderBy(field, 'desc'), limitTo(limit));
+  return defer(async () => {
+    const cached = await getDocsFromCache(newestQuery).catch(() => null);
+    const newest = cached?.docs
+      .map((d) => (d.get(field) as Timestamp | null)?.toMillis?.() ?? null)
+      .find((at) => at !== null);
+    return cursor(newest ?? null, log.lastFullSync(collection.path), log.current());
+  }).pipe(
+    switchMap((since) => {
+      const server = since === null ? newestQuery : query(collection, where(field, '>', Timestamp.fromMillis(since)));
+      const remote = querySnapshots(server, true).pipe(
+        retryAfterOwnWrites(db),
+        tap((s) => {
+          if (since === null && !s.metadata.fromCache) log.markFullSync(collection.path);
+        }),
+      );
+      return combineLatest([cacheSnapshots(newestQuery), remote]).pipe(
+        map(([local, server]) => ({ documents: local.docs, fromCache: server.metadata.fromCache })),
       );
     }),
   );

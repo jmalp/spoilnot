@@ -84,8 +84,8 @@
   border: none;
   border-radius: 20px;
   background: transparent;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   font-weight: 500;
   letter-spacing: 0.00625rem;
   text-align: center;
@@ -179,8 +179,8 @@
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
   box-shadow: var(--sn-elevation-3);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   font-weight: 500;
   letter-spacing: 0.00625rem;
 }
@@ -284,8 +284,8 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: var(--sp-12);
+  line-height: var(--sp-16);
   font-weight: 500;
   letter-spacing: 0.03125rem;
 }
@@ -301,7 +301,7 @@
   border-radius: 8px;
   background: var(--md-sys-color-error);
   color: var(--md-sys-color-on-error);
-  font-size: 0.6875rem;
+  font-size: var(--sp-11);
   line-height: 16px;
   font-weight: 500;
   text-align: center;
@@ -338,8 +338,8 @@
   background: transparent;
   padding: 16px;
   outline: none;
-  font-size: 1rem;
-  line-height: 1.5rem;
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
   letter-spacing: 0.03125rem;
   color: var(--md-sys-color-on-surface);
   caret-color: var(--md-sys-color-primary);
@@ -359,8 +359,8 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 1rem;
-  line-height: 1.5rem;
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
   letter-spacing: 0.03125rem;
   pointer-events: none;
   transition:
@@ -369,8 +369,8 @@
 }
 .m3-text-field--floating .m3-text-field__label {
   top: 0;
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: var(--sp-12);
+  line-height: var(--sp-16);
   background: var(--sn-field-notch, var(--md-sys-color-surface));
 }
 .m3-text-field__box:focus-within .m3-text-field__label {
@@ -388,8 +388,8 @@
 .m3-text-field__supporting {
   padding: 0 16px;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: var(--sp-12);
+  line-height: var(--sp-16);
   letter-spacing: 0.025rem;
 }
 .m3-text-field--error .m3-text-field__supporting {
@@ -408,8 +408,8 @@
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   box-shadow: inset 0 0 0 1px var(--md-sys-color-outline);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   font-weight: 500;
   letter-spacing: 0.00625rem;
   /* A 48 px touch target around the 32 px chip, as Compose adds. */
@@ -567,6 +567,9 @@
   animation: m3-sheet-in 350ms var(--sn-motion-emphasized-decelerate);
   --sn-field-notch: var(--md-sys-color-surface-container-low);
 }
+.m3-sheet:focus-visible {
+  outline: none; /* the sheet takes focus when it opens; the app shows no ring for that */
+}
 .m3-sheet:not([open]) {
   display: none;
 }
@@ -626,8 +629,8 @@
   background: transparent;
   color: var(--md-sys-color-on-surface);
   text-align: start;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   font-weight: 500;
   letter-spacing: 0.00625rem;
 }
@@ -732,14 +735,14 @@
   flex-direction: column;
 }
 .m3-list-item__headline {
-  font-size: 1rem;
-  line-height: 1.5rem;
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
   letter-spacing: 0.03125rem;
 }
 .m3-list-item__supporting {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   letter-spacing: 0.015625rem;
 }
 
@@ -747,7 +750,70 @@
 .sn-error-text {
   margin: 0;
   color: var(--md-sys-color-error);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   letter-spacing: 0.015625rem;
+}
+
+/* Select fields: a read-only text field with a menu. */
+.m3-select {
+  text-align: start;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+}
+.m3-select__arrow {
+  pointer-events: none;
+  padding-right: 8px;
+}
+.m3-text-field--disabled {
+  opacity: 0.38;
+}
+
+/* The date picker dialog: 48 px days, the choice filled in primary, today outlined. */
+.m3-date-picker p {
+  margin: 0;
+}
+.m3-date-picker__headline {
+  margin: 16px 0 12px !important;
+  color: var(--md-sys-color-on-surface);
+}
+.m3-date-picker__divider {
+  margin: 0 -24px 8px;
+}
+.m3-date-picker__month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.m3-date-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  justify-items: center;
+}
+.m3-date-picker__weekday {
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--md-sys-color-on-surface);
+}
+.m3-date-picker__day {
+  width: 40px;
+  height: 40px;
+  margin: 4px 0;
+  border: none;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+.m3-date-picker__day--today {
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-primary);
+  color: var(--md-sys-color-primary);
+}
+.m3-date-picker__day--selected {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  box-shadow: none;
 }

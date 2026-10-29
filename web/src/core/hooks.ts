@@ -61,3 +61,13 @@ export function useToday(clock: Clock): LocalDate {
   }, [clock]);
   return day;
 }
+
+/** The clock's time, refreshed every minute: for "5 minutes ago" lines. */
+export function useNow(clock: Clock): number {
+  const [now, setNow] = useState(() => clock.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(clock.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [clock]);
+  return now;
+}

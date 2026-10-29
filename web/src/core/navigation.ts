@@ -7,7 +7,11 @@ export const START: Tab = 'home';
 
 /** A screen. Each tab's stack starts with its root; pushed screens are added as milestones need them. */
 export type Route =
-  { name: 'root' } | { name: 'settings' } | { name: 'householdSettings' } | { name: 'recipe'; id: string };
+  | { name: 'root' }
+  | { name: 'settings' }
+  | { name: 'householdSettings' }
+  | { name: 'insights' }
+  | { name: 'recipe'; id: string };
 
 export type NavState = { tab: Tab; stacks: Record<Tab, Route[]> };
 

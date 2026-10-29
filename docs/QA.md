@@ -117,6 +117,14 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     purchases with the same chips; search, the filters (tap the chosen one again for all), Sort and group. Swipe a
     row right: used up, Undo brings it back; swipe left: the reasons, then thrown away. ⋮ > Mark opened on a pack of 6:
     1 moves to its own row with Opened. The Android phone shows each change within seconds, and the other way round.
+30. Web app W2b (iPhone, same household as an Android phone): Add item from the empty Pantry: Greek yogurt, 6, +1 week:
+    "Greek yogurt added". Add greek YOGURT with the same date: the row becomes × 7. Type the start of a product the
+    household has used: it fills unit, place and category; pick a day in the date picker. Tap a row, set the quantity
+    to 0, Save: it disappears; Undo brings it back. Tap an Out staple: Add item opens for it. Home: Needs attention and
+    Low stock list the same items as the Android Home and their buttons open Pantry filtered; This month shows the
+    same counts; throwing something away on Android appears in Recent activity within seconds. See insights: tap last
+    month's bars for its details. Larger Text at the largest size: headlines grow less than body text, the ring's
+    percentage stays inside it.
 
 ## 3. Conditions
 

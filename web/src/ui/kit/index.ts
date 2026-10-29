@@ -13,3 +13,5 @@ export { Checkbox, Radio, Switch } from './Selection';
 export { SnackbarProvider, useSnackbars, SHORT_MS, UNDO_WINDOW_MS } from './Snackbar';
 export { TextField } from './TextField';
 export { ErrorText, ListItem } from './ListItem';
+export { DatePickerDialog } from './DatePicker';
+export { SelectField } from './SelectField';

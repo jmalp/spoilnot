@@ -7,4 +7,8 @@
     <string name="web_update_ready">A new version of Spoil Not is ready</string>
     <string name="web_update_reload">Update</string>
     <string name="web_not_configured">This copy of Spoil Not has no Firebase configuration.</string>
+    <!-- The date picker dialog (the app uses Material's own strings for it). -->
+    <string name="web_select_date">Select date</string>
+    <string name="web_previous_month">Previous month</string>
+    <string name="web_next_month">Next month</string>
 </resources>

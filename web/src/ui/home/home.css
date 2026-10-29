@@ -1,0 +1,106 @@
+/* Home (DESIGN 5.6): outlined cards 12 px apart, as HomeScreen lays them out. */
+.sn-home {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-home h2 {
+  margin: 0;
+}
+.sn-home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+.sn-home-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sn-home-card__header h2 {
+  flex: 1;
+}
+.sn-home-card__action {
+  align-self: flex-end;
+}
+.sn-home-calm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.sn-home-calm__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.sn-home-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sn-home-row__name {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.sn-activity {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+.sn-home-insights {
+  display: flex;
+  align-items: center;
+}
+.sn-home-insights__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 16px;
+}
+.sn-home-join {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-home-join__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+}
+.sn-home-join__text {
+  flex: 1;
+}
+.sn-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  animation: sn-skeleton 800ms linear infinite alternate;
+}
+.sn-skeleton span {
+  display: block;
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-variant);
+}
+@keyframes sn-skeleton {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 0.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sn-skeleton {
+    animation: none;
+    opacity: 0.6;
+  }
+}

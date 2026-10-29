@@ -3,11 +3,12 @@ import type { DeviceRegistry } from '../domain/household';
 import { PantryService } from '../domain/pantry/service';
 import { SessionManager } from '../domain/session';
 import { systemClock } from '../domain/time';
+import { FirestoreActivityRepository } from './activity';
 import { FirebaseAuthRepository } from './auth';
 import { firebase, type FirebaseSdk } from './firebase';
 import { FirestoreHouseholdRepository, FirestoreLocalData } from './households';
 import { FirestorePantryRepository, pantryMapper } from './pantry';
-import { statsMapper } from './stats';
+import { FirestoreStatsRepository, statsMapper } from './stats';
 import { FirestoreUserRepository } from './users';
 import { SyncLog } from './delta-sync';
 import { FirestoreHouseholdWriter } from './writer';
@@ -32,6 +33,8 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     writer,
     pantry: new FirestorePantryRepository(sdk, log),
     pantryService: new PantryService(writer, clock),
+    activity: new FirestoreActivityRepository(sdk, log),
+    stats: new FirestoreStatsRepository(sdk),
     clock,
   };
 }
