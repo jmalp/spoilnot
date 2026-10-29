@@ -69,6 +69,12 @@ button {
 }
 
 /* Material 3 type scale as Compose defines it (Typography()), in Manrope. */
+.t-display-medium {
+  font-size: 2.8125rem;
+  line-height: 3.25rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
 .t-display-small {
   font-size: 2.25rem;
   line-height: 2.75rem;

@@ -1,0 +1,100 @@
+/* The household gate (HouseholdGateScreen) and Settings > Household. */
+.sn-gate {
+  min-height: 100dvh;
+}
+.sn-gate__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--sn-content-width);
+  margin: 0 auto;
+  padding: 16px calc(16px + var(--sn-safe-right)) calc(16px + var(--sn-safe-bottom)) calc(16px + var(--sn-safe-left));
+}
+.sn-gate__intro {
+  margin: 0;
+}
+.sn-gate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  --sn-field-notch: var(--md-sys-color-surface-container-highest);
+}
+.sn-gate-card h2,
+.sn-gate-card p {
+  margin: 0;
+}
+.sn-gate-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sn-gate-card__progress {
+  display: flex;
+  justify-content: center;
+}
+.sn-code-field input {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.sn-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.sn-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+}
+.sn-section__title {
+  margin: 0;
+  padding: 0 16px;
+}
+.sn-section__body {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sn-section__body p {
+  margin: 0;
+}
+.sn-divider {
+  height: 1px;
+  margin: 0 16px;
+  background: var(--md-sys-color-outline-variant);
+  border: none;
+}
+.sn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sn-invite-code {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.sn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+.sn-stack > p {
+  margin: 0;
+}
+.sn-settings__card-title {
+  margin: 0;
+  padding: 16px 16px 0;
+}
+.sn-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  --sn-field-notch: var(--md-sys-color-surface-container-high);
+}
+.sn-dialog-form p {
+  margin: 0;
+}

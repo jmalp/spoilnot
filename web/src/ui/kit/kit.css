@@ -105,8 +105,9 @@
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
+/* Compose Material 3 1.4: outlined buttons take onSurfaceVariant, not primary (as the app shows). */
 .m3-button--outlined {
-  color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-surface-variant);
   box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
 }
 .m3-button--text {
@@ -124,10 +125,8 @@
   width: 100%;
 }
 .m3-button--large {
-  min-height: 56px;
-  border-radius: 28px;
-  font-size: 1rem;
-  line-height: 1.5rem;
+  min-height: 48px;
+  border-radius: 24px;
 }
 .m3-button:disabled {
   background: transparent;
@@ -683,9 +682,12 @@
 
 /* Circular progress: 40 px, 4 px primary stroke. */
 .m3-progress {
-  width: 40px;
-  height: 40px;
+  flex: none;
   animation: m3-spin 1.4s linear infinite;
+}
+.m3-progress--small circle {
+  stroke-width: 5;
+  stroke: currentColor;
 }
 .m3-progress circle {
   fill: none;
@@ -698,4 +700,54 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* List items: 56 px (72 with supporting text), a 24 px leading icon, headline bodyLarge, supporting bodyMedium. */
+.m3-list-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 24px 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+}
+.m3-list-item--two-line {
+  min-height: 72px;
+}
+.m3-list-item__leading,
+.m3-list-item__trailing {
+  display: flex;
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant);
+  flex: none;
+}
+.m3-list-item__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.m3-list-item__headline {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  letter-spacing: 0.03125rem;
+}
+.m3-list-item__supporting {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0.015625rem;
+}
+
+/* An error line under a form, announced when it appears (ErrorText). */
+.sn-error-text {
+  margin: 0;
+  color: var(--md-sys-color-error);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0.015625rem;
 }

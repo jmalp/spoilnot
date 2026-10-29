@@ -574,6 +574,7 @@ export const STRINGS = {
   "plan_moved": "Moved %1$s",
   "home_today": "Today",
   "home_today_open": "Open plan",
+  "web_app_name": "Spoil Not",
   "web_coming_soon": "This part of Spoil Not for iPhone is on its way.",
   "web_update_ready": "A new version of Spoil Not is ready",
   "web_update_reload": "Update",

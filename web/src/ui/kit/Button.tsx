@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
+import { Progress } from './Progress';
 import { ripple } from './ripple';
 
 export type ButtonVariant = 'filled' | 'tonal' | 'outlined' | 'text';
@@ -9,15 +10,28 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: IconName;
   /** Full width, like PrimaryButton in the app. */
   full?: boolean;
-  /** The 56 px PrimaryButton the app uses at the bottom of forms. */
+  /** PrimaryButton's 48 px height (a filled button stretched to the touch target), for form buttons. */
   large?: boolean;
   /** Error colors, for destructive text buttons such as Remove from plan. */
   danger?: boolean;
+  /** Shows a small spinner instead of the label and ignores taps (PrimaryButton's busy). */
+  busy?: boolean;
   children: ReactNode;
 };
 
 /** Material 3 buttons: Button, FilledTonalButton, OutlinedButton and TextButton. */
-export function Button({ variant = 'filled', icon, full, large, danger, className, children, ...rest }: Props) {
+export function Button({
+  variant = 'filled',
+  icon,
+  full,
+  large,
+  danger,
+  busy,
+  className,
+  children,
+  disabled,
+  ...rest
+}: Props) {
   const classes = [
     'm3-button',
     'm3-state',
@@ -29,9 +43,22 @@ export function Button({ variant = 'filled', icon, full, large, danger, classNam
     className,
   ];
   return (
-    <button type="button" className={classes.filter(Boolean).join(' ')} onPointerDown={ripple} {...rest}>
-      {icon && <Icon name={icon} />}
-      {children}
+    <button
+      type="button"
+      className={classes.filter(Boolean).join(' ')}
+      onPointerDown={ripple}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      {...rest}
+    >
+      {busy ? (
+        <Progress small />
+      ) : (
+        <>
+          {icon && <Icon name={icon} />}
+          {children}
+        </>
+      )}
     </button>
   );
 }
