@@ -21,6 +21,8 @@ export interface HouseholdExport {
   recipes: JsonDoc[];
   /** Insights counts, one document per month (added after v1; older files have none). */
   stats?: JsonDoc[];
+  /** Planned meals (after v1, DESIGN 5.9; older files have none). */
+  meals?: JsonDoc[];
 }
 
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -78,6 +80,7 @@ export async function exportHousehold(db: Firestore, householdId: string, now: D
     ),
     recipes: await all(`${base.path}/recipes`),
     stats: await all(`${base.path}/stats`),
+    meals: await all(`${base.path}/meals`),
   };
 }
 
@@ -117,6 +120,7 @@ export function planRestore(file: HouseholdExport, householdId: string): Restore
   }
   for (const r of file.recipes) add(`${base}/recipes/${r.id}`, r);
   for (const m of file.stats ?? []) add(`${base}/stats/${m.id}`, m);
+  for (const m of file.meals ?? []) add(`${base}/meals/${m.id}`, m);
   return { householdId, writes };
 }
 

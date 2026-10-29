@@ -43,6 +43,7 @@ export interface JobSummary {
   prunedActivity: number;
   prunedJoinRequests: number;
   prunedTombstones: number;
+  prunedMeals: number;
 }
 
 export const ROUTE = '/pantry?filter=expiring';
@@ -52,7 +53,9 @@ const JOIN_REQUEST_DAYS = 7;
 /** Deleted documents stay as tombstones this long (longer than the phones' daily full read, DESIGN 9.8). */
 export const TOMBSTONE_DAYS = 2;
 /** Household collections whose deletions are tombstones (plus every list's items). */
-const TOMBSTONED = ['products', 'stock', 'recipes'];
+const TOMBSTONED = ['products', 'stock', 'recipes', 'meals'];
+/** Planned meals are kept this long after their day (DESIGN 5.9). */
+export const MEAL_DAYS = 28;
 
 function toUser(id: string, data: FirebaseFirestore.DocumentData): UserDoc {
   return {
@@ -80,7 +83,7 @@ function toBatch(data: FirebaseFirestore.DocumentData): Batch | null {
 export async function runJob(db: Firestore, sender: Sender, options: JobOptions): Promise<JobSummary> {
   const { now, dryRun = false, prune: shouldPrune = true } = options;
   const log = options.log ?? (() => {});
-  const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0, prunedTombstones: 0 };
+  const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0, prunedTombstones: 0, prunedMeals: 0 };
 
   // 1-2. Users with reminders on who are due now.
   const users = await db.collection('users').where('notificationPrefs.enabled', '==', true).get();
@@ -160,25 +163,33 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
     summary.prunedActivity = pruned.activity;
     summary.prunedJoinRequests = pruned.joinRequests;
     summary.prunedTombstones = pruned.tombstones;
+    summary.prunedMeals = pruned.meals;
   }
   return summary;
 }
 
 /**
- * Deletes activity older than 30 days, join requests older than 7 days and tombstones older than 2 days. Each query
- * costs at least one read, even when empty (quota simulation).
+ * Deletes activity older than 30 days, join requests older than 7 days, tombstones older than 2 days and planned
+ * meals more than 28 days past (after v1). Each query costs at least one read, even when empty (quota simulation).
  */
-async function prune(db: Firestore, now: Date): Promise<{ activity: number; joinRequests: number; tombstones: number }> {
+async function prune(
+  db: Firestore,
+  now: Date,
+): Promise<{ activity: number; joinRequests: number; tombstones: number; meals: number }> {
   const activityCutoff = new Date(now.getTime() - ACTIVITY_DAYS * 86_400_000);
   const requestCutoff = new Date(now.getTime() - JOIN_REQUEST_DAYS * 86_400_000);
   const tombstoneCutoff = new Date(now.getTime() - TOMBSTONE_DAYS * 86_400_000);
+  // Meal dates are 'YYYY-MM-DD' strings in the household's calendar; a UTC date is close enough for a 4-week cutoff.
+  const mealCutoff = new Date(now.getTime() - MEAL_DAYS * 86_400_000).toISOString().slice(0, 10);
   let activity = 0;
+  let meals = 0;
   let joinRequests = 0;
   let tombstones = 0;
   const households = await db.collection('households').select().get();
   for (const household of households.docs) {
     const old = await household.ref.collection('activity').where('createdAt', '<', activityCutoff).get();
     const stale = await household.ref.collection('joinRequests').where('requestedAt', '<', requestCutoff).get();
+    const pastMeals = await household.ref.collection('meals').where('date', '<', mealCutoff).get();
     // deletedAt exists only on tombstones, so a range on it reads nothing else.
     const lists = await household.ref.collection('groceryLists').select().get();
     const tombstoneQueries = [
@@ -190,11 +201,16 @@ async function prune(db: Firestore, now: Date): Promise<{ activity: number; join
     old.docs.forEach((d) => writer.delete(d.ref));
     stale.docs.forEach((d) => writer.delete(d.ref));
     deleted.forEach((d) => writer.delete(d.ref));
+    // A past meal that is also an old tombstone is already being deleted.
+    const deletedPaths = new Set(deleted.map((d) => d.ref.path));
+    const oldMeals = pastMeals.docs.filter((d) => !deletedPaths.has(d.ref.path));
+    oldMeals.forEach((d) => writer.delete(d.ref));
     await writer.close();
+    meals += oldMeals.length;
     activity += old.size;
     joinRequests += stale.size;
     tombstones += deleted.length;
   }
-  return { activity, joinRequests, tombstones };
+  return { activity, joinRequests, tombstones, meals };
 }
 

@@ -20,6 +20,7 @@ import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.feature.auth.domain.AuthUser
 import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
+import com.parcha.spoilnot.feature.tutorial.domain.Tour
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
@@ -65,18 +66,21 @@ class TourUiTest {
             compose.onAllNodes(hasText(str(R.string.tour_start))).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("coach_mark_next").performClick() // Start the tour
-        compose.onNodeWithText(str(R.string.tour_progress, 1, 9)).assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.tour_progress, 1, Tour.countedSteps)).assertIsDisplayed()
         compose.onNodeWithTag("coach_mark_next").performClick() // Home, then "Tap Pantry"
         compose.onNodeWithText(str(R.string.tour_open_pantry)).assertIsDisplayed()
 
         // A real tap through the hole opens the tab, and the tour moves on with it.
         compose.onNode(hasText(str(R.string.tab_pantry)) and isSelectable()).performTouchInput { click() }
         compose.onNodeWithTag("screen_pantry").assertIsDisplayed()
-        compose.onNodeWithText(str(R.string.tour_progress, 3, 9)).assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.tour_progress, 3, Tour.countedSteps)).assertIsDisplayed()
 
-        // Next on "Tap Recipes" switches the tab for the user.
+        // Next on "Tap Plan" and "Tap Recipes" switches the tab for the user.
         compose.onNodeWithTag("coach_mark_next").performClick()
         compose.onNodeWithTag("coach_mark_next").performClick()
+        compose.onNodeWithText(str(R.string.tour_open_plan)).assertIsDisplayed()
+        compose.onNodeWithTag("coach_mark_next").performClick()
+        compose.onNodeWithTag("screen_plan").assertIsDisplayed()
         compose.onNodeWithText(str(R.string.tour_open_recipes)).assertIsDisplayed()
         compose.onNodeWithTag("coach_mark_next").performClick()
         compose.onNodeWithTag("screen_recipes").assertIsDisplayed()

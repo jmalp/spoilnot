@@ -41,6 +41,7 @@ class FirestoreHouseholdExporter @Inject constructor(
             groceryLists = lists.map { list -> list.toExport() to all("$base/groceryLists/${list.id}/items") },
             recipes = all("$base/recipes"),
             stats = all("$base/stats"),
+            meals = all("$base/meals"),
         )
         return withContext(Dispatchers.Default) {
             ExportFormat.write(data, clock.instant(), "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")

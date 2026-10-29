@@ -831,6 +831,51 @@ describe('store order', () => {
   });
 });
 
+// Meal planner (after v1, DESIGN 5.9).
+describe('meal plan', () => {
+  const path = (id = 'm1') => `households/${HID}/meals/${id}`;
+  const meal = (uid, extra = {}) => ({
+    date: '2026-10-29', slot: 'dinner', position: 0, recipeId: 'r1', title: 'Lasagna', servings: 4,
+    cooks: ['alice', 'bob'], note: null, cookedAt: null, cookedBy: null,
+    createdAt: serverTimestamp(), createdBy: uid, updatedAt: serverTimestamp(), updatedBy: uid, ...extra,
+  });
+
+  it('members plan, change and remove meals; a meal may have no recipe', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, path()), meal('bob')));
+    await assertSucceeds(setDoc(doc(db, path('m2')), meal('bob', { recipeId: null, title: 'Leftovers', servings: null, cooks: [] })));
+    await assertSucceeds(updateDoc(doc(db, path()), {
+      servings: 6, cooks: ['alice'], note: 'Double batch', updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }));
+    await assertSucceeds(setDoc(doc(as('alice'), path()), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: 'alice' }, { merge: true }));
+    await assertSucceeds(getDocs(collection(db, `households/${HID}/meals`)));
+    await assertSucceeds(deleteDoc(doc(db, path('m2'))));
+  });
+
+  it('dates, slots, titles, servings, cooks and notes are checked', async () => {
+    const db = as('bob');
+    for (const bad of [
+      { date: '29/10/2026' }, { date: 20261029 }, { slot: 'brunch' }, { position: 'first' }, { title: '' },
+      { title: 'x'.repeat(121) }, { servings: 0 }, { servings: 101 }, { servings: 2.5 }, { cooks: 'alice' },
+      { cooks: Array.from({ length: 21 }, (_, i) => `u${i}`) }, { note: '' }, { note: 'x'.repeat(201) },
+      { recipeId: '' },
+    ]) {
+      await assertFails(setDoc(doc(db, path()), meal('bob', bad)));
+    }
+    await assertFails(setDoc(doc(db, path()), meal('alice')));
+    await assertFails(setDoc(doc(db, path()), { ...meal('bob'), updatedAt: new Date('2026-01-01') }));
+  });
+
+  it('outsiders cannot read or plan', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), path()), meal('bob')));
+    await assertFails(getDoc(doc(as('carol'), path())));
+    await assertFails(getDocs(collection(as('erin'), `households/${HID}/meals`)));
+    await assertFails(setDoc(doc(as('carol'), path('m9')), meal('carol')));
+    await assertFails(deleteDoc(doc(as('carol'), path())));
+    await assertFails(getDoc(doc(anon(), path())));
+  });
+});
+
 // Settings > Clear household data (owner, after v1, DESIGN 5.1): the app's batch, as the owner and as a member.
 describe('clear household data', () => {
   const tombstone = (uid) => ({ deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid });
@@ -846,6 +891,7 @@ describe('clear household data', () => {
       await setDoc(doc(db, `households/${HID}/groceryLists/g2/items/i2`), groceryItem('bob'));
       await setDoc(doc(db, `households/${HID}/activity/a1`), { type: 'stock_added', actorUid: 'bob', actorName: 'Bob', params: {}, createdAt: t });
       await setDoc(doc(db, `households/${HID}/stats/2026-10`), { used: 3, updatedAt: t, updatedBy: 'bob' });
+      await setDoc(doc(db, `households/${HID}/meals/m1`), { date: '2026-10-29', slot: 'dinner', position: 0, recipeId: null, title: 'Tacos', servings: null, cooks: [], note: null, createdAt: t, createdBy: 'bob', updatedAt: t, updatedBy: 'bob' });
     });
   });
 
@@ -853,7 +899,7 @@ describe('clear household data', () => {
     const db = as(uid);
     const h = `households/${HID}`;
     const batch = writeBatch(db);
-    for (const path of ['stock/s1', 'recipes/r1', 'groceryLists/g1/items/i1']) {
+    for (const path of ['stock/s1', 'recipes/r1', 'groceryLists/g1/items/i1', 'meals/m1']) {
       batch.set(doc(db, `${h}/${path}`), tombstone(uid), { merge: true });
     }
     batch.update(doc(db, `${h}/groceryLists/g1`), { name: 'Groceries', aisleOrder: [], updatedAt: serverTimestamp() });

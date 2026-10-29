@@ -1,7 +1,7 @@
 package com.parcha.spoilnot.feature.tutorial.domain
 
 /** The bottom-bar tabs, as the tour knows them (the shell maps them to its destinations). */
-enum class TourTab { Home, Pantry, Recipes, Groceries }
+enum class TourTab { Home, Pantry, Plan, Recipes, Groceries }
 
 /** What a tour step points at; the UI marks each with a coach mark key of the same name. */
 enum class TourTarget(val key: String) {
@@ -9,6 +9,7 @@ enum class TourTarget(val key: String) {
     PantryTab("tour_tab_pantry"),
     AddItem("tour_add_item"),
     PantryList("tour_pantry_list"),
+    PlanTab("tour_tab_plan"),
     RecipesTab("tour_tab_recipes"),
     AddRecipe("tour_add_recipe"),
     GroceriesTab("tour_tab_groceries"),
@@ -32,7 +33,10 @@ enum class TourStep(
     OpenPantry(TourTab.Home, TourTarget.PantryTab, advanceOnTab = TourTab.Pantry),
     AddItem(TourTab.Pantry, TourTarget.AddItem, advanceOnTap = true),
     PantryRows(TourTab.Pantry, TourTarget.PantryList),
-    OpenRecipes(TourTab.Pantry, TourTarget.RecipesTab, advanceOnTab = TourTab.Recipes),
+
+    /** After v1: the meal planner (DESIGN 5.9). */
+    OpenPlan(TourTab.Pantry, TourTarget.PlanTab, advanceOnTab = TourTab.Plan),
+    OpenRecipes(TourTab.Plan, TourTarget.RecipesTab, advanceOnTab = TourTab.Recipes),
     AddRecipe(TourTab.Recipes, TourTarget.AddRecipe, advanceOnTap = true),
     OpenGroceries(TourTab.Recipes, TourTarget.GroceriesTab, advanceOnTab = TourTab.Groceries),
     QuickAdd(TourTab.Groceries, TourTarget.QuickAdd),

@@ -624,6 +624,7 @@
     <string name="tour_open_pantry">Tap Pantry to see everything you have.</string>
     <string name="tour_add_item">Tap Add item to add food. Pick a date with one tap, and Spoil Not reminds you before it expires.</string>
     <string name="tour_pantry_rows">Swipe a row right when it\'s used up and left to throw it away. Undo is always there. Tap a row to edit it, and ⋮ has Mark opened and more.</string>
+    <string name="tour_open_plan">Tap Plan to plan the week: recipes for breakfast, lunch and dinner, and who\'s cooking.</string>
     <string name="tour_open_recipes">Tap Recipes.</string>
     <string name="tour_add_recipe">Save recipes from any website: share a page to Spoil Not or open the built-in browser. A recipe can put what you\'re missing on the grocery list.</string>
     <string name="tour_open_groceries">Tap Groceries for your shopping list.</string>
@@ -645,4 +646,39 @@
     <string name="clear_household_password_body">Enter your password to clear the household\'s data.</string>
     <string name="clear_household_confirm">Clear data</string>
     <string name="clear_household_done">Household data cleared</string>
+    <!-- Meal planner (after v1, DESIGN 5.9) -->
+    <string name="tab_plan">Plan</string>
+    <string name="plan_week_range">%1$s – %2$s</string>
+    <string name="plan_previous_week">Previous week</string>
+    <string name="plan_next_week">Next week</string>
+    <string name="plan_this_week">Go to this week</string>
+    <string name="plan_today">Today</string>
+    <string name="plan_slot_breakfast">Breakfast</string>
+    <string name="plan_slot_lunch">Lunch</string>
+    <string name="plan_slot_dinner">Dinner</string>
+    <string name="plan_add_to">Add to %1$s, %2$s</string>
+    <string name="plan_add_title">%1$s · %2$s</string>
+    <string name="plan_whos_cooking">Who\'s cooking?</string>
+    <string name="plan_you">You</string>
+    <string name="plan_something_else">Something else</string>
+    <string name="plan_something_else_hint">Leftovers, eat out…</string>
+    <string name="plan_add">Add</string>
+    <string name="plan_search_recipes">Search recipes</string>
+    <string name="plan_no_recipes">No saved recipes yet. Add some in Recipes, or plan something else above.</string>
+    <string name="plan_no_matches">No recipes match.</string>
+    <plurals name="plan_servings">
+        <item quantity="one">%d serving</item>
+        <item quantity="other">%d servings</item>
+    </plurals>
+    <string name="plan_servings_label">Servings</string>
+    <string name="plan_servings_unset">Not set</string>
+    <string name="plan_fewer">Fewer servings</string>
+    <string name="plan_more">More servings</string>
+    <string name="plan_note">Note</string>
+    <string name="plan_save">Save</string>
+    <string name="plan_open_meal">Change this meal</string>
+    <string name="plan_open_recipe">Open recipe</string>
+    <string name="plan_remove">Remove from plan</string>
+    <string name="plan_removed">Removed %1$s from the plan</string>
+    <string name="plan_recipe_deleted">Recipe deleted</string>
 </resources>

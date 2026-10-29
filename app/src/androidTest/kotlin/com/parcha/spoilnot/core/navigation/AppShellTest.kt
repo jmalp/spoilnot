@@ -44,10 +44,16 @@ class AppShellTest {
     private fun tab(id: Int) = compose.onNode(hasText(str(id)) and isSelectable())
 
     @Test
-    fun showsFourTabsAndStartsOnHome() {
+    fun showsFiveTabsAndStartsOnHome() {
         compose.setContent { SpoilNotTheme { AppShell(session) } }
 
-        listOf(R.string.tab_home, R.string.tab_pantry, R.string.tab_recipes, R.string.tab_groceries).forEach {
+        listOf(
+            R.string.tab_home,
+            R.string.tab_pantry,
+            R.string.tab_plan,
+            R.string.tab_recipes,
+            R.string.tab_groceries,
+        ).forEach {
             tab(it).assertIsDisplayed()
         }
         tab(R.string.tab_home).assertIsSelected()
@@ -60,6 +66,7 @@ class AppShellTest {
 
         mapOf(
             R.string.tab_pantry to "screen_pantry",
+            R.string.tab_plan to "screen_plan",
             R.string.tab_recipes to "screen_recipes",
             R.string.tab_groceries to "screen_groceries",
             R.string.tab_home to "screen_home",

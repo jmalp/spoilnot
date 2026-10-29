@@ -9,6 +9,10 @@ data object HomeRoute : NavKey
 @Serializable
 data object PantryRoute : NavKey
 
+/** The meal planner (after v1, DESIGN 5.9). */
+@Serializable
+data object PlanRoute : NavKey
+
 @Serializable
 data object RecipesRoute : NavKey
 

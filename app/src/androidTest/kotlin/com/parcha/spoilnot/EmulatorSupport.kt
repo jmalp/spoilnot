@@ -28,6 +28,9 @@ import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository
 import com.parcha.spoilnot.feature.pantry.data.PantryChangeMapper
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
+import com.parcha.spoilnot.feature.plan.data.FirestoreMealPlanRepository
+import com.parcha.spoilnot.feature.plan.data.MealPlanChangeMapper
+import com.parcha.spoilnot.feature.plan.domain.MealPlanService
 import com.parcha.spoilnot.feature.recipes.data.FirestoreRecipeRepository
 import com.parcha.spoilnot.feature.recipes.data.RecipeChangeMapper
 import com.parcha.spoilnot.feature.recipes.domain.RecipeService
@@ -101,7 +104,13 @@ class TestPhone(private val name: String) : AutoCloseable {
     val writer = FirestoreHouseholdWriter(
         firestore,
         scope,
-        setOf(PantryChangeMapper(), GroceryChangeMapper(), RecipeChangeMapper(), StatsChangeMapper()),
+        setOf(
+            PantryChangeMapper(),
+            GroceryChangeMapper(),
+            RecipeChangeMapper(),
+            StatsChangeMapper(),
+            MealPlanChangeMapper(),
+        ),
     )
 
     /** Each phone has its own record of full reads, as separate phones would (DESIGN 9.8). */
@@ -118,6 +127,8 @@ class TestPhone(private val name: String) : AutoCloseable {
     val recipes = RecipeService(writer)
     val stats = FirestoreStatsRepository(firestore)
     val activity = FirestoreActivityRepository(firestore, syncLog)
+    val mealPlanRepository = FirestoreMealPlanRepository(firestore, syncLog)
+    val mealPlan = MealPlanService(writer)
 
     /** Every phone runs the restock engine (DESIGN 9.6). Started by [startRestock]. */
     private val restock =

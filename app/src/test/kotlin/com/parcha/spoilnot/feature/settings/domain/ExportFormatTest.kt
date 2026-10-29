@@ -45,6 +45,7 @@ class ExportFormatTest {
                 ),
             ),
             stats = listOf(ExportDoc("2026-10", mapOf("used" to 4L, "thrownByDay" to mapOf("3" to 1L)))),
+            meals = listOf(ExportDoc("m1", mapOf("date" to "2026-10-29", "slot" to "dinner", "cooks" to listOf("u1")))),
         )
         val json = Json.parseToJsonElement(ExportFormat.write(data, created, "1.0.0 (5)")).jsonObject
         assertEquals("spoilnot-export", json["format"]!!.jsonPrimitive.content)
@@ -60,6 +61,9 @@ class ExportFormatTest {
         val month = json["stats"]!!.jsonArray[0].jsonObject
         assertEquals("2026-10", month["id"]!!.jsonPrimitive.content)
         assertEquals("4", month["used"]!!.jsonPrimitive.content)
+        val meal = json["meals"]!!.jsonArray[0].jsonObject
+        assertEquals("dinner", meal["slot"]!!.jsonPrimitive.content)
+        assertEquals("u1", meal["cooks"]!!.jsonArray[0].jsonPrimitive.content)
     }
 
     @Test

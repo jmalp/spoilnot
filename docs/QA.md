@@ -87,6 +87,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     nothing; the right one clears it. On both phones: empty pantry, recipes and grocery list (named Groceries, no
     extra lists), Insights empty, Recent activity shows only "<owner> cleared the household's data". Members, the
     invite code and the household name are unchanged.
+25. Meal planner (part 1): the bottom bar shows Home, Pantry, Plan, Recipes, Groceries. Plan opens on this week at
+    today ("Today" label and border). Tap + on Thursday dinner: pick yourself and the other person as cooks, then a
+    recipe; it shows with its servings and both names on both phones. Add "Leftovers" as something else at lunch.
+    Tap the dinner: change servings to 8 and add a note; the other phone shows it. Remove it, then Undo. Previous and
+    next week work, and "Go to this week" returns. Delete the recipe: the meal says "Recipe deleted". At 200% text
+    the days stay readable. Change the phone's region to the UK: the week starts on Monday.
 
 ## 3. Conditions
 

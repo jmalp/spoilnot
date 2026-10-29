@@ -103,16 +103,30 @@ object SyncLogModule {
 data class LiveDocuments(val documents: List<DocumentSnapshot>, val fromCache: Boolean)
 
 /** See [DeltaSync]. */
-fun CollectionReference.liveDocuments(db: FirebaseFirestore, log: SyncLog): Flow<LiveDocuments> = flow {
+fun CollectionReference.liveDocuments(db: FirebaseFirestore, log: SyncLog): Flow<LiveDocuments> =
+    liveDocuments(db, log, scope = this, key = path)
+
+/**
+ * [DeltaSync] for part of a collection (after v1: one week of the meal plan). [scope] decides which documents are
+ * shown and what the full read reads; changes are still read for the whole collection (they are few, and land in
+ * the cache for other windows). Each [key] has its own full-read record, so a week seen for the first time is read
+ * in full.
+ */
+fun CollectionReference.liveDocuments(
+    db: FirebaseFirestore,
+    log: SyncLog,
+    scope: Query,
+    key: String,
+): Flow<LiveDocuments> = flow {
     val collection = this@liveDocuments
-    val cached = runCatching { collection.get(Source.CACHE).await() }.getOrNull()
+    val cached = runCatching { scope.get(Source.CACHE).await() }.getOrNull()
     val newest = cached?.documents?.mapNotNull { it.getTimestamp(UPDATED_AT)?.toDate()?.toInstant() }?.maxOrNull()
-    val since = DeltaSync.cursor(newest, log.lastFullSync(path), log.now())
-    val server: Query = if (since == null) collection else collection.whereGreaterThan(UPDATED_AT, Timestamp(since))
+    val since = DeltaSync.cursor(newest, log.lastFullSync(key), log.now())
+    val server: Query = if (since == null) scope else collection.whereGreaterThan(UPDATED_AT, Timestamp(since))
     val remote = server.snapshotFlow(MetadataChanges.INCLUDE)
         .retryAfterOwnWrites(db)
-        .onEach { if (since == null && !it.metadata.isFromCache) log.markFullSync(path) }
-    val local = collection.cacheSnapshotFlow()
+        .onEach { if (since == null && !it.metadata.isFromCache) log.markFullSync(key) }
+    val local = scope.cacheSnapshotFlow()
     emitAll(
         combine(local, remote) { l, r ->
             LiveDocuments(l.documents.filterNot { with(Tombstones) { it.isTombstone() } }, r.metadata.isFromCache)
