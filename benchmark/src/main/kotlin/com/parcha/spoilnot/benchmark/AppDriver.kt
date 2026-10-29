@@ -102,6 +102,14 @@ fun MacrobenchmarkScope.openAndCloseAddItem() {
     device.waitForIdle()
 }
 
+/** Opens the add sheet of the first slot on the Plan tab (DESIGN 5.9) and closes it again. */
+fun MacrobenchmarkScope.openAndCloseAddMeal() {
+    device.wait(Until.findObject(By.descStartsWith("Add to ")), TIMEOUT_MS)?.click() ?: return
+    device.wait(Until.hasObject(By.text("Who's cooking?")), TIMEOUT_MS)
+    device.pressBack()
+    device.waitForIdle()
+}
+
 /** Opens Insights from Home's "Your kitchen this month" card and comes back. */
 fun MacrobenchmarkScope.openAndCloseInsights() {
     device.findObject(By.scrollable(true))?.scrollUntil(Direction.DOWN, Until.findObject(button("See insights")))
