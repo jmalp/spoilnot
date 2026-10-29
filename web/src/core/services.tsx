@@ -1,7 +1,11 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { AuthRepository, UserRepository } from '../domain/account';
 import type { HouseholdRepository } from '../domain/household';
+import type { PantryRepository } from '../domain/pantry/repository';
+import type { PantryService } from '../domain/pantry/service';
 import type { Session, SessionManager } from '../domain/session';
+import type { Clock } from '../domain/time';
+import type { HouseholdWriter } from '../domain/write';
 
 /** What screens use (the app's Hilt graph): repositories and the session. Tests pass fakes. */
 export type Services = {
@@ -9,6 +13,10 @@ export type Services = {
   auth: AuthRepository;
   users: UserRepository;
   households: HouseholdRepository;
+  writer: HouseholdWriter;
+  pantry: PantryRepository;
+  pantryService: PantryService;
+  clock: Clock;
 };
 
 const Context = createContext<Services | null>(null);

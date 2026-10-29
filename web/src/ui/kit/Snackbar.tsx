@@ -14,6 +14,8 @@ type Snackbars = {
   show: (text: string) => void;
   /** A message with Undo for 8 seconds (MessageEffect in the app). */
   showUndo: (text: string, undo: () => void) => void;
+  /** Room to leave below snackbars, such as a floating action button's (Scaffold puts snackbars above it). */
+  setBottomInset: (px: number) => void;
 };
 
 const Context = createContext<Snackbars | null>(null);
@@ -27,6 +29,7 @@ export function useSnackbars(): Snackbars {
 /** Shows messages one at a time, in order, at the bottom of the screen and above the navigation bar. */
 export function SnackbarProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Message[]>([]);
+  const [bottomInset, setBottomInset] = useState(0);
   const next = useRef(0);
   const enqueue = useCallback((message: Omit<Message, 'id'>) => {
     setQueue((current) => [...current, { ...message, id: next.current++ }]);
@@ -36,6 +39,7 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
       show: (text) => enqueue({ text, durationMs: SHORT_MS }),
       showUndo: (text, undo) =>
         enqueue({ text, durationMs: UNDO_WINDOW_MS, action: { label: str('action_undo'), run: undo } }),
+      setBottomInset,
     }),
     [enqueue],
   );
@@ -49,7 +53,7 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
   return (
     <Context.Provider value={value}>
       {children}
-      <div className="m3-snackbar-host" aria-live="polite">
+      <div className="m3-snackbar-host" aria-live="polite" style={{ paddingBottom: 12 + bottomInset }}>
         {current && (
           <div key={current.id} className="m3-snackbar t-body-medium" role="status">
             <span className="m3-snackbar__text">{current.text}</span>

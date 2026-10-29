@@ -5,6 +5,7 @@ import { str, type StringId } from '../core/i18n';
 import { useNav } from '../core/NavProvider';
 import { useHouseholdSession, useServices } from '../core/services';
 import { HouseholdSettingsScreen } from './household/HouseholdSettingsScreen';
+import { PantryScreen } from './pantry/PantryScreen';
 import { SettingsScreen } from './settings/SettingsScreen';
 import { top, type Route, type Tab } from '../core/navigation';
 import { NavigationBar, SnackbarProvider, type IconName, type NavigationItem } from './kit';
@@ -65,6 +66,7 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
     return <SettingsScreen onBack={nav.back} onOpenHousehold={() => nav.navigate({ name: 'householdSettings' })} />;
   }
   if (route.name === 'householdSettings') return <HouseholdSettingsScreen onBack={nav.back} />;
+  if (tab === 'pantry') return <PantryScreen onOpenSettings={openSettings} joinRequests={joinRequests} />;
   const item = TAB_ITEMS.find((t) => t.id === tab)!;
   return (
     <TabScaffold title={item.label} onOpenSettings={openSettings} joinRequests={joinRequests} testId={`screen_${tab}`}>

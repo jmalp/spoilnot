@@ -120,7 +120,8 @@ Everything is in `web/` and needs Node 24. Once: `cd web && npm install && npx p
 - `npm run check` runs format, lint, type check, unit tests and the build, as CI does. `npm run format` fixes
   formatting.
 - `npm run e2e` (with the emulators running) runs the WebKit tests with an iPhone profile, two browser contexts
-  as two phones, and compares the screenshots in
+  as two phones (tests seed data through the emulators' REST APIs, `tests/e2e/support.ts`), and compares the
+  screenshots in
   `tests/e2e/__screenshots__/`; after an intended change, `npm run e2e:update` and look at the new images in light,
   dark and 200% text next to the Android ones.
 - After changing `strings.xml`, the Android theme colors or `icons.txt`: `npm run gen` (CI fails until it is run).

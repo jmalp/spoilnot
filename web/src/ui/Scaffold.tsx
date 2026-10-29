@@ -1,11 +1,23 @@
-import { useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode, type UIEvent } from 'react';
 import { str } from '../core/i18n';
-import { Icon, IconButton, TopAppBar, type IconName } from './kit';
+import { Icon, IconButton, TopAppBar, useSnackbars, type IconName } from './kit';
 import './scaffold.css';
+
+const ScrolledContext = createContext<(scrolled: boolean) => void>(() => undefined);
+
+/**
+ * For a list that scrolls on its own below fixed content (innerScroll): tells the top app bar when content is under
+ * it, as the pinned bar's scroll behavior does in the app.
+ */
+export function useOnInnerScroll(): (event: UIEvent<HTMLElement>) => void {
+  const setScrolled = useContext(ScrolledContext);
+  return (event) => setScrolled(event.currentTarget.scrollTop > 0);
+}
 
 /**
  * A tab's screen (TabScaffold in the app): the pinned top app bar with a headlineSmall title, the screen's
- * actions and the Settings avatar, content centered at most 640 px wide, and an optional extended FAB.
+ * actions and the Settings avatar, content centered at most 640 px wide, and an optional extended FAB. With
+ * [innerScroll] the content fills the screen and scrolls itself (a fixed search and filters above a list).
  */
 export function TabScaffold({
   title,
@@ -13,6 +25,7 @@ export function TabScaffold({
   actions,
   fab,
   joinRequests = 0,
+  innerScroll = false,
   testId,
   children,
 }: {
@@ -21,12 +34,24 @@ export function TabScaffold({
   actions?: ReactNode;
   fab?: ReactNode;
   joinRequests?: number;
+  innerScroll?: boolean;
   testId?: string;
   children: ReactNode;
 }) {
   const [scrolled, setScrolled] = useState(false);
+  const snackbars = useSnackbars();
+  // Snackbars show above the FAB, as Scaffold places them.
+  useEffect(() => {
+    if (!fab) return;
+    snackbars.setBottomInset(56 + 16);
+    return () => snackbars.setBottomInset(0);
+  }, [fab, snackbars]);
   return (
-    <div className="sn-screen" data-testid={testId} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+    <div
+      className={`sn-screen ${innerScroll ? 'sn-screen--inner-scroll' : ''}`}
+      data-testid={testId}
+      onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
+    >
       <TopAppBar
         title={title}
         titleStyle="headline"
@@ -44,7 +69,9 @@ export function TabScaffold({
           </>
         }
       />
-      <main className="sn-screen__content">{children}</main>
+      <ScrolledContext.Provider value={setScrolled}>
+        <main className="sn-screen__content">{children}</main>
+      </ScrolledContext.Provider>
       {fab && <div className="sn-screen__fab">{fab}</div>}
     </div>
   );
@@ -87,6 +114,16 @@ export function EmptyState({ icon, message, children }: { icon: IconName; messag
       </span>
       <p className="t-body-large c-on-surface-variant">{message}</p>
       {children && <div className="sn-empty__actions">{children}</div>}
+    </div>
+  );
+}
+
+/** Shown while data comes from the phone only (OfflineBanner, DESIGN 9.5). */
+export function OfflineBanner() {
+  return (
+    <div className="sn-offline" data-testid="offline_banner" role="status">
+      <Icon name="round/cloud_off" size={16} />
+      <span className="t-body-medium">{str('offline_banner')}</span>
     </div>
   );
 }

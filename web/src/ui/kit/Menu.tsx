@@ -35,11 +35,14 @@ export function MenuItem({
   label,
   onClick,
   disabled,
+  leading,
   testId,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** A leading icon, such as the check on the chosen sort. */
+  leading?: React.ReactNode;
   testId?: string;
 }) {
   return (
@@ -52,6 +55,7 @@ export function MenuItem({
       onClick={onClick}
       onPointerDown={ripple}
     >
+      {leading}
       {label}
     </button>
   );
