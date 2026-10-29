@@ -42,6 +42,7 @@ private val TourStep.text: Int
         TourStep.OpenPantry -> R.string.tour_open_pantry
         TourStep.AddItem -> R.string.tour_add_item
         TourStep.PantryRows -> R.string.tour_pantry_rows
+        TourStep.OpenPlan -> R.string.tour_open_plan
         TourStep.OpenRecipes -> R.string.tour_open_recipes
         TourStep.AddRecipe -> R.string.tour_add_recipe
         TourStep.OpenGroceries -> R.string.tour_open_groceries

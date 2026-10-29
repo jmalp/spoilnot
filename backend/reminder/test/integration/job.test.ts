@@ -69,6 +69,10 @@ beforeEach(async () => {
   batch.set(db.doc('households/h1/groceryLists/g1/items/i-old'), { name: 'Bread', deletedAt: deletedLongAgo });
   batch.set(db.doc('households/h1/groceryLists/g1/items/i-live'), { name: 'Milk' });
   batch.set(db.doc('households/h1/recipes/r-old'), { title: 'Soup', deletedAt: deletedLongAgo });
+  // Planned meals (DESIGN 5.9): kept 28 days after their day; an old deleted one goes as a tombstone.
+  batch.set(db.doc('households/h1/meals/m-past'), { date: '2026-09-10', slot: 'dinner', title: 'Tacos' });
+  batch.set(db.doc('households/h1/meals/m-recent'), { date: '2026-10-01', slot: 'dinner', title: 'Soup' });
+  batch.set(db.doc('households/h1/meals/m-gone'), { date: '2026-10-14', slot: 'lunch', title: 'Salad', deletedAt: deletedLongAgo });
   const old = Timestamp.fromDate(new Date('2026-09-01T00:00:00Z'));
   const recent = Timestamp.fromDate(new Date('2026-10-10T00:00:00Z'));
   batch.set(db.doc('households/h1/activity/old'), { type: 'stock_added', createdAt: old });
@@ -104,7 +108,11 @@ describe('reminder job against the emulator', () => {
 
     assert.equal(summary.prunedActivity, 1);
     assert.equal(summary.prunedJoinRequests, 1);
-    assert.equal(summary.prunedTombstones, 3);
+    assert.equal(summary.prunedTombstones, 4);
+    assert.equal(summary.prunedMeals, 1);
+    assert.equal((await db.doc('households/h1/meals/m-past').get()).exists, false, 'more than 28 days past');
+    assert.equal((await db.doc('households/h1/meals/m-recent').get()).exists, true);
+    assert.equal((await db.doc('households/h1/meals/m-gone').get()).exists, false, 'an old meal tombstone');
     assert.equal((await db.doc('households/h1/stock/gone').get()).exists, true, 'a recent tombstone stays');
     assert.equal((await db.doc('households/h1/groceryLists/g1/items/i-live').get()).exists, true);
     assert.equal((await db.doc('households/h1/stock/old-gone').get()).exists, false);

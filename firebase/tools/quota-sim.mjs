@@ -27,6 +27,11 @@ const MONTH = '2026-10';
 // Deleted documents wait as tombstones for 2 days (DESIGN 9.8): about this many per day, and twice that in place.
 const TOMBSTONES_PER_DAY = 15;
 const TOMBSTONES = 2 * TOMBSTONES_PER_DAY;
+// Meal planner (after v1, DESIGN 5.9): this week's planned meals, and others in the four weeks kept either side.
+const WEEK_MEALS = 12;
+const OTHER_MEALS = 30;
+const WEEK_START = '2026-10-26';
+const WEEK_END = '2026-11-01';
 
 const env = await initializeTestEnvironment({
   projectId: 'demo-quota-sim',
@@ -72,6 +77,12 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     for (let i = 0; i < 20; i++) await put(`households/${hid}/groceryLists/default/items/i${i}`, { name: `Item ${i}`, checked: false, ...stamp(owner) });
     for (let i = 0; i < 5; i++) await put(`households/${hid}/groceryLists/party/items/i${i}`, { name: `Party ${i}`, checked: false, ...stamp(owner) });
     for (let i = 0; i < 15; i++) await put(`households/${hid}/recipes/r${i}`, { title: `Recipe ${i}`, ingredients: [], steps: [], ...stamp(owner) });
+    for (let i = 0; i < WEEK_MEALS + OTHER_MEALS; i++) {
+      const day = i < WEEK_MEALS ? 26 + (i % 7) : 1 + (i % 25);
+      const month = i < WEEK_MEALS ? (day > 31 ? '11' : '10') : '09';
+      const date = `2026-${month}-${String(day > 31 ? day - 31 : day).padStart(2, '0')}`;
+      await put(`households/${hid}/meals/m${i}`, { date, slot: 'dinner', position: 0, recipeId: null, title: `Meal ${i}`, servings: null, cooks: [], note: null, ...stamp(owner) });
+    }
     await put(`households/${hid}/stats/${MONTH}`, { used: 20, expired: 2, thrownByDay: { 3: 2 }, updatedAt: new Date(), updatedBy: owner });
     // Tombstones in place (read by every full read and the export).
     for (let i = 0; i < TOMBSTONES; i++) await put(`households/${hid}/stock/t${i}`, { productId: 'p0', productName: 'Gone', unit: 'pcs', category: 'other', quantity: 0, expiryDate: null, dateType: 'use_by', location: 'fridge', note: null, ...stamp(owner), deletedAt: new Date() });
@@ -120,6 +131,10 @@ async function open(db, uid, hid, isOwner, since) {
   ];
   if (isOwner) targets.push(collection(db, `${h}/joinRequests`)); // owner's badge
   targets.push(synced(`${h}/recipes`)); // Home > Use it up reads the recipes on every open (after v1)
+  // Plan tab and Home's Today card: this week's meals, changes-only (DESIGN 9.8); the full read is the week only.
+  targets.push(since
+    ? query(collection(db, `${h}/meals`), where('updatedAt', '>', since))
+    : query(collection(db, `${h}/meals`), where('date', '>=', WEEK_START), where('date', '<=', WEEK_END)));
   await Promise.all(targets.map(once));
   // Rules: every household-scoped query checks membership with one exists() (users and config need none).
   reads.ruleLookups += targets.length - 3;
@@ -161,8 +176,10 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
 // and each list's items, each at least one read, plus the tombstones it deletes); once a day per user a stock query
 // and a devices read; the nightly export reads every household document once, tombstones included.
 const users = HOUSEHOLDS * PHONES;
-const housekeeping = HOUSEHOLDS + HOUSEHOLDS * (2 + 1 + 3 + 2) + HOUSEHOLDS * TOMBSTONES_PER_DAY;
-const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1 + TOMBSTONES; // + this month's stats
+// Housekeeping per household: activity, join requests, lists, tombstones (products, stock, recipes, meals, each
+// list's items) and past meals (after v1), each at least one read.
+const housekeeping = HOUSEHOLDS + HOUSEHOLDS * (2 + 1 + 4 + 2 + 1) + HOUSEHOLDS * TOMBSTONES_PER_DAY;
+const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1 + TOMBSTONES + WEEK_MEALS + OTHER_MEALS; // + stats, meals
 reads.jobs = REMINDER_RUNS_PER_DAY * users + housekeeping + users * 2 + HOUSEHOLDS * perHousehold;
 writes += users; // lastDigestDate once a day
 

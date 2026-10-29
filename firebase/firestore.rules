@@ -216,6 +216,23 @@ service cloud.firestore {
           && request.resource.data.ingredients.size() <= 100
           && request.resource.data.steps.size() <= 100;
       }
+      // After v1 (DESIGN 5.9): one planned meal per document. Any member plans; cooks are member uids (not
+      // checked against the member list, which would cost a read per cook).
+      match /meals/{id} {
+        function mealOk() {
+          let m = request.resource.data;
+          return m.date is string && m.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && m.slot in ['breakfast', 'lunch', 'dinner']
+            && m.position is int
+            && s(m.title, 1, 120)
+            && (m.recipeId == null || s(m.recipeId, 1, 100))
+            && (m.servings == null || (m.servings is int && m.servings >= 1 && m.servings <= 100))
+            && m.cooks is list && m.cooks.size() <= 20
+            && (m.note == null || s(m.note, 1, 200));
+        }
+        allow read, delete: if isMember(hid);
+        allow create, update: if isMember(hid) && stamped() && tombstoneOk() && mealOk();
+      }
       match /activity/{id} {
         allow read: if isMember(hid);
         allow create: if isMember(hid) && request.resource.data.actorUid == me()

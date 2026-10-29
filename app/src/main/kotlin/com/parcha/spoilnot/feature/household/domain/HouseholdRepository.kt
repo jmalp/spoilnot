@@ -58,7 +58,8 @@ interface HouseholdRepository {
 
     /**
      * Clear household data (owner, after v1, DESIGN 5.1): the household becomes as it was when created, keeping its
-     * name, members, invite code and join requests. Pantry, grocery items, products and recipes become tombstones so
+     * name, members, invite code and join requests. Pantry, grocery items, products, recipes and planned meals become
+     * tombstones so
      * every phone's changes-only listeners drop them; extra grocery lists, activity and Insights counts are deleted;
      * the default list gets its name back and forgets its store order; a household_reset event is logged last.
      * Requires a connection. Cannot be undone.

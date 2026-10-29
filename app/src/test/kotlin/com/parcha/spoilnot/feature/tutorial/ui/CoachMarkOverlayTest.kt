@@ -85,7 +85,7 @@ class CoachMarkOverlayTest {
     @Test
     fun nextAndSkipAreReported() {
         show(TourStep.AddItem)
-        compose.onNodeWithText("3 of 9").assertExists()
+        compose.onNodeWithText("3 of 10").assertExists()
         compose.onNodeWithTag("coach_mark_next").performClick()
         compose.onNodeWithTag("coach_mark_skip").performClick()
         assertEquals(listOf(TourEvent.Next, TourEvent.Skip), events)

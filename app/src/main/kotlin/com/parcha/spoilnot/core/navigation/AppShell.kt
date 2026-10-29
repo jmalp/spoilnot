@@ -65,6 +65,8 @@ import com.parcha.spoilnot.feature.insights.ui.InsightsScreen
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
 import com.parcha.spoilnot.feature.pantry.ui.LocalUnits
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
+import com.parcha.spoilnot.feature.plan.ui.PlanNavigation
+import com.parcha.spoilnot.feature.plan.ui.PlanScreen
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.ui.CookModeScreen
 import com.parcha.spoilnot.feature.recipes.ui.RecipeBrowserScreen
@@ -84,7 +86,7 @@ import com.parcha.spoilnot.feature.tutorial.ui.TourViewModel
 /** Waiting join requests, shown as a badge on the Settings avatar for the owner (DESIGN 5.1). */
 val LocalJoinRequestCount = compositionLocalOf { 0 }
 
-/** The signed-in app: four tabs in a bottom NavigationBar, each with its own back stack (DESIGN 6.2). */
+/** The signed-in app: five tabs in a bottom NavigationBar, each with its own back stack (DESIGN 6.2). */
 @Composable
 fun AppShell(
     session: Session.InHousehold,
@@ -150,6 +152,7 @@ fun AppShell(
             )
         }
         entry<PantryRoute> { PantryScreen(onOpenSettings = openSettings) }
+        entry<PlanRoute> { PlanScreen(PlanNavigation(openSettings = openSettings, openRecipe = openRecipe)) }
         entry<RecipesRoute> {
             RecipesScreen(
                 RecipesNavigation(
@@ -318,6 +321,7 @@ fun AppShell(
 private fun TourTab.destination(): TopLevelDestination = when (this) {
     TourTab.Home -> TopLevelDestination.Home
     TourTab.Pantry -> TopLevelDestination.Pantry
+    TourTab.Plan -> TopLevelDestination.Plan
     TourTab.Recipes -> TopLevelDestination.Recipes
     TourTab.Groceries -> TopLevelDestination.Groceries
 }
@@ -327,6 +331,7 @@ private fun TopLevelDestination.tourTab(): TourTab = TourTab.entries.first { it.
 private fun TopLevelDestination.tourTarget(): TourTarget? = when (this) {
     TopLevelDestination.Home -> null
     TopLevelDestination.Pantry -> TourTarget.PantryTab
+    TopLevelDestination.Plan -> TourTarget.PlanTab
     TopLevelDestination.Recipes -> TourTarget.RecipesTab
     TopLevelDestination.Groceries -> TourTarget.GroceriesTab
 }

@@ -8,7 +8,7 @@ they are listed at the end with exact steps.
 
 | Threat | Mitigation | Checked |
 | --- | --- | --- |
-| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests at sign-off, 75 after v1 (`firebase/test/rules.test.js`), "non-members" and "signed out" groups |
+| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests at sign-off, 78 after v1 (`firebase/test/rules.test.js`), "non-members" and "signed out" groups |
 | A guessed or leaked invite code | 50-bit codes, readable only by exact `get`; a code only lets someone ask to join; the owner approves, can pause or rotate | Rules tests "join requests"; `InviteCodes` uses `SecureRandom` |
 | A removed member keeps access | Rules re-check membership on every request; the app's membership watcher returns them to the gate and clears the cache | `HouseholdFlowTest` (removed member back at the gate within 5 s), rules tests |
 | A lost or shared phone | Sign-out and account deletion clear the local copy (`terminate()` then `clearPersistence()`); the owner can remove a lost phone's member | `FirestoreProvider.clearLocalData`, `SessionManager.signOut` |
@@ -20,7 +20,7 @@ they are listed at the end with exact steps.
 
 | # | Control | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests (75 after v1) |
+| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests (78 after v1) |
 | 2 | Email and password, minimum 8 characters; email enumeration protection on | ✅ | `AccountValidation` requires 8; the server password policy (8, enforced) and email enumeration protection are on in both projects (owner, 2026-10-18) |
 | 3 | Membership on every household path; owner-only actions check the role | ✅ | `isMember` / `isOwner` in `firestore.rules`; rules tests for owner-only delete, transfer, approve; after v1, Clear household data is owner-only in the app, needs the owner's password again (`verifyPassword`), and its batch fails for a member (rules test "clear household data") |
 | 4 | Invite codes: 10 characters (50 bits), secure generator, `get` only, pause and rotate | ✅ | `InviteCodes.kt` (`SecureRandom`); rules `allow list: if false`; Household settings pause and rotate |

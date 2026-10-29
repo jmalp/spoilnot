@@ -33,6 +33,7 @@ beforeEach(async () => {
   b.set(db.doc('households/h1/groceryLists/g1/items/i1'), { name: 'Eggs', checked: false, createdAt: created });
   b.set(db.doc('households/h1/recipes/r1'), { title: 'Pie', ingredients: [{ raw: '1 cup flour', qty: 1 }], createdAt: created });
   b.set(db.doc('households/h1/activity/a1'), { type: 'stock_added', createdAt: created });
+  b.set(db.doc('households/h1/meals/m1'), { date: '2026-10-29', slot: 'dinner', title: 'Pie', cooks: ['u1'], createdAt: created });
   b.set(db.doc('households/h1/stock/s-gone'), { productId: 'p1', quantity: 1, expiryDate: '2026-10-21', deletedAt: created });
   b.set(db.doc('households/h2'), { name: 'Other', ownerUid: 'u2' });
   await b.commit();
@@ -49,6 +50,7 @@ it('exports every household in the app format, without the activity log or tombs
   assert.equal(data.stock.length, 1, 'the deleted batch is left out');
   assert.equal(data.groceryLists[0]?.items[0]?.name, 'Eggs');
   assert.equal(data.recipes[0]?.title, 'Pie');
+  assert.equal(data.meals?.[0]?.slot, 'dinner', 'planned meals (after v1)');
   assert.equal(JSON.stringify(data).includes('stock_added'), false);
 });
 
@@ -58,9 +60,11 @@ it('a restore puts deleted and changed documents back as they were', async () =>
   await db.doc('households/h1/stock/s1').update({ quantity: 0 });
   await db.doc('households/h1/groceryLists/g1/items/i1').delete();
   await db.doc('households/h1/products/p2').set({ name: 'Bread' });
+  await db.doc('households/h1/meals/m1').delete();
 
   const written = await applyRestore(db, planRestore(data, 'h1'));
-  assert.equal(written, 5);
+  assert.equal(written, 6);
+  assert.equal((await db.doc('households/h1/meals/m1').get()).get('title'), 'Pie', 'meals come back too');
   const milk = await db.doc('households/h1/products/p1').get();
   assert.equal(milk.get('name'), 'Milk');
   assert.ok(milk.get('createdAt') instanceof Timestamp);

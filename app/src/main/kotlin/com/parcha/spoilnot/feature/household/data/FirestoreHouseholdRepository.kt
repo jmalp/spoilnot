@@ -296,7 +296,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         val ops = mutableListOf<(WriteBatch) -> Unit>()
         val tombstone = Tombstones.fields(actor)
         // Tombstones, not deletes: other phones read only what changed (DESIGN 9.8) and must see these go.
-        for (name in listOf("products", "stock", "recipes")) {
+        for (name in listOf("products", "stock", "recipes", "meals")) {
             live("$base/$name").forEach { doc -> ops += { it.set(doc.reference, tombstone, SetOptions.merge()) } }
         }
         val lists = db.collection("$base/groceryLists").get(Source.SERVER).awaitMapped().documents
@@ -386,7 +386,8 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         const val BATCH_LIMIT = 400
 
         /** Members go last so the owner keeps access while the rest is deleted. */
-        val FLAT_SUBCOLLECTIONS = listOf("products", "stock", "recipes", "activity", "stats", "joinRequests", "members")
+        val FLAT_SUBCOLLECTIONS =
+            listOf("products", "stock", "recipes", "meals", "activity", "stats", "joinRequests", "members")
 
         fun householdPath(hid: String) = "households/$hid"
 

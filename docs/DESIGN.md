@@ -142,7 +142,7 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 - Member list with names, roles and join dates.
 - Invite card: the code in large type with Copy and Share (system share sheet with a ready-made message). Every member can see and share the code. The owner also gets Regenerate and Pause or Resume joining.
 - Owner only: approve or decline join requests (a badge on the Settings avatar and a Join requests card on Home show when someone is waiting; there is no push notification for this in v1), rename household, remove a member, transfer ownership, delete household. Members: leave household.
-- **Clear household data (owner, after v1).** The last button in Settings, after Delete account. It asks "Clear all household data?" (what goes, what stays, that it cannot be undone, and to export first), then the owner's password. It leaves the household as it was when created: the name, members, roles, invite code and join requests stay; every product, pantry purchase, recipe and grocery item is removed (as tombstones, so other phones' changes-only listeners drop them, 9.8), extra grocery lists, recent activity and Insights counts are deleted, and the default list is named Groceries again and forgets its store order. Last it logs "Sam cleared the household's data"; Recent activity never shows events from before the newest clear, so stale events cached on a phone stay hidden. There is no Undo; the nightly export and restore (13.4, RUNBOOK) bring the data back if needed.
+- **Clear household data (owner, after v1).** The last button in Settings, after Delete account. It asks "Clear all household data?" (what goes, what stays, that it cannot be undone, and to export first), then the owner's password. It leaves the household as it was when created: the name, members, roles, invite code and join requests stay; every product, pantry purchase, recipe, grocery item and planned meal is removed (as tombstones, so other phones' changes-only listeners drop them, 9.8), extra grocery lists, recent activity and Insights counts are deleted, and the default list is named Groceries again and forgets its store order. Last it logs "Sam cleared the household's data"; Recent activity never shows events from before the newest clear, so stale events cached on a phone stay hidden. There is no Undo; the nightly export and restore (13.4, RUNBOOK) bring the data back if needed.
 
 **Rules.** A user belongs to one household at a time; joining another requires leaving the first, with a confirmation that explains the local copy is cleared. The owner cannot leave without transferring ownership or deleting the household. A removed member is returned to the household gate within seconds while the app is open (membership watcher, section 9.1).
 
@@ -288,14 +288,27 @@ A short follow-along tour teaches new users the app and its main actions. The ow
 - **When.** Once per phone, the first time the household app opens (a local preference, `tour_done`; nothing is stored in Firestore). Finishing it or tapping *Skip tour* at any step ends it for good; Settings > *Take the app tour* starts it again.
 - **How it looks.** The screen is dimmed except for a rounded hole around one element, outlined in the theme's primary color, with a card next to it ("3 of 9", the text, *Skip tour* and *Next*; *Done* on the last step). The card goes below a target in the top half and above one in the bottom half, or covers a target too tall to leave room. Taps on the dimmed part do nothing; taps in the hole reach the app.
 - **Follow along.** Steps that point at a tab move on when the user opens that tab, and steps that point at a button (Add item, Add recipe) move on when it is tapped, so the user learns by doing. *Next* always works too, and opens the tab the next step needs.
-- **Steps.** Welcome; Home's Needs attention card; tap Pantry; Add item (dates and reminders); pantry rows (swipe right used up, left throw away, Undo, tap to edit, ⋮ for Mark opened); tap Recipes; Add recipe (share sheet, built-in browser, missing ingredients to the list); tap Groceries; the quick-add field (check off, Add to pantry); the Settings avatar (invite the household, replay the tour). A target that is not on screen (an empty pantry has no rows) shows its card in the middle.
+- **Steps.** Welcome; Home's Needs attention card; tap Pantry; Add item (dates and reminders); pantry rows (swipe right used up, left throw away, Undo, tap to edit, ⋮ for Mark opened); tap Plan (after v1, 5.9); tap Recipes; Add recipe (share sheet, built-in browser, missing ingredients to the list); tap Groceries; the quick-add field (check off, Add to pantry); the Settings avatar (invite the household, replay the tour). A target that is not on screen (an empty pantry has no rows) shows its card in the middle.
 - **Accessibility.** The card is a pane announced politely when it changes, every step has a text and a button, so it works without seeing the highlight, and text follows the font scale (buttons wrap at 200%).
+
+### 5.9 Meal planner (after v1)
+
+A fifth tab, **Plan** (Home, Pantry, Plan, Recipes, Groceries), shows one week of meals for the household, shared by every member.
+
+- **Week.** The header shows the week ("Oct 26 – Nov 1") with Previous and Next week buttons, and *Go to this week* when another week is shown. The week starts on the first day of the phone's region (Sunday in the US, Monday in most places). This week opens scrolled to today.
+- **Days.** One card per day with three slots, **Breakfast, Lunch and Dinner**. Today has a thicker border and a *Today* label (never color alone); past days have a quieter title.
+- **Adding.** **+** on a slot opens "Dinner · Thursday, Oct 29": *Who's cooking?* (any members, as chips with their names), *Something else* (a typed meal without a recipe such as "Leftovers" or "Eat out"), and the recipe box with a search. Tapping a recipe adds it at once with the recipe's servings. A slot can hold several meals; new ones go after the others.
+- **A planned meal** shows its name, servings and cooks (chips with a person icon and the name, "You" for the user). Tapping it opens its sheet: servings (− and +, or not set), cooks, a note, *Open recipe* (when the recipe still exists) and *Remove from plan* with Undo. A meal whose recipe was deleted keeps its name and says *Recipe deleted*; a member who left disappears from the cooks.
+- **Who may change it.** Every member, like the rest of the household's data. Planning is not logged in Recent activity, to keep it useful; cooking still is (5.5).
+- **Data and cost.** One document per meal (8.2), so two phones editing the same day never overwrite each other. The tab listens changes-only to the dates on screen (9.8): a week seen for the first time on a phone that day is read in full, then only changes. The daily job deletes meals more than 28 days past and their tombstones after 2 days (10.3).
+- **Elsewhere.** Clear household data (5.1) removes planned meals; Settings > Export and the nightly export include them (13.4); the tour has a step for the tab (5.8).
+- **Later, in the same feature:** the week's grocery list (with a *Meal plan* badge), marking a meal cooked, Use it up suggestions while picking, a Today card on Home, moving meals and copying last week, and a line for cooks in the daily digest.
 
 ## 6. UX and visual design
 
 **6.1 Principles.** Glanceable (what needs attention comes first), fast capture (adding an item takes under 10 seconds with thumb-reachable controls), calm (color is reserved for status), trustworthy (Undo on every destructive action, visible sync state).
 
-**6.2 Navigation.** A bottom `NavigationBar` with four destinations: Home, Pantry, Recipes, Groceries. Settings opens from the avatar button in each tab's top app bar. Each tab keeps its own back stack (Navigation 3) so scroll position and sub-screens survive tab switches. Portrait-first; landscape and tablets MUST NOT break (use window size classes, center content, maximum width 640 dp).
+**6.2 Navigation.** A bottom `NavigationBar` with four destinations: Home, Pantry, Recipes, Groceries (after v1, five: Plan between Pantry and Recipes, 5.9). Settings opens from the avatar button in each tab's top app bar. Each tab keeps its own back stack (Navigation 3) so scroll position and sub-screens survive tab switches. Portrait-first; landscape and tablets MUST NOT break (use window size classes, center content, maximum width 640 dp).
 
 **6.3 Screens**
 
@@ -562,6 +575,17 @@ households/{hid}/activity/{eventId}:
   actorUid, actorName: string
   params: { name, quantity, reason, listName }    # whatever applies to the type
   createdAt: timestamp
+households/{hid}/meals/{mealId}:      # after v1: one planned meal (5.9)
+  date: string (YYYY-MM-DD)
+  slot: breakfast | lunch | dinner
+  position: int                       # order within the slot
+  recipeId: string | null             # null for "Leftovers" and other meals without a recipe
+  title: string (1-120)               # the recipe's title when planned
+  servings: int (1-100) | null
+  cooks: [uid] (at most 20)
+  note: string (1-200) | null
+  cookedAt: timestamp | null, cookedBy: uid | null
+  createdAt, createdBy, updatedAt, updatedBy, deletedAt (tombstone)
 households/{hid}/stats/{yyyy-MM}:     # after v1: Insights counts for one month (5.7), written with increments
   used: int                           # batches used up
   expired, spoiled, didnt_like, other: int   # batches thrown away, by reason
@@ -676,7 +700,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
-- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790.
+- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790. The meal planner (5.9) adds about 150 (this week's meals, their changes, the nightly export and two housekeeping queries): about 1,940.
 - So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
@@ -688,6 +712,8 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 The first open of a collection, an empty cache, and any open more than 20 hours after the last full read use a full server listener instead, recorded per phone (`SyncLog`). That daily full read also drops anything kept by mistake, so tombstones (8.1) only need to outlive it. `fromCache` and the offline banner come from the server listener; the pending-sync icon from the cache. The quota simulation puts a typical household at about 1,890 reads a day (from about 4,760), so about 18 households fit under the 70% line. Older app builds would show tombstones as items, so the release that adds this raises `config/app.minSupportedBuild` (docs/RUNBOOK.md).
 
 Recent activity (after v1) works the same way without tombstones, since events are only added (`liveNewest`): a cache listener on the newest 10 by `createdAt`, and a server listener on `createdAt` after the newest cached event minus 5 minutes, or the newest 10 on the daily full read. A new event costs one read per phone instead of the newest ten on every open. Removing an event (Undo of a throw-away, the 30-day pruning) shows at once when the phone saw the event arrive and by the next daily full read otherwise. The quota simulation puts a typical household at about 1,790 reads a day.
+
+The meal plan (after v1, 5.9) uses the same two listeners limited to a window of dates (`liveDocuments` with a scope): the cache listener and the full read cover only the dates on screen, while the changes listener reads changes anywhere in the collection (they are few, and land in the cache for other weeks). Each window has its own full-read record, so a week seen for the first time that day is read in full.
 
 ## 10. Notification system
 
@@ -744,7 +770,7 @@ for each household:
     delete tokens that returned unregistered or invalid-argument errors
     if any send succeeded:
       update u { lastDigestDate: local.date, lastExpiredThrough: local.date minus 1 day }
-prune activity documents older than 30 days and join requests older than 7 days (after v1 also tombstones older than 2 days, 9.8)
+prune activity documents older than 30 days and join requests older than 7 days (after v1 also tombstones older than 2 days, 9.8, and planned meals more than 28 days past, 5.9)
 ```
 
 Message shape per device token:
@@ -867,7 +893,7 @@ JSON.stringify({
 11. Privacy: collect only email, display name, household data, device tokens and time zone. No analytics, no ads, no third-party SDKs besides Firebase. Provide in-app Delete account and Export data. Crashlytics is optional and carries no personal data. Add a one-page `docs/PRIVACY.md` listing exactly these data.
 12. Web view hardening as in 11.6.
 
-**12.3 Firestore Security Rules: reference draft.** This is a starting point; the tests in 12.4 define correctness. Limits to respect: at most 10 `exists`, `get` and `getAfter` calls per request (20 for batched writes), and each lookup is billed as a read.
+**12.3 Firestore Security Rules: reference draft.** This is a starting point; the tests in 12.4 define correctness. After v1 the deployed rules also cover `meals` (5.9): members read and write; the date must be YYYY-MM-DD, the slot breakfast, lunch or dinner, the title 1 to 120 characters, servings 1 to 100 or null, at most 20 cooks and a note up to 200 characters; tombstones as elsewhere. Limits to respect: at most 10 `exists`, `get` and `getAfter` calls per request (20 for batched writes), and each lookup is billed as a read.
 
 ```
 rules_version = '2';
@@ -1085,7 +1111,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 - **Update gate:** on launch read `config/app.minSupportedBuild`; if the installed `versionCode` is lower, show a full-screen “Please update” with a link.
 - **Runbook** (`docs/RUNBOOK.md`): rotate the service account key, regenerate an invite code by hand, check quota usage, re-enable the workflow, restore from an export.
 
-**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days. After v1 the repository is public, so the export is encrypted (AES-256 with a key-stretched passphrase in the `EXPORT_ENCRYPTION_KEY` secret) before it is uploaded, the restore workflow decrypts it, and workflow logs never contain user IDs, full household IDs or household contents (docs/RUNBOOK.md).
+**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days. After v1 the repository is public, so the export is encrypted (AES-256 with a key-stretched passphrase in the `EXPORT_ENCRYPTION_KEY` secret) before it is uploaded, the restore workflow decrypts it, and workflow logs never contain user IDs, full household IDs or household contents (docs/RUNBOOK.md). After v1 both exports also include the planned meals (5.9) as an added `meals` array, which the restore workflow writes back.
 
 ## 14. Milestones for Claude Code
 
@@ -1198,6 +1224,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Feedback after beta 7: no Throw away all button (Home and Pantry), a readable welcome title in Fredoka, four equal date chips that toggle (no No expiry chip), Pantry filters without All that toggle, Add buttons that never shrink, bolder preset color themes | 5.2, 5.6, 6.4, 6.5, QA |
 | 2026-10-19 | Clear household data: the owner wipes everything but the household and its members, after a confirmation and their password | 5.1, 5.6, 8.2, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-20 | Ready for a public repository: encrypted nightly exports, logs without user IDs, household IDs or digest contents, restore by ID prefix, a monthly keep-alive for scheduled workflows | 10, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
+| 2026-10-28 | Meal planner, part 1: a Plan tab with the week, breakfast, lunch and dinner, recipes or typed meals, servings, several cooks, notes and Undo; changes-only listener for a window of dates | 5.1, 5.8, 5.9, 6.2, 8.2, 9.7, 9.8, 10.3, 12.3, 13.4, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

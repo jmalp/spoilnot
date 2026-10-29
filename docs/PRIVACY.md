@@ -9,7 +9,7 @@ This page lists exactly what is collected (DESIGN 12.2, control 11).
 | --- | --- | --- |
 | Email address and password (the password is handled by Firebase Authentication, never by the app's database) | Firebase Authentication | Signing in |
 | Display name | Firestore (`users`, household `members`) | Showing who added or changed something |
-| Household data: products, stock with dates and places, grocery lists, recipes, the activity log (who did what, kept 30 days), monthly counts of items used up and thrown away (Insights; no names or items, only numbers) | Firestore, under the household | The app's purpose; shared with the household's members |
+| Household data: products, stock with dates and places, grocery lists, recipes, the meal plan (what is planned for which day and who is cooking; past weeks are deleted after 4 weeks), the activity log (who did what, kept 30 days), monthly counts of items used up and thrown away (Insights; no names or items, only numbers) | Firestore, under the household | The app's purpose; shared with the household's members |
 | Device notification token, time zone and reminder settings | Firestore (`users/{you}`) | Sending the daily expiry reminder at your local time |
 | Preferred units | Firestore (`users/{you}`) | The order of the unit menu |
 | Theme, colors, crash-report choice and whether you finished the app tour | On the phone only | Settings |

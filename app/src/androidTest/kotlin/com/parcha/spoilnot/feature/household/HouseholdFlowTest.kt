@@ -17,6 +17,7 @@ import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
+import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import java.time.LocalDate
 import kotlin.time.measureTime
@@ -197,6 +198,7 @@ class HouseholdFlowTest {
         )
         alice.grocery.createList(householdId, alice.actor, "Party")
         alice.recipes.save(householdId, alice.actor, RecipeContent(title = "Soup"), emptyList())
+        alice.mealPlan.addOther(householdId, alice.actor, today, MealSlot.Dinner, "Tacos", emptyList(), emptyList())
         // Bob has it all on his phone first, so the clear has to reach his cache.
         withTimeout(20_000) {
             bob.pantryRepository.observe(householdId).first { !it.fromCache && it.batches.isNotEmpty() }
@@ -212,6 +214,7 @@ class HouseholdFlowTest {
             assertEquals(listOf("Groceries"), lists.map { it.name })
             bob.groceryRepository.observeItems(householdId, lists.single().id).first { it.isEmpty() }
             bob.recipeRepository.observe(householdId).first { it.recipes.isEmpty() }
+            bob.mealPlanRepository.observe(householdId, today, today).first { it.meals.isEmpty() }
             val recent = bob.activity.observeRecent(householdId, 10)
                 .first { it.firstOrNull()?.type == ActivityType.HouseholdReset }
             assertEquals(1, recent.size)
