@@ -1,0 +1,44 @@
+/* The welcome screen (WelcomeScreen): centered, the jar in a primaryContainer circle, the name in Fredoka. */
+.sn-welcome {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sn-safe-top) var(--sn-safe-right) var(--sn-safe-bottom) var(--sn-safe-left);
+}
+.sn-welcome__column {
+  width: 100%;
+  max-width: var(--sn-content-width);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+.sn-welcome__column p {
+  margin: 0;
+}
+.sn-welcome__icon {
+  width: 112px;
+  height: 112px;
+  border-radius: 56px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.sn-welcome__title {
+  margin: 0;
+  font-family: var(--sn-font-display);
+  font-weight: 600;
+  color: var(--md-sys-color-primary);
+}
+.sn-welcome__space {
+  height: 16px;
+}
+.sn-auth__text {
+  margin: 0;
+}
+.sn-auth__secondary {
+  align-self: flex-start;
+  min-height: 48px;
+}

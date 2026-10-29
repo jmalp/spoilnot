@@ -24,6 +24,12 @@ round/search
 round/arrow_drop_down
 round/visibility
 round/visibility_off
+round/edit
+round/content_copy
+round/share
+round/group
+round/keyboard_arrow_right
+round/notifications
 
 # Status and feedback
 round/check_circle

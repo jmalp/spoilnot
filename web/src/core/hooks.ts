@@ -1,0 +1,52 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Observable } from 'rxjs';
+import { messageId } from './errors';
+import type { StringId } from './i18n';
+
+/**
+ * The latest value of [source] (collectAsStateWithLifecycle). [source] must be stable across renders (useMemo);
+ * errors keep the last value, like `.catch {}` in the app's view models.
+ */
+export function useObservable<T>(source: Observable<T>, initial: T): T {
+  const [value, setValue] = useState<T>(initial);
+  useEffect(() => {
+    const subscription = source.subscribe({ next: setValue, error: () => undefined });
+    return () => subscription.unsubscribe();
+  }, [source]);
+  return value;
+}
+
+/**
+ * One action at a time with its busy flag and error message (the `launch` helper of the app's view models).
+ * [run] ignores a call while another is running.
+ */
+export function useAction() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<StringId | null>(null);
+  const running = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const run = useCallback(async (work: () => Promise<void>): Promise<boolean> => {
+    if (running.current) return false;
+    running.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      return true;
+    } catch (e) {
+      if (mounted.current) setError(messageId(e));
+      return false;
+    } finally {
+      running.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }, []);
+  const clearError = useCallback(() => setError(null), []);
+  return { busy, error, run, clearError };
+}

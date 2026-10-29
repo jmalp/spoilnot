@@ -54,7 +54,16 @@ export function launcherSvg(foregroundXml: string, colorsXml: string, crop: bool
   ].join('\n');
 }
 
+/** The monochrome launcher icon's paths on its 108 by 108 canvas, for the welcome screen (WelcomeScreen). */
+export function monochromePaths(xml: string): { d: string; evenOdd: boolean }[] {
+  return [...xml.matchAll(/<path([\s\S]*?)\/>/g)].map(([, attributes]) => ({
+    d: attributes!.match(/android:pathData="([^"]+)"/)![1]!,
+    evenOdd: attributes!.includes('android:fillType="evenOdd"'),
+  }));
+}
+
 export function render(): string {
+  const monochrome = monochromePaths(readFileSync(new URL('drawable/ic_launcher_monochrome.xml', RES), 'utf8'));
   const icons = names(readFileSync(LIST, 'utf8')).map((name) => {
     const svg = readFileSync(new URL(`${name}.svg`, PACKAGE), 'utf8');
     return `  ${JSON.stringify(name)}: ${JSON.stringify(innerSvg(svg))},`;
@@ -67,6 +76,9 @@ export function render(): string {
     '} as const;',
     '',
     'export type IconName = keyof typeof ICONS;',
+    '',
+    '/** The launcher icon without its background, on a 108 by 108 canvas (ic_launcher_monochrome). */',
+    `export const LAUNCHER_MONOCHROME = ${JSON.stringify(monochrome)} as const;`,
     '',
   ].join('\n');
 }

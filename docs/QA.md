@@ -108,6 +108,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     empties the week; Undo brings them back. As a cook of tonight's meal with nothing expiring, run the reminder job:
     the notification says "You're cooking … for dinner" and opens Plan. With items expiring the meal is the last line.
     Settings > Notifications > Meals I'm cooking off: no meal line the next day.
+28. Web app W1 (iPhone, Safari, with `npm run dev` on the Mac and the emulators): Create account, create a household;
+    on a second iPhone (or a private tab) create an account and join with the code; the owner sees the badge on the
+    avatar and approves in Settings > Household; the second phone opens Home. Copy and Share the code (iOS share
+    sheet). Remove the member: they return to the gate. Sign out and back in; a wrong password says so. Larger Text
+    at the largest size: text grows, buttons stay 48 px. Light and dark follow the phone.
 
 ## 3. Conditions
 
