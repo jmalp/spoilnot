@@ -6,11 +6,22 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> &
   onValueChange: (value: string) => void;
   supportingText?: string;
   error?: string;
+  leading?: ReactNode;
   trailing?: ReactNode;
 };
 
 /** An OutlinedTextField with a floating label, supporting text and an error line (FormTextField in the app). */
-export function TextField({ label, value, onValueChange, supportingText, error, trailing, className, ...rest }: Props) {
+export function TextField({
+  label,
+  value,
+  onValueChange,
+  supportingText,
+  error,
+  leading,
+  trailing,
+  className,
+  ...rest
+}: Props) {
   const id = useId();
   const [focused, setFocused] = useState(false);
   const floating = focused || value.length > 0;
@@ -19,6 +30,7 @@ export function TextField({ label, value, onValueChange, supportingText, error, 
   return (
     <div className={classes.filter(Boolean).join(' ')}>
       <div className="m3-text-field__box">
+        {leading}
         <input
           id={id}
           className="m3-text-field__input"
@@ -30,9 +42,11 @@ export function TextField({ label, value, onValueChange, supportingText, error, 
           aria-describedby={describedBy}
           {...rest}
         />
-        <label className="m3-text-field__label" htmlFor={id}>
-          {label}
-        </label>
+        {label && (
+          <label className="m3-text-field__label" htmlFor={id}>
+            {label}
+          </label>
+        )}
         {trailing && <div className="m3-text-field__trailing">{trailing}</div>}
       </div>
       {(error || supportingText) && (

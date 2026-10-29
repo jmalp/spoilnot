@@ -37,3 +37,15 @@ round/cloud_off
 round/person
 round/warning_amber
 round/restaurant_menu
+
+# Pantry (W2): status chips, locations, row actions
+round/sort
+round/clear
+round/delete_outline
+round/schedule
+round/remove
+round/lock_open
+round/done
+outlined/ac_unit
+outlined/inventory_2
+outlined/place

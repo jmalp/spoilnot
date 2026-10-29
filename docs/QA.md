@@ -113,6 +113,10 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     avatar and approves in Settings > Household; the second phone opens Home. Copy and Share the code (iOS share
     sheet). Remove the member: they return to the gate. Sign out and back in; a wrong password says so. Larger Text
     at the largest size: text grows, buttons stay 48 px. Light and dark follow the phone.
+29. Web app W2a (iPhone, with pantry data from the Android app in the same household): the Pantry tab lists the same
+    purchases with the same chips; search, the filters (tap the chosen one again for all), Sort and group. Swipe a
+    row right: used up, Undo brings it back; swipe left: the reasons, then thrown away. ⋮ > Mark opened on a pack of 6:
+    1 moves to its own row with Opened. The Android phone shows each change within seconds, and the other way round.
 
 ## 3. Conditions
 

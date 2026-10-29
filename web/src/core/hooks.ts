@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Observable } from 'rxjs';
+import { today as todayOf, type Clock, type LocalDate } from '../domain/time';
 import { messageId } from './errors';
 import type { StringId } from './i18n';
 
@@ -49,4 +50,14 @@ export function useAction() {
   }, []);
   const clearError = useCallback(() => setError(null), []);
   return { busy, error, run, clearError };
+}
+
+/** "Today" in the phone's calendar, re-checked every minute so statuses roll over at midnight (todayFlow). */
+export function useToday(clock: Clock): LocalDate {
+  const [day, setDay] = useState(() => todayOf(clock));
+  useEffect(() => {
+    const timer = window.setInterval(() => setDay(todayOf(clock)), 60_000);
+    return () => window.clearInterval(timer);
+  }, [clock]);
+  return day;
 }
