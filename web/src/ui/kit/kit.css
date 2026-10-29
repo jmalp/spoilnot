@@ -1,0 +1,701 @@
+/* The Material 3 component kit (DESIGN 18.2), measured like Compose Material 3: same heights, corners, paddings,
+   color roles and state layers. Every interactive element is a native element. */
+
+/* State layer and ripple: a tint of the content color on hover, focus and press, and a ripple from the touch. */
+.m3-state {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+}
+.m3-state::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 150ms linear;
+  pointer-events: none;
+  z-index: -1;
+}
+@media (hover: hover) {
+  .m3-state:hover::before {
+    opacity: 0.08;
+  }
+}
+.m3-state:focus-visible::before {
+  opacity: 0.1;
+}
+.m3-state:active::before {
+  opacity: 0.1;
+}
+.m3-state::after {
+  content: '';
+  position: absolute;
+  left: var(--ripple-x, 50%);
+  top: var(--ripple-y, 50%);
+  width: var(--ripple-size, 0);
+  height: var(--ripple-size, 0);
+  margin: calc(var(--ripple-size, 0) / -2) 0 0 calc(var(--ripple-size, 0) / -2);
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+  transform: scale(0);
+}
+.m3-state.m3-rippling::after {
+  animation: m3-ripple 450ms var(--sn-motion-standard);
+}
+@keyframes m3-ripple {
+  from {
+    transform: scale(0.1);
+    opacity: 0.12;
+  }
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+.m3-state:disabled,
+.m3-state[aria-disabled='true'] {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Icons: 24 px, the content color. */
+.m3-icon {
+  display: block;
+  flex: none;
+  fill: currentColor;
+}
+
+/* Buttons: 40 px tall (48 px touch target), full corners, labelLarge. */
+.m3-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  min-width: 48px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 20px;
+  background: transparent;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.00625rem;
+  text-align: center;
+}
+.m3-button .m3-icon {
+  width: 18px;
+  height: 18px;
+}
+.m3-button--with-icon {
+  padding-left: 16px;
+}
+.m3-button--filled {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+.m3-button--tonal {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.m3-button--outlined {
+  color: var(--md-sys-color-primary);
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
+}
+.m3-button--text {
+  color: var(--md-sys-color-primary);
+  padding: 10px 12px;
+}
+.m3-button--text.m3-button--with-icon {
+  padding: 10px 16px 10px 12px;
+}
+.m3-button--error {
+  color: var(--md-sys-color-error);
+}
+.m3-button--full {
+  display: flex;
+  width: 100%;
+}
+.m3-button--large {
+  min-height: 56px;
+  border-radius: 28px;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.m3-button:disabled {
+  background: transparent;
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+}
+.m3-button--filled:disabled,
+.m3-button--tonal:disabled {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+}
+.m3-button--outlined:disabled {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+}
+
+/* Icon buttons: a 40 px circle inside a 48 px touch target. */
+.m3-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  position: relative;
+  cursor: pointer;
+  flex: none;
+}
+.m3-icon-button > .m3-icon-button__layer {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+}
+.m3-icon-button:disabled {
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+  cursor: default;
+}
+
+/* Extended FAB: 56 px, 16 px corners, primaryContainer, elevation 3. */
+.m3-fab {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  min-width: 80px;
+  padding: 0 20px 0 16px;
+  border: none;
+  border-radius: 16px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  box-shadow: var(--sn-elevation-3);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.00625rem;
+}
+
+/* Cards: 16 px corners (DESIGN 6.4). */
+.m3-card {
+  display: block;
+  border-radius: 16px;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+  width: 100%;
+  border: none;
+  padding: 0;
+}
+.m3-card--outlined {
+  background: var(--md-sys-color-surface);
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
+}
+.m3-card--filled {
+  background: var(--md-sys-color-surface-container-highest);
+}
+.m3-card--elevated {
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: var(--sn-elevation-1);
+}
+
+/* Top app bar: 64 px, pinned; takes surfaceContainer once content scrolls under it. */
+.m3-top-app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  min-height: calc(64px + var(--sn-safe-top));
+  padding: var(--sn-safe-top) calc(4px + var(--sn-safe-right)) 0 calc(4px + var(--sn-safe-left));
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  transition: background-color 200ms var(--sn-motion-standard);
+}
+.m3-top-app-bar--scrolled {
+  background: var(--md-sys-color-surface-container);
+}
+.m3-top-app-bar__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.m3-top-app-bar__navigation + .m3-top-app-bar__title {
+  padding-left: 0;
+}
+.m3-top-app-bar__actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Navigation bar: 80 px, surfaceContainer, a 64 by 32 pill behind the selected icon, labels always shown. */
+.m3-navigation-bar {
+  display: flex;
+  background: var(--md-sys-color-surface-container);
+  padding: 0 var(--sn-safe-right) var(--sn-safe-bottom) var(--sn-safe-left);
+  flex: none;
+}
+.m3-navigation-bar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 80px;
+  padding: 12px 0 16px;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+.m3-navigation-bar__indicator {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 32px;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: background-color 200ms var(--sn-motion-standard);
+}
+.m3-navigation-bar__item[aria-current='page'] .m3-navigation-bar__indicator {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.m3-navigation-bar__item[aria-current='page'] .m3-navigation-bar__label {
+  color: var(--md-sys-color-on-surface);
+}
+.m3-navigation-bar__label {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.03125rem;
+}
+
+/* Badges: error colors, a 6 px dot or a 16 px pill with a number. */
+.m3-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+  font-size: 0.6875rem;
+  line-height: 16px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Outlined text field: 56 px, 4 px corners, a floating label in the outline's notch. */
+.m3-text-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.m3-text-field__box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline);
+  background: transparent;
+}
+.m3-text-field__box:focus-within {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+.m3-text-field--error .m3-text-field__box,
+.m3-text-field--error .m3-text-field__box:focus-within {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-error);
+}
+.m3-text-field__input {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  border: none;
+  background: transparent;
+  padding: 16px;
+  outline: none;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  letter-spacing: 0.03125rem;
+  color: var(--md-sys-color-on-surface);
+  caret-color: var(--md-sys-color-primary);
+  border-radius: 4px;
+}
+.m3-text-field__input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.m3-text-field__label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  max-width: calc(100% - 24px);
+  padding: 0 4px;
+  transform: translateY(-50%);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  letter-spacing: 0.03125rem;
+  pointer-events: none;
+  transition:
+    top 150ms var(--sn-motion-standard),
+    font-size 150ms var(--sn-motion-standard);
+}
+.m3-text-field--floating .m3-text-field__label {
+  top: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  background: var(--sn-field-notch, var(--md-sys-color-surface));
+}
+.m3-text-field__box:focus-within .m3-text-field__label {
+  color: var(--md-sys-color-primary);
+}
+.m3-text-field--error .m3-text-field__label {
+  color: var(--md-sys-color-error);
+}
+.m3-text-field__trailing {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.m3-text-field__supporting {
+  padding: 0 16px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.025rem;
+}
+.m3-text-field--error .m3-text-field__supporting {
+  color: var(--md-sys-color-error);
+}
+
+/* Filter chips: 32 px, 8 px corners, a check when selected (never color alone). */
+.m3-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.00625rem;
+  /* A 48 px touch target around the 32 px chip, as Compose adds. */
+  margin: 8px 0;
+}
+.m3-chip .m3-icon {
+  width: 18px;
+  height: 18px;
+}
+.m3-chip--with-icon {
+  padding-left: 8px;
+}
+.m3-chip[aria-pressed='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  box-shadow: none;
+}
+
+/* Checkbox, radio button and switch: native inputs drawn as Material 3, inside 48 px targets. */
+.m3-checkbox,
+.m3-radio {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  flex: none;
+  cursor: pointer;
+  border-radius: 24px;
+  position: relative;
+}
+.m3-checkbox::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-on-surface-variant);
+  grid-area: 1 / 1;
+}
+.m3-checkbox:checked::before {
+  background: var(--md-sys-color-primary);
+  box-shadow: none;
+}
+.m3-checkbox:checked::after {
+  content: '';
+  grid-area: 1 / 1;
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid var(--md-sys-color-on-primary);
+  border-bottom: 2px solid var(--md-sys-color-on-primary);
+  transform: translateY(-1px) rotate(-45deg);
+}
+.m3-radio::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-on-surface-variant);
+  grid-area: 1 / 1;
+}
+.m3-radio:checked::before {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+.m3-radio:checked::after {
+  content: '';
+  grid-area: 1 / 1;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--md-sys-color-primary);
+}
+.m3-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 32px;
+  margin: 8px 0;
+  border-radius: 16px;
+  background: var(--md-sys-color-surface-container-highest);
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-outline);
+  cursor: pointer;
+  transition: background-color 150ms var(--sn-motion-standard);
+}
+.m3-switch::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 12px;
+  background: var(--md-sys-color-outline);
+  transition: all 150ms var(--sn-motion-standard);
+}
+.m3-switch:checked {
+  background: var(--md-sys-color-primary);
+  box-shadow: none;
+}
+.m3-switch:checked::after {
+  top: 4px;
+  left: 24px;
+  width: 24px;
+  height: 24px;
+  background: var(--md-sys-color-on-primary);
+}
+
+/* Dialogs: 28 px corners, surfaceContainerHigh, a dimmed page behind. */
+.m3-dialog {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100dvh - 96px);
+  padding: 24px;
+  border: none;
+  border-radius: 28px;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  box-shadow: var(--sn-elevation-3);
+  overflow: auto;
+}
+.m3-dialog::backdrop {
+  background: rgb(0 0 0 / 32%);
+}
+.m3-dialog__title {
+  margin: 0 0 16px;
+}
+.m3-dialog__body {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.m3-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+/* Modal bottom sheets: 28 px top corners, surfaceContainerLow, a drag handle, at most 640 px wide. */
+.m3-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: var(--sn-content-width);
+  max-height: calc(100dvh - var(--sn-safe-top) - 8px);
+  padding: 0 0 var(--sn-safe-bottom);
+  border: none;
+  border-radius: 28px 28px 0 0;
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: m3-sheet-in 350ms var(--sn-motion-emphasized-decelerate);
+  --sn-field-notch: var(--md-sys-color-surface-container-low);
+}
+.m3-sheet:not([open]) {
+  display: none;
+}
+.m3-sheet::backdrop {
+  background: rgb(0 0 0 / 32%);
+}
+.m3-sheet__handle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  height: 48px;
+  border: none;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.m3-sheet__handle::before {
+  content: '';
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--md-sys-color-on-surface-variant);
+}
+.m3-sheet__content {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+@keyframes m3-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Menus: surfaceContainer, 4 px corners, 48 px items. */
+.m3-menu {
+  position: absolute;
+  z-index: 10;
+  min-width: 112px;
+  max-width: 280px;
+  padding: 8px 0;
+  border-radius: 4px;
+  background: var(--md-sys-color-surface-container);
+  box-shadow: var(--sn-elevation-2);
+}
+.m3-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.00625rem;
+}
+.m3-menu__item:disabled {
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+}
+
+/* Snackbars: inverseSurface, 4 px corners, an inversePrimary action, above the navigation bar. */
+.m3-snackbar-host {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  pointer-events: none;
+}
+.m3-snackbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 600px;
+  min-height: 48px;
+  padding: 6px 8px 6px 16px;
+  border-radius: 4px;
+  background: var(--md-sys-color-inverse-surface);
+  color: var(--md-sys-color-inverse-on-surface);
+  box-shadow: var(--sn-elevation-3);
+  pointer-events: auto;
+  animation: m3-fade-in 150ms linear;
+}
+.m3-snackbar__text {
+  flex: 1;
+  padding: 8px 0;
+}
+.m3-snackbar .m3-button--text {
+  color: var(--md-sys-color-inverse-primary);
+}
+@keyframes m3-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Circular progress: 40 px, 4 px primary stroke. */
+.m3-progress {
+  width: 40px;
+  height: 40px;
+  animation: m3-spin 1.4s linear infinite;
+}
+.m3-progress circle {
+  fill: none;
+  stroke: var(--md-sys-color-primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 80 200;
+}
+@keyframes m3-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

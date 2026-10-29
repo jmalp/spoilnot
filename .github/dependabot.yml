@@ -51,6 +51,25 @@ updates:
       reminder-job:
         patterns: ["*"]
 
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    ignore:
+      # Node 24 runs the scripts (package.json engines, ci.yml), as for the reminder job.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # typescript-eslint supports TypeScript below 6.1 (DECISIONS 2026-10-29); raise both together.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    groups:
+      web-app:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

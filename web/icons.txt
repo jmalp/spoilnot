@@ -1,0 +1,33 @@
+# Material Icons used by the web app (scripts/gen-icons.ts): `round/name` for Icons.Rounded, `outlined/name` for
+# Icons.Outlined. Add a line when a screen needs a new icon, then run `npm run gen`.
+
+# Tabs (TopLevelDestination): rounded when selected, outlined otherwise
+round/home
+outlined/home
+round/kitchen
+outlined/kitchen
+round/calendar_month
+outlined/calendar_month
+round/menu_book
+outlined/menu_book
+round/shopping_cart
+outlined/shopping_cart
+
+# App bars and common actions
+round/account_circle
+round/arrow_back
+round/add
+round/check
+round/close
+round/more_vert
+round/search
+round/arrow_drop_down
+round/visibility
+round/visibility_off
+
+# Status and feedback
+round/check_circle
+round/cloud_off
+round/person
+round/warning_amber
+round/restaurant_menu

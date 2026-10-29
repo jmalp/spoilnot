@@ -12,6 +12,7 @@ on:
       - '.editorconfig'
       - 'firebase/**'
       - 'backend/**'
+      - 'web/**'
       - '.github/workflows/ci.yml'
   push:
     branches: [main]
@@ -101,3 +102,32 @@ jobs:
         working-directory: firebase
         run: npx firebase emulators:exec --project demo-spoilnot --only firestore "npm --prefix ../backend/reminder run test:integration"
 
+  # The web app for iPhone (DESIGN 18). It also runs on Android changes: the web words, colors and icons are
+  # generated from the app's resources, so a changed strings.xml or theme must be regenerated in the same PR.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Generated strings, colors and icons match the Android app
+        run: npm run gen:check
+      - name: Format, lint, types, unit tests, build
+        run: npm run check
+      - name: Browser tests in WebKit (screenshots are compared locally, DESIGN 18.7)
+        run: npx playwright install --with-deps webkit && npx playwright test
+      - name: Upload the browser test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-report
+          path: web/playwright-report/
+          retention-days: 7

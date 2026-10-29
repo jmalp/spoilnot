@@ -1,0 +1,72 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { str } from '../../core/i18n';
+import { Button } from './Button';
+
+/** How long Undo stays available, as UNDO_WINDOW_MS in the app (DESIGN 5.2). */
+export const UNDO_WINDOW_MS = 8_000;
+/** SnackbarDuration.Short. */
+export const SHORT_MS = 4_000;
+
+type Message = { id: number; text: string; action?: { label: string; run: () => void }; durationMs: number };
+
+type Snackbars = {
+  /** A message for 4 seconds. */
+  show: (text: string) => void;
+  /** A message with Undo for 8 seconds (MessageEffect in the app). */
+  showUndo: (text: string, undo: () => void) => void;
+};
+
+const Context = createContext<Snackbars | null>(null);
+
+export function useSnackbars(): Snackbars {
+  const value = useContext(Context);
+  if (!value) throw new Error('useSnackbars outside SnackbarProvider');
+  return value;
+}
+
+/** Shows messages one at a time, in order, at the bottom of the screen and above the navigation bar. */
+export function SnackbarProvider({ children }: { children: ReactNode }) {
+  const [queue, setQueue] = useState<Message[]>([]);
+  const next = useRef(0);
+  const enqueue = useCallback((message: Omit<Message, 'id'>) => {
+    setQueue((current) => [...current, { ...message, id: next.current++ }]);
+  }, []);
+  const value = useMemo<Snackbars>(
+    () => ({
+      show: (text) => enqueue({ text, durationMs: SHORT_MS }),
+      showUndo: (text, undo) =>
+        enqueue({ text, durationMs: UNDO_WINDOW_MS, action: { label: str('action_undo'), run: undo } }),
+    }),
+    [enqueue],
+  );
+  const current = queue[0];
+  const dismiss = useCallback((id: number) => setQueue((q) => q.filter((m) => m.id !== id)), []);
+  useEffect(() => {
+    if (!current) return;
+    const timer = window.setTimeout(() => dismiss(current.id), current.durationMs);
+    return () => window.clearTimeout(timer);
+  }, [current, dismiss]);
+  return (
+    <Context.Provider value={value}>
+      {children}
+      <div className="m3-snackbar-host" aria-live="polite">
+        {current && (
+          <div key={current.id} className="m3-snackbar t-body-medium" role="status">
+            <span className="m3-snackbar__text">{current.text}</span>
+            {current.action && (
+              <Button
+                variant="text"
+                onClick={() => {
+                  current.action?.run();
+                  dismiss(current.id);
+                }}
+              >
+                {current.action.label}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </Context.Provider>
+  );
+}

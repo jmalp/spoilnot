@@ -11,5 +11,5 @@ indent_size = 4
 # ktlint settings live in the root build.gradle.kts (Spotless editorConfigOverride).
 max_line_length = 120
 
-[*.{json,yml,yaml,rules,js,mjs,ts}]
+[*.{json,yml,yaml,rules,js,mjs,ts,tsx,css,html,webmanifest}]
 indent_size = 2
