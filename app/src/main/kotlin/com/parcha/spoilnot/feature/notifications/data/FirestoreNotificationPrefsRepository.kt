@@ -28,6 +28,7 @@ class FirestoreNotificationPrefsRepository @Inject constructor(private val fires
                     (raw["stages"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.toSet()
                         ?: NotificationPrefs.ALL_STAGES,
                 expiredMode = ExpiredMode.fromWire(raw["expiredMode"] as? String),
+                cooking = raw["cooking"] as? Boolean ?: true,
             )
         }
         .distinctUntilChanged()
@@ -41,6 +42,7 @@ class FirestoreNotificationPrefsRepository @Inject constructor(private val fires
                     "digestMinutes" to prefs.digestMinutes,
                     "stages" to prefs.stages.sortedDescending(),
                     "expiredMode" to prefs.expiredMode.wire,
+                    "cooking" to prefs.cooking,
                 ),
                 "updatedAt" to FieldValue.serverTimestamp(),
             ),

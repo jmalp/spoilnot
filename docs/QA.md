@@ -102,6 +102,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Undo puts the pantry and the mark back. Cook "Leftovers": marked at once. Not cooked yet clears the mark only.
     Home shows a Today card with today's meals, cooks and Cooked; Open plan goes to the Plan tab. With nothing
     planned today there is no Today card.
+27. Meal planner (part 3): on a meal's sheet tap Move, pick Friday and Lunch: it moves on both phones; Undo puts it
+    back. Plan last week's dinners, go to this week and choose ⋮ > Copy last week: they appear on the same weekdays
+    without Cooked; copying again says they are already here. ⋮ > Clear this week asks "Removes all N meals…", then
+    empties the week; Undo brings them back. As a cook of tonight's meal with nothing expiring, run the reminder job:
+    the notification says "You're cooking … for dinner" and opens Plan. With items expiring the meal is the last line.
+    Settings > Notifications > Meals I'm cooking off: no meal line the next day.
 
 ## 3. Conditions
 

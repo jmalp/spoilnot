@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
@@ -66,6 +67,7 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The Plan tab (DESIGN 5.9): one week of meals, who cooks them, and adding, changing and removing meals; the week's
@@ -76,7 +78,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class PlanViewModel @Inject constructor(
     session: SessionManager,
-    repository: MealPlanRepository,
+    private val repository: MealPlanRepository,
     households: HouseholdRepository,
     recipes: RecipeStore,
     pantry: PantryRepository,
@@ -277,6 +279,41 @@ class PlanViewModel @Inject constructor(
 
     fun notCooked(meal: PlannedMeal) = act { hid, actor -> service.notCooked(hid, actor, meal) }
 
+    /** Moves [meal] to another day or slot of its week, with Undo. */
+    fun move(meal: PlannedMeal, date: LocalDate, slot: MealSlot) = act { hid, actor ->
+        val undo = service.move(hid, actor, meal, date, slot, slotMeals(date, slot)) ?: return@act
+        _messages.send(UiMessage(R.string.plan_moved, meal.title, undo))
+    }
+
+    /**
+     * Copy last week into the week shown. Last week is read from the server when it answers within a few seconds,
+     * otherwise from the phone's copy.
+     */
+    fun copyLastWeek() {
+        val shown = state.value
+        if (shown.loading) return
+        act { hid, actor ->
+            val from = shown.weekStart.minusWeeks(1)
+            val week = repository.observe(hid, from, MealWeek.end(from))
+            val previous = (withTimeoutOrNull(COPY_WAIT_MS) { week.first { !it.fromCache } } ?: week.first()).meals
+            val existing = shown.days.flatMap { it.meals }
+            val copied = service.copyWeek(hid, actor, previous, from, shown.weekStart, existing)
+            if (copied == null) {
+                _messages.send(
+                    UiMessage(if (previous.isEmpty()) R.string.plan_copy_none else R.string.plan_copy_already),
+                )
+            } else {
+                _messages.send(UiMessage(R.string.plan_copied, listOf(copied.first.toString()), copied.second))
+            }
+        }
+    }
+
+    /** Removes every meal of the week shown, with one Undo. */
+    fun clearWeek() = act { hid, actor ->
+        val undo = service.clear(hid, actor, state.value.days.flatMap { it.meals }) ?: return@act
+        _messages.send(UiMessage(R.string.plan_cleared, null, undo))
+    }
+
     fun chooseList(listId: String) {
         chosenList.value = listId
     }
@@ -316,5 +353,8 @@ class PlanViewModel @Inject constructor(
         }
     }
 }
+
+/** How long Copy last week waits for the server before using the phone's copy. */
+private const val COPY_WAIT_MS = 5_000L
 
 private val EMPTY_PANTRY = PantryData(emptyList(), emptyList(), fromCache = false)

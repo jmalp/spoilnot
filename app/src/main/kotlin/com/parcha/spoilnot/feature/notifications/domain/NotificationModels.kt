@@ -20,6 +20,8 @@ data class NotificationPrefs(
     /** Subset of 3, 2, 1, 0 days before. */
     val stages: Set<Int> = ALL_STAGES,
     val expiredMode: ExpiredMode = ExpiredMode.Once,
+    /** After v1 (DESIGN 5.9): the reminder also lists the meals the user cooks that day. */
+    val cooking: Boolean = true,
 ) {
     val hour: Int get() = digestMinutes / 60
 

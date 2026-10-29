@@ -1,7 +1,10 @@
 // The hourly reminder job (DESIGN 10.1, 10.3). Reads Firestore with the Admin SDK (which bypasses the rules),
 // sends one digest per due user through FCM, and prunes old activity, join requests and tombstones.
 import type { Firestore } from 'firebase-admin/firestore';
-import { afterSend, buildDigest, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from './digest.ts';
+import {
+  afterSend, buildDigestWithMeals, cookingFor, dueAt, readPrefs, selectItems, stockWindow, type Batch, type Meal,
+  type UserDoc,
+} from './digest.ts';
 import { isCalendarDate, type LocalTime } from './time.ts';
 
 export interface Message {
@@ -47,6 +50,8 @@ export interface JobSummary {
 }
 
 export const ROUTE = '/pantry?filter=expiring';
+/** A digest with only meals opens the Plan tab (after v1, DESIGN 5.9). */
+export const PLAN_ROUTE = '/plan';
 const CHANNEL = 'expiry';
 const ACTIVITY_DAYS = 30;
 const JOIN_REQUEST_DAYS = 7;
@@ -66,6 +71,20 @@ function toUser(id: string, data: FirebaseFirestore.DocumentData): UserDoc {
     prefs: readPrefs(data.notificationPrefs),
     lastDigestDate: isCalendarDate(data.lastDigestDate) ? data.lastDigestDate : null,
     lastExpiredThrough: isCalendarDate(data.lastExpiredThrough) ? data.lastExpiredThrough : null,
+  };
+}
+
+function toMeal(data: FirebaseFirestore.DocumentData): Meal | null {
+  // Tombstones are removed meals (DESIGN 9.8).
+  if (data.deletedAt != null || !isCalendarDate(data.date)) return null;
+  if (data.slot !== 'breakfast' && data.slot !== 'lunch' && data.slot !== 'dinner') return null;
+  return {
+    date: data.date,
+    slot: data.slot,
+    position: typeof data.position === 'number' ? data.position : 0,
+    title: typeof data.title === 'string' ? data.title : 'A meal',
+    cooks: Array.isArray(data.cooks) ? data.cooks.filter((c: unknown): c is string => typeof c === 'string') : [],
+    cooked: data.cookedAt != null,
   };
 }
 
@@ -110,10 +129,21 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
       .where('expiryDate', '<=', hi)
       .get();
     const batches = stock.docs.map((d) => toBatch(d.data())).filter((b): b is Batch => b !== null);
+    // Today's meals, only when a due member wants them: one more query per household and run (DESIGN 9.7).
+    let meals: Meal[] = [];
+    if (members.some((m) => m.user.prefs.cooking)) {
+      const dates = members.map((m) => m.local.date).sort();
+      const planned = await db.collection(`households/${householdId}/meals`)
+        .where('date', '>=', dates[0]!)
+        .where('date', '<=', dates[dates.length - 1]!)
+        .get();
+      meals = planned.docs.map((d) => toMeal(d.data())).filter((m): m is Meal => m !== null);
+    }
 
     for (const { user, local } of members) {
       // 4. Each user's digest from their own stages and local date.
       const items = selectItems(user, local.date, batches);
+      const cooking = cookingFor(user, local.date, meals);
       const userRef = db.doc(`users/${user.uid}`);
       const devices = await db.collection(`users/${user.uid}/devices`).get();
       if (devices.empty) {
@@ -121,7 +151,7 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
         summary.skippedNoDevices++;
         continue;
       }
-      const digest = buildDigest(items);
+      const digest = buildDigestWithMeals(items, cooking);
       if (!digest) {
         summary.emptyDigests++;
         if (!dryRun) await userRef.update({ lastDigestDate: local.date });
@@ -134,13 +164,13 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
         .filter((t): t is { ref: FirebaseFirestore.DocumentReference; token: string } => typeof t.token === 'string');
       const messages: Message[] = tokens.map(({ token }) => ({
         token,
-        notification: digest,
-        data: { type: 'expiry_digest', route: ROUTE, date: local.date },
+        notification: { title: digest.title, body: digest.body },
+        data: { type: 'expiry_digest', route: digest.mealsOnly ? PLAN_ROUTE : ROUTE, date: local.date },
         android: { priority: 'high', notification: { channelId: CHANNEL, tag: 'expiry_digest' } },
       }));
       if (dryRun) {
-        // Workflow logs are public with the repository: the title's count only, never a user ID or item names.
-        log(`[dry run] ${local.date}: "${digest.title}" to ${messages.length} device(s)`);
+        // Workflow logs are public with the repository: counts only, never a user ID, item names or meal titles.
+        log(`[dry run] ${local.date}: ${items.length} item(s), ${cooking.length} meal(s) to ${messages.length} device(s)`);
         summary.sent += messages.length;
         continue;
       }

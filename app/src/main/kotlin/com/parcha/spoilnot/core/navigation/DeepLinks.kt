@@ -12,15 +12,20 @@ sealed interface DeepLink {
     /** The Pantry tab with a filter: a digest opens Expiring soon (`/pantry?filter=expiring`), Home cards others. */
     data class Pantry(val filter: PantryFilter) : DeepLink
 
+    /** The Plan tab: a digest with only today's meals (`/plan`, after v1, DESIGN 5.9). */
+    data object Plan : DeepLink
+
     /** A link shared from another app; null when the shared text had none. */
     data class ImportRecipe(val url: String?) : DeepLink
 
     companion object {
         const val EXTRA_ROUTE = "route"
         const val PANTRY_EXPIRING = "/pantry?filter=expiring"
+        const val PLAN = "/plan"
 
         fun parse(route: String?): DeepLink? = when (route) {
             PANTRY_EXPIRING -> Pantry(PantryFilter.ExpiringSoon)
+            PLAN -> Plan
             else -> null
         }
     }

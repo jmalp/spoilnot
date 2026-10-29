@@ -206,14 +206,15 @@ them finishing a batch):
 | --- | --- | --- |
 | App listeners | 13,000 | |
 | Security-rule lookups | 3,040 | |
-| Scheduled jobs (reminders, housekeeping, export) | 3,400 | |
-| **Total for 10 households** | **19,440** | **38.9%** |
-| Per household | about 1,940 | 3.9% |
+| Scheduled jobs (reminders, housekeeping, export) | 3,480 | |
+| **Total for 10 households** | **19,520** | **39.0%** |
+| Per household | about 1,950 | 3.9% |
 
 Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and
 19,320 before Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner (week's
 grocery list, Cooked, Use it up while picking) left it at 19,440: those sheets listen to the pantry and lists only while
-open, which the cache already holds from Home and Pantry. So the free plan holds about 18
+open, which the cache already holds from Home and Pantry. Part 3 adds the digest's query for today's meals (about 2
+reads per user a day): 19,520. So the free plan holds about 18
 households of this size under the 70% warning line. The largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 
@@ -226,7 +227,7 @@ one is disabled anyway: **Actions →** the workflow **→ Enable workflow** (or
 `gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check.
 
 **Logs are public.** Workflow logs show counts, dates and the first characters of household IDs only: the reminder
-job logs neither user IDs nor what is in a digest (a dry run shows the notification title, which is a count), and
+job logs neither user IDs nor what is in a digest (a dry run shows how many items and meals, never names or titles), and
 the export and restore print counts. Keep it that way when changing the jobs.
 
 ## Dependency updates

@@ -23,8 +23,12 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddShoppingCart
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -81,6 +85,9 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
     var adding by remember { mutableStateOf<Pair<LocalDate, MealSlot>?>(null) }
     var openMealId by rememberSaveable { mutableStateOf<String?>(null) }
     var shopping by rememberSaveable { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
+    val weekMeals = state.days.sumOf { it.meals.size }
 
     TabScaffold(
         title = stringResource(R.string.tab_plan),
@@ -91,6 +98,28 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
                 IconButton(onClick = { shopping = true }, modifier = Modifier.testTag("plan_shop")) {
                     Icon(Icons.Rounded.AddShoppingCart, contentDescription = stringResource(R.string.plan_shop))
                 }
+            }
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("plan_menu")) {
+                Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.plan_more_actions))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.plan_copy_last_week)) },
+                    onClick = {
+                        menuOpen = false
+                        viewModel.copyLastWeek()
+                    },
+                    modifier = Modifier.testTag("plan_copy_last_week"),
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.plan_clear_week)) },
+                    onClick = {
+                        menuOpen = false
+                        confirmClear = true
+                    },
+                    enabled = weekMeals > 0,
+                    modifier = Modifier.testTag("plan_clear_week"),
+                )
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -114,6 +143,30 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
         }
     }
 
+    if (confirmClear) {
+        val range = stringResource(
+            R.string.plan_week_range,
+            shortDate(state.weekStart),
+            shortDate(MealWeek.end(state.weekStart)),
+        )
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text(stringResource(R.string.plan_clear_title)) },
+            text = { Text(pluralStringResource(R.plurals.plan_clear_text, weekMeals, weekMeals, range)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClear = false
+                        viewModel.clearWeek()
+                    },
+                    modifier = Modifier.testTag("plan_clear_confirm"),
+                ) { Text(stringResource(R.string.plan_clear_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
     adding?.let { (date, slot) ->
         // Collected only while the sheet is open, so the pantry is listened to only then; shown once loaded.
         val useItUp = viewModel.useItUp.collectAsStateWithLifecycle().value ?: return@let
@@ -155,6 +208,11 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
             onCook = {
                 openMealId = null
                 viewModel.cook(meal)
+            },
+            weekDays = MealWeek.days(MealWeek.start(meal.date, state.weekStart.dayOfWeek)),
+            onMove = { date, slot ->
+                openMealId = null
+                viewModel.move(meal, date, slot)
             },
             onNotCooked = {
                 viewModel.notCooked(meal)
@@ -444,6 +502,9 @@ internal fun slotLabel(slot: MealSlot): String = stringResource(
 /** "Thursday, Oct 29". */
 internal fun dayTitle(date: LocalDate): String =
     date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()) + ", " + shortDate(date)
+
+/** "Thu 29" in the phone's language, for the Move chips. */
+internal fun shortDay(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()))
 
 /** "Oct 29" in the phone's language. */
 internal fun shortDate(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))

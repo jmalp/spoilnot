@@ -74,4 +74,40 @@ class MealWeekTest {
         ).first()
         assertEquals(listOf("b", "l", "d"), day.meals.map { it.id })
     }
+
+    @Test
+    fun `copying a week shifts the days, keeps the plan, forgets Cooked and skips what is already there`() {
+        val lastStart = LocalDate.of(2026, 10, 19)
+        val thisStart = LocalDate.of(2026, 10, 26)
+        val previous = listOf(
+            meal("a", date = lastStart.plusDays(3), position = 1).copy(
+                title = "Tacos",
+                recipeId = "r1",
+                servings = 4,
+                cooks = listOf("u1"),
+                note = "Spicy",
+                cookedAt = Instant.EPOCH,
+                cookedBy = "u1",
+            ),
+            meal("b", date = lastStart.plusDays(3), position = 0).copy(title = "Soup"),
+            meal("c", date = lastStart, slot = MealSlot.Lunch).copy(title = "Leftovers"),
+        )
+        // This week already has Soup on Thursday dinner and something else in that slot.
+        val existing = listOf(
+            meal("x", date = thursday, position = 0).copy(title = "soup"),
+            meal("y", date = thursday, position = 5).copy(title = "Pizza"),
+        )
+        val copies = MealWeek.copy(previous, lastStart, thisStart, existing)
+        assertEquals(listOf("Leftovers", "Tacos"), copies.map { it.title })
+        val tacos = copies.last()
+        assertEquals(thursday to 6L, tacos.date to tacos.position)
+        assertEquals(
+            listOf("r1", 4, listOf("u1"), "Spicy"),
+            listOf(tacos.recipeId, tacos.servings, tacos.cooks, tacos.note),
+        )
+        assertEquals(null to null, tacos.cookedAt to tacos.cookedBy)
+        assertEquals(thisStart, copies.first().date)
+        // Copying again adds nothing.
+        assertTrue(MealWeek.copy(previous, lastStart, thisStart, existing + copies).isEmpty())
+    }
 }

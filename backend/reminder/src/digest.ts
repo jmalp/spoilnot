@@ -10,6 +10,8 @@ export interface NotificationPrefs {
   /** Subset of [3, 2, 1, 0]. */
   stages: number[];
   expiredMode: ExpiredMode;
+  /** After v1 (DESIGN 5.9): add the meals the user cooks today. Default on. */
+  cooking: boolean;
 }
 
 export interface UserDoc {
@@ -43,7 +45,7 @@ export interface DigestItem {
 /** No digest after 22:00 local time; the next day's run catches up (DESIGN 10.3). */
 export const LATEST_MINUTES = 22 * 60;
 
-export const DEFAULT_PREFS: NotificationPrefs = { enabled: true, digestMinutes: 540, stages: [3, 2, 1, 0], expiredMode: 'once' };
+export const DEFAULT_PREFS: NotificationPrefs = { enabled: true, digestMinutes: 540, stages: [3, 2, 1, 0], expiredMode: 'once', cooking: true };
 
 /** Prefs as stored, with defaults for anything missing (new fields are optional on read, DESIGN 8.1). */
 export function readPrefs(raw: unknown): NotificationPrefs {
@@ -55,6 +57,7 @@ export function readPrefs(raw: unknown): NotificationPrefs {
     digestMinutes: typeof p.digestMinutes === 'number' ? p.digestMinutes : DEFAULT_PREFS.digestMinutes,
     stages,
     expiredMode: mode,
+    cooking: p.cooking !== false,
   };
 }
 
@@ -140,6 +143,51 @@ export function buildDigest(items: DigestItem[]): { title: string; body: string 
   const count = new Set(all.map((i) => i.name)).size;
   const title = all.length === 1 ? single(all[0]!) : `${count} items need attention`;
   return { title, body };
+}
+
+export type Slot = 'breakfast' | 'lunch' | 'dinner';
+
+/** A planned meal as the job reads it (DESIGN 5.9). */
+export interface Meal {
+  date: string;
+  slot: Slot;
+  position: number;
+  title: string;
+  cooks: string[];
+  cooked: boolean;
+}
+
+const SLOTS: Slot[] = ['breakfast', 'lunch', 'dinner'];
+
+/** The meals [user] cooks on their local date, not yet cooked, breakfast first (after v1, DESIGN 5.9). */
+export function cookingFor(user: UserDoc, localDate: string, meals: Meal[]): Meal[] {
+  if (!user.prefs.cooking) return [];
+  return meals
+    .filter((m) => m.date === localDate && !m.cooked && m.cooks.includes(user.uid))
+    .sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || a.position - b.position);
+}
+
+/** "You're cooking: Tacos (dinner), Pancakes (breakfast)." */
+function cookingLine(meals: Meal[]): string {
+  return `You're cooking: ${meals.map((m) => `${m.title} (${m.slot})`).join(', ')}.`;
+}
+
+/**
+ * The digest with the user's meals for today (DESIGN 5.9). With food to report the title stays and the meals are a
+ * last line; with only meals the title says what is cooked ("You're cooking Tacos for dinner").
+ */
+export function buildDigestWithMeals(
+  items: DigestItem[],
+  meals: Meal[],
+): { title: string; body: string; mealsOnly: boolean } | null {
+  const food = buildDigest(items);
+  if (meals.length === 0) return food && { ...food, mealsOnly: false };
+  const line = cookingLine(meals);
+  if (food) return { title: food.title, body: `${food.body} ${line}`, mealsOnly: false };
+  const title = meals.length === 1
+    ? `You're cooking ${meals[0]!.title} for ${meals[0]!.slot}`
+    : `You're cooking ${meals.length} meals today`;
+  return { title, body: line, mealsOnly: true };
 }
 
 /** What to record after a digest was delivered: today, and expired items reported up to yesterday. */

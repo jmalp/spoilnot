@@ -86,6 +86,46 @@ class MealPlanService @Inject constructor(
         return Undo(undoExtra)
     }
 
+    /** Moves [meal] to [date] and [slot], after the meals there ([inSlot]). Undo puts it back where it was. */
+    suspend fun move(
+        householdId: String,
+        actor: Actor,
+        meal: PlannedMeal,
+        date: LocalDate,
+        slot: MealSlot,
+        inSlot: List<PlannedMeal>,
+    ): Undo? {
+        if (meal.date == date && meal.slot == slot) return null
+        val position = MealWeek.nextPosition(inSlot.filter { it.id != meal.id })
+        writer.apply(householdId, actor, listOf(MealPlanChange.Move(meal.id, date, slot, position)))
+        return Undo(listOf(MealPlanChange.Move(meal.id, meal.date, meal.slot, meal.position)))
+    }
+
+    /**
+     * Copy last week (DESIGN 5.9): [previous] week's meals into the week starting [to], skipping ones already there.
+     * Returns how many were copied and an Undo that removes them, or null when there was nothing to copy.
+     */
+    suspend fun copyWeek(
+        householdId: String,
+        actor: Actor,
+        previous: List<PlannedMeal>,
+        from: LocalDate,
+        to: LocalDate,
+        existing: List<PlannedMeal>,
+    ): Pair<Int, Undo>? {
+        val copies = MealWeek.copy(previous, from, to, existing).map { it.copy(id = writer.newId()) }
+        if (copies.isEmpty()) return null
+        writer.apply(householdId, actor, copies.map { MealPlanChange.Create(it) })
+        return copies.size to Undo(copies.map { MealPlanChange.Delete(it.id) })
+    }
+
+    /** Clear week: removes [meals] (one week's), with one Undo that puts them all back. Null when it is empty. */
+    suspend fun clear(householdId: String, actor: Actor, meals: List<PlannedMeal>): Undo? {
+        if (meals.isEmpty()) return null
+        writer.apply(householdId, actor, meals.map { MealPlanChange.Delete(it.id) })
+        return Undo(meals.map { MealPlanChange.Restore(it) })
+    }
+
     /** "Not cooked yet": for a meal marked cooked by mistake. The pantry is not touched. */
     suspend fun notCooked(householdId: String, actor: Actor, meal: PlannedMeal) =
         writer.apply(householdId, actor, listOf(MealPlanChange.SetCooked(meal.id, false)))

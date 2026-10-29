@@ -67,7 +67,7 @@ deployed with the release that needs them (`scripts/release-beta.sh` asks when `
 | Service account | One per project, roles Cloud Datastore User and Firebase Cloud Messaging API Admin; stored only as `FIREBASE_SERVICE_ACCOUNT_JSON` (prod) and `FIREBASE_SERVICE_ACCOUNT_JSON_DEV`; a key for the wrong project fails the run. The old dev key was deleted 2026-10-18 |
 | Backups | Nightly export kept 14 days as an artifact, encrypted with `EXPORT_ENCRYPTION_KEY` because the repository is public (the job refuses to upload plain files); restore by workflow, dry run first; restores never touch members (docs/RUNBOOK.md) |
 | Release signing | Upload keystore outside the repository; the owner keeps a backup |
-| Logs | Public with the repository: counts, dates and the first four characters of household IDs only; no user IDs, no digest contents, no household contents (after v1; job.test.ts checks the dry run) |
+| Logs | Public with the repository: counts, dates and the first four characters of household IDs only; no user IDs, no digest contents, no household contents (after v1; job.test.ts checks the dry run, which since the meal planner logs item and meal counts instead of the title, as a one-item title named the product) |
 | Public repository | Checked before going public (2026-10-20): no keys, keystores, service accounts, tester emails or production data in any commit; the two Firebase Android API keys are public by design and restricted to the apps; old export artifacts and run logs with IDs deleted; Actions on pull requests from forks get no secrets |
 
 ## Owner actions
