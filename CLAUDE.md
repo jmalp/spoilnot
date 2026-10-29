@@ -3,7 +3,8 @@
 - v1 (M0–M7) is done. Every change from now on, in the same PR: update the DESIGN sections it affects, add a row to
   DESIGN section 17 (Changes after v1), add DECISIONS entries, and keep tests and the other docs (RUNBOOK, QA,
   PRIVACY, SECURITY_REVIEW) at the milestones' quality bar.
-- Android only. Stack: Kotlin, Jetpack Compose with Material 3, Navigation 3, Hilt, Coroutines and Flow, Firebase (Auth, Firestore, FCM) on the free Spark plan. Latest stable versions through gradle/libs.versions.toml.
+- Android app: Kotlin, Jetpack Compose with Material 3, Navigation 3, Hilt, Coroutines and Flow, Firebase (Auth, Firestore, FCM) on the free Spark plan. Latest stable versions through gradle/libs.versions.toml.
+- Web app for iPhone in `web/` (DESIGN 18): Vite, React, TypeScript, the Firebase web SDK on the same project. Same look as the app: colors, strings and icons are generated from the Android sources (`npm run gen`); only `web/src/data` imports Firebase; business logic in `web/src/domain` with an injectable clock and tests.
 - Never add Cloud Functions, Cloud Storage or any paid Google Cloud service. Never commit secrets.
 - Composables and ViewModels never use Firebase classes. Only feature/*/data/ repositories touch Firestore (core/firebase only provides the SDK instances).
 - Business logic is pure Kotlin in feature/*/domain/ with an injectable java.time.Clock and unit tests.
@@ -34,6 +35,7 @@
 ## Before finishing a task
 - `./gradlew spotlessApply` then `./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug :benchmark:compileBenchmarkKotlin`
 - `cd firebase && npm test` (rules tests in the Firestore emulator)
+- Web changes, or Android strings/theme changes: `cd web && npm run gen && npm run check && npm run e2e` (look at changed screenshots)
 - After UI changes: `./gradlew recordRoborazziDevDebug` and look at `app/build/outputs/roborazzi/*.png` (light/dark, font 1.0/2.0)
 - With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest` (includes the two-user household tests)
 - Recipe import changes: also run `LiveImportTest` against the real sites (command in docs/import-test-sites.md)

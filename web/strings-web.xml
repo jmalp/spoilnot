@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Words only the web app uses (DESIGN 18.2), in the format of the Android strings.xml. -->
+<resources>
+    <string name="web_coming_soon">This part of Spoil Not for iPhone is on its way.</string>
+    <string name="web_update_ready">A new version of Spoil Not is ready</string>
+    <string name="web_update_reload">Update</string>
+    <string name="web_not_configured">This copy of Spoil Not has no Firebase configuration.</string>
+</resources>

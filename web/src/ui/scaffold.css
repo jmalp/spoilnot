@@ -1,0 +1,47 @@
+/* Screens (DESIGN 6.2): each screen scrolls under its pinned top app bar; content is at most 640 px wide. */
+.sn-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.sn-screen__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--sn-content-width);
+  margin: 0 auto;
+  padding: 0 var(--sn-safe-right) 0 var(--sn-safe-left);
+}
+.sn-screen__fab {
+  position: sticky;
+  bottom: 16px;
+  align-self: flex-end;
+  margin: 0 calc(16px + var(--sn-safe-right)) 16px 0;
+  z-index: 3;
+}
+.sn-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+  text-align: center;
+}
+.sn-empty p {
+  margin: 0;
+}
+.sn-empty__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+}

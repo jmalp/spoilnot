@@ -111,6 +111,22 @@ cd firebase && npx firebase appdistribution:distribute ../app/build/outputs/apk/
 
 (This re-uses the existing release when the APK is the one last uploaded; otherwise run the script.)
 
+## Web app for iPhone (DESIGN 18)
+
+Everything is in `web/` and needs Node 24. Once: `cd web && npm install && npx playwright install webkit`.
+
+- `npm run dev` serves the app at http://localhost:5173 against the Firebase emulators (`./scripts/emulators.sh`).
+  An iPhone on the same Wi-Fi can open `http://<the Mac's IP>:5173`; the emulators listen on the network too.
+- `npm run check` runs format, lint, type check, unit tests and the build, as CI does. `npm run format` fixes
+  formatting.
+- `npm run e2e` runs the WebKit tests with an iPhone profile and compares the screenshots in
+  `tests/e2e/__screenshots__/`; after an intended change, `npm run e2e:update` and look at the new images in light,
+  dark and 200% text next to the Android ones.
+- After changing `strings.xml`, the Android theme colors or `icons.txt`: `npm run gen` (CI fails until it is run).
+  After changing the launcher icon: `npm run gen && node scripts/gen-app-icons.ts`.
+
+Deploying (Firebase Hosting) comes with milestone W7.
+
 ## Baseline profile (DESIGN 13.1)
 
 Release builds ship `app/src/main/baselineProfiles/baseline-prof.txt`, a list of the code the app runs while

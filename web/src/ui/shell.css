@@ -1,0 +1,11 @@
+/* The app's frame: the current screen above the navigation bar, filling the phone's screen edge to edge. */
+.sn-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.sn-shell__main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}

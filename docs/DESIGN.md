@@ -1195,6 +1195,7 @@ Each milestone ends with its acceptance checks passing and a short summary to th
 - **Next:** barcode scanning with the free Open Food Facts database, on-device camera reading of expiry dates, “use it up” recipe suggestions based on expiring items, opened-package tracking (a new expiry once opened).
 - **Dropped:** a push notification for the owner when someone asks to join (the owner decided it is not useful enough, October 18, 2026).
 - **Later:** meal planner, home-screen widgets (Jetpack Glance), receipt scanning, recipe photo upload (needs file storage), custom storage locations, import from Paprika export files.
+- **In progress (October 29, 2026):** the web app for iPhone (section 18), in milestones W0 to W7.
 - **Maybe:** Google sign-in (Credential Manager), multiple households, biometric app lock, push notifications for household activity (needs Cloud Functions on the Blaze plan), voice add.
 
 ## 17. Changes after v1
@@ -1236,7 +1237,98 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-28 | Meal planner, part 2: the week's ingredients to a grocery list with the source Meal plan, Cooked (pantry, mark and activity in one Undo), Use it up in the recipe picker, and a Today card on Home | 5.6, 5.9, 8.2, 12.3, QA, SECURITY_REVIEW |
 | 2026-10-28 | Meal planner, part 3: move a meal, copy last week, clear a week (with Undo), and the cook's meals in the daily reminder with a Meals I'm cooking setting; a digest with only meals opens the Plan tab; dry-run logs show counts only | 5.4, 5.9, 8.2, 9.7, 10.3, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-29 | Baseline profile regenerated after the meal planner, with the Plan tab and its add sheet in the journey (17,054 rules). On a freshly booted emulator, first Pantry scroll frame CPU time P50 5.3 → 4.9 ms, P90 8.0 → 7.1 ms, P99 19.0 → 28.3 ms (one slow frame; noisy on the emulator). The startup benchmark failed on this emulator ("must not be running prior to cold start"), so no startup numbers this time | 13.1, RUNBOOK |
+| 2026-10-29 | Web app for iPhone planned (section 18), and W0: `web/` (Vite, React, TypeScript), colors, words and icons generated from the Android app, the Material 3 component kit, the app shell with five tabs and their back stacks, Firebase on the emulators, the manifest and service worker, unit and WebKit tests, a CI job | 16, 18, Appendix B, RUNBOOK, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
+
+## 18. Web app for iPhone (after v1)
+
+The owner asked (October 29, 2026) for a version that iPhone users install from the web, with the same look and feel
+as the Android app. It is a second front end, a Progressive Web App in `web/`, on the same Firebase project, data
+model (section 8) and security rules: an iPhone and an Android phone share one household and see each other's changes
+live. The Android app does not change.
+
+**18.1 Scope.** Everything the Android app does, with these exceptions:
+
+- **No adding recipes** (owner's choice): no Add recipe, no import from a link, no built-in browser, no share target
+  (iOS does not let web apps receive shares). Saved recipes show exactly as on Android, with Favorite, Edit, Delete,
+  the servings stepper, Add to grocery list, I cooked this and planning (none of them creates a recipe).
+- **No wallpaper colors**: Settings > Appearance offers the Spoil Not green and the five preset themes (6.4); Material
+  You exists only on Android.
+- **Installed from Safari** with Share > Add to Home Screen (iOS 16.4 or later, needed for notifications). It opens
+  full screen with the Spoil Not icon. It also works in any current browser, but it is designed and tested for iPhone.
+
+**18.2 Look and feel.** The web app copies the Android app, not iOS conventions:
+
+- **Colors**: CSS custom properties generated from `Color.kt`, `PresetColors.kt` and `StatusColors.kt`
+  (`web/scripts/gen-theme.mjs`), with the same Material 3 role names, light and dark following the phone, and
+  Settings > Appearance like 5.6.
+- **Type**: Manrope for everything and Fredoka for the welcome title, self-hosted (no font requests at run time), with
+  the Material 3 type scale Compose uses (`headlineSmall` 24/32, `titleMedium` 16/24 at weight 500, `bodyLarge`
+  16/24 and so on). Sizes are in `rem` and the root follows the iPhone's text size setting (`-apple-system-body`),
+  like Android's font scale.
+- **Shapes and spacing**: the Material 3 defaults with 16 dp cards and 28 dp sheets (6.4), the 640 dp content width
+  (6.2) and 48 dp touch targets; 1 dp is 1 CSS pixel.
+- **Icons**: the Material Icons Rounded set (`@material-design-icons/svg`), the same glyphs as `Icons.Rounded` in the
+  app, as inline SVG.
+- **Components**: a small kit in `web/src/ui/kit/` built to the Material 3 specs the Compose components follow: the
+  pinned top app bar, the 80 dp navigation bar with a pill indicator and filled or outlined icons, outlined cards,
+  buttons, icon buttons, the extended FAB, outlined text fields, filter chips with a check, checkboxes, radio buttons,
+  switches, menus, dialogs, modal bottom sheets with a drag handle, snackbars with Undo and state layers on press.
+  They use native elements (`button`, `input`, `dialog`) so VoiceOver reads them like TalkBack reads the app.
+- **Words**: `web/src/strings.generated.ts` is generated from `app/src/main/res/values/strings.xml`
+  (`web/scripts/gen-strings.mjs`, plurals with `Intl.PluralRules`), so both apps say the same thing. Web-only text
+  (Add to Home Screen help) lives in `web/strings-web.xml` in the same format.
+- **Never color alone, Undo for every destructive action, empty states and skeletons**: as section 6.
+- **Checked by screenshots**: Playwright screenshots of each screen in light and dark at 100% and 200% text size,
+  compared side by side with the Roborazzi images of the same screen when a milestone adds it.
+
+**18.3 Architecture** (mirrors section 7):
+
+- Vite, React and TypeScript (strict). `web/src/domain/` is the business logic ported from `feature/*/domain` as pure
+  TypeScript with an injectable clock, its tests ported case by case from the Kotlin unit tests. `web/src/data/` is
+  the only code that imports Firestore (repositories, change mappers, the changes-only listeners of 9.8 with their
+  full-read records in `localStorage`). Components never import Firebase. Session states come from a port of
+  `SessionManager`; writes are change plans applied by a `HouseholdWriter` port, and destructive actions return Undo.
+- Firestore's persistent cache (IndexedDB) keeps the household on the phone, so the app opens and edits offline and
+  syncs later, like 9.5. Safari may clear a web app's storage if it is not opened for weeks; the next open reads it
+  again (the daily full read).
+- No rules change except accepting `platform: web` devices. Reads count against the same free quota (9.7): a web
+  phone costs about the same as an Android phone.
+
+**18.4 Notifications.** iPhones show web push from Home Screen web apps (iOS 16.4 and later). The permission is asked
+from a tap (iOS requires one): the explainer after the third dated item, as 5.4, and Settings > Notifications. The FCM
+web token goes to `users/{uid}/devices/{installId}` with `platform: web`; the reminder job adds a `webpush` part with
+the same title, body and route. A VAPID key pair from the Firebase console (Cloud Messaging > Web Push certificates)
+is a human step; its public key goes in the web build's config.
+
+**18.5 Offline, install and updates.** A service worker caches the app shell so it opens offline; a web manifest
+gives the name, the launcher icon (rendered from the adaptive icon) and theme colors. A new version is fetched in the
+background and offered with a snackbar (Update, which reloads). `minSupportedBuild` (5.6) does not apply: the web app
+is always the latest version.
+
+**18.6 Hosting and release.** Firebase Hosting (free on the Spark plan): `spoilnot-dev.web.app` for testing and
+`spoilnot-prod.web.app` for testers, whose sign-in domains Firebase authorizes by default. Each project needs a
+registered Web app for its config (a human approves creating them). `scripts/deploy-web.sh` builds, tests and deploys
+to dev, and to prod only after asking, like the beta script. Strict security headers (CSP) in `firebase.json`.
+
+**18.7 Testing.** Vitest for the domain (ported cases) and the generators; React Testing Library for components;
+Playwright with WebKit and an iPhone profile against the Firebase emulators, two browser contexts as two phones (like
+`TestPhone`); the screenshots of 18.2. CI runs format, lint, type check, unit tests, the build, a check that the
+generated files are current, and the Playwright tests. The owner runs the web QA flows on a real iPhone before the
+first web release.
+
+**18.8 Milestones** (one PR each, merged when CI passes):
+
+| | Milestone | Done when |
+| --- | --- | --- |
+| W0 | Foundation: `web/` scaffold, tooling and CI, generated colors and strings, fonts, icons, the component kit, the app shell with five tabs, Firebase setup (emulators in development), manifest and service worker | The shell matches the Android one in screenshots (light, dark, 200%) and runs in WebKit |
+| W1 | Sign in and household: welcome, create account, sign in, password reset, the household gate (create, join, waiting, approve), household settings (members, invite code, remove, transfer, leave), delete account; writer, change plans and changes-only listeners | Two contexts form a household against the emulators |
+| W2 | Pantry and Home: list, filters, search, expired header, add and edit with quick dates and shelf-life learning, used up, throw away, mark opened, Undo; Home cards, Recent activity, Insights | The pantry flows of docs/QA.md pass on WebKit |
+| W3 | Groceries: lists, quick add, aisles and store order, check off, Add to pantry, low-stock restock | The grocery flows pass |
+| W4 | Recipes (view only, 18.1): box, detail, scaling, Add to grocery list, I cooked this, Edit, Delete, Use it up | The recipe flows that do not add recipes pass |
+| W5 | Plan: everything in 5.9 | The plan flows pass |
+| W6 | Settings and extras: appearance, units, notifications with web push (and the job's `webpush`), export, clear household data, about and licences, the app tour | Settings flows pass; a web push reaches WebKit in a test |
+| W7 | Release: hosting config, `scripts/deploy-web.sh`, install help, performance check (Lighthouse), docs | The owner's iPhone QA passes; deployed to prod with the owner's OK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
 
@@ -1279,6 +1371,7 @@ spoilnot/
   benchmark/              macrobenchmarks and the baseline profile generator (never shipped)
   scripts/                emulators.sh, release-beta.sh, baseline-profile.sh
   tools/themes/           preset color theme definitions and their generator (not part of the app build)
+  web/                    the web app for iPhone (after v1, section 18): src/, scripts/ (generators), tests/e2e/
   .github/workflows/      ci.yml, reminders.yml, nightly-export.yml, restore.yml, secret-scan.yml
   CLAUDE.md
 ```
