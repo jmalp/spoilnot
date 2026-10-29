@@ -355,6 +355,12 @@ internal fun GroceryRow(
                                 Icons.Rounded.RestaurantMenu,
                             )
 
+                            // The recipe icon with its own word (DESIGN 5.9): it comes from planned recipes.
+                            ItemSource.MealPlan -> SourceBadge(
+                                stringResource(R.string.grocery_source_meal_plan),
+                                Icons.Rounded.RestaurantMenu,
+                            )
+
                             ItemSource.Manual -> Unit
                         }
                         // On the same line (after v1): it used to add a tall second line under the badge.

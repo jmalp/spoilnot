@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.Product
@@ -102,26 +103,7 @@ fun AddToGrocerySheet(
     ) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             Text(stringResource(R.string.recipe_add_to_list), style = MaterialTheme.typography.titleLarge)
-            if (state.lists.size > 1) {
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    state.lists.forEach { list ->
-                        val isSelected = list.id == state.listId
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onChooseList(list.id) },
-                            label = { Text(list.name) },
-                            leadingIcon = if (isSelected) {
-                                { Icon(Icons.Rounded.Check, contentDescription = null) }
-                            } else {
-                                null
-                            },
-                        )
-                    }
-                }
-            }
+            ListChips(state.lists, state.listId, onChooseList)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(R.string.recipe_pantry_hint),
@@ -156,6 +138,30 @@ fun AddToGrocerySheet(
                     if (count > 0) onAdd(candidates.filterIndexed { i, c -> selected(i, c) })
                 },
                 modifier = Modifier.padding(top = 12.dp).testTag("recipe_add_items"),
+            )
+        }
+    }
+}
+
+/** Which grocery list to add to, when there is more than one; the chosen one has a check, not only a color. */
+@Composable
+internal fun ListChips(lists: List<GroceryList>, listId: String?, onChoose: (String) -> Unit) {
+    if (lists.size <= 1) return
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        lists.forEach { list ->
+            val isSelected = list.id == listId
+            FilterChip(
+                selected = isSelected,
+                onClick = { onChoose(list.id) },
+                label = { Text(list.name) },
+                leadingIcon = if (isSelected) {
+                    { Icon(Icons.Rounded.Check, contentDescription = null) }
+                } else {
+                    null
+                },
             )
         }
     }

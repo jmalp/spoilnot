@@ -228,7 +228,12 @@ service cloud.firestore {
             && (m.recipeId == null || s(m.recipeId, 1, 100))
             && (m.servings == null || (m.servings is int && m.servings >= 1 && m.servings <= 100))
             && m.cooks is list && m.cooks.size() <= 20
-            && (m.note == null || s(m.note, 1, 200));
+            && (m.note == null || s(m.note, 1, 200))
+            // Cooked (after v1): set by the writer at server time, cleared together, or left as it was.
+            && ((m.get('cookedAt', null) == null && m.get('cookedBy', null) == null)
+              || (m.cookedBy == me() && m.cookedAt == request.time)
+              || (resource != null && m.cookedAt == resource.data.get('cookedAt', null)
+                && m.cookedBy == resource.data.get('cookedBy', null)));
         }
         allow read, delete: if isMember(hid);
         allow create, update: if isMember(hid) && stamped() && tombstoneOk() && mealOk();

@@ -40,16 +40,22 @@ import com.parcha.spoilnot.feature.recipes.domain.CookLine
 /**
  * "I cooked this" (DESIGN 5.5, after v1): the pantry products the recipe uses, each with the amount to take off.
  * Lines the pantry can count start chosen with the recipe's amount; the others start unchosen with the whole stock,
- * so choosing one means "I finished it". Amounts can be changed.
+ * so choosing one means "I finished it". Amounts can be changed. From the meal plan ([markCooked], DESIGN 5.9) the
+ * button also works with nothing chosen: the meal is marked cooked and the pantry left as it is.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CookedSheet(state: RecipeDetailViewModel.CookState, onUse: (Map<String, Double>) -> Unit, onDismiss: () -> Unit) {
+fun CookedSheet(
+    lines: List<CookLine>,
+    onUse: (Map<String, Double>) -> Unit,
+    onDismiss: () -> Unit,
+    markCooked: Boolean = false,
+) {
     val chosen = remember { mutableStateMapOf<String, Boolean>() }
     val amounts = remember { mutableStateMapOf<String, String>() }
     fun isChosen(line: CookLine) = chosen[line.product.id] ?: line.selectedByDefault
     fun amountText(line: CookLine) = amounts[line.product.id] ?: formatQuantity(line.defaultAmount)
-    val use = state.lines.filter(::isChosen).mapNotNull { line ->
+    val use = lines.filter(::isChosen).mapNotNull { line ->
         parseQuantity(amountText(line))?.takeIf { it > 0 }?.let { line.product.id to it }
     }.toMap()
     val sheet = rememberFormSheet()
@@ -61,7 +67,7 @@ fun CookedSheet(state: RecipeDetailViewModel.CookState, onUse: (Map<String, Doub
     ) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             Text(stringResource(R.string.recipe_cooked_title), style = MaterialTheme.typography.titleLarge)
-            if (state.lines.isEmpty()) {
+            if (lines.isEmpty()) {
                 Text(
                     stringResource(R.string.recipe_cooked_none),
                     style = MaterialTheme.typography.bodyLarge,
@@ -75,7 +81,7 @@ fun CookedSheet(state: RecipeDetailViewModel.CookState, onUse: (Map<String, Doub
                     modifier = Modifier.padding(vertical = 8.dp),
                 )
                 LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 480.dp)) {
-                    items(state.lines, key = { it.product.id }) { line ->
+                    items(lines, key = { it.product.id }) { line ->
                         CookRow(
                             line = line,
                             chosen = isChosen(line),
@@ -90,8 +96,12 @@ fun CookedSheet(state: RecipeDetailViewModel.CookState, onUse: (Map<String, Doub
                 }
             }
             PrimaryButton(
-                text = pluralStringResource(R.plurals.recipe_cooked_use, use.size, use.size),
-                onClick = { if (use.isNotEmpty()) onUse(use) },
+                text = if (markCooked && use.isEmpty()) {
+                    stringResource(R.string.plan_mark_cooked)
+                } else {
+                    pluralStringResource(R.plurals.recipe_cooked_use, use.size, use.size)
+                },
+                onClick = { if (use.isNotEmpty() || markCooked) onUse(use) },
                 modifier = Modifier.padding(top = 12.dp).testTag("recipe_cooked_use"),
             )
         }

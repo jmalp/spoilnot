@@ -5,12 +5,22 @@ import com.parcha.spoilnot.EmulatorSupport
 import com.parcha.spoilnot.EmulatorSupport.PASSWORD
 import com.parcha.spoilnot.EmulatorSupport.uniqueEmail
 import com.parcha.spoilnot.TestPhone
+import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.Session
+import com.parcha.spoilnot.feature.pantry.domain.Category
+import com.parcha.spoilnot.feature.pantry.domain.DateType
+import com.parcha.spoilnot.feature.pantry.domain.Location
+import com.parcha.spoilnot.feature.pantry.domain.PantryData
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
+import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import com.parcha.spoilnot.feature.plan.domain.MealPlanData
+import com.parcha.spoilnot.feature.plan.domain.MealPlanGrocery
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.domain.MealWeek
+import com.parcha.spoilnot.feature.recipes.domain.Cooking
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
+import com.parcha.spoilnot.feature.recipes.domain.RecipeLines
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
@@ -18,6 +28,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -125,5 +136,79 @@ class PlanFlowTest {
                 .first { !it.fromCache && it.meals.isNotEmpty() }
         }
         assertEquals(listOf("Pizza"), next.meals.map { it.title })
+    }
+
+    @Test
+    fun cookingAPlannedRecipeUpdatesThePantryForBoth_andUndoPutsItBack() = runBlocking {
+        val eggs = StockDraft(
+            "Eggs", 6.0, QuantityUnit.Pieces, today.plusDays(10), DateType.UseBy, Location.Fridge, Category.Dairy,
+            null, null, false, null,
+        )
+        val empty = withTimeout(20_000) { alice.pantryRepository.observe(householdId).first { !it.fromCache } }
+        alice.pantry.add(householdId, alice.actor, eggs, empty)
+        val omelette = RecipeContent(title = "Omelette", servings = 1, ingredients = RecipeLines.ingredients("2 eggs"))
+        alice.recipes.save(householdId, alice.actor, omelette, emptyList())
+        val recipe = withTimeout(15_000) {
+            alice.recipeRepository.observe(householdId).first { it.recipes.isNotEmpty() }
+        }.recipes.single()
+        // Planned for two: the sheet suggests 4 eggs.
+        alice.mealPlan.addRecipe(householdId, alice.actor, today, MealSlot.Breakfast, recipe, emptyList(), emptyList())
+        val meal = bob.week { d -> d.meals.isNotEmpty() }.meals.single()
+        bob.mealPlan.update(householdId, bob.actor, meal, servings = 2, cooks = listOf(bob.uid), note = null)
+        val planned = bob.week { d -> d.meals.singleOrNull()?.servings == 2 }.meals.single()
+        val pantry = withTimeout(20_000) {
+            bob.pantryRepository.observe(householdId).first { d -> d.batches.singleOrNull()?.quantity == 6.0 }
+        }
+        val line = Cooking.lines(recipe, pantry, MealPlanGrocery.factor(planned, recipe)).single()
+        assertEquals(4.0, line.defaultAmount, 0.0)
+
+        val undo = bob.mealPlan.cooked(householdId, bob.actor, planned, recipe, mapOf(line.product.id to 4.0), pantry)
+        val cooked = alice.week { d -> d.meals.singleOrNull()?.cookedAt != null }.meals.single()
+        assertEquals(bob.uid, cooked.cookedBy)
+        withTimeout(20_000) {
+            alice.pantryRepository.observe(householdId).first { d -> d.batches.singleOrNull()?.quantity == 2.0 }
+        }
+
+        bob.mealPlan.undo(householdId, bob.actor, undo)
+        alice.week { d -> d.meals.singleOrNull()?.let { it.cookedAt == null && it.cookedBy == null } == true }
+        withTimeout(20_000) {
+            alice.pantryRepository.observe(householdId).first { d -> d.batches.singleOrNull()?.quantity == 6.0 }
+        }
+        Unit
+    }
+
+    @Test
+    fun theWeeksIngredientsLandOnTheListWithTheMealPlanSource() = runBlocking {
+        alice.recipes.save(
+            householdId,
+            alice.actor,
+            RecipeContent(title = "Tacos", ingredients = RecipeLines.ingredients("8 tortillas\n1 lime")),
+            emptyList(),
+        )
+        val recipe = withTimeout(15_000) {
+            alice.recipeRepository.observe(householdId).first { it.recipes.isNotEmpty() }
+        }.recipes.single()
+        alice.mealPlan.addRecipe(householdId, alice.actor, today, MealSlot.Dinner, recipe, emptyList(), emptyList())
+        val days = MealWeek.build(weekStart, alice.week { d -> d.meals.isNotEmpty() }.meals, today)
+        val pantry = PantryData(emptyList(), emptyList(), fromCache = false)
+        val sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(days, listOf(recipe)), pantry, emptyList())
+        val list = withTimeout(10_000) { alice.groceryRepository.observeLists(householdId).first { it.isNotEmpty() } }
+            .single { it.isDefault }
+        val count = alice.recipes.addItems(
+            householdId,
+            alice.actor,
+            list.id,
+            sections.flatMap { it.candidates },
+            pantry,
+            list.name,
+            ItemSource.MealPlan,
+            "the meal plan",
+        )
+        assertEquals(2, count)
+        val items = withTimeout(20_000) {
+            bob.groceryRepository.observeItems(householdId, list.id).first { it.size == 2 }
+        }
+        assertTrue(items.all { it.source == ItemSource.MealPlan && it.recipeId == recipe.id })
+        assertEquals(setOf("Tortillas", "Lime"), items.map { it.name }.toSet())
     }
 }

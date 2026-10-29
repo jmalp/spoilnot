@@ -1,15 +1,23 @@
 package com.parcha.spoilnot.feature.plan.domain
 
 import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
+import com.parcha.spoilnot.feature.pantry.domain.PantryData
+import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
+import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import java.time.LocalDate
 import javax.inject.Inject
 
-/** Meal plan actions (DESIGN 5.9). Every member may change the plan; removing has Undo. */
-class MealPlanService @Inject constructor(private val writer: HouseholdWriter) {
+/** Meal plan actions (DESIGN 5.9). Every member may change the plan; removing and cooking have Undo. */
+class MealPlanService @Inject constructor(
+    private val writer: HouseholdWriter,
+    private val pantry: PantryService,
+    private val recipes: RecipeService,
+) {
     /** Plans [recipe] in a slot, after the meals already there; servings start at the recipe's. Returns the id. */
     suspend fun addRecipe(
         householdId: String,
@@ -51,6 +59,36 @@ class MealPlanService @Inject constructor(private val writer: HouseholdWriter) {
     }
 
     suspend fun undo(householdId: String, actor: Actor, undo: Undo) = writer.apply(householdId, actor, undo.changes)
+
+    /**
+     * "Cooked" (DESIGN 5.9): marks [meal] cooked and, for a recipe, takes [amounts] (product id to amount) off the
+     * pantry and logs "cooked" in Recent activity, the same as I cooked this on the recipe (DESIGN 5.5). One Undo puts
+     * all of it back.
+     */
+    suspend fun cooked(
+        householdId: String,
+        actor: Actor,
+        meal: PlannedMeal,
+        recipe: Recipe?,
+        amounts: Map<String, Double>,
+        pantryData: PantryData,
+    ): Undo {
+        val extra = mutableListOf<HouseholdChange>(MealPlanChange.SetCooked(meal.id, true))
+        val undoExtra = mutableListOf<HouseholdChange>(MealPlanChange.SetCooked(meal.id, false))
+        if (recipe != null) {
+            val (event, removeEvent) = recipes.cookedEvent(recipe)
+            extra += event
+            undoExtra += removeEvent
+        }
+        pantry.use(householdId, actor, amounts, pantryData, extra, undoExtra)?.let { return it }
+        // Nothing taken off the pantry: only the meal (and the event) change.
+        writer.apply(householdId, actor, extra)
+        return Undo(undoExtra)
+    }
+
+    /** "Not cooked yet": for a meal marked cooked by mistake. The pantry is not touched. */
+    suspend fun notCooked(householdId: String, actor: Actor, meal: PlannedMeal) =
+        writer.apply(householdId, actor, listOf(MealPlanChange.SetCooked(meal.id, false)))
 
     private suspend fun add(
         householdId: String,

@@ -21,6 +21,9 @@ enum class ItemSource(val wire: String) {
     Manual("manual"),
     LowStock("low_stock"),
     Recipe("recipe"),
+
+    /** After v1: added from the week's meal plan (DESIGN 5.9). Older app versions show these as Manual. */
+    MealPlan("meal_plan"),
     ;
 
     companion object {

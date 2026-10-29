@@ -60,4 +60,18 @@ class MealWeekTest {
         assertEquals(0, MealWeek.nextPosition(emptyList()))
         assertEquals(4, MealWeek.nextPosition(listOf(meal("a", position = 3), meal("b", position = 1))))
     }
+
+    @Test
+    fun `a day's meals run from breakfast to dinner`() {
+        val day = MealWeek.build(
+            thursday,
+            listOf(
+                meal("d", slot = MealSlot.Dinner),
+                meal("b", slot = MealSlot.Breakfast),
+                meal("l", slot = MealSlot.Lunch),
+            ),
+            thursday,
+        ).first()
+        assertEquals(listOf("b", "l", "d"), day.meals.map { it.id })
+    }
 }

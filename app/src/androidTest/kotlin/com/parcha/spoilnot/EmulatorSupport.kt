@@ -128,7 +128,7 @@ class TestPhone(private val name: String) : AutoCloseable {
     val stats = FirestoreStatsRepository(firestore)
     val activity = FirestoreActivityRepository(firestore, syncLog)
     val mealPlanRepository = FirestoreMealPlanRepository(firestore, syncLog)
-    val mealPlan = MealPlanService(writer)
+    val mealPlan = MealPlanService(writer, pantry, recipes)
 
     /** Every phone runs the restock engine (DESIGN 9.6). Started by [startRestock]. */
     private val restock =

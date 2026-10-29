@@ -17,6 +17,8 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.home.domain.HomeDashboard
+import com.parcha.spoilnot.feature.household.domain.Member
+import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.insights.domain.Insights
 import com.parcha.spoilnot.feature.insights.domain.MonthStats
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
@@ -24,8 +26,11 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
+import com.parcha.spoilnot.feature.plan.domain.MealSlot
+import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
 import com.parcha.spoilnot.feature.recipes.domain.UseItUp
 import com.parcha.spoilnot.feature.recipes.domain.recipe
+import java.time.Instant
 import java.time.YearMonth
 import org.junit.Rule
 import org.junit.Test
@@ -73,6 +78,17 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             pantry,
             TODAY,
         )
+        val meals = listOf(
+            PlannedMeal(
+                id = "m1", date = TODAY, slot = MealSlot.Breakfast, position = 0, recipeId = null, title = "Porridge",
+                servings = null, cooks = listOf("me"), note = null, cookedAt = Instant.parse("2026-10-12T08:00:00Z"),
+            ),
+            PlannedMeal(
+                id = "m2", date = TODAY, slot = MealSlot.Dinner, position = 0, recipeId = "r1", title = "Tacos",
+                servings = 4, cooks = listOf("me", "u2"), note = null,
+            ),
+        )
+        val members = listOf(Member("me", "Sam", Role.Owner, null), Member("u2", "Alex", Role.Member, null))
         val october = YearMonth.from(TODAY)
         val insights = Insights.summary(
             listOf(
@@ -88,7 +104,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
                         Column(
                             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) { HomeCards(summary, TODAY, "me", navigation, insights, useItUp) }
+                        ) { HomeCards(summary, TODAY, "me", navigation, insights, useItUp, meals, members) }
                     }
                 }
             }

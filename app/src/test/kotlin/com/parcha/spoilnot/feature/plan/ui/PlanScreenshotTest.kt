@@ -15,6 +15,7 @@ import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.domain.MealWeek
 import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
 import com.parcha.spoilnot.feature.recipes.domain.recipe
+import java.time.Instant
 import java.time.LocalDate
 import org.junit.Rule
 import org.junit.Test
@@ -58,7 +59,9 @@ class PlanScreenshotTest(private val dark: Boolean, private val fontScale: Float
     fun week() {
         val meals = listOf(
             meal("m1", 26, MealSlot.Dinner, "Tacos", "r1", 4, listOf("u1")),
-            meal("m2", 27, MealSlot.Breakfast, "Pancakes", "r2", 2, listOf("u2")),
+            // Cooked: a check and the word, not color alone.
+            meal("m2", 27, MealSlot.Breakfast, "Pancakes", "r2", 2, listOf("u2"))
+                .copy(cookedAt = Instant.parse("2026-10-27T08:00:00Z"), cookedBy = "u2"),
             meal("m3", 27, MealSlot.Dinner, "Weeknight chicken curry with rice", "r3", 4, listOf("u1", "u2")),
             meal("m4", 27, MealSlot.Lunch, "Leftovers", null, null, emptyList()),
             meal("m5", 28, MealSlot.Dinner, "Old soup", "gone", 3, emptyList()),

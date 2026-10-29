@@ -93,6 +93,15 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Tap the dinner: change servings to 8 and add a note; the other phone shows it. Remove it, then Undo. Previous and
     next week work, and "Go to this week" returns. Delete the recipe: the meal says "Recipe deleted". At 200% text
     the days stay readable. Change the phone's region to the UK: the week starts on Monday.
+26. Meal planner (part 2): with milk expiring tomorrow and a saved recipe using milk, + on a slot lists that recipe
+    under Use it up ("Uses Milk"); tapping it plans it. Plan Tacos (4 servings) tonight and set it to 8: the cart
+    button in Plan's top bar opens This week's ingredients with Tacos under "Dinner · …· 8 servings", counts doubled
+    and pantry items unchecked. Add them: they show on the list with the recipe icon and "Meal plan" on both phones,
+    and Recent activity says "… from the meal plan". On the Tacos sheet tap Cooked: What did you use? at 8 servings;
+    take the amounts off: the meal shows a check and "Cooked", the pantry goes down, and the cart leaves Tacos out.
+    Undo puts the pantry and the mark back. Cook "Leftovers": marked at once. Not cooked yet clears the mark only.
+    Home shows a Today card with today's meals, cooks and Cooked; Open plan goes to the Plan tab. With nothing
+    planned today there is no Today card.
 
 ## 3. Conditions
 

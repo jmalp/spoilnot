@@ -153,6 +153,31 @@ class RecipeServiceTest {
     }
 
     @Test
+    fun `lines from several recipes keep their own recipe and the given source`() = runTest {
+        val tacos = recipe("tacos", "Tacos", ingredients = listOf("2 tortillas"))
+        val soup = recipe("soup", "Soup", ingredients = listOf("1 leek"))
+        val empty = PantryData(emptyList(), emptyList(), false)
+        val chosen = RecipeGrocery.candidates(tacos, empty, emptyList()) +
+            RecipeGrocery.candidates(soup, empty, emptyList())
+        val count = service.addItems(
+            "h1",
+            actor,
+            "list1",
+            chosen,
+            empty,
+            "Groceries",
+            ItemSource.MealPlan,
+            "the meal plan",
+        )
+        assertEquals(2, count)
+        val changes = writer.applied.single()
+        val items = changes.filterIsInstance<GroceryChange.CreateItem>().map { it.item }
+        assertEquals(listOf("tacos", "soup"), items.map { it.recipeId })
+        assertTrue(items.all { it.source == ItemSource.MealPlan })
+        assertEquals("the meal plan", (changes.last() as GroceryChange.LogEvent).name)
+    }
+
+    @Test
     fun `renaming a line to a pantry product uses it and teaches it the recipe's name`() = runTest {
         val greenOnions = product("green", "Green onions").copy(lastAddedQuantity = 2.0)
         val pantry = PantryData(listOf(greenOnions), emptyList(), false)

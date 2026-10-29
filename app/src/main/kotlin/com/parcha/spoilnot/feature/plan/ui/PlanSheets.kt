@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +59,7 @@ import com.parcha.spoilnot.feature.plan.domain.MealPlanLimits
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
+import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import java.time.LocalDate
 
 /** Most recipes the picker lists at once; searching narrows it. */
@@ -65,7 +67,7 @@ private const val PICKER_LIMIT = 60
 
 /**
  * Adding to a slot (DESIGN 5.9): who cooks, then a saved recipe (searchable) or something else typed in
- * ("Leftovers"). Tapping a recipe adds it at once.
+ * ("Leftovers"). Tapping a recipe adds it at once. Recipes that use food expiring soon come first, under Use it up.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -73,6 +75,7 @@ fun AddMealSheet(
     date: LocalDate,
     slot: MealSlot,
     recipes: List<Recipe>,
+    useItUp: List<UseItUpSuggestion>,
     members: List<Member>,
     myUid: String,
     onAddRecipe: (Recipe, List<String>) -> Unit,
@@ -125,6 +128,30 @@ fun AddMealSheet(
                 ) { Text(stringResource(R.string.plan_add)) }
             }
             HorizontalDivider()
+            if (useItUp.isNotEmpty() && key.isEmpty()) {
+                Text(stringResource(R.string.plan_use_it_up), style = MaterialTheme.typography.labelLarge)
+                Column(Modifier.testTag("plan_use_it_up")) {
+                    useItUp.forEach { suggestion ->
+                        val uses = suggestion.uses.joinToString(", ") { it.product.name }
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onAddRecipe(suggestion.recipe, cooks.toList()) }
+                                .heightIn(min = 48.dp)
+                                .padding(vertical = 8.dp),
+                        ) {
+                            Text(
+                                suggestion.recipe.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Hint(stringResource(R.string.home_use_it_up_uses, uses))
+                        }
+                    }
+                }
+                HorizontalDivider()
+            }
             FormTextField(
                 value = search,
                 onValueChange = { search = it },
@@ -160,8 +187,8 @@ fun AddMealSheet(
 }
 
 /**
- * A planned meal (DESIGN 5.9): servings, who cooks and a note, opening its recipe, and removing it from the plan
- * (with Undo).
+ * A planned meal (DESIGN 5.9): servings, who cooks and a note, Cooked, opening its recipe, and removing it from the
+ * plan (with Undo).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -171,6 +198,8 @@ fun MealSheet(
     myUid: String,
     recipeExists: Boolean,
     onSave: (servings: Int?, cooks: List<String>, note: String?) -> Unit,
+    onCook: () -> Unit,
+    onNotCooked: () -> Unit,
     onOpenRecipe: () -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
@@ -235,6 +264,45 @@ fun MealSheet(
                 onClick = { onSave(servings, cooks.toList(), note) },
                 modifier = Modifier.testTag("plan_save_meal"),
             )
+            if (meal.cookedAt == null) {
+                OutlinedButton(
+                    onClick = onCook,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("plan_cook_meal"),
+                ) {
+                    Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.plan_cooked), Modifier.padding(start = 8.dp))
+                }
+            } else {
+                val by = meal.cookedBy?.let { uid ->
+                    if (uid == myUid) stringResource(R.string.plan_you) else members.find { it.uid == uid }?.displayName
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        if (by !=
+                            null
+                        ) {
+                            stringResource(R.string.plan_cooked_by, by)
+                        } else {
+                            stringResource(R.string.plan_cooked)
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = onNotCooked,
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("plan_not_cooked"),
+                    ) { Text(stringResource(R.string.plan_not_cooked)) }
+                }
+            }
             if (recipeExists) {
                 OutlinedButton(
                     onClick = onOpenRecipe,

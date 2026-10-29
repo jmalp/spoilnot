@@ -13,6 +13,8 @@ import com.parcha.spoilnot.feature.home.domain.ActivityEvent
 import com.parcha.spoilnot.feature.home.domain.ActivityRepository
 import com.parcha.spoilnot.feature.home.domain.HomeDashboard
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
+import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
+import com.parcha.spoilnot.feature.household.domain.Member
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
@@ -22,13 +24,19 @@ import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.ui.todayFlow
+import com.parcha.spoilnot.feature.plan.domain.MealPlanRepository
+import com.parcha.spoilnot.feature.plan.domain.MealWeek
+import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
 import com.parcha.spoilnot.feature.recipes.domain.RecipeStore
 import com.parcha.spoilnot.feature.recipes.domain.UseItUp
 import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.WeekFields
+import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -48,8 +56,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * The Home tab (DESIGN 5.6): what needs attention, low stock, the grocery list, this month's kitchen (5.7) and recent
- * activity.
+ * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), low stock, the grocery list, this month's
+ * kitchen (5.7) and recent activity.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -60,6 +68,8 @@ class HomeViewModel @Inject constructor(
     activity: ActivityRepository,
     stats: StatsRepository,
     recipes: RecipeStore,
+    mealPlan: MealPlanRepository,
+    households: HouseholdRepository,
     clock: Clock,
 ) : ViewModel() {
     data class UiState(
@@ -73,7 +83,13 @@ class HomeViewModel @Inject constructor(
         val insights: InsightsSummary? = null,
         /** Saved recipes that use food expiring soon (DESIGN 5.6). */
         val useItUp: List<UseItUpSuggestion> = emptyList(),
+        /** Today's planned meals, breakfast first (DESIGN 5.9); the card shows only when there are some. */
+        val todayMeals: List<PlannedMeal> = emptyList(),
+        val members: List<Member> = emptyList(),
     )
+
+    /** The same week window as the Plan tab, so both share one full read (DESIGN 9.8). */
+    private val firstDay: DayOfWeek = WeekFields.of(Locale.getDefault()).firstDayOfWeek
 
     /** Only the current month: one document per open (DESIGN 9.7). */
     private val insights = insightsFlow(session, stats, clock, YearMonth::from).onStart { emit(null) }
@@ -107,8 +123,20 @@ class HomeViewModel @Inject constructor(
                     ) { p, i, r, today, s ->
                         UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid, s) to p
                     }
-                combine(home, box) { (state, p), saved ->
-                    state.copy(useItUp = UseItUp.suggestions(saved, p, state.today))
+                val today = todayFlow(clock).flatMapLatest { day ->
+                    val start = MealWeek.start(day, firstDay)
+                    mealPlan.observe(hid, start, MealWeek.end(start))
+                        .map { plan -> MealWeek.build(start, plan.meals, day).first { it.isToday }.meals }
+                        .catch { emit(emptyList()) }
+                        .onStart { emit(emptyList()) }
+                }
+                val members = households.observeMembers(hid).catch { emit(emptyList()) }.onStart { emit(emptyList()) }
+                combine(home, box, today, members) { (state, p), saved, meals, people ->
+                    state.copy(
+                        useItUp = UseItUp.suggestions(saved, p, state.today),
+                        todayMeals = meals,
+                        members = people,
+                    )
                 }
             }
         }

@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DonutLarge
 import androidx.compose.material.icons.rounded.GroupAdd
@@ -65,6 +68,7 @@ import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
 import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
+import com.parcha.spoilnot.feature.household.domain.Member
 import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
 import com.parcha.spoilnot.feature.insights.ui.MonthRing
 import com.parcha.spoilnot.feature.insights.ui.moodText
@@ -74,6 +78,11 @@ import com.parcha.spoilnot.feature.pantry.ui.Badge
 import com.parcha.spoilnot.feature.pantry.ui.StatusChip
 import com.parcha.spoilnot.feature.pantry.ui.chipText
 import com.parcha.spoilnot.feature.pantry.ui.label
+import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
+import com.parcha.spoilnot.feature.plan.ui.CookChip
+import com.parcha.spoilnot.feature.plan.ui.CookedLabel
+import com.parcha.spoilnot.feature.plan.ui.cookNames
+import com.parcha.spoilnot.feature.plan.ui.slotLabel
 import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import com.parcha.spoilnot.feature.tutorial.domain.TourTarget
 import java.time.LocalDate
@@ -86,6 +95,7 @@ class HomeNavigation(
     val reviewJoinRequests: () -> Unit,
     val openInsights: () -> Unit = {},
     val openRecipe: (String) -> Unit = {},
+    val openPlan: () -> Unit = {},
 )
 
 /** How many rows a card lists before "See all". */
@@ -115,7 +125,16 @@ fun HomeScreen(
                 if (summary == null) {
                     repeat(4) { SkeletonCard() }
                 } else {
-                    HomeCards(summary, state.today, state.myUid, navigation, state.insights, state.useItUp)
+                    HomeCards(
+                        summary,
+                        state.today,
+                        state.myUid,
+                        navigation,
+                        state.insights,
+                        state.useItUp,
+                        state.todayMeals,
+                        state.members,
+                    )
                 }
             }
         }
@@ -130,6 +149,8 @@ internal fun HomeCards(
     navigation: HomeNavigation,
     insights: InsightsSummary? = null,
     useItUp: List<UseItUpSuggestion> = emptyList(),
+    todayMeals: List<PlannedMeal> = emptyList(),
+    members: List<Member> = emptyList(),
 ) {
     // Expired only: the Expiring soon filter would hide them.
     val attentionFilter =
@@ -150,6 +171,7 @@ internal fun HomeCards(
     ) {
         summary.attention.take(CARD_ROWS).forEach { row -> AttentionRow(row, today) }
     }
+    if (todayMeals.isNotEmpty()) TodayCard(todayMeals, members, myUid, navigation.openPlan)
     if (useItUp.isNotEmpty()) UseItUpCard(useItUp, today, navigation.openRecipe)
     HomeCard(
         title = stringResource(R.string.home_low_stock),
@@ -188,6 +210,41 @@ internal fun HomeCards(
         calm = if (summary.recent.isEmpty()) stringResource(R.string.home_activity_none) else null,
     ) {
         summary.recent.forEach { ActivityLine(it, myUid) }
+    }
+}
+
+/** Today's planned meals and who cooks them (DESIGN 5.9). Shown only when something is planned. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TodayCard(meals: List<PlannedMeal>, members: List<Member>, myUid: String, onOpen: () -> Unit) {
+    HomeCard(
+        title = stringResource(R.string.home_today),
+        icon = Icons.Rounded.CalendarMonth,
+        tag = "card_home_today",
+        action = stringResource(R.string.home_today_open) to onOpen,
+    ) {
+        meals.forEach { meal ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    slotLabel(meal.slot),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    meal.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val cooks = cookNames(meal.cooks, members, myUid)
+                if (cooks.isNotEmpty() || meal.cookedAt != null) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        cooks.forEach { CookChip(it) }
+                        if (meal.cookedAt != null) CookedLabel()
+                    }
+                }
+            }
+        }
     }
 }
 
