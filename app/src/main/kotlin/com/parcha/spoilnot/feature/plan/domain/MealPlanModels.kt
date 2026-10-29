@@ -52,6 +52,9 @@ sealed interface MealPlanChange : HouseholdChange {
     /** A tombstone, so other phones' changes-only listeners see it go (DESIGN 9.8). */
     data class Delete(val mealId: String) : MealPlanChange
 
+    /** To another day or slot, after the meals there (DESIGN 5.9). */
+    data class Move(val mealId: String, val date: LocalDate, val slot: MealSlot, val position: Long) : MealPlanChange
+
     /** Marks a meal cooked by the actor now (server time), or not cooked again (DESIGN 5.9). */
     data class SetCooked(val mealId: String, val cooked: Boolean) : MealPlanChange
 }

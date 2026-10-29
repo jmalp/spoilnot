@@ -125,6 +125,12 @@ fun AppShell(
                 shellViewModel.navigated(link)
             }
 
+            is DeepLink.Plan -> {
+                navigator.showRoot(TopLevelDestination.Plan)
+                shellViewModel.navigated(link)
+                shellViewModel.consume(link)
+            }
+
             // A link shared from another app opens its preview on the Recipes tab (DESIGN 11.1).
             is DeepLink.ImportRecipe -> {
                 navigator.showRoot(TopLevelDestination.Recipes)

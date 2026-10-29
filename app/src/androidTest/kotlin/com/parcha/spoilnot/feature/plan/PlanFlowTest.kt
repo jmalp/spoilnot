@@ -211,4 +211,69 @@ class PlanFlowTest {
         assertTrue(items.all { it.source == ItemSource.MealPlan && it.recipeId == recipe.id })
         assertEquals(setOf("Tortillas", "Lime"), items.map { it.name }.toSet())
     }
+
+    @Test
+    fun moveCopyLastWeekAndClearReachTheOtherPhone_withUndo() = runBlocking {
+        val lastStart = weekStart.minusWeeks(1)
+        alice.mealPlan.addOther(
+            householdId,
+            alice.actor,
+            lastStart,
+            MealSlot.Dinner,
+            "Tacos",
+            listOf(bob.uid),
+            emptyList(),
+        )
+        alice.mealPlan.addOther(
+            householdId,
+            alice.actor,
+            lastStart.plusDays(2),
+            MealSlot.Lunch,
+            "Soup",
+            emptyList(),
+            emptyList(),
+        )
+        val previous = withTimeout(20_000) {
+            alice.mealPlanRepository.observe(householdId, lastStart, MealWeek.end(lastStart))
+                .first { !it.fromCache && it.meals.size == 2 }
+        }.meals
+
+        // Bob copies last week into this one; Alice sees both meals on the same weekdays.
+        val (count, undoCopy) = bob.mealPlan.copyWeek(
+            householdId,
+            bob.actor,
+            previous,
+            lastStart,
+            weekStart,
+            emptyList(),
+        )!!
+        assertEquals(2, count)
+        val copied = alice.week { d -> d.meals.size == 2 }.meals
+        assertEquals(
+            setOf(weekStart to "Tacos", weekStart.plusDays(2) to "Soup"),
+            copied.map {
+                it.date to it.title
+            }.toSet(),
+        )
+        assertEquals(listOf(bob.uid), copied.single { it.title == "Tacos" }.cooks)
+
+        // Alice moves Tacos to Friday lunch; Bob sees it.
+        val tacos = copied.single { it.title == "Tacos" }
+        alice.mealPlan.move(householdId, alice.actor, tacos, weekStart.plusDays(4), MealSlot.Lunch, emptyList())
+        bob.week { d ->
+            d.meals.any { it.id == tacos.id && it.date == weekStart.plusDays(4) && it.slot == MealSlot.Lunch }
+        }
+
+        // Clear the week, then Undo: everything comes back for Bob.
+        val week = bob.week { d -> d.meals.size == 2 }.meals
+        val undoClear = alice.mealPlan.clear(householdId, alice.actor, week)!!
+        bob.week { d -> d.meals.isEmpty() }
+        alice.mealPlan.undo(householdId, alice.actor, undoClear)
+        bob.week { d -> d.meals.size == 2 }
+
+        // Undo of the copy removes the copies again.
+        bob.mealPlan.undo(householdId, bob.actor, undoCopy)
+        alice.week { d -> d.meals.isEmpty() }
+        Unit
+    }
 }

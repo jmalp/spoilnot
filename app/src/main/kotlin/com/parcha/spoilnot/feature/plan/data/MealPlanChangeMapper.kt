@@ -48,6 +48,12 @@ class MealPlanChangeMapper @Inject constructor() : FirestoreChangeMapper {
 
             is MealPlanChange.Delete -> batch.set(doc(change.mealId), Tombstones.fields(actor), SetOptions.merge())
 
+            is MealPlanChange.Move -> batch.update(
+                doc(change.mealId),
+                mapOf("date" to change.date.toString(), "slot" to change.slot.wire, "position" to change.position) +
+                    stamp,
+            )
+
             is MealPlanChange.SetCooked -> batch.update(
                 doc(change.mealId),
                 mapOf(

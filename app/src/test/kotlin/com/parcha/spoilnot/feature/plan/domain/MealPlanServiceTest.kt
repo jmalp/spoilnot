@@ -125,6 +125,38 @@ class MealPlanServiceTest {
         assertEquals(listOf(MealPlanChange.SetCooked("m0", false)), writer.last)
     }
 
+    @Test
+    fun `moving goes after the meals in the new slot and Undo puts it back`() = runTest {
+        val friday = day.plusDays(1)
+        val there = MealWeekTest().meal("m1", date = friday, slot = MealSlot.Lunch, position = 3)
+        val undo = service.move("h", actor, existing, friday, MealSlot.Lunch, listOf(there))!!
+        assertEquals(listOf(MealPlanChange.Move("m0", friday, MealSlot.Lunch, 4)), writer.last)
+        assertEquals(listOf(MealPlanChange.Move("m0", day, MealSlot.Dinner, 2)), undo.changes)
+        // The same place is no move.
+        assertNull(service.move("h", actor, existing, day, MealSlot.Dinner, emptyList()))
+    }
+
+    @Test
+    fun `copying last week creates the copies, and Undo removes them`() = runTest {
+        val lastStart = LocalDate.of(2026, 10, 19)
+        val previous = listOf(MealWeekTest().meal("p1", date = day.minusWeeks(1)).copy(title = "Tacos"))
+        val (count, undo) = service.copyWeek("h", actor, previous, lastStart, lastStart.plusWeeks(1), emptyList())!!
+        val created = writer.last.map { (it as MealPlanChange.Create).meal }
+        assertEquals(1, count)
+        assertEquals(listOf("id0" to day), created.map { it.id to it.date })
+        assertEquals(listOf(MealPlanChange.Delete("id0")), undo.changes)
+        assertNull(service.copyWeek("h", actor, emptyList(), lastStart, lastStart.plusWeeks(1), emptyList()))
+    }
+
+    @Test
+    fun `clearing a week removes every meal with one Undo`() = runTest {
+        val other = MealWeekTest().meal("m1", date = day.plusDays(1))
+        val undo = service.clear("h", actor, listOf(existing, other))!!
+        assertEquals(listOf(MealPlanChange.Delete("m0"), MealPlanChange.Delete("m1")), writer.last)
+        assertEquals(listOf(MealPlanChange.Restore(existing), MealPlanChange.Restore(other)), undo.changes)
+        assertNull(service.clear("h", actor, emptyList()))
+    }
+
     private class RecordingWriter : HouseholdWriter {
         var last: List<HouseholdChange> = emptyList()
         private var next = 0

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { runJob, ROUTE, type Message, type Sender } from '../../src/job.ts';
+import { PLAN_ROUTE, runJob, ROUTE, type Message, type Sender } from '../../src/job.ts';
 
 const PROJECT = 'demo-reminder-test';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -141,11 +141,57 @@ describe('reminder job against the emulator', () => {
     const summary = await runJob(db, sender, { now: NOW, dryRun: true, log: (l) => lines.push(l) });
     assert.equal(sender.sent.length, 0);
     assert.ok(summary.sent >= 2);
-    assert.ok(lines.some((l) => l.includes('3 items need attention')));
+    assert.ok(lines.some((l) => l.includes('3 item(s), 0 meal(s)')));
     // Logs are public with the repository: no user IDs and no item names.
     assert.ok(lines.every((l) => !l.includes('alice') && !l.includes('Yogurt') && !l.includes('Milk')));
     assert.equal((await db.doc('users/alice').get()).get('lastDigestDate'), null);
     assert.equal((await db.doc('users/alice/devices/old').get()).exists, true);
     assert.equal((await db.doc('households/h1/activity/old').get()).exists, true);
+  });
+
+  it('cooks hear about today\'s meals; with only meals the digest opens the Plan tab', async () => {
+    const batch = db.batch();
+    batch.set(db.doc('households/h1/meals/m-today'), {
+      date: '2026-10-12', slot: 'dinner', position: 0, title: 'Tacos', cooks: ['alice', 'frank'], cookedAt: null,
+    });
+    batch.set(db.doc('households/h1/meals/m-breakfast'), {
+      date: '2026-10-12', slot: 'breakfast', position: 0, title: 'Pancakes', cooks: ['alice'], cookedAt: null,
+    });
+    // Not for anyone today: cooked already, removed, another day.
+    batch.set(db.doc('households/h1/meals/m-done'), {
+      date: '2026-10-12', slot: 'lunch', position: 0, title: 'Soup', cooks: ['alice'], cookedAt: Timestamp.fromDate(NOW),
+    });
+    batch.set(db.doc('households/h1/meals/m-removed'), {
+      date: '2026-10-12', slot: 'lunch', position: 1, title: 'Salad', cooks: ['alice'], deletedAt: Timestamp.fromDate(NOW),
+    });
+    batch.set(db.doc('households/h1/meals/m-tomorrow'), {
+      date: '2026-10-13', slot: 'dinner', position: 0, title: 'Curry', cooks: ['alice'],
+    });
+    await batch.commit();
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: NOW, prune: false });
+
+    const alice = sender.sent.find((m) => m.token.startsWith('alice'))!;
+    assert.equal(alice.notification.title, '3 items need attention');
+    assert.equal(
+      alice.notification.body,
+      'Throw away: Milk. Tomorrow: Yogurt, Eggs. You\'re cooking: Pancakes (breakfast), Tacos (dinner).',
+    );
+    assert.equal(alice.data.route, ROUTE);
+    // Frank has no food in his stages but cooks tonight: a digest about the meal that opens Plan.
+    const frank = sender.sent.find((m) => m.token.startsWith('frank'))!;
+    assert.deepEqual(frank.notification, { title: 'You\'re cooking Tacos for dinner', body: 'You\'re cooking: Tacos (dinner).' });
+    assert.equal(frank.data.route, PLAN_ROUTE);
+    assert.equal(summary.emptyDigests, 0);
+  });
+
+  it('the cooking line can be switched off', async () => {
+    await db.doc('users/frank').update({ 'notificationPrefs.cooking': false });
+    await db.doc('households/h1/meals/m-today').set({
+      date: '2026-10-12', slot: 'dinner', position: 0, title: 'Tacos', cooks: ['frank'], cookedAt: null,
+    });
+    const sender = new RecordingSender();
+    await runJob(db, sender, { now: NOW, prune: false });
+    assert.equal(sender.sent.some((m) => m.token.startsWith('frank')), false);
   });
 });

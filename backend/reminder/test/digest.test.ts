@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { afterSend, buildDigest, DEFAULT_PREFS, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
+import { afterSend, buildDigest, buildDigestWithMeals, cookingFor, DEFAULT_PREFS, type Meal, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
 
 const user = (over: Partial<UserDoc> = {}, prefs: Partial<UserDoc['prefs']> = {}): UserDoc => ({
   uid: 'u1',
@@ -147,5 +147,42 @@ describe('digest text', () => {
   it('nothing to report means no digest', () => {
     assert.equal(buildDigest([]), null);
     assert.equal(buildDigest(selectItems(user(), today, [batch('Rice', '2027-01-01')])), null);
+  });
+});
+
+describe('meals in the digest (after v1, DESIGN 5.9)', () => {
+  const today = '2026-10-12';
+  const meal = (title: string, slot: Meal['slot'], over: Partial<Meal> = {}): Meal =>
+    ({ date: today, slot, position: 0, title, cooks: ['u1'], cooked: false, ...over });
+
+  it('picks today\'s uncooked meals the user cooks, breakfast first', () => {
+    const meals = [
+      meal('Tacos', 'dinner'),
+      meal('Pancakes', 'breakfast'),
+      meal('Soup', 'lunch', { cooked: true }),
+      meal('Salad', 'lunch', { cooks: ['u2'] }),
+      meal('Curry', 'dinner', { date: '2026-10-13' }),
+    ];
+    assert.deepEqual(cookingFor(user(), today, meals).map((m) => m.title), ['Pancakes', 'Tacos']);
+    assert.deepEqual(cookingFor(user({}, { cooking: false }), today, meals), []);
+  });
+
+  it('adds a line after the food, or makes its own digest', () => {
+    const items = selectItems(user(), today, [batch('Milk', '2026-10-13')]);
+    assert.deepEqual(buildDigestWithMeals(items, [meal('Tacos', 'dinner')]), {
+      title: 'Milk expires tomorrow',
+      body: 'Tomorrow: Milk. You\'re cooking: Tacos (dinner).',
+      mealsOnly: false,
+    });
+    assert.deepEqual(buildDigestWithMeals([], [meal('Tacos', 'dinner')]), {
+      title: 'You\'re cooking Tacos for dinner', body: 'You\'re cooking: Tacos (dinner).', mealsOnly: true,
+    });
+    assert.equal(buildDigestWithMeals([], [meal('A', 'lunch'), meal('B', 'dinner')])?.title, 'You\'re cooking 2 meals today');
+    assert.equal(buildDigestWithMeals([], []), null);
+  });
+
+  it('reads the cooking pref with a default of on', () => {
+    assert.equal(readPrefs({}).cooking, true);
+    assert.equal(readPrefs({ cooking: false }).cooking, false);
   });
 });

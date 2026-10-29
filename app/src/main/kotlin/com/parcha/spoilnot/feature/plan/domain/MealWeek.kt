@@ -1,7 +1,9 @@
 package com.parcha.spoilnot.feature.plan.domain
 
+import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 
 /** One day of the plan: its meals by slot, in order. */
@@ -47,4 +49,41 @@ object MealWeek {
 
     /** Where a new meal goes in a slot: after the last one. */
     fun nextPosition(slotMeals: List<PlannedMeal>): Long = (slotMeals.maxOfOrNull { it.position } ?: -1L) + 1
+
+    /**
+     * Copy last week (DESIGN 5.9): [previous] meals moved by whole weeks from [from] to [to], keeping recipe, title,
+     * servings, cooks and note but not Cooked. A meal already in [existing] on the same day and slot with the same
+     * name is skipped, so copying twice adds nothing. Copies go after the meals already in their slot, in their old
+     * order. Ids are left empty for the service to fill.
+     */
+    fun copy(
+        previous: List<PlannedMeal>,
+        from: LocalDate,
+        to: LocalDate,
+        existing: List<PlannedMeal>,
+    ): List<PlannedMeal> {
+        val shift = ChronoUnit.DAYS.between(from, to)
+        val taken = existing.map { Triple(it.date, it.slot, NameKey.of(it.title)) }.toMutableSet()
+        val next = existing.groupBy { it.date to it.slot }
+            .mapValues { (_, meals) -> nextPosition(meals) }
+            .toMutableMap()
+        return previous
+            .sortedWith(compareBy<PlannedMeal>({ it.date }, { it.slot }, { it.position }))
+            .mapNotNull { meal ->
+                val date = meal.date.plusDays(shift)
+                if (!taken.add(Triple(date, meal.slot, NameKey.of(meal.title)))) return@mapNotNull null
+                val position = next[date to meal.slot] ?: 0L
+                next[date to meal.slot] = position + 1
+                meal.copy(
+                    id = "",
+                    date = date,
+                    position = position,
+                    cookedAt = null,
+                    cookedBy = null,
+                    createdAt = null,
+                    createdBy = null,
+                    pendingSync = false,
+                )
+            }
+    }
 }

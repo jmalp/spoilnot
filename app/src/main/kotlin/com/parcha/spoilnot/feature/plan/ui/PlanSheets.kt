@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -44,6 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -200,6 +203,8 @@ fun MealSheet(
     onSave: (servings: Int?, cooks: List<String>, note: String?) -> Unit,
     onCook: () -> Unit,
     onNotCooked: () -> Unit,
+    weekDays: List<LocalDate>,
+    onMove: (LocalDate, MealSlot) -> Unit,
     onOpenRecipe: () -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
@@ -208,6 +213,18 @@ fun MealSheet(
     var servings by rememberSaveable { mutableStateOf(meal.servings) }
     val cooks = remember { mutableStateListOf(*meal.cooks.toTypedArray()) }
     var note by rememberSaveable { mutableStateOf(meal.note.orEmpty()) }
+    var moving by rememberSaveable { mutableStateOf(false) }
+    if (moving) {
+        MoveDialog(
+            meal = meal,
+            days = weekDays,
+            onMove = { date, slot ->
+                moving = false
+                onMove(date, slot)
+            },
+            onDismiss = { moving = false },
+        )
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
@@ -303,6 +320,10 @@ fun MealSheet(
                     ) { Text(stringResource(R.string.plan_not_cooked)) }
                 }
             }
+            OutlinedButton(
+                onClick = { moving = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("plan_move_meal"),
+            ) { Text(stringResource(R.string.plan_move)) }
             if (recipeExists) {
                 OutlinedButton(
                     onClick = onOpenRecipe,
@@ -316,6 +337,71 @@ fun MealSheet(
             ) { Text(stringResource(R.string.plan_remove)) }
         }
     }
+}
+
+/** Move a meal to another day of its week or another slot (DESIGN 5.9); the choices are chips with a check. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MoveDialog(
+    meal: PlannedMeal,
+    days: List<LocalDate>,
+    onMove: (LocalDate, MealSlot) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var day by rememberSaveable { mutableStateOf(meal.date) }
+    var slot by rememberSaveable { mutableStateOf(meal.slot) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.plan_move_title, meal.title)) },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(stringResource(R.string.plan_move_day), style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // "Fri 30" keeps the week to two rows; TalkBack reads the whole date.
+                    days.forEach { date ->
+                        val full = dayTitle(date)
+                        ChoiceChip(
+                            shortDay(date),
+                            date == day,
+                            Modifier.testTag("plan_move_day_$date").semantics { contentDescription = full },
+                        ) { day = date }
+                    }
+                }
+                Text(stringResource(R.string.plan_move_slot), style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MealSlot.entries.forEach { s ->
+                        ChoiceChip(slotLabel(s), s == slot, Modifier.testTag("plan_move_slot_${s.wire}")) { slot = s }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onMove(day, slot) },
+                enabled = day != meal.date || slot != meal.slot,
+                modifier = Modifier.testTag("plan_move_confirm"),
+            ) { Text(stringResource(R.string.plan_move)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
+@Composable
+private fun ChoiceChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = if (selected) {
+            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+        } else {
+            null
+        },
+        modifier = modifier,
+    )
 }
 
 /** "Who's cooking?": any number of members; the chips carry names, so the choice never depends on color. */

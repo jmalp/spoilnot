@@ -224,6 +224,7 @@ The system design is in section 10. Behavior:
 - It groups items by stage: **Throw away** (expired and not yet reported), **Today**, **Tomorrow**, **In 2 to 3 days**. Each of the stages 3, 2, 1 and 0 days can be switched off. Best-before items use softer wording (“past best before”).
 - Expired items are reported once by default. Setting: Expired reminder = once, every day until removed, or never.
 - Tapping the notification opens the Pantry filtered to Expiring soon.
+- After v1 (5.9), a member listed as a cook for today's meals gets a last line "You're cooking: Pancakes (breakfast), Tacos (dinner)." (meals not yet cooked, breakfast first). With nothing expiring, the meals make their own notification ("You're cooking Tacos for dinner", or "You're cooking 2 meals today"), and tapping it opens the Plan tab. Settings > Notifications has **Meals I'm cooking** (on by default) under the daily reminder.
 - Permission is requested after the third dated item is saved (after v1; it was the first), after a short explanation screen, so reminders already have something to remind about. If denied, Settings shows a banner with a button that opens the system settings.
 - Settings has **Send test notification**, which fires a local notification to verify permission and channel.
 
@@ -305,7 +306,9 @@ A fifth tab, **Plan** (Home, Pantry, Plan, Recipes, Groceries), shows one week o
 - **The week's grocery list.** A cart button in the top bar (shown when the week has recipes still to cook) opens *This week's ingredients*: for each recipe meal from today on that is not cooked, under its name and "Dinner · Thursday, Oct 29 · 4 servings", the ingredient lines chosen the same way as Add to grocery list (5.5): shopping names, *Probably in pantry* and *On the list* unchecked, *Change*, a list to add to and select all or none. A meal's servings scale the recipe: counts round up to whole items ("4½ eggs" buys 5) and the note shows the scaled line. The same item from two meals becomes one item with both notes. Items carry the source **Meal plan**: the recipe icon with the words *Meal plan* on the list. Recent activity says "Sam added 6 ingredients from the meal plan to Groceries".
 - **Cooked.** *Cooked* in the meal's sheet: for a meal with a saved recipe it opens "What did you use?" (5.5) at the meal's servings, and the button also works with nothing checked (*Mark as cooked*); a meal without a recipe is marked at once. The meal shows a check and *Cooked* (never color alone), its sheet says "Cooked by Sam" with *Not cooked yet* for mistakes (the pantry is not touched then), and a recipe meal logs "Sam cooked Tacos". One Undo puts back the pantry, the mark and the event. Cooked meals are left out of the week's grocery list.
 - **Elsewhere.** Clear household data (5.1) removes planned meals; Settings > Export and the nightly export include them (13.4); the tour has a step for the tab (5.8); Home's Today card listens to the same week window as the tab (9.8).
-- **Later, in the same feature:** moving meals and copying last week, clearing a week, and a line for cooks in the daily digest.
+- **Move.** *Move* in the meal's sheet: a day of its week and a slot, as chips with a check; the meal goes after the meals there. Undo puts it back.
+- **Copy last week and Clear this week** in the Plan tab's ⋮ menu. Copy puts last week's meals on the same weekdays and slots of the week shown (recipe, servings, cooks and note; not Cooked), after what is there, skipping a meal already in that slot with the same name, so copying twice adds nothing; last week is read from the server when it answers within 5 seconds. Clear asks first ("Removes all 6 meals planned for Oct 25 – Oct 31") and removes the week's meals. Both have one Undo.
+- **The daily reminder** names the meals the user cooks today (5.4, 10.3).
 
 ## 6. UX and visual design
 
@@ -485,6 +488,7 @@ users/{uid}:                          # private to the user
     digestMinutes: int                # minutes after local midnight; UI offers whole hours; default 540 (9 AM)
     stages: [int]                     # subset of [3, 2, 1, 0]; default all four
     expiredMode: once | daily | never # default once
+    cooking: bool                     # after v1 (5.9): today's meals in the digest; default true
   createdAt, updatedAt
   lastDigestDate: string | null       # SERVER-WRITTEN: local date of the last digest
   lastExpiredThrough: string | null   # SERVER-WRITTEN: expired items up to this date were reported
@@ -703,7 +707,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
-- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790. The meal planner (5.9) adds about 150 (this week's meals, their changes, the nightly export and two housekeeping queries): about 1,940.
+- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790. The meal planner (5.9) adds about 150 (this week's meals, their changes, the nightly export and two housekeeping queries): about 1,940; the digest's meals query adds about 8: about 1,950.
 - So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
@@ -768,8 +772,9 @@ for each household:
           items.add(stage = expired, batch = b)
     tokens = users/{u}/devices
     if tokens is empty: continue                                # try again next run
-    if items is empty: update u.lastDigestDate = local.date; continue
-    result = fcm.sendEach(tokens, buildDigest(items, u.locale))
+    cooking = meals today where u is a cook, not cooked     # after v1 (5.9), when u.cooking; one meals query per household
+    if items and cooking are empty: update u.lastDigestDate = local.date; continue
+    result = fcm.sendEach(tokens, buildDigest(items, cooking, u.locale))
     delete tokens that returned unregistered or invalid-argument errors
     if any send succeeded:
       update u { lastDigestDate: local.date, lastExpiredThrough: local.date minus 1 day }
@@ -780,11 +785,11 @@ Message shape per device token:
 
 ```yaml
 notification: { title: <text>, body: <text> }
-data: { type: expiry_digest, route: '/pantry?filter=expiring', date: <local date> }
+data: { type: expiry_digest, route: '/pantry?filter=expiring' (after v1 '/plan' when only meals), date: <local date> }
 android: { priority: high, notification: { channelId: expiry, tag: expiry_digest } }
 ```
 
-Digest text: one item gives the title “Milk expires tomorrow”; several give “N items need attention”. The body has up to four lines in this order: Throw away, Today, Tomorrow, In 2 to 3 days. Each line names up to three products, then “+K more”. Best-before items say “past best before” instead of “throw away”.
+Digest text: one item gives the title “Milk expires tomorrow”; several give “N items need attention”. The body has up to four lines in this order: Throw away, Today, Tomorrow, In 2 to 3 days. Each line names up to three products, then “+K more”. Best-before items say “past best before” instead of “throw away”. After v1 the cook's meals are a last line, or the whole notification when nothing expires (5.4).
 
 **10.4 Scheduler** (`.github/workflows/reminders.yml`)
 
@@ -1229,6 +1234,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-20 | Ready for a public repository: encrypted nightly exports, logs without user IDs, household IDs or digest contents, restore by ID prefix, a monthly keep-alive for scheduled workflows | 10, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-28 | Meal planner, part 1: a Plan tab with the week, breakfast, lunch and dinner, recipes or typed meals, servings, several cooks, notes and Undo; changes-only listener for a window of dates | 5.1, 5.8, 5.9, 6.2, 8.2, 9.7, 9.8, 10.3, 12.3, 13.4, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-28 | Meal planner, part 2: the week's ingredients to a grocery list with the source Meal plan, Cooked (pantry, mark and activity in one Undo), Use it up in the recipe picker, and a Today card on Home | 5.6, 5.9, 8.2, 12.3, QA, SECURITY_REVIEW |
+| 2026-10-28 | Meal planner, part 3: move a meal, copy last week, clear a week (with Undo), and the cook's meals in the daily reminder with a Meals I'm cooking setting; a digest with only meals opens the Plan tab; dry-run logs show counts only | 5.4, 5.9, 8.2, 9.7, 10.3, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

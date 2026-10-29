@@ -129,6 +129,13 @@ fun NotificationSettingsScreen(
                     onPick = { hour -> viewModel.update { it.copy(digestMinutes = hour * 60) } },
                     helper = stringResource(R.string.notif_time_help),
                 )
+                ToggleRow(
+                    stringResource(R.string.notif_cooking),
+                    stringResource(R.string.notif_cooking_help),
+                    p.cooking,
+                ) { on ->
+                    viewModel.update { it.copy(cooking = on) }
+                }
                 Text(stringResource(R.string.notif_stages), style = MaterialTheme.typography.titleMedium)
                 listOf(
                     3 to R.string.stage_3,

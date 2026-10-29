@@ -359,6 +359,8 @@
     <string name="settings_notifications_off">Off</string>
     <string name="notif_enabled">Daily reminder</string>
     <string name="notif_enabled_help">One notification a day, only when something needs attention.</string>
+    <string name="notif_cooking">Meals I\'m cooking</string>
+    <string name="notif_cooking_help">On days you\'re down to cook in the plan, the reminder says what.</string>
     <string name="notif_time">Time</string>
     <string name="notif_time_help">It arrives shortly after this time.</string>
     <string name="notif_stages">Remind me about food that expires</string>
@@ -692,6 +694,24 @@
     <string name="plan_shop_title">This week\'s ingredients</string>
     <string name="plan_shop_none">No recipes left to cook this week. Plan some, and their ingredients show up here.</string>
     <string name="plan_shop_from">the meal plan</string>
+    <string name="plan_more_actions">More plan actions</string>
+    <string name="plan_copy_last_week">Copy last week</string>
+    <string name="plan_copied">Copied last week\'s meals (%1$s)</string>
+    <string name="plan_copy_none">Last week has no meals to copy</string>
+    <string name="plan_copy_already">Last week\'s meals are already in this week</string>
+    <string name="plan_clear_week">Clear this week</string>
+    <string name="plan_clear_title">Clear this week?</string>
+    <plurals name="plan_clear_text">
+        <item quantity="one">Removes the %1$d meal planned for %2$s. You can undo it right after.</item>
+        <item quantity="other">Removes all %1$d meals planned for %2$s. You can undo it right after.</item>
+    </plurals>
+    <string name="plan_clear_confirm">Clear</string>
+    <string name="plan_cleared">Cleared this week</string>
+    <string name="plan_move">Move</string>
+    <string name="plan_move_title">Move %1$s</string>
+    <string name="plan_move_day">Day</string>
+    <string name="plan_move_slot">Meal</string>
+    <string name="plan_moved">Moved %1$s</string>
     <string name="home_today">Today</string>
     <string name="home_today_open">Open plan</string>
 </resources>
