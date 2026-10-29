@@ -211,7 +211,9 @@ them finishing a batch):
 | Per household | about 1,940 | 3.9% |
 
 Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and
-19,320 before Recent activity read only new events, 17,920 before the meal planner. So the free plan holds about 18
+19,320 before Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner (week's
+grocery list, Cooked, Use it up while picking) left it at 19,440: those sheets listen to the pantry and lists only while
+open, which the cache already holds from Home and Pantry. So the free plan holds about 18
 households of this size under the 70% warning line. The largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 

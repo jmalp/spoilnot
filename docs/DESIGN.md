@@ -261,7 +261,7 @@ After v1, each ingredient is added as something you would buy, and the sheet sho
 
 ### 5.6 Home, activity and settings
 
-**Home** (first tab) has five cards: *Needs attention* (expired and expiring within 3 days; opens the filtered Pantry), after v1 *Use it up* (below), *Low stock* (products below Keep at least), *Grocery list* (item count; opens the list), *Your kitchen this month* (after v1, 5.7; opens Insights) and *Recent activity* (last 10 events such as “Sam added Eggs to Groceries”). The household owner also sees a *Join requests* card while someone is waiting for approval.
+**Home** (first tab) has five cards: *Needs attention* (expired and expiring within 3 days; opens the filtered Pantry), after v1 *Today* (today's planned meals with their cooks and Cooked, breakfast first, and *Open plan*; shown only when something is planned, 5.9), after v1 *Use it up* (below), *Low stock* (products below Keep at least), *Grocery list* (item count; opens the list), *Your kitchen this month* (after v1, 5.7; opens Insights) and *Recent activity* (last 10 events such as “Sam added Eggs to Groceries”). The household owner also sees a *Join requests* card while someone is waiting for approval.
 
 After v1, a card with nothing to show (nothing needs attention, staples stocked, no activity yet) is one compact row with a check and its title, so the cards with something to do stand out.
 
@@ -301,8 +301,11 @@ A fifth tab, **Plan** (Home, Pantry, Plan, Recipes, Groceries), shows one week o
 - **A planned meal** shows its name, servings and cooks (chips with a person icon and the name, "You" for the user). Tapping it opens its sheet: servings (− and +, or not set), cooks, a note, *Open recipe* (when the recipe still exists) and *Remove from plan* with Undo. A meal whose recipe was deleted keeps its name and says *Recipe deleted*; a member who left disappears from the cooks.
 - **Who may change it.** Every member, like the rest of the household's data. Planning is not logged in Recent activity, to keep it useful; cooking still is (5.5).
 - **Data and cost.** One document per meal (8.2), so two phones editing the same day never overwrite each other. The tab listens changes-only to the dates on screen (9.8): a week seen for the first time on a phone that day is read in full, then only changes. The daily job deletes meals more than 28 days past and their tombstones after 2 days (10.3).
-- **Elsewhere.** Clear household data (5.1) removes planned meals; Settings > Export and the nightly export include them (13.4); the tour has a step for the tab (5.8).
-- **Later, in the same feature:** the week's grocery list (with a *Meal plan* badge), marking a meal cooked, Use it up suggestions while picking, a Today card on Home, moving meals and copying last week, and a line for cooks in the daily digest.
+- **Use it up while picking.** The recipe list in the add sheet starts with up to three *Use it up* recipes (5.6) with what they use ("Uses Spinach, Yogurt"); tapping one adds it like any recipe. The pantry is listened to only while the sheet is open.
+- **The week's grocery list.** A cart button in the top bar (shown when the week has recipes still to cook) opens *This week's ingredients*: for each recipe meal from today on that is not cooked, under its name and "Dinner · Thursday, Oct 29 · 4 servings", the ingredient lines chosen the same way as Add to grocery list (5.5): shopping names, *Probably in pantry* and *On the list* unchecked, *Change*, a list to add to and select all or none. A meal's servings scale the recipe: counts round up to whole items ("4½ eggs" buys 5) and the note shows the scaled line. The same item from two meals becomes one item with both notes. Items carry the source **Meal plan**: the recipe icon with the words *Meal plan* on the list. Recent activity says "Sam added 6 ingredients from the meal plan to Groceries".
+- **Cooked.** *Cooked* in the meal's sheet: for a meal with a saved recipe it opens "What did you use?" (5.5) at the meal's servings, and the button also works with nothing checked (*Mark as cooked*); a meal without a recipe is marked at once. The meal shows a check and *Cooked* (never color alone), its sheet says "Cooked by Sam" with *Not cooked yet* for mistakes (the pantry is not touched then), and a recipe meal logs "Sam cooked Tacos". One Undo puts back the pantry, the mark and the event. Cooked meals are left out of the week's grocery list.
+- **Elsewhere.** Clear household data (5.1) removes planned meals; Settings > Export and the nightly export include them (13.4); the tour has a step for the tab (5.8); Home's Today card listens to the same week window as the tab (9.8).
+- **Later, in the same feature:** moving meals and copying last week, clearing a week, and a line for cooks in the daily digest.
 
 ## 6. UX and visual design
 
@@ -551,7 +554,7 @@ households/{hid}/groceryLists/{listId}/items/{itemId}:   # low-stock items use i
   checked: bool                       # optional: absent means false
   checkedBy: uid | null
   checkedAt: timestamp | null
-  source: manual | low_stock | recipe
+  source: manual | low_stock | recipe | meal_plan (after v1, 5.9; older apps show it as manual)
   productId: string | null
   recipeId: string | null
   aliasOf: string | null              # after v1: the recipe name a Change renamed it from, taught to its product (5.5)
@@ -584,7 +587,7 @@ households/{hid}/meals/{mealId}:      # after v1: one planned meal (5.9)
   servings: int (1-100) | null
   cooks: [uid] (at most 20)
   note: string (1-200) | null
-  cookedAt: timestamp | null, cookedBy: uid | null
+  cookedAt: timestamp | null, cookedBy: uid | null   # Cooked (5.9): set together by the cook at server time
   createdAt, createdBy, updatedAt, updatedBy, deletedAt (tombstone)
 households/{hid}/stats/{yyyy-MM}:     # after v1: Insights counts for one month (5.7), written with increments
   used: int                           # batches used up
@@ -893,7 +896,7 @@ JSON.stringify({
 11. Privacy: collect only email, display name, household data, device tokens and time zone. No analytics, no ads, no third-party SDKs besides Firebase. Provide in-app Delete account and Export data. Crashlytics is optional and carries no personal data. Add a one-page `docs/PRIVACY.md` listing exactly these data.
 12. Web view hardening as in 11.6.
 
-**12.3 Firestore Security Rules: reference draft.** This is a starting point; the tests in 12.4 define correctness. After v1 the deployed rules also cover `meals` (5.9): members read and write; the date must be YYYY-MM-DD, the slot breakfast, lunch or dinner, the title 1 to 120 characters, servings 1 to 100 or null, at most 20 cooks and a note up to 200 characters; tombstones as elsewhere. Limits to respect: at most 10 `exists`, `get` and `getAfter` calls per request (20 for batched writes), and each lookup is billed as a read.
+**12.3 Firestore Security Rules: reference draft.** This is a starting point; the tests in 12.4 define correctness. After v1 the deployed rules also cover `meals` (5.9): members read and write; the date must be YYYY-MM-DD, the slot breakfast, lunch or dinner, the title 1 to 120 characters, servings 1 to 100 or null, at most 20 cooks and a note up to 200 characters; tombstones as elsewhere; `cookedAt` and `cookedBy` are both null, set together by the writer at server time, or left as they were (so another member can still change a meal someone cooked). Limits to respect: at most 10 `exists`, `get` and `getAfter` calls per request (20 for batched writes), and each lookup is billed as a read.
 
 ```
 rules_version = '2';
@@ -1225,6 +1228,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-19 | Clear household data: the owner wipes everything but the household and its members, after a confirmation and their password | 5.1, 5.6, 8.2, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-20 | Ready for a public repository: encrypted nightly exports, logs without user IDs, household IDs or digest contents, restore by ID prefix, a monthly keep-alive for scheduled workflows | 10, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-28 | Meal planner, part 1: a Plan tab with the week, breakfast, lunch and dinner, recipes or typed meals, servings, several cooks, notes and Undo; changes-only listener for a window of dates | 5.1, 5.8, 5.9, 6.2, 8.2, 9.7, 9.8, 10.3, 12.3, 13.4, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
+| 2026-10-28 | Meal planner, part 2: the week's ingredients to a grocery list with the source Meal plan, Cooked (pantry, mark and activity in one Undo), Use it up in the recipe picker, and a Today card on Home | 5.6, 5.9, 8.2, 12.3, QA, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

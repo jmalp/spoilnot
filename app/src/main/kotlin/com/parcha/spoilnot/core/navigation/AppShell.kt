@@ -147,6 +147,7 @@ fun AppShell(
                     reviewJoinRequests = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
                     openInsights = { navigator.navigate(InsightsRoute(navigator.currentTab)) },
                     openRecipe = openRecipe,
+                    openPlan = { navigator.showRoot(TopLevelDestination.Plan) },
                 ),
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
             )

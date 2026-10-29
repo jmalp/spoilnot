@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AddShoppingCart
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -61,6 +63,7 @@ import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.domain.MealWeek
 import com.parcha.spoilnot.feature.plan.domain.PlanDay
 import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
+import com.parcha.spoilnot.feature.recipes.ui.CookedSheet
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -77,11 +80,19 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
     MessageEffect(viewModel.messages, snackbar, viewModel::undo)
     var adding by remember { mutableStateOf<Pair<LocalDate, MealSlot>?>(null) }
     var openMealId by rememberSaveable { mutableStateOf<String?>(null) }
+    var shopping by rememberSaveable { mutableStateOf(false) }
 
     TabScaffold(
         title = stringResource(R.string.tab_plan),
         onOpenSettings = navigation.openSettings,
         modifier = modifier.testTag("screen_plan"),
+        actions = {
+            if (state.canShop) {
+                IconButton(onClick = { shopping = true }, modifier = Modifier.testTag("plan_shop")) {
+                    Icon(Icons.Rounded.AddShoppingCart, contentDescription = stringResource(R.string.plan_shop))
+                }
+            }
+        },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
@@ -104,10 +115,13 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
     }
 
     adding?.let { (date, slot) ->
+        // Collected only while the sheet is open, so the pantry is listened to only then; shown once loaded.
+        val useItUp = viewModel.useItUp.collectAsStateWithLifecycle().value ?: return@let
         AddMealSheet(
             date = date,
             slot = slot,
             recipes = state.recipes,
+            useItUp = useItUp,
             members = state.members,
             myUid = state.myUid,
             onAddRecipe = { recipe, cooks ->
@@ -138,6 +152,14 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
                 viewModel.update(meal, servings, cooks, note)
                 openMealId = null
             },
+            onCook = {
+                openMealId = null
+                viewModel.cook(meal)
+            },
+            onNotCooked = {
+                viewModel.notCooked(meal)
+                openMealId = null
+            },
             onOpenRecipe = {
                 openMealId = null
                 meal.recipeId?.let(navigation.openRecipe)
@@ -148,6 +170,31 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
             },
             onDismiss = { openMealId = null },
         )
+    }
+    val cook by viewModel.cook.collectAsStateWithLifecycle()
+    cook?.let { c ->
+        CookedSheet(
+            lines = c.lines,
+            onUse = viewModel::cooked,
+            onDismiss = viewModel::closeCookSheet,
+            markCooked = true,
+        )
+    }
+    if (shopping) {
+        val grocery by viewModel.weekGrocery.collectAsStateWithLifecycle()
+        val from = stringResource(R.string.plan_shop_from)
+        // Shown once loaded: a sheet that grows after it opens keeps its first resting place and hides its button.
+        if (!grocery.loading) {
+            WeekGrocerySheet(
+                state = grocery,
+                onChooseList = viewModel::chooseList,
+                onAdd = { chosen ->
+                    viewModel.addWeekToGrocery(chosen, from)
+                    shopping = false
+                },
+                onDismiss = { shopping = false },
+            )
+        }
     }
 }
 
@@ -331,7 +378,26 @@ private fun MealRow(meal: PlannedMeal, members: List<Member>, myUid: String, del
                 )
             }
             names.forEach { name -> CookChip(name) }
+            if (meal.cookedAt != null) CookedLabel()
         }
+    }
+}
+
+/** "Cooked" with a check: an icon and a word, never color alone. */
+@Composable
+internal fun CookedLabel() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(
+            Icons.Rounded.CheckCircle,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            stringResource(R.string.plan_cooked),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

@@ -75,6 +75,7 @@ class GroceryRowTest {
         item("low_milk", "Milk", ItemSource.LowStock, by = null),
         item("eggs", "Eggs"),
         item("flour", "Flour", ItemSource.Recipe, by = "u1"),
+        item("tortillas", "Tortillas", ItemSource.MealPlan, by = null),
         item("bread", "Bread", checked = true, by = "u1"),
     )
 
@@ -91,6 +92,7 @@ class GroceryRowTest {
         show { rows.forEach { GroceryRow(it, state, {}, {}, {}) } }
         compose.onNodeWithText("Low stock", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Recipe", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithText("Meal plan", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("added by Sam", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Back in stock", useUnmergedTree = true).assertIsDisplayed()
     }

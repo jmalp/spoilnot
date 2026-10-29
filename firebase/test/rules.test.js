@@ -866,6 +866,25 @@ describe('meal plan', () => {
     await assertFails(setDoc(doc(db, path()), { ...meal('bob'), updatedAt: new Date('2026-01-01') }));
   });
 
+  it('cooked is set by the writer at server time, kept by later edits and cleared together', async () => {
+    const cook = (uid) => ({ cookedAt: serverTimestamp(), cookedBy: uid, updatedAt: serverTimestamp(), updatedBy: uid });
+    await assertSucceeds(setDoc(doc(as('bob'), path()), meal('bob')));
+    await assertFails(updateDoc(doc(as('bob'), path()), { ...cook('bob'), cookedBy: 'alice' }));
+    await assertFails(updateDoc(doc(as('bob'), path()), { ...cook('bob'), cookedAt: new Date('2026-10-29') }));
+    await assertFails(updateDoc(doc(as('bob'), path()), { ...cook('bob'), cookedBy: null }));
+    await assertSucceeds(updateDoc(doc(as('bob'), path()), cook('bob')));
+    // Alice changes the cooked meal; Bob's mark stays as it was.
+    await assertSucceeds(updateDoc(doc(as('alice'), path()), {
+      servings: 2, updatedAt: serverTimestamp(), updatedBy: 'alice',
+    }));
+    await assertFails(updateDoc(doc(as('alice'), path()), {
+      cookedBy: 'alice', updatedAt: serverTimestamp(), updatedBy: 'alice',
+    }));
+    await assertSucceeds(updateDoc(doc(as('alice'), path()), {
+      cookedAt: null, cookedBy: null, updatedAt: serverTimestamp(), updatedBy: 'alice',
+    }));
+  });
+
   it('outsiders cannot read or plan', async () => {
     await assertSucceeds(setDoc(doc(as('bob'), path()), meal('bob')));
     await assertFails(getDoc(doc(as('carol'), path())));

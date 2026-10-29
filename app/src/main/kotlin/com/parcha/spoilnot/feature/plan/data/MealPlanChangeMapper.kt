@@ -47,6 +47,14 @@ class MealPlanChangeMapper @Inject constructor() : FirestoreChangeMapper {
             )
 
             is MealPlanChange.Delete -> batch.set(doc(change.mealId), Tombstones.fields(actor), SetOptions.merge())
+
+            is MealPlanChange.SetCooked -> batch.update(
+                doc(change.mealId),
+                mapOf(
+                    "cookedAt" to if (change.cooked) FieldValue.serverTimestamp() else null,
+                    "cookedBy" to if (change.cooked) actor.uid else null,
+                ) + stamp,
+            )
         }
         return true
     }

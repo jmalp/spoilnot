@@ -17,6 +17,8 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.ceil
 
 sealed interface SaveResult {
     data class Saved(val recipeId: String) : SaveResult
@@ -47,6 +49,8 @@ data class GroceryCandidate(
     val recipeCount: Double? = null,
     /** Set when someone renamed this item: the [shoppingKey] its product should remember. */
     val aliasOf: String? = null,
+    /** The recipe this line comes from; the meal plan's sheet mixes recipes (after v1, DESIGN 5.9). */
+    val recipeId: String? = null,
 ) {
     val selectedByDefault: Boolean get() = inPantry == null && !onList
 }
@@ -63,7 +67,16 @@ object RecipeGrocery {
     /** Longest note kept on a grocery item. */
     const val MAX_NOTE_LENGTH = 200
 
-    fun candidates(recipe: Recipe, pantry: PantryData, listItems: List<GroceryItem>): List<GroceryCandidate> {
+    /**
+     * [factor] scales the recipe (a planned meal's servings, DESIGN 5.9): counts are rounded up to whole items
+     * ("1½ eggs" is 2), and the note shows the scaled line.
+     */
+    fun candidates(
+        recipe: Recipe,
+        pantry: PantryData,
+        listItems: List<GroceryItem>,
+        factor: Double = 1.0,
+    ): List<GroceryCandidate> {
         val unchecked = listItems.filter { !it.checked }
         val onListKeys = unchecked.map { it.nameKey }.toSet()
         val onListProducts = unchecked.mapNotNull { it.productId }.toSet()
@@ -77,22 +90,26 @@ object RecipeGrocery {
             val product = ProductLink.find(cleaned, pantry.products)
             val name = (product?.name ?: cleaned).take(GroceryRules.MAX_NAME_LENGTH).trim()
             val usual = product?.let { it.buyQuantity ?: it.lastAddedQuantity }
-            val recipeCount = parsed.qty?.takeIf { parsed.unit in COUNTED }
+            val recipeCount = parsed.qty?.takeIf { parsed.unit in COUNTED }?.let { scaledCount(it, factor) }
             val count = recipeCount?.takeIf { product == null || product.unit == QuantityUnit.Pieces }
             GroceryCandidate(
                 ingredient = ingredient,
                 name = name,
                 quantity = usual ?: count,
                 unit = if (usual != null) product.unit else null,
-                note = note(recipe.content.title, ingredient.raw),
+                note = note(recipe.content.title, Scaling.line(ingredient.raw, factor)),
                 product = product,
                 inPantry = PantryMatch.productFor(parsed.raw, pantry),
                 onList = NameKey.of(name) in onListKeys || (product != null && product.id in onListProducts),
                 shoppingKey = NameKey.of(cleaned),
                 recipeCount = recipeCount,
+                recipeId = recipe.id,
             )
         }
     }
+
+    private fun scaledCount(count: Double, factor: Double): Double =
+        if (abs(factor - 1.0) < 1e-9) count else ceil(count * factor - 1e-9)
 
     /**
      * [candidate] renamed to [newName] in the Add to grocery list sheet (DESIGN 5.5): it takes the product of that
@@ -190,6 +207,22 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
         chosen: List<GroceryCandidate>,
         pantry: PantryData,
         listName: String? = null,
+    ): Int = addItems(householdId, actor, listId, chosen, pantry, listName, ItemSource.Recipe, recipe.title, recipe.id)
+
+    /**
+     * Adds [chosen] lines, from one recipe or several (the meal plan, DESIGN 5.9), with [source]. The activity event
+     * says they came from [from]. Returns how many items were added.
+     */
+    suspend fun addItems(
+        householdId: String,
+        actor: Actor,
+        listId: String,
+        chosen: List<GroceryCandidate>,
+        pantry: PantryData,
+        listName: String?,
+        source: ItemSource,
+        from: String,
+        recipeId: String? = null,
     ): Int {
         val merged = RecipeGrocery.merge(chosen)
         // A rename to an existing product is remembered now; one to a new name when it is added to the pantry.
@@ -218,9 +251,9 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
                 category = product?.category ?: c.inPantry?.category ?: AisleGuess.of(c.name, pantry.products),
                 checked = false,
                 checkedBy = null,
-                source = ItemSource.Recipe,
+                source = source,
                 productId = product?.id,
-                recipeId = recipe.id,
+                recipeId = recipeId ?: c.recipeId,
                 createdBy = actor.uid,
                 createdAt = null,
                 aliasOf = c.aliasOf.takeIf { product == null },
@@ -230,7 +263,7 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
             val event = GroceryChange.LogEvent(
                 writer.newId(),
                 GroceryEventType.Added,
-                recipe.title,
+                from,
                 listName,
                 items.size,
             )

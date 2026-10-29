@@ -12,6 +12,9 @@ data class PlanDay(
     val slots: Map<MealSlot, List<PlannedMeal>>,
 ) {
     val isEmpty: Boolean get() = slots.values.all { it.isEmpty() }
+
+    /** Every meal of the day, breakfast first (Home's Today card). */
+    val meals: List<PlannedMeal> get() = MealSlot.entries.flatMap { slots[it].orEmpty() }
 }
 
 /** Week math and the week view (DESIGN 5.9). Pure, so it is tested with a fixed today and week start. */

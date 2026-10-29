@@ -191,7 +191,7 @@ fun RecipeDetailScreen(
     val cook by viewModel.cook.collectAsStateWithLifecycle()
     if (!cook.loading && recipe != null) {
         CookedSheet(
-            state = cook,
+            lines = cook.lines,
             onUse = viewModel::cooked,
             onDismiss = { viewModel.openCookSheet(null) },
         )

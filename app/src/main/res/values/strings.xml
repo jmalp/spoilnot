@@ -321,6 +321,7 @@
     </plurals>
     <string name="grocery_source_low_stock">Low stock</string>
     <string name="grocery_source_recipe">Recipe</string>
+    <string name="grocery_source_meal_plan">Meal plan</string>
     <string name="grocery_added_by">added by %1$s</string>
     <string name="grocery_back_in_stock">Back in stock</string>
     <string name="grocery_remove">Remove</string>
@@ -681,4 +682,16 @@
     <string name="plan_remove">Remove from plan</string>
     <string name="plan_removed">Removed %1$s from the plan</string>
     <string name="plan_recipe_deleted">Recipe deleted</string>
+    <string name="plan_cooked">Cooked</string>
+    <string name="plan_cooked_by">Cooked by %1$s</string>
+    <string name="plan_cooked_done">Cooked %1$s</string>
+    <string name="plan_not_cooked">Not cooked yet</string>
+    <string name="plan_mark_cooked">Mark as cooked</string>
+    <string name="plan_use_it_up">Use it up</string>
+    <string name="plan_shop">Add the week\'s ingredients to a grocery list</string>
+    <string name="plan_shop_title">This week\'s ingredients</string>
+    <string name="plan_shop_none">No recipes left to cook this week. Plan some, and their ingredients show up here.</string>
+    <string name="plan_shop_from">the meal plan</string>
+    <string name="home_today">Today</string>
+    <string name="home_today_open">Open plan</string>
 </resources>
