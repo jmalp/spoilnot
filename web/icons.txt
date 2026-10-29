@@ -49,3 +49,13 @@ round/done
 outlined/ac_unit
 outlined/inventory_2
 outlined/place
+round/chevron_left
+round/chevron_right
+
+# Home and Insights (W2b)
+round/inventory_2
+round/donut_large
+round/history
+round/group_add
+round/emoji_events
+round/local_fire_department

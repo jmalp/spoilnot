@@ -1,6 +1,8 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { AuthRepository, UserRepository } from '../domain/account';
+import type { ActivityRepository } from '../domain/home/models';
 import type { HouseholdRepository } from '../domain/household';
+import type { StatsRepository } from '../domain/insights/insights';
 import type { PantryRepository } from '../domain/pantry/repository';
 import type { PantryService } from '../domain/pantry/service';
 import type { Session, SessionManager } from '../domain/session';
@@ -16,6 +18,8 @@ export type Services = {
   writer: HouseholdWriter;
   pantry: PantryRepository;
   pantryService: PantryService;
+  activity: ActivityRepository;
+  stats: StatsRepository;
   clock: Clock;
 };
 

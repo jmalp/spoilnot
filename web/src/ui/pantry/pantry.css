@@ -150,8 +150,8 @@
   align-items: center;
   gap: 4px;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   letter-spacing: 0.015625rem;
   white-space: nowrap;
 }

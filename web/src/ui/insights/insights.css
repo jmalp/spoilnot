@@ -1,0 +1,122 @@
+/* Insights (DESIGN 5.7): the ring, month bars and reason bars, as InsightsCharts draws them. */
+.sn-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.sn-ring svg {
+  position: absolute;
+  inset: 0;
+}
+.sn-ring span {
+  position: relative;
+  text-align: center;
+}
+.sn-month-bars {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: flex-end;
+  width: 100%;
+}
+.sn-month-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: inherit;
+  cursor: pointer;
+}
+.sn-month-bar--selected {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-month-bar--selected .sn-month-bar__label {
+  font-weight: 700;
+}
+.sn-month-bar__pair {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+}
+.sn-month-bar__label {
+  padding-top: 4px;
+}
+.sn-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.sn-bar svg,
+.sn-legend svg,
+.sn-striped {
+  display: block;
+  flex: none;
+}
+.sn-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-reason-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.sn-reason-bars__head {
+  display: flex;
+  gap: 8px;
+}
+.sn-reason-bars__head > :first-child {
+  flex: 1;
+}
+.sn-reason-bars__track {
+  padding-top: 2px;
+}
+.sn-insights {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-insights p {
+  margin: 0;
+}
+.sn-insights__ring-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.sn-insights__legend-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sn-insights__legend-row {
+  display: flex;
+  gap: 16px;
+}
+.sn-insights__month-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sn-icon-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-insights-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-insights-section h2 {
+  margin: 0;
+}

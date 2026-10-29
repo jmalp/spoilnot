@@ -1,13 +1,35 @@
 // Screenshots of every web screen so far (DESIGN 18.2, 18.7), in light and dark at 100% and 200% text, to compare
 // with the Android app. Text that differs per run (emails, codes, dates) is masked.
-import { expect, test, type Page } from '@playwright/test';
-import { createHousehold, householdId, inDays, openApp, seedPantry, signUp, uidOf, uniqueEmail } from './support';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import {
+  createHousehold,
+  householdId,
+  inDays,
+  openApp,
+  seedActivity,
+  seedPantry,
+  seedStats,
+  signUp,
+  uidOf,
+  uniqueEmail,
+} from './support';
 
 test.skip(!!process.env.CI, 'Linux WebKit draws fonts differently; screenshots are compared on the Mac');
 
-async function shot(page: Page, name: string, mask: string[] = []) {
+/** [mask]: test ids, or locators for text without one. */
+async function shot(page: Page, name: string, mask: (string | Locator)[] = []) {
   await page.evaluate(() => document.fonts.ready);
-  await expect(page).toHaveScreenshot(`${name}.png`, { mask: mask.map((id) => page.getByTestId(id)) });
+  await expect(page).toHaveScreenshot(`${name}.png`, {
+    mask: mask.map((m) => (typeof m === 'string' ? page.getByTestId(m) : m)),
+  });
+}
+
+/** This month and the one before, as 'YYYY-MM'. */
+function months(): [string, string] {
+  const now = new Date();
+  const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return [ym(now), ym(last)];
 }
 
 for (const dark of [false, true]) {
@@ -32,7 +54,9 @@ for (const dark of [false, true]) {
       await shot(page, `home_${suffix}`);
 
       // Dates relative to today, so the chips read the same on every run.
-      await seedPantry(await householdId(household), await uidOf(email), [
+      const hid = await householdId(household);
+      const uid = await uidOf(email);
+      await seedPantry(hid, uid, [
         { id: 'cheese', name: 'Cheese', expiry: inDays(-3) },
         { id: 'milk', name: 'Milk', expiry: inDays(1) },
         { id: 'yogurt', name: 'Greek yogurt', quantity: 6, expiry: inDays(2) },
@@ -43,7 +67,36 @@ for (const dark of [false, true]) {
       await page.getByRole('navigation').getByRole('button', { name: 'Pantry' }).click();
       await expect(page.getByTestId('pantry_item_rice')).toBeVisible();
       await shot(page, `pantry_${suffix}`);
+      await page.getByTestId('fab_add_item').click();
+      await expect(page.getByTestId('sheet_add_item')).toBeVisible();
+      await page.waitForTimeout(400); // the sheet's slide-in
+      await shot(page, `add_item_${suffix}`);
+      await page.keyboard.press('Escape');
+      await expect(page.getByTestId('sheet_add_item')).toHaveCount(0);
+
+      // Home's cards and Insights. Thrown away today keeps the streak line the same on every run; month names
+      // change with the calendar, so they are masked.
+      const [thisMonth, lastMonth] = months();
+      await seedStats(hid, uid, thisMonth, { used: 3, thrown: { expired: 1 }, byDay: { [new Date().getDate()]: 1 } });
+      await seedStats(hid, uid, lastMonth, { used: 12, thrown: { expired: 3, spoiled: 1 }, byDay: { 3: 4 } });
+      await seedActivity(hid, uid, 'Sam', { type: 'stock_added', name: 'Greek yogurt' });
       await page.getByRole('navigation').getByRole('button', { name: 'Home' }).click();
+      await expect(page.getByTestId('card_home_insights')).toContainText('3 used');
+      await expect(page.getByTestId('card_home_activity')).toContainText('Greek yogurt');
+      await page.waitForTimeout(800); // the ring's grow animation
+      await shot(page, `home_cards_${suffix}`);
+      await page.getByTestId('card_home_insights').getByRole('button', { name: 'See insights' }).click();
+      await expect(page.getByTestId('insights_month_details')).toContainText('3 used');
+      await page.waitForTimeout(800);
+      const monthNames = [
+        page.locator('.sn-month-bar__label'),
+        page.getByTestId('insights_month_details').locator('.t-title-small'),
+      ];
+      await shot(page, `insights_${suffix}`, monthNames);
+      await expect(page.getByTestId('card_insights_months')).toHaveScreenshot(`insights_months_${suffix}.png`, {
+        mask: monthNames,
+      });
+      await page.getByRole('button', { name: 'Back' }).click();
 
       await page.getByRole('button', { name: /Open settings/ }).click();
       await expect(page.getByTestId('row_household')).toContainText('The Smiths');

@@ -46,7 +46,9 @@ const FIRESTORE = 'http://127.0.0.1:8080/v1/projects/demo-spoilnot/databases/(de
 /** The emulator's admin access, which bypasses the rules (test data only). */
 const ADMIN = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
 
-type Value = string | number | boolean | null | Date | string[];
+type Value = string | number | boolean | null | Date | string[] | { [key: string]: Value };
+const firestoreFields = (fields: Record<string, Value>) =>
+  Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, firestoreValue(v)]));
 const firestoreValue = (v: Value): object =>
   v === null
     ? { nullValue: null }
@@ -54,16 +56,18 @@ const firestoreValue = (v: Value): object =>
       ? { timestampValue: v.toISOString() }
       : Array.isArray(v)
         ? { arrayValue: { values: v.map((x) => ({ stringValue: x })) } }
-        : typeof v === 'boolean'
-          ? { booleanValue: v }
-          : typeof v === 'number'
-            ? Number.isInteger(v)
-              ? { integerValue: String(v) }
-              : { doubleValue: v }
-            : { stringValue: v };
+        : typeof v === 'object'
+          ? { mapValue: { fields: firestoreFields(v) } }
+          : typeof v === 'boolean'
+            ? { booleanValue: v }
+            : typeof v === 'number'
+              ? Number.isInteger(v)
+                ? { integerValue: String(v) }
+                : { doubleValue: v }
+              : { stringValue: v };
 
 async function put(path: string, fields: Record<string, Value>) {
-  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, firestoreValue(v)])) };
+  const body = { fields: firestoreFields(fields) };
   const response = await fetch(`${FIRESTORE}/${path}`, { method: 'PATCH', headers: ADMIN, body: JSON.stringify(body) });
   if (!response.ok) throw new Error(`seed ${path}: ${response.status} ${await response.text()}`);
 }
@@ -154,6 +158,42 @@ export async function seedPantry(hid: string, uid: string, items: SeedItem[]) {
       });
     }
   }
+}
+
+/** A month's Insights counts ('YYYY-MM'), as the app's increments leave them. */
+export async function seedStats(
+  hid: string,
+  uid: string,
+  month: string,
+  {
+    used = 0,
+    thrown = {},
+    byDay = {},
+  }: { used?: number; thrown?: Record<string, number>; byDay?: Record<number, number> },
+) {
+  await put(`households/${hid}/stats/${month}`, {
+    used,
+    ...thrown,
+    thrownByDay: Object.fromEntries(Object.entries(byDay).map(([day, n]) => [day, n])),
+    updatedAt: new Date(),
+    updatedBy: uid,
+  });
+}
+
+/** One line of Recent activity, written now. */
+export async function seedActivity(
+  hid: string,
+  uid: string,
+  actorName: string,
+  { type, name }: { type: string; name: string },
+) {
+  await put(`households/${hid}/activity/a-${Date.now()}`, {
+    type,
+    actorUid: uid,
+    actorName,
+    params: { name },
+    createdAt: new Date(),
+  });
 }
 
 /** An account's id, from the Auth emulator (accounts:lookup with admin access). */

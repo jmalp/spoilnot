@@ -22,6 +22,8 @@ export function BottomSheet({
   const drag = useRef<{ startY: number; dy: number } | null>(null);
   useEffect(() => {
     const sheet = ref.current;
+    // The sheet itself takes focus, as in the app: VoiceOver starts at its name, and the handle shows no focus ring.
+    if (sheet) sheet.autofocus = true;
     if (sheet && !sheet.open) sheet.showModal();
     return () => sheet?.close();
   }, []);

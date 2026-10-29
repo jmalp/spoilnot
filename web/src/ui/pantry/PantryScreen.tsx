@@ -5,7 +5,6 @@ import { useObservable, useToday } from '../../core/hooks';
 import { str, type StringId } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import {
-  DEFAULT_QUERY,
   ExpiredFold,
   PantryItems,
   type PantryFilter,
@@ -14,11 +13,12 @@ import {
   type PantryQuery,
   type PantrySort,
 } from '../../domain/pantry/items';
-import type { PantryData, StockBatch } from '../../domain/pantry/models';
+import type { PantryData, Product, StockBatch } from '../../domain/pantry/models';
 import type { Undo } from '../../domain/write';
 import { Button, Fab, FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
 import { EmptyState, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { categoryLabel, locationLabel } from './labels';
+import { AddItemSheet, EditItemSheet } from './ItemForm';
 import { OpenedSheet } from './OpenedSheet';
 import { ExpiredHeader, MoveDialog, PantryItemRow, ThrowAwayDialog, type BatchActions } from './PantryRow';
 import './pantry.css';
@@ -34,12 +34,22 @@ const FILTERS: [PantryFilter, StringId][] = [
 ];
 
 /** The Pantry tab (DESIGN 5.2): search, filters, one row per purchase, swipe and menu actions with Undo. */
-export function PantryScreen({ onOpenSettings, joinRequests }: { onOpenSettings: () => void; joinRequests: number }) {
+export function PantryScreen({
+  onOpenSettings,
+  joinRequests,
+  query,
+  onQueryChange: setQuery,
+}: {
+  onOpenSettings: () => void;
+  joinRequests: number;
+  /** Kept by the shell, so the filter and search survive leaving the tab, and Home's cards can set the filter. */
+  query: PantryQuery;
+  onQueryChange: (query: PantryQuery) => void;
+}) {
   const me = useHouseholdSession();
   const { pantry, pantryService, writer, clock } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
-  const [query, setQuery] = useState<PantryQuery>(DEFAULT_QUERY);
   const data$ = useMemo(
     () => pantry.observe(me.householdId).pipe(shareReplay({ bufferSize: 1, refCount: true })),
     [pantry, me.householdId],
@@ -48,6 +58,9 @@ export function PantryScreen({ onOpenSettings, joinRequests }: { onOpenSettings:
   const [throwing, setThrowing] = useState<StockBatch | null>(null);
   const [moving, setMoving] = useState<StockBatch | null>(null);
   const [opening, setOpening] = useState<StockBatch | null>(null);
+  const [editing, setEditing] = useState<StockBatch | null>(null);
+  // An Out staple opens Add item for that product.
+  const [adding, setAdding] = useState<{ prefill: Product | null } | null>(null);
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
 
   // Invariant 1: delete batches that reached 0, whoever notices first.
@@ -111,7 +124,7 @@ export function PantryScreen({ onOpenSettings, joinRequests }: { onOpenSettings:
             icon="round/add"
             label={str('action_add_item')}
             data-testid="fab_add_item"
-            onClick={() => snackbars.show(str('web_coming_soon'))}
+            onClick={() => setAdding({ prefill: null })}
           />
         ) : undefined
       }
@@ -123,7 +136,7 @@ export function PantryScreen({ onOpenSettings, joinRequests }: { onOpenSettings:
         </div>
       ) : empty ? (
         <EmptyState icon="outlined/kitchen" message={str('pantry_empty_body')}>
-          <Button full large data-testid="button_add_first_item" onClick={() => snackbars.show(str('web_coming_soon'))}>
+          <Button full large data-testid="button_add_first_item" onClick={() => setAdding({ prefill: null })}>
             {str('action_add_first_item')}
           </Button>
         </EmptyState>
@@ -172,9 +185,53 @@ export function PantryScreen({ onOpenSettings, joinRequests }: { onOpenSettings:
             query={query}
             today={today}
             actions={actions}
-            onOpen={(item: PantryItem) => void item}
+            onOpen={(item: PantryItem) =>
+              item.kind === 'purchase' ? setEditing(item.batch) : setAdding({ prefill: item.product })
+            }
           />
         </>
+      )}
+      {adding && data && (
+        <AddItemSheet
+          products={data.products}
+          productsWithStock={new Set(data.batches.filter((b) => b.quantity > 0).map((b) => b.productId))}
+          today={today}
+          imperialFirst={me.units === 'imperial'}
+          prefill={adding.prefill}
+          onDismiss={() => setAdding(null)}
+          onSave={(draft) =>
+            void pantryService.add(hid, actor, draft, data).then(
+              (result) => {
+                setAdding(null);
+                snackbars.show(str(result.merged ? 'added_merged_message' : 'added_message', draft.name.trim()));
+              },
+              (e: unknown) => snackbars.show(str(messageId(e))),
+            )
+          }
+        />
+      )}
+      {editing && data && (
+        <EditItemSheet
+          batch={editing}
+          product={data.products.find((p) => p.id === editing.productId) ?? null}
+          canChangeUnit={
+            !data.batches.some((b) => b.productId === editing.productId && b.id !== editing.id && b.quantity > 0)
+          }
+          today={today}
+          imperialFirst={me.units === 'imperial'}
+          onDismiss={() => setEditing(null)}
+          onSave={(edit) => {
+            const batch = editing;
+            act(
+              async () => {
+                const undo = await pantryService.editItem(hid, actor, batch, edit, data);
+                setEditing(null);
+                return undo;
+              },
+              () => str('undo_used_up', batch.productName),
+            );
+          }}
+        />
       )}
       {throwing && (
         <ThrowAwayDialog

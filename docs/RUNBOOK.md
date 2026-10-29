@@ -123,7 +123,9 @@ Everything is in `web/` and needs Node 24. Once: `cd web && npm install && npx p
   as two phones (tests seed data through the emulators' REST APIs, `tests/e2e/support.ts`), and compares the
   screenshots in
   `tests/e2e/__screenshots__/`; after an intended change, `npm run e2e:update` and look at the new images in light,
-  dark and 200% text next to the Android ones.
+  dark and 200% text next to the Android ones. Images within the 1% tolerance are not rewritten; for a small
+  intended change (a line, a color) use `npx playwright test screens --update-snapshots=all` and keep only the
+  images that should change. Month names on Insights are masked, so the images do not change with the calendar.
 - After changing `strings.xml`, the Android theme colors or `icons.txt`: `npm run gen` (CI fails until it is run).
   After changing the launcher icon: `npm run gen && node scripts/gen-app-icons.ts`.
 
