@@ -65,3 +65,17 @@ round/trending_down
 round/expand_less
 round/expand_more
 round/list_alt
+
+# Recipes (W4)
+round/star
+round/star_border
+round/people
+round/language
+round/open_in_new
+round/add_shopping_cart
+round/soup_kitchen
+round/play_arrow
+round/delete
+round/arrow_forward
+round/list
+round/playlist_add_check

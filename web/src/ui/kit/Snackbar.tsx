@@ -26,6 +26,11 @@ export function useSnackbars(): Snackbars {
   return value;
 }
 
+/** The snackbars, or null on screens shown before sign-in, which have none. */
+export function useOptionalSnackbars(): Snackbars | null {
+  return useContext(Context);
+}
+
 /** Shows messages one at a time, in order, at the bottom of the screen and above the navigation bar. */
 export function SnackbarProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Message[]>([]);

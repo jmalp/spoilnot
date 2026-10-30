@@ -1,18 +1,7 @@
 // Aisles (DESIGN 5.3, after v1), ported from AisleGuess and StoreOrder.
 import { CATEGORIES, type Category, type Product } from '../pantry/models';
 import { NameKey } from '../pantry/rules';
-
-/** A plural word in singular (PantryMatch.singular), so "tomatoes" finds "tomato". */
-export function singular(word: string): string {
-  if (word.length <= 3) return word;
-  if (word.endsWith('ies')) return `${word.slice(0, -3)}y`;
-  if (word.endsWith('oes')) return word.slice(0, -2);
-  if (word.endsWith('ches') || word.endsWith('shes') || word.endsWith('sses') || word.endsWith('xes'))
-    return word.slice(0, -2);
-  if (word.endsWith('ss') || word.endsWith('us') || word.endsWith('is')) return word;
-  if (word.endsWith('s')) return word.slice(0, -1);
-  return word;
-}
+import { PantryMatch } from '../recipes/box';
 
 const WORD = /[^\p{L}\p{N}]+/u;
 
@@ -21,7 +10,7 @@ const words = (text: string): string[] =>
   NameKey.of(text)
     .split(WORD)
     .filter((w) => w !== '')
-    .map(singular);
+    .map(PantryMatch.singular);
 
 /** Phrases (singular, lowercase) to aisles. Multi-word phrases win over the words in them. */
 const PHRASES = new Map<string, Category>();

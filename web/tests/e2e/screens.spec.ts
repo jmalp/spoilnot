@@ -11,6 +11,7 @@ import {
   seedGroceries,
   seedMember,
   seedPantry,
+  seedRecipe,
   seedStats,
   signUp,
   uidOf,
@@ -19,7 +20,7 @@ import {
 
 test.skip(!!process.env.CI, 'Linux WebKit draws fonts differently; screenshots are compared on the Mac');
 // Each run walks through every screen so far, with data seeded on the way.
-test.setTimeout(90_000);
+test.setTimeout(180_000);
 
 /** [mask]: test ids, or locators for text without one. */
 async function shot(page: Page, name: string, mask: (string | Locator)[] = []) {
@@ -150,6 +151,36 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('sheet_add_to_pantry')).toBeVisible();
       await page.waitForTimeout(400); // the sheet's slide-in
       await shot(page, `add_to_pantry_${suffix}`);
+      await page.keyboard.press('Escape');
+
+      // Recipes, as the app's RecipeScreenshotTest draws them: a long title with a time and a star, and Pancakes.
+      await seedRecipe(hid, uid, {
+        id: 'curry',
+        title: 'Weeknight chicken curry with rice',
+        totalMinutes: 75,
+        favorite: true,
+      });
+      await seedRecipe(hid, uid, {
+        id: 'pancakes',
+        title: 'Pancakes',
+        servings: 4,
+        totalMinutes: 20,
+        tags: ['Breakfast'],
+        ingredients: ['3 large eggs', 'Salt to taste', '1 extra large onion, diced'],
+        steps: ['Whisk the eggs.', 'Fry in a hot pan.'],
+        createdSecondsAgo: 60,
+      });
+      await page.getByRole('navigation').getByRole('button', { name: 'Recipes' }).click();
+      await expect(page.getByTestId('recipe_card')).toHaveCount(2);
+      await expect(page.locator('[data-remote]')).toHaveCount(0);
+      await shot(page, `recipes_${suffix}`);
+      await page.getByRole('button', { name: 'Pancakes', exact: true }).click();
+      await expect(page.getByTestId('recipe_title')).toHaveText('Pancakes');
+      await shot(page, `recipe_detail_${suffix}`);
+      await page.getByTestId('recipe_add_to_list').click();
+      await expect(page.getByTestId('sheet_add_to_list').getByTestId('candidate')).toHaveCount(3);
+      await page.waitForTimeout(400); // the sheet's slide-in
+      await shot(page, `recipe_add_to_list_${suffix}`);
     });
   }
 }

@@ -11,4 +11,8 @@
     <string name="web_select_date">Select date</string>
     <string name="web_previous_month">Previous month</string>
     <string name="web_next_month">Next month</string>
+    <!-- Recipes are added in the Android app (DESIGN 18.1). -->
+    <string name="web_recipes_empty">Recipes your household saves in the Android app show up here, ready to cook, plan and shop from.</string>
+    <!-- Share without the share sheet (a browser without one): the recipe goes to the clipboard. -->
+    <string name="web_recipe_copied">Recipe copied</string>
 </resources>
