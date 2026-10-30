@@ -138,6 +138,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     the pantry with Undo; Cook keeps the screen on while stepping through. Share opens the iOS share sheet; Open
     original opens Safari. Edit a step, then Delete: Undo brings it back on both phones. A recipe using food that
     expires soon shows under Use it up on Home.
+33. Web app W5 (iPhone and an Android phone in the same household): the Plan tab's week starts on the same day as
+    on Android. Plan a recipe for tonight with yourself as the cook, and Leftovers for lunch: both appear on the
+    Android Plan and on Home's Today card. Change the servings and a note; Cooked takes the scaled amounts off the
+    pantry, with Undo. Move a meal to another day, Undo puts it back. Next week: Copy last week, add the week's
+    ingredients to a grocery list (Meal plan badge), Clear this week and Undo. A meal planned on Android shows on
+    the iPhone within seconds.
 
 ## 3. Conditions
 

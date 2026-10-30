@@ -9,7 +9,11 @@ import { MonthTotals, type InsightsSummary } from '../../domain/insights/insight
 import type { PantryFilter } from '../../domain/pantry/items';
 import type { PantryData } from '../../domain/pantry/models';
 import type { PantryRow } from '../../domain/pantry/rows';
+import type { Member } from '../../domain/household';
+import type { PlannedMeal } from '../../domain/plan/models';
+import { MealWeek, PlanDays } from '../../domain/plan/week';
 import { UseItUp, type UseItUpSuggestion } from '../../domain/recipes/cooking';
+import { CookChip, CookedLabel, cookNames, phoneFirstDay, slotLabel } from '../plan/components';
 import { yearMonthOf, type LocalDate } from '../../domain/time';
 import { Button, Card, Icon, type IconName } from '../kit';
 import { insights$, MonthRing } from '../insights/InsightsScreen';
@@ -32,16 +36,17 @@ export type HomeNavigation = {
   openInsights: () => void;
   openGroceries: () => void;
   openRecipe: (id: string) => void;
+  openPlan: () => void;
   reviewJoinRequests: () => void;
 };
 
 /**
- * The Home tab (DESIGN 5.6): what needs attention, Use it up, low stock, the grocery list, this month's kitchen (5.7)
- * and recent activity. Today's meals join with the Plan tab (W5).
+ * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), Use it up, low stock, the grocery list, this
+ * month's kitchen (5.7) and recent activity.
  */
 export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavigation; joinRequests: number }) {
   const me = useHouseholdSession();
-  const { pantry, grocery, activity, stats, recipes, clock } = useServices();
+  const { pantry, grocery, activity, stats, recipes, mealPlan, households, clock } = useServices();
   const today = useToday(clock);
   const hid = me.householdId;
   const data = useObservable<PantryData | null>(
@@ -80,6 +85,23 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
     null,
   );
   const box = useObservable(recipes.box$, null);
+  // The same week window as the Plan tab, so both share one full read (DESIGN 9.8).
+  const weekStart = MealWeek.start(today, phoneFirstDay());
+  const todayMeals = useObservable<PlannedMeal[]>(
+    useMemo(
+      () =>
+        mealPlan.observe(hid, weekStart, MealWeek.end(weekStart)).pipe(
+          map((plan) => PlanDays.meals(MealWeek.build(weekStart, plan.meals, today).find((d) => d.isToday)!)),
+          catchError(() => of([])),
+        ),
+      [mealPlan, hid, weekStart, today],
+    ),
+    [],
+  );
+  const members = useObservable<Member[]>(
+    useMemo(() => households.observeMembers(hid).pipe(catchError(() => of([]))), [households, hid]),
+    [],
+  );
   const summary = data ? HomeDashboard.summary(data, groceryItems, recent, today) : null;
   // Saved recipes that use food expiring soon (DESIGN 5.6).
   const useItUp = data && box ? UseItUp.suggestions(box.recipes, data, today) : [];
@@ -103,6 +125,8 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
             navigation={navigation}
             insights={insights}
             useItUp={useItUp}
+            todayMeals={todayMeals}
+            members={members}
           />
         )}
       </div>
@@ -117,6 +141,8 @@ function HomeCards({
   navigation,
   insights,
   useItUp,
+  todayMeals,
+  members,
 }: {
   summary: HomeSummary;
   today: LocalDate;
@@ -124,6 +150,8 @@ function HomeCards({
   navigation: HomeNavigation;
   insights: InsightsSummary | null;
   useItUp: UseItUpSuggestion[];
+  todayMeals: PlannedMeal[];
+  members: Member[];
 }) {
   const { clock } = useServices();
   const now = useNow(clock);
@@ -150,6 +178,9 @@ function HomeCards({
           <AttentionRow key={row.productId} row={row} today={today} />
         ))}
       </HomeCard>
+      {todayMeals.length > 0 && (
+        <TodayCard meals={todayMeals} members={members} myUid={myUid} onOpen={navigation.openPlan} />
+      )}
       {useItUp.length > 0 && <UseItUpCard suggestions={useItUp} today={today} onOpen={navigation.openRecipe} />}
       <HomeCard
         title={str('home_low_stock')}
@@ -201,6 +232,46 @@ function HomeCards({
         ))}
       </HomeCard>
     </>
+  );
+}
+
+/** Today's planned meals and who cooks them (DESIGN 5.9). Shown only when something is planned. */
+function TodayCard({
+  meals,
+  members,
+  myUid,
+  onOpen,
+}: {
+  meals: PlannedMeal[];
+  members: Member[];
+  myUid: string;
+  onOpen: () => void;
+}) {
+  return (
+    <HomeCard
+      title={str('home_today')}
+      icon="round/calendar_month"
+      testId="card_home_today"
+      action={[str('home_today_open'), onOpen]}
+    >
+      {meals.map((meal) => {
+        const cooks = cookNames(meal.cooks, members, myUid);
+        return (
+          <div key={meal.id} className="sn-today-meal">
+            <span className="t-label-medium c-on-surface-variant">{slotLabel(meal.slot)}</span>
+            <span className="t-body-large sn-home-row__name">{meal.title}</span>
+            {(cooks.length > 0 || meal.cookedAt !== null) && (
+              <span className="sn-meal-row__details">
+                {cooks.map((name) => (
+                  <CookChip key={name} name={name} />
+                ))}
+                {meal.cookedAt !== null && <CookedLabel />}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </HomeCard>
   );
 }
 

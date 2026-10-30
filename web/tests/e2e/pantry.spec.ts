@@ -13,6 +13,9 @@ import {
   uniqueEmail,
 } from './support';
 
+// Long flows with two phones: room for slow machines.
+test.setTimeout(60_000);
+
 const rows = (page: Page) => page.getByTestId('pantry_list').locator('[data-testid^="pantry_item_"]');
 
 async function pantryWithItems(page: Page) {

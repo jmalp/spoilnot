@@ -50,6 +50,12 @@
   overflow: hidden;
   overflow-wrap: anywhere;
 }
+.sn-today-meal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
 .sn-use-it-up {
   display: flex;
   flex-direction: column;

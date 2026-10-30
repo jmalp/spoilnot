@@ -9,6 +9,8 @@ import type { StatsRepository } from '../domain/insights/insights';
 import type { RecipeService } from '../domain/recipes/service';
 import type { RecipeStore } from '../domain/recipes/store';
 import type { PantryRepository } from '../domain/pantry/repository';
+import type { MealPlanRepository } from '../domain/plan/models';
+import type { MealPlanService } from '../domain/plan/service';
 import type { PantryService } from '../domain/pantry/service';
 import type { Session, SessionManager } from '../domain/session';
 import type { Clock } from '../domain/time';
@@ -30,6 +32,8 @@ export type Services = {
   /** The recipe box, one listener shared by the recipe screens. */
   recipes: RecipeStore;
   recipeService: RecipeService;
+  mealPlan: MealPlanRepository;
+  mealPlanService: MealPlanService;
   activity: ActivityRepository;
   stats: StatsRepository;
   clock: Clock;

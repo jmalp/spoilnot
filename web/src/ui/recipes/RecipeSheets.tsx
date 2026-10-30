@@ -205,7 +205,7 @@ export function AddToGrocerySheet({
   );
 }
 
-function CandidateRow({
+export function CandidateRow({
   candidate,
   selected,
   onChange,
@@ -257,7 +257,7 @@ const MAX_SUGGESTIONS = 4;
  * "Change": what a recipe line goes on the list as. Pantry products that fit what is typed are offered; picking one
  * uses its name and usual amount, and the household remembers the choice for this ingredient.
  */
-function RenameDialog({
+export function RenameDialog({
   candidate,
   products,
   onSave,
