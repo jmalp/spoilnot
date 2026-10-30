@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { AppPreferences, PREFERENCE_KEYS } from './preferences';
 
 describe('AppPreferences', () => {
-  it('starts with System, the Spoil Not green and the tour to take', () => {
-    expect(new AppPreferences(null).get()).toEqual({ themeMode: 'system', colorTheme: 'spoilnot', tourDone: false });
+  it('starts with System, the Spoil Not green and notifications not explained yet', () => {
+    expect(new AppPreferences(null).get()).toEqual({
+      themeMode: 'system',
+      colorTheme: 'spoilnot',
+      notificationExplainerShown: false,
+    });
   });
 
   it('keeps choices on the phone and tells listeners', () => {
@@ -16,8 +20,12 @@ describe('AppPreferences', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(prefs.get()).not.toBe(before);
     expect(localStorage.getItem(PREFERENCE_KEYS.colorTheme)).toBe('fiery');
-    prefs.set({ tourDone: true });
-    expect(new AppPreferences(localStorage).get()).toEqual({ themeMode: 'dark', colorTheme: 'fiery', tourDone: true });
+    prefs.set({ notificationExplainerShown: true });
+    expect(new AppPreferences(localStorage).get()).toEqual({
+      themeMode: 'dark',
+      colorTheme: 'fiery',
+      notificationExplainerShown: true,
+    });
   });
 
   it('reads an unknown or Android-only value as the default', () => {
@@ -29,7 +37,7 @@ describe('AppPreferences', () => {
 
   it('works without storage, for the session', () => {
     const prefs = new AppPreferences(null);
-    prefs.set({ tourDone: true });
-    expect(prefs.get().tourDone).toBe(true);
+    prefs.set({ notificationExplainerShown: true });
+    expect(prefs.get().notificationExplainerShown).toBe(true);
   });
 });

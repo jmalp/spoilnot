@@ -1,0 +1,55 @@
+/* Settings > Notifications (NotificationSettingsScreen in the app): 16 px padding and gaps, switch rows of at least
+   56 px, check and radio rows of 48 px, and an errorContainer card when reminders cannot appear. */
+.sn-notifications {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+.sn-notifications h2 {
+  margin: 0;
+}
+.sn-notifications__banner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+.sn-notifications__banner p {
+  margin: 0;
+}
+.sn-notifications__banner .m3-button--text {
+  margin-left: -12px;
+  color: var(--md-sys-color-primary);
+}
+.sn-notifications__toggle {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface);
+}
+.sn-notifications__toggle-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+.sn-notifications__help {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-notifications__choices {
+  display: flex;
+  flex-direction: column;
+  margin: -8px -12px 0;
+}
+.sn-notifications__choice {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface);
+}

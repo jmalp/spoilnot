@@ -65,7 +65,6 @@ export function TabScaffold({
               label={joinRequests > 0 ? `${str('open_settings')} (${joinRequests})` : str('open_settings')}
               badge={joinRequests}
               onClick={onOpenSettings}
-              data-tour="tour_settings"
             />
           </>
         }

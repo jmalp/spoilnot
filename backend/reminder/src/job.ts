@@ -12,6 +12,11 @@ export interface Message {
   notification: { title: string; body: string };
   data: Record<string, string>;
   android: { priority: 'high'; notification: { channelId: string; tag: string } };
+  /**
+   * For the web app's tokens (DESIGN 18.4): the same title and body, shown by its service worker, which opens
+   * `data.route` when tapped. Android ignores it.
+   */
+  webpush: { headers: { Urgency: 'high' }; notification: { title: string; body: string; tag: string; icon: string } };
 }
 
 /** Per-message outcome; `deadToken` means the token should be deleted. */
@@ -53,6 +58,8 @@ export const ROUTE = '/pantry?filter=expiring';
 /** A digest with only meals opens the Plan tab (after v1, DESIGN 5.9). */
 export const PLAN_ROUTE = '/plan';
 const CHANNEL = 'expiry';
+/** The web app's icon, relative to its origin (web/public/icons). */
+export const WEB_ICON = '/icons/icon-192.png';
 const ACTIVITY_DAYS = 30;
 const JOIN_REQUEST_DAYS = 7;
 /** Deleted documents stay as tombstones this long (longer than the phones' daily full read, DESIGN 9.8). */
@@ -167,6 +174,10 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
         notification: { title: digest.title, body: digest.body },
         data: { type: 'expiry_digest', route: digest.mealsOnly ? PLAN_ROUTE : ROUTE, date: local.date },
         android: { priority: 'high', notification: { channelId: CHANNEL, tag: 'expiry_digest' } },
+        webpush: {
+          headers: { Urgency: 'high' },
+          notification: { title: digest.title, body: digest.body, tag: 'expiry_digest', icon: WEB_ICON },
+        },
       }));
       if (dryRun) {
         // Workflow logs are public with the repository: counts only, never a user ID, item names or meal titles.

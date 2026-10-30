@@ -9,19 +9,9 @@ export function uniqueEmail(name: string): string {
   return `${name.toLowerCase()}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
 }
 
-/**
- * Opens the app on a fresh phone. The app tour is marked taken unless [tour] (EmulatorSupport.skipAppTour in the
- * Android tests), and only the first time, so a test can take it again from Settings.
- */
-export async function openApp(page: Page, { dark = false, textScale = 1, tour = false } = {}) {
+export async function openApp(page: Page, { dark = false, textScale = 1 } = {}) {
   await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' });
-  await page.addInitScript(
-    ([scale, tourDone]) => {
-      localStorage.setItem('spoilnot.textScale', String(scale));
-      if (localStorage.getItem('spoilnot.tourDone') === null) localStorage.setItem('spoilnot.tourDone', tourDone);
-    },
-    [String(textScale), String(!tour)] as const,
-  );
+  await page.addInitScript((scale) => localStorage.setItem('spoilnot.textScale', String(scale)), textScale);
   await page.goto('/');
 }
 
@@ -80,6 +70,46 @@ async function put(path: string, fields: Record<string, Value>) {
   const body = { fields: firestoreFields(fields) };
   const response = await fetch(`${FIRESTORE}/${path}`, { method: 'PATCH', headers: ADMIN, body: JSON.stringify(body) });
   if (!response.ok) throw new Error(`seed ${path}: ${response.status} ${await response.text()}`);
+}
+
+/** Changes only [fields] of a document, keeping the others (an update mask). */
+export async function patchFields(path: string, fields: Record<string, Value>) {
+  const mask = Object.keys(fields)
+    .map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`)
+    .join('&');
+  const body = { fields: firestoreFields(fields) };
+  const response = await fetch(`${FIRESTORE}/${path}?${mask}`, {
+    method: 'PATCH',
+    headers: ADMIN,
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`patch ${path}: ${response.status} ${await response.text()}`);
+}
+
+type RestValue = {
+  stringValue?: string;
+  integerValue?: string;
+  doubleValue?: number;
+  booleanValue?: boolean;
+  timestampValue?: string;
+  mapValue?: { fields?: Record<string, RestValue> };
+  arrayValue?: { values?: RestValue[] };
+};
+const plain = (v: RestValue): unknown =>
+  v.mapValue
+    ? Object.fromEntries(Object.entries(v.mapValue.fields ?? {}).map(([k, x]) => [k, plain(x)]))
+    : v.arrayValue
+      ? (v.arrayValue.values ?? []).map(plain)
+      : v.integerValue !== undefined
+        ? Number(v.integerValue)
+        : (v.stringValue ?? v.doubleValue ?? v.booleanValue ?? v.timestampValue ?? null);
+
+/** A document's fields as plain values, as the server has them; null when it does not exist. */
+export async function readFields(path: string): Promise<Record<string, unknown> | null> {
+  const response = await fetch(`${FIRESTORE}/${path}`, { headers: ADMIN });
+  if (response.status === 404) return null;
+  const json = (await response.json()) as { fields?: Record<string, RestValue> };
+  return Object.fromEntries(Object.entries(json.fields ?? {}).map(([k, v]) => [k, plain(v)]));
 }
 
 /**

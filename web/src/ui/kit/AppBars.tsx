@@ -36,8 +36,6 @@ export type NavigationItem<T extends string> = {
   label: string;
   icon: IconName;
   selectedIcon: IconName;
-  /** The app tour's mark for this tab (DESIGN 5.8). */
-  tour?: string;
 };
 
 /** The bottom NavigationBar: filled icon and pill when selected, outlined icon otherwise, labels always shown. */
@@ -61,7 +59,6 @@ export function NavigationBar<T extends string>({
             className="m3-navigation-bar__item"
             aria-current={isSelected ? 'page' : undefined}
             data-testid={`tab_${item.id}`}
-            data-tour={item.tour}
             onClick={() => onSelect(item.id)}
             onPointerDown={ripple}
           >

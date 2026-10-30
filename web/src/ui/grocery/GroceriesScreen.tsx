@@ -384,7 +384,7 @@ function QuickAddField({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="sn-pantry-search sn-quick-add sn-anchor" data-tour="tour_quick_add">
+    <div className="sn-pantry-search sn-quick-add sn-anchor">
       <TextField
         label=""
         aria-label={str('grocery_quick_add')}

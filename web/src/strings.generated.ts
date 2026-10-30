@@ -588,7 +588,9 @@ export const STRINGS = {
   "web_about_version": "Spoil Not for iPhone, build %1$s",
   "web_about_privacy_body": "Spoil Not keeps only what it needs: your email and display name, your household's pantry, lists and recipes, this phone's notification token and time zone. Only members of your household can see household data. There are no ads, no analytics and no crash reports. You can export your data or delete your account at any time in Settings.",
   "web_license_link": "Project page",
-  "web_tour_recipes": "Recipes your household saves in the Android app show up here. Open one to cook it, plan it or put what you're missing on the grocery list."
+  "web_notif_install": "To get reminders on iPhone, add Spoil Not to your Home Screen: tap Share, then Add to Home Screen, and open it from there.",
+  "web_notif_denied": "Turn them on in the iPhone's Settings, under Notifications, then Spoil Not.",
+  "web_notif_unsupported": "This browser cannot show Spoil Not's reminders. On iPhone, add Spoil Not to the Home Screen from Safari."
 } as const;
 
 export const PLURALS = {

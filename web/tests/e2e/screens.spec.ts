@@ -139,6 +139,11 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('licenses')).toBeVisible();
       await shot(page, `about_${suffix}`);
       await page.getByRole('button', { name: 'Back' }).click();
+      // Settings > Notifications as Safari shows it before the app is on the Home Screen.
+      await page.getByTestId('row_notifications').click();
+      await expect(page.getByTestId('notifications_banner')).toBeVisible();
+      await shot(page, `notifications_${suffix}`);
+      await page.getByRole('button', { name: 'Back' }).click();
 
       // Groceries: the kinds of rows the app's GroceryRowTest draws, and the Add to pantry sheet.
       await seedMember(hid, 'u-jordan', 'Jordan');
@@ -241,27 +246,6 @@ for (const dark of [false, true]) {
         page.getByTestId('plan_week_range'),
         page.getByTestId('sheet_add_meal').locator('h2'),
       ]);
-
-      // The app tour from Settings (the app's tour_welcome and tour_home screenshots).
-      await page.keyboard.press('Escape');
-      await expect(page.getByTestId('sheet_add_meal')).toHaveCount(0);
-      await page.getByRole('button', { name: /Open settings/ }).click();
-      await page.getByTestId('row_take_tour').click();
-      await expect(page.getByTestId('coach_mark_card')).toContainText('Welcome to Spoil Not');
-      // Settings behind the card from the top, where the click on the row scrolled it, with the household row loaded.
-      await expect(page.getByTestId('row_household')).toContainText('2 members');
-      await page.getByTestId('screen_settings').evaluate((el) => (el.scrollTop = 0));
-      // Fixed text, as on the Settings screenshot: the household's name has the run's time and wraps differently.
-      await page
-        .getByTestId('row_household')
-        .locator('.m3-list-item__supporting')
-        .evaluate((el) => (el.textContent = 'The Smiths · 2 members'));
-      await page.getByTestId('account_email').evaluate((el) => (el.textContent = 'sam@example.com'));
-      await shot(page, `tour_welcome_${suffix}`);
-      await page.getByTestId('coach_mark_next').click();
-      await expect(page.getByTestId('coach_mark_card')).toContainText('1 of 10');
-      await page.waitForTimeout(300); // the hole follows the card's place on screen
-      await shot(page, `tour_home_${suffix}`, [page.locator('.sn-home-card').getByText(/ago|Just now/)]);
     });
   }
 }

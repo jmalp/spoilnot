@@ -144,15 +144,20 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     pantry, with Undo. Move a meal to another day, Undo puts it back. Next week: Copy last week, add the week's
     ingredients to a grocery list (Meal plan badge), Clear this week and Undo. A meal planned on Android shows on
     the iPhone within seconds.
-34. Web app W6a (iPhone, a new install, same household as an Android phone): the tour starts on Home; tapping Pantry
-    in the highlight moves it on, Skip tour ends it and it does not come back; Settings > Take the app tour starts it
-    again. Settings > Appearance: Dark, then Fiery Palette change the whole app at once and stay after closing and
+34. Web app W6a (iPhone, same household as an Android phone): Settings > Appearance: Dark, then Fiery Palette change the whole app at once and stay after closing and
     opening it; System follows the iPhone again. Units: Metric shows on the Android phone's Settings too. Export:
     Safari asks to download `spoilnot-export-<date>.json`; it opens in Files and lists the pantry. About: the build,
     the privacy summary and the licenses; tap one for its text. As the owner, Clear household data: Yes, then a wrong
     password is refused, the right one clears the pantry, lists, recipes and plan on both phones, and Recent activity
     starts with "You cleared the household's data". Larger Text at the largest size: Theme and Units become lists of
-    radio buttons.
+    radio buttons. There is no app tour on the iPhone.
+35. Web app W6b (an iPhone with iOS 16.4 or later and a deployed build, W7): in Safari, Settings > Notifications asks
+    to add Spoil Not to the Home Screen. Add it and open it from there. Add three items with dates: the third explains
+    reminders; Turn on shows the iPhone's question, Allow. Settings > Notifications has no banner; Send test
+    notification shows one, and tapping it opens Pantry on Expiring soon. Set the time to the next hour: the digest
+    arrives shortly after it, on the iPhone and the Android phone, with the same words; tapping it opens Pantry on
+    Expiring soon (or Plan when only meals are listed). Turn notifications off for Spoil Not in the iPhone's Settings:
+    the banner says where to turn them on. Sign out: the next digest does not reach this iPhone.
 
 ## 3. Conditions
 

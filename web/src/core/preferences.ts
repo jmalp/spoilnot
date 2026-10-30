@@ -1,5 +1,5 @@
 // Small settings kept on this phone, not in the household (AppPreferences in the app, DESIGN 7.3): System, Light or
-// Dark, the color theme and whether the app tour was taken. Stored in localStorage; without it (private browsing)
+// Dark, the color theme and whether notifications were explained. Stored in localStorage; without it (private browsing)
 // they last until the app closes.
 import { DEFAULT_THEME, isThemeId, type ThemeId } from '../theme/theme';
 
@@ -11,14 +11,14 @@ export type Preferences = {
   themeMode: ThemeMode;
   /** Settings > Appearance > Colors (DESIGN 6.4); the web app has no Wallpaper (18.1), so Spoil Not green. */
   colorTheme: ThemeId;
-  /** The app tour (DESIGN 5.8) was finished or skipped on this phone; false starts it in the household app. */
-  tourDone: boolean;
+  /** The notification explanation (DESIGN 5.4) was answered or not needed; it is not shown again. */
+  notificationExplainerShown: boolean;
 };
 
 export const PREFERENCE_KEYS = {
   themeMode: 'spoilnot.themeMode',
   colorTheme: 'spoilnot.colorTheme',
-  tourDone: 'spoilnot.tourDone',
+  notificationExplainerShown: 'spoilnot.notificationExplainerShown',
 } as const;
 
 function defaultStorage(): Storage | null {
@@ -48,7 +48,7 @@ export class AppPreferences {
       themeMode: THEME_MODES.includes(mode as ThemeMode) ? (mode as ThemeMode) : 'system',
       // A theme only Android has (Wallpaper) shows as the Spoil Not green.
       colorTheme: isThemeId(theme) ? theme : DEFAULT_THEME,
-      tourDone: read(PREFERENCE_KEYS.tourDone) === 'true',
+      notificationExplainerShown: read(PREFERENCE_KEYS.notificationExplainerShown) === 'true',
     };
   }
 

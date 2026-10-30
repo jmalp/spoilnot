@@ -118,7 +118,12 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
   await page.getByTestId('recipe_delete_confirm').click();
   await expect(page.getByTestId('screen_recipes')).toBeVisible();
   await expect(cards(page)).toHaveCount(1);
-  await page.getByRole('button', { name: 'Undo' }).click();
+  // Snackbars come one at a time: the Undo of this one, not I cooked this's.
+  await page
+    .getByRole('status')
+    .filter({ hasText: 'Deleted Green curry with rice' })
+    .getByRole('button', { name: 'Undo' })
+    .click();
   await expect(cards(page)).toHaveCount(2);
 
   // What the recipe added and used shows on the other tabs.

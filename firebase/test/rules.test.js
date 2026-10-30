@@ -606,6 +606,16 @@ describe('profiles and devices', () => {
     await assertFails(setDoc(doc(as('frank'), 'users/frank'), { ...profile('Frank', null), lastDigestDate: '2026-10-15' }));
   });
 
+  it('a device is an Android phone or the web app, with a token', async () => {
+    const db = as('alice');
+    const device = (fields) => setDoc(doc(db, 'users/alice/devices/d2'), fields);
+    await assertSucceeds(device({ token: 'w'.repeat(160), platform: 'web', appVersion: 'web abc1234' }));
+    await assertSucceeds(device({ token: 'a'.repeat(160), platform: 'android' }));
+    await assertFails(device({ token: 'i'.repeat(160), platform: 'ios' }));
+    await assertFails(device({ token: 'short', platform: 'web' }));
+    await assertFails(setDoc(doc(as('bob'), 'users/alice/devices/d3'), { token: 'w'.repeat(160), platform: 'web' }));
+  });
+
   it('a user can delete their own profile and devices', async () => {
     const db = as('alice');
     await assertSucceeds(deleteDoc(doc(db, 'users/alice/devices/d1')));
