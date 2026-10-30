@@ -5,6 +5,7 @@ import { str, type StringId } from '../core/i18n';
 import { useNav } from '../core/NavProvider';
 import { useHouseholdSession, useServices } from '../core/services';
 import { DeepLinks, OPEN_ROUTE_MESSAGE } from '../core/deepLinks';
+import { onUpdateReady } from '../core/updates';
 import { DEFAULT_QUERY, type PantryQuery } from '../domain/pantry/items';
 import { DEFAULT_RECIPE_QUERY, type RecipeQuery } from '../domain/recipes/box';
 import { GroceriesScreen } from './grocery/GroceriesScreen';
@@ -21,7 +22,7 @@ import { NotificationSettingsScreen } from './notifications/NotificationSettings
 import { AboutScreen } from './settings/AboutScreen';
 import { SettingsScreen } from './settings/SettingsScreen';
 import { top, type Route, type Tab } from '../core/navigation';
-import { NavigationBar, SnackbarProvider, type IconName, type NavigationItem } from './kit';
+import { NavigationBar, SnackbarProvider, useSnackbars, type IconName, type NavigationItem } from './kit';
 import { EmptyState, TabScaffold } from './Scaffold';
 import './shell.css';
 
@@ -50,11 +51,22 @@ export function AppShell() {
       <div className="sn-shell__main">
         <SnackbarProvider>
           <Screen tab={nav.state.tab} route={route} />
+          <UpdatePrompt />
         </SnackbarProvider>
       </div>
       <NavigationBar items={TAB_ITEMS} selected={nav.state.tab} onSelect={nav.selectTab} />
     </div>
   );
+}
+
+/** A new version is ready (DESIGN 18.5): Update reloads into it; otherwise it starts with the next launch. */
+function UpdatePrompt() {
+  const snackbars = useSnackbars();
+  useEffect(
+    () => onUpdateReady((apply) => snackbars.showAction(str('web_update_ready'), str('web_update_reload'), apply)),
+    [snackbars],
+  );
+  return null;
 }
 
 function Screen({ tab, route }: { tab: Tab; route: Route }) {

@@ -9,9 +9,21 @@ export function uniqueEmail(name: string): string {
   return `${name.toLowerCase()}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
 }
 
-export async function openApp(page: Page, { dark = false, textScale = 1 } = {}) {
+/**
+ * Opens the app on a fresh phone. Home's Add to Home Screen card (the test browser is Safari on an iPhone) is put
+ * away unless [installHelp], and only the first time, so a test can see it come and go.
+ */
+export async function openApp(page: Page, { dark = false, textScale = 1, installHelp = false } = {}) {
   await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' });
-  await page.addInitScript((scale) => localStorage.setItem('spoilnot.textScale', String(scale)), textScale);
+  await page.addInitScript(
+    ([scale, dismissed]) => {
+      localStorage.setItem('spoilnot.textScale', scale);
+      if (localStorage.getItem('spoilnot.installHelpDismissed') === null) {
+        localStorage.setItem('spoilnot.installHelpDismissed', dismissed);
+      }
+    },
+    [String(textScale), String(!installHelp)] as const,
+  );
   await page.goto('/');
 }
 
@@ -29,7 +41,7 @@ export async function signUp(page: Page, name: string, email = uniqueEmail(name)
 export async function createHousehold(page: Page, name: string) {
   await page.getByLabel('Household name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 }
 
 /** A new phone (browser context) signed up with its own household, on Home. */

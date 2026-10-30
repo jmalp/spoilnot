@@ -1,5 +1,5 @@
 // Small settings kept on this phone, not in the household (AppPreferences in the app, DESIGN 7.3): System, Light or
-// Dark, the color theme and whether notifications were explained. Stored in localStorage; without it (private browsing)
+// Dark, the color theme, whether notifications were explained and whether the Add to Home Screen card was put away. Stored in localStorage; without it (private browsing)
 // they last until the app closes.
 import { DEFAULT_THEME, isThemeId, type ThemeId } from '../theme/theme';
 
@@ -13,12 +13,15 @@ export type Preferences = {
   colorTheme: ThemeId;
   /** The notification explanation (DESIGN 5.4) was answered or not needed; it is not shown again. */
   notificationExplainerShown: boolean;
+  /** Home's Add to Home Screen card (DESIGN 18.1) was answered Not now. */
+  installHelpDismissed: boolean;
 };
 
 export const PREFERENCE_KEYS = {
   themeMode: 'spoilnot.themeMode',
   colorTheme: 'spoilnot.colorTheme',
   notificationExplainerShown: 'spoilnot.notificationExplainerShown',
+  installHelpDismissed: 'spoilnot.installHelpDismissed',
 } as const;
 
 function defaultStorage(): Storage | null {
@@ -49,6 +52,7 @@ export class AppPreferences {
       // A theme only Android has (Wallpaper) shows as the Spoil Not green.
       colorTheme: isThemeId(theme) ? theme : DEFAULT_THEME,
       notificationExplainerShown: read(PREFERENCE_KEYS.notificationExplainerShown) === 'true',
+      installHelpDismissed: read(PREFERENCE_KEYS.installHelpDismissed) === 'true',
     };
   }
 

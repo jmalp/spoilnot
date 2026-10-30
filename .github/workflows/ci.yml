@@ -134,15 +134,17 @@ jobs:
         run: npm run gen:check
       - name: Format, lint, types, unit tests, build
         run: npm run check
-      - name: Browser tests in WebKit against the emulators (screenshots are compared locally, DESIGN 18.7)
+      - name: Browser tests in WebKit against the emulators (screenshots are compared locally, DESIGN 18.7), then the build under the hosting headers (18.6)
         run: |
           npx playwright install --with-deps webkit
           cd ../firebase && npx firebase emulators:exec --project demo-spoilnot --only auth,firestore \
-            "cd ../web && npx playwright test"
-      - name: Upload the browser test report on failure
+            "cd ../web && npx playwright test && npx playwright test -c playwright.preview.config.ts"
+      - name: Upload the browser test reports on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: web-report
-          path: web/playwright-report/
+          path: |
+            web/playwright-report/
+            web/playwright-report-preview/
           retention-days: 7

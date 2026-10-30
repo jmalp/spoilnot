@@ -2,7 +2,14 @@
 // emulator-only project demo-spoilnot on the Firebase emulators (./scripts/emulators.sh), like the Android dev debug
 // build; deploy builds get the project's web config from scripts/deploy-web.sh (W7).
 import { initializeApp, type FirebaseApp, type FirebaseOptions } from 'firebase/app';
-import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  connectAuthEmulator,
+  indexedDBLocalPersistence,
+  initializeAuth,
+  type Auth,
+} from 'firebase/auth';
 import {
   clearIndexedDbPersistence,
   connectFirestoreEmulator,
@@ -35,7 +42,11 @@ export class FirebaseSdk {
 
   constructor(options: FirebaseOptions | null, name?: string) {
     this.app = initializeApp(options ?? EMULATOR_CONFIG, name);
-    this.auth = getAuth(this.app);
+    // getAuth's persistence, without its pop-up and redirect sign-in: email and password need neither, and leaving it
+    // out keeps the hidden auth iframe off the page (DESIGN 18.6: frame-src 'none').
+    this.auth = initializeAuth(this.app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+    });
     this.emulatorHost = options ? null : emulatorHost();
     if (this.emulatorHost)
       connectAuthEmulator(this.auth, `http://${this.emulatorHost}:9099`, { disableWarnings: true });

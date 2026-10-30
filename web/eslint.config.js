@@ -5,7 +5,17 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'dev-dist', 'playwright-report', 'test-results', '**/*.generated.ts'] },
+  {
+    ignores: [
+      'dist',
+      'dev-dist',
+      'playwright-report',
+      'playwright-report-preview',
+      'test-results',
+      'test-results-preview',
+      '**/*.generated.ts',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.strict,
   reactHooks.configs.flat['recommended-latest'],

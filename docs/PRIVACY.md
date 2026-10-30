@@ -38,7 +38,9 @@ Export saves the file on the phone; nothing is uploaded.
 
 ## Other services
 
-- **Firebase** (Google): Authentication, Firestore and Cloud Messaging run the app.
+- **Firebase** (Google): Authentication, Firestore and Cloud Messaging run the app. Spoil Not for iPhone is served
+  by Firebase Hosting, which sees ordinary page requests (as any website's host does); the app adds no analytics.
+- **Apple's web push service** delivers the iPhone web app's reminders, as Google's delivers Android's.
 - **Crash reports** (Firebase Crashlytics) are optional. They contain the crash's technical details, the device model
   and the Android version, and no names, emails or household data. Turn them off in Settings.
 - **Recipe websites**: when you import a recipe or browse in the built-in browser, the phone contacts that website

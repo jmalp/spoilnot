@@ -7,6 +7,7 @@ import { LAUNCHER_MONOCHROME } from '../icons.generated';
 import { Button, ErrorText, TextField } from '../kit';
 import { FormColumn, PasswordField } from '../forms';
 import { DetailScaffold } from '../Scaffold';
+import { WelcomeInstallLine } from '../install/InstallHelp';
 import './auth.css';
 
 type Screen = { name: 'welcome' } | { name: 'signIn' } | { name: 'signUp' } | { name: 'reset'; email: string };
@@ -31,7 +32,7 @@ export function AuthFlow() {
 
 function WelcomeScreen({ onCreateAccount, onSignIn }: { onCreateAccount: () => void; onSignIn: () => void }) {
   return (
-    <div className="sn-welcome" data-testid="screen_welcome">
+    <main className="sn-welcome" data-testid="screen_welcome">
       <div className="sn-welcome__column">
         <div className="sn-welcome__icon" aria-hidden>
           <svg viewBox="0 0 108 108" width="112" height="112">
@@ -49,8 +50,9 @@ function WelcomeScreen({ onCreateAccount, onSignIn }: { onCreateAccount: () => v
         <Button variant="outlined" full large onClick={onSignIn}>
           {str('action_sign_in')}
         </Button>
+        <WelcomeInstallLine />
       </div>
-    </div>
+    </main>
   );
 }
 

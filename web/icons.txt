@@ -87,3 +87,6 @@ round/keyboard_arrow_left
 round/download
 round/school
 round/info
+
+# Install help (W7)
+round/ios_share
