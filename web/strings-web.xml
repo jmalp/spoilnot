@@ -15,4 +15,6 @@
     <string name="web_recipes_empty">Recipes your household saves in the Android app show up here, ready to cook, plan and shop from.</string>
     <!-- Share without the share sheet (a browser without one): the recipe goes to the clipboard. -->
     <string name="web_recipe_copied">Recipe copied</string>
+    <!-- The meal planner's recipe picker with no recipes: they are saved in the Android app. -->
+    <string name="web_plan_no_recipes">No saved recipes yet. Save some in the Android app, or plan something else above.</string>
 </resources>

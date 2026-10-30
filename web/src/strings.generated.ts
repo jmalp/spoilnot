@@ -583,7 +583,8 @@ export const STRINGS = {
   "web_previous_month": "Previous month",
   "web_next_month": "Next month",
   "web_recipes_empty": "Recipes your household saves in the Android app show up here, ready to cook, plan and shop from.",
-  "web_recipe_copied": "Recipe copied"
+  "web_recipe_copied": "Recipe copied",
+  "web_plan_no_recipes": "No saved recipes yet. Save some in the Android app, or plan something else above."
 } as const;
 
 export const PLURALS = {

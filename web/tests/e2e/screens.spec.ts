@@ -9,6 +9,7 @@ import {
   openApp,
   seedActivity,
   seedGroceries,
+  seedMeal,
   seedMember,
   seedPantry,
   seedRecipe,
@@ -181,6 +182,49 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('sheet_add_to_list').getByTestId('candidate')).toHaveCount(3);
       await page.waitForTimeout(400); // the sheet's slide-in
       await shot(page, `recipe_add_to_list_${suffix}`);
+      await page.keyboard.press('Escape');
+
+      // Plan, as the app's PlanScreenshotTest draws it: a cooked meal, Leftovers, two cooks and a deleted recipe.
+      // Next week, so the layout does not change with the weekday; the dates are masked.
+      await page.getByRole('navigation').getByRole('button', { name: 'Plan' }).click();
+      await page.getByTestId('plan_next_week').click();
+      const first = (await page.locator('[data-testid^="plan_day_"]').first().getAttribute('data-testid'))!.slice(9);
+      const second = (await page.locator('[data-testid^="plan_day_"]').nth(1).getAttribute('data-testid'))!.slice(9);
+      const meals = [
+        {
+          id: 'm2',
+          date: first,
+          slot: 'breakfast',
+          title: 'Pancakes',
+          recipeId: 'pancakes',
+          servings: 2,
+          cooks: ['u-jordan'],
+          cooked: true,
+        },
+        { id: 'm4', date: first, slot: 'lunch', title: 'Leftovers' },
+        {
+          id: 'm3',
+          date: first,
+          slot: 'dinner',
+          title: 'Weeknight chicken curry with rice',
+          recipeId: 'curry',
+          servings: 4,
+          cooks: [uid, 'u-jordan'],
+        },
+        { id: 'm5', date: second, slot: 'dinner', title: 'Old soup', recipeId: 'gone', servings: 3 },
+      ] as const;
+      for (const m of meals) await seedMeal(hid, uid, { ...m, cooks: 'cooks' in m ? [...m.cooks] : [] });
+      await expect(page.getByTestId('plan_days')).toContainText('Old soup');
+      await expect(page.locator('[data-remote]')).toHaveCount(0);
+      const planDates = [page.getByTestId('plan_week_range'), page.locator('.sn-day-card__header h2')];
+      await shot(page, `plan_${suffix}`, planDates);
+      await page.getByTestId(`plan_add_${second}_lunch`).click();
+      await expect(page.getByTestId('plan_pick_pancakes')).toBeVisible();
+      await page.waitForTimeout(400); // the sheet's slide-in
+      await shot(page, `plan_add_meal_${suffix}`, [
+        page.getByTestId('plan_week_range'),
+        page.getByTestId('sheet_add_meal').locator('h2'),
+      ]);
     });
   }
 }

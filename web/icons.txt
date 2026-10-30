@@ -79,3 +79,6 @@ round/delete
 round/arrow_forward
 round/list
 round/playlist_add_check
+
+# Plan (W5)
+round/keyboard_arrow_left

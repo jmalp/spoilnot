@@ -1,0 +1,172 @@
+/* The Plan tab (DESIGN 5.9), as PlanScreen and PlanSheets lay it out. */
+
+.sn-week-header {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  flex: none;
+}
+.sn-week-header__range {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+.sn-week-this {
+  flex: none;
+  align-self: stretch;
+}
+.sn-plan-divider {
+  height: 1px;
+  margin: 0;
+  border: none;
+  background: var(--md-sys-color-outline-variant);
+  flex: none;
+}
+.sn-plan-days {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-day-card {
+  padding: 12px 16px;
+  scroll-margin-top: 16px;
+}
+/* Today has a thicker border and a "Today" label, never color alone. */
+.m3-card--outlined.sn-day-card--today {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+.sn-day-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-day-card__header h2 {
+  margin: 0;
+  min-width: 0;
+}
+.sn-day-card--past .sn-day-card__header h2 {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-today-badge {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.sn-slot-row {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+}
+.sn-slot-row > span {
+  flex: 1;
+}
+.sn-meal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 0 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+  font: inherit;
+}
+.sn-meal-row__title {
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.sn-meal-row__details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.sn-cook-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-cooked-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--md-sys-color-primary);
+}
+
+.sn-chip-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sn-other-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.sn-other-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.sn-picker {
+  display: flex;
+  flex-direction: column;
+}
+.sn-picker__item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+  font: inherit;
+}
+.sn-picker__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.sn-meal-servings {
+  display: flex;
+  align-items: center;
+}
+.sn-meal-servings__value {
+  min-width: 48px;
+  text-align: center;
+}
+.sn-cooked-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-cooked-row > span:nth-child(2) {
+  flex: 1;
+}
+.sn-week-section {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 4px;
+}
+.sn-week-section h3 {
+  margin: 0;
+}

@@ -288,6 +288,38 @@ export async function seedRecipe(hid: string, uid: string, r: SeedRecipe) {
   });
 }
 
+export type SeedMeal = {
+  id: string;
+  date: string;
+  slot: 'breakfast' | 'lunch' | 'dinner';
+  title: string;
+  recipeId?: string | null;
+  servings?: number | null;
+  cooks?: string[];
+  cooked?: boolean;
+};
+
+/** Writes a planned meal as the app would. */
+export async function seedMeal(hid: string, uid: string, m: SeedMeal) {
+  const now = new Date();
+  await put(`households/${hid}/meals/${m.id}`, {
+    date: m.date,
+    slot: m.slot,
+    position: 0,
+    recipeId: m.recipeId ?? null,
+    title: m.title,
+    servings: m.servings ?? null,
+    cooks: m.cooks ?? [],
+    note: null,
+    cookedAt: m.cooked ? now : null,
+    cookedBy: m.cooked ? (m.cooks?.[0] ?? uid) : null,
+    createdAt: now,
+    createdBy: uid,
+    updatedAt: now,
+    updatedBy: uid,
+  });
+}
+
 /** One line of Recent activity, written now. */
 export async function seedActivity(
   hid: string,

@@ -10,6 +10,7 @@ import { GroceriesScreen } from './grocery/GroceriesScreen';
 import { HomeScreen } from './home/HomeScreen';
 import { HouseholdSettingsScreen } from './household/HouseholdSettingsScreen';
 import { InsightsScreen } from './insights/InsightsScreen';
+import { PlanScreen } from './plan/PlanScreen';
 import { CookModeScreen } from './recipes/CookModeScreen';
 import { RecipeDetailScreen } from './recipes/RecipeDetailScreen';
 import { RecipeEditScreen } from './recipes/RecipeEditScreen';
@@ -74,6 +75,7 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
   const [pantryQuery, setPantryQuery] = useState<PantryQuery>(DEFAULT_QUERY);
   const [groceryListId, setGroceryListId] = useState<string | null>(null);
   const [recipeQuery, setRecipeQuery] = useState<RecipeQuery>(DEFAULT_RECIPE_QUERY);
+  const [planWeek, setPlanWeek] = useState(0);
   // A recipe opens on the tab it was tapped in (RecipeDetailRoute(id, currentTab) in the app).
   const openRecipe = (id: string) => nav.navigate({ name: 'recipe', id });
   const openSettings = () => nav.navigate({ name: 'settings' });
@@ -111,6 +113,7 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
           openInsights: () => nav.navigate({ name: 'insights' }),
           openGroceries: () => nav.showRoot('groceries'),
           openRecipe,
+          openPlan: () => nav.showRoot('plan'),
           reviewJoinRequests: () => nav.navigate({ name: 'householdSettings' }),
         }}
       />
@@ -123,6 +126,17 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
         joinRequests={joinRequests}
         query={pantryQuery}
         onQueryChange={setPantryQuery}
+      />
+    );
+  }
+  if (tab === 'plan') {
+    return (
+      <PlanScreen
+        onOpenSettings={openSettings}
+        joinRequests={joinRequests}
+        weekOffset={planWeek}
+        onWeekOffset={setPlanWeek}
+        onOpenRecipe={openRecipe}
       />
     );
   }
