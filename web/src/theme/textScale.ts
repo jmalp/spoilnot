@@ -65,7 +65,13 @@ export function textScale(): number {
 /** The text sizes in the type scale and the kit, in sp. */
 export const SP_SIZES = [11, 12, 14, 16, 20, 22, 24, 28, 32, 36, 40, 44, 45, 52, 57, 64] as const;
 
+let applied = 1;
+
+/** The scale applyTextScale set, for layouts that change at large sizes (fontScale in the app). */
+export const appliedTextScale = (): number => applied;
+
 export function applyTextScale(scale = textScale()): void {
+  applied = scale;
   const root = document.documentElement.style;
   root.fontSize = `${BASE_PX * scale}px`;
   for (const sp of SP_SIZES) root.setProperty(`--sp-${sp}`, `${Math.round(scaledSp(sp, scale) * 100) / 100}px`);

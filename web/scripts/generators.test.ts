@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { innerSvg, launcherSvg, names } from './gen-icons.ts';
+import { productionPackages, projectUrl } from './gen-licenses.ts';
 import { parse, unescape } from './gen-strings.ts';
 import { parseSchemes, parseStatus, parseThemes } from './gen-theme.ts';
 
@@ -69,5 +70,35 @@ describe('gen-icons', () => {
     expect(svg).toContain('viewBox="18 18 72 72"');
     expect(svg).toContain('<rect width="108" height="108" fill="#2e7d5b"/>');
     expect(svg).toContain('<path fill="#f5fbf5" fill-rule="evenodd" d="M1,1Z"/>');
+  });
+});
+
+describe('gen-licenses', () => {
+  it('lists run-time packages once, by name, without dev or type packages', () => {
+    const lock = {
+      packages: {
+        '': { version: '0.0.0' },
+        'node_modules/react': { version: '19.3.1', license: 'MIT' },
+        'node_modules/vite': { version: '8.0.0', license: 'MIT', dev: true },
+        'node_modules/fsevents': { version: '2.3.3', license: 'MIT', devOptional: true },
+        'node_modules/@types/node': { version: '24.0.0', license: 'MIT' },
+        'node_modules/a/node_modules/@firebase/app': { version: '0.16.4', license: 'Apache-2.0' },
+        'node_modules/@firebase/app': { version: '0.16.4', license: 'Apache-2.0' },
+      },
+    };
+    expect(productionPackages(lock).map((p) => `${p.name}@${p.version} ${p.license}`)).toEqual([
+      '@firebase/app@0.16.4 Apache-2.0',
+      'react@19.3.1 MIT',
+    ]);
+  });
+
+  it('links each package to its homepage or repository', () => {
+    expect(projectUrl({ homepage: 'https://rxjs.dev' })).toBe('https://rxjs.dev');
+    expect(projectUrl({ repository: { url: 'git+https://github.com/firebase/firebase-js-sdk.git' } })).toBe(
+      'https://github.com/firebase/firebase-js-sdk',
+    );
+    expect(projectUrl({ repository: 'git://github.com/x/y.git' })).toBe('https://github.com/x/y');
+    expect(projectUrl({ repository: 'facebook/react' })).toBe('https://github.com/facebook/react');
+    expect(projectUrl({})).toBeNull();
   });
 });

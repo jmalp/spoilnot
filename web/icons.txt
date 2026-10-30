@@ -82,3 +82,8 @@ round/playlist_add_check
 
 # Plan (W5)
 round/keyboard_arrow_left
+
+# Settings (W6)
+round/download
+round/school
+round/info

@@ -5,6 +5,8 @@
 // - When the membership disappears (removed, or the household was deleted) it clears the profile pointer, which
 //   returns the user to the gate; whenever a household is left for any reason the local cache is cleared.
 // - Sign-out and account deletion pause all listeners while local data is cleared.
+// - A profile that loses its household pointer waits a moment before the gate: the web SDK can raise the server's
+//   older copy of the profile between the acknowledgement of this phone's own write and the newer version.
 import {
   BehaviorSubject,
   catchError,
@@ -59,6 +61,8 @@ const noHousehold = (user: AuthUser, displayName: string, join: JoinState | null
 
 /** Decide from a settled session, not a momentary Loading while listeners reconnect. */
 const SETTLE_TIMEOUT_MS = 10_000;
+/** How long a lost household pointer must stay lost before the gate (the stale copy is replaced within moments). */
+export const POINTER_SETTLE_MS = 1_000;
 const backoffMs = (attempt: number) => 1_000 * 2 ** Math.min(attempt, 5);
 
 export class SessionManager {
@@ -77,6 +81,7 @@ export class SessionManager {
     private readonly households: HouseholdRepository,
     private readonly localData: LocalData,
     private readonly devices: DeviceRegistry,
+    private readonly pointerSettleMs = POINTER_SETTLE_MS,
   ) {
     this.session$ = combineLatest([
       auth.authUser$.pipe(distinctUntilChanged((a, b) => a?.uid === b?.uid)),
@@ -168,20 +173,31 @@ export class SessionManager {
   }
 
   private sessionFor(user: AuthUser): Observable<Session> {
+    let hadHousehold = false;
     const source = this.users.observeProfile(user.uid).pipe(
       switchMap((profile): Observable<Session> => {
-        if (profile === null) {
-          return concat(
-            of(LOADING),
-            defer(() => this.users.createProfileIfMissing(user.uid, this.displayNameFor(user))).pipe(ignoreElements()),
-          );
+        const lostHousehold = hadHousehold && profile?.householdId == null;
+        hadHousehold = profile?.householdId != null;
+        if (lostHousehold) {
+          // A pointer that comes right back (a stale copy of the profile) never shows the gate or clears the cache.
+          return timer(this.pointerSettleMs).pipe(switchMap(() => this.profileSession(user, profile)));
         }
-        if (profile.householdId !== null) return this.watchMembership(user, profile, profile.householdId);
-        if (profile.pendingJoin !== null) return this.watchJoinRequest(user, profile, profile.pendingJoin);
-        return of(noHousehold(user, profile.displayName, null));
+        return this.profileSession(user, profile);
       }),
     );
     return withRetry(source);
+  }
+
+  private profileSession(user: AuthUser, profile: UserProfile | null): Observable<Session> {
+    if (profile === null) {
+      return concat(
+        of(LOADING),
+        defer(() => this.users.createProfileIfMissing(user.uid, this.displayNameFor(user))).pipe(ignoreElements()),
+      );
+    }
+    if (profile.householdId !== null) return this.watchMembership(user, profile, profile.householdId);
+    if (profile.pendingJoin !== null) return this.watchJoinRequest(user, profile, profile.pendingJoin);
+    return of(noHousehold(user, profile.displayName, null));
   }
 
   private watchMembership(user: AuthUser, profile: UserProfile, householdId: string): Observable<Session> {

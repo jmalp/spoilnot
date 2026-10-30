@@ -144,6 +144,15 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     pantry, with Undo. Move a meal to another day, Undo puts it back. Next week: Copy last week, add the week's
     ingredients to a grocery list (Meal plan badge), Clear this week and Undo. A meal planned on Android shows on
     the iPhone within seconds.
+34. Web app W6a (iPhone, a new install, same household as an Android phone): the tour starts on Home; tapping Pantry
+    in the highlight moves it on, Skip tour ends it and it does not come back; Settings > Take the app tour starts it
+    again. Settings > Appearance: Dark, then Fiery Palette change the whole app at once and stay after closing and
+    opening it; System follows the iPhone again. Units: Metric shows on the Android phone's Settings too. Export:
+    Safari asks to download `spoilnot-export-<date>.json`; it opens in Files and lists the pantry. About: the build,
+    the privacy summary and the licenses; tap one for its text. As the owner, Clear household data: Yes, then a wrong
+    password is refused, the right one clears the pantry, lists, recipes and plan on both phones, and Recent activity
+    starts with "You cleared the household's data". Larger Text at the largest size: Theme and Units become lists of
+    radio buttons.
 
 ## 3. Conditions
 

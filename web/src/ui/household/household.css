@@ -85,10 +85,6 @@
 .sn-stack > p {
   margin: 0;
 }
-.sn-settings__card-title {
-  margin: 0;
-  padding: 16px 16px 0;
-}
 .sn-dialog-form {
   display: flex;
   flex-direction: column;

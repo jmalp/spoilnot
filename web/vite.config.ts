@@ -1,10 +1,22 @@
 // The web app's build (DESIGN 18). `npm run dev` serves it against the Firebase emulators; `npm run build` writes
 // dist/ with a service worker that caches the app shell (18.5).
+import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
-export default defineConfig({
+/** The build shown in Settings > About and written in exports: the commit, or "dev" when serving. */
+function buildId(command: string): string {
+  if (command !== 'build') return 'dev';
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+export default defineConfig(({ command }) => ({
+  define: { __APP_BUILD__: JSON.stringify(buildId(command)) },
   plugins: [
     react(),
     VitePWA({
@@ -14,7 +26,7 @@ export default defineConfig({
       injectRegister: false,
       registerType: 'prompt',
       manifest: false, // public/manifest.webmanifest, linked from index.html
-      injectManifest: { globPatterns: ['**/*.{js,css,html,woff2,svg,png,webmanifest}'] },
+      injectManifest: { globPatterns: ['**/*.{js,css,html,woff2,svg,png,webmanifest,json}'] },
     }),
   ],
   // Firebase Auth and Firestore with offline persistence are most of the ~900 kB; the service worker caches it.
@@ -24,4 +36,4 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts'],
     setupFiles: ['src/test-setup.ts'],
   },
-});
+}));

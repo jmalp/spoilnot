@@ -125,6 +125,7 @@ export function PantryScreen({
             icon="round/add"
             label={str('action_add_item')}
             data-testid="fab_add_item"
+            data-tour="tour_add_item"
             onClick={() => setAdding({ prefill: null })}
           />
         ) : undefined
@@ -137,7 +138,13 @@ export function PantryScreen({
         </div>
       ) : empty ? (
         <EmptyState icon="outlined/kitchen" message={str('pantry_empty_body')}>
-          <Button full large data-testid="button_add_first_item" onClick={() => setAdding({ prefill: null })}>
+          <Button
+            full
+            large
+            data-testid="button_add_first_item"
+            data-tour="tour_add_item"
+            onClick={() => setAdding({ prefill: null })}
+          >
             {str('action_add_first_item')}
           </Button>
         </EmptyState>
@@ -303,7 +310,7 @@ function PantryList({
   // A backlog of expired food folds into one header; its rows show on request.
   const fold = ExpiredFold.of(groups, query);
   return (
-    <div className="sn-pantry-list" data-testid="pantry_list" onScroll={onScroll}>
+    <div className="sn-pantry-list" data-testid="pantry_list" data-tour="tour_pantry_list" onScroll={onScroll}>
       {fold && (
         <>
           <ExpiredHeader

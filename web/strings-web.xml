@@ -17,4 +17,10 @@
     <string name="web_recipe_copied">Recipe copied</string>
     <!-- The meal planner's recipe picker with no recipes: they are saved in the Android app. -->
     <string name="web_plan_no_recipes">No saved recipes yet. Save some in the Android app, or plan something else above.</string>
+    <!-- Settings > About (DESIGN 18.1): the web build, and the privacy summary without crash reports. -->
+    <string name="web_about_version">Spoil Not for iPhone, build %1$s</string>
+    <string name="web_about_privacy_body">Spoil Not keeps only what it needs: your email and display name, your household\'s pantry, lists and recipes, this phone\'s notification token and time zone. Only members of your household can see household data. There are no ads, no analytics and no crash reports. You can export your data or delete your account at any time in Settings.</string>
+    <string name="web_license_link">Project page</string>
+    <!-- The app tour's recipes step (DESIGN 5.8): the web app shows saved recipes but adds none. -->
+    <string name="web_tour_recipes">Recipes your household saves in the Android app show up here. Open one to cook it, plan it or put what you\'re missing on the grocery list.</string>
 </resources>

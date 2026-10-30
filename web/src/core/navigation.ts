@@ -10,6 +10,7 @@ export type Route =
   | { name: 'root' }
   | { name: 'settings' }
   | { name: 'householdSettings' }
+  | { name: 'about' }
   | { name: 'insights' }
   | { name: 'recipe'; id: string }
   | { name: 'recipeEdit'; id: string }
@@ -17,8 +18,9 @@ export type Route =
 
 export type NavState = { tab: Tab; stacks: Record<Tab, Route[]> };
 
-/** Screens that close when their tab is left, like Settings in the app. */
-export const closesOnLeave = (route: Route) => route.name === 'settings' || route.name === 'householdSettings';
+/** Screens that close when their tab is left, like Settings and its screens in the app. */
+export const closesOnLeave = (route: Route) =>
+  route.name === 'settings' || route.name === 'householdSettings' || route.name === 'about';
 
 export function initialNav(tab: Tab = START): NavState {
   const stacks = Object.fromEntries(TABS.map((t) => [t, [{ name: 'root' }]])) as Record<Tab, Route[]>;

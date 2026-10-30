@@ -32,6 +32,9 @@ const request = (status: JoinRequestStatus): JoinRequest => ({
 
 /** Lets promises and subscriptions settle (advanceUntilIdle). */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+/** How long a lost household pointer waits before the gate, in these tests. */
+const POINTER_MS = 10;
+const settlePointer = () => new Promise((resolve) => setTimeout(resolve, POINTER_MS * 3));
 
 class FakeAuth implements AuthRepository {
   readonly user = new BehaviorSubject<AuthUser | null>(null);
@@ -141,7 +144,7 @@ describe('SessionManager', () => {
 
   const manager = async () => {
     const repo = new Proxy(households, { get: (t, k) => (k in t ? t[k as keyof FakeHouseholds] : unused) });
-    const m = new SessionManager(auth, users, repo as unknown as HouseholdRepository, localData, noDevices);
+    const m = new SessionManager(auth, users, repo as unknown as HouseholdRepository, localData, noDevices, POINTER_MS);
     await settle();
     return m;
   };
@@ -186,10 +189,23 @@ describe('SessionManager', () => {
     auth.user.next(sam);
     const m = await manager();
     households.membership('h1', 'sam').next({ kind: 'gone' });
-    await settle();
+    await settlePointer();
     expect(m.session).toEqual({ kind: 'noHousehold', user: sam, displayName: 'Sam', join: null });
     expect(users.profile('sam')?.householdId).toBeNull();
     expect(clears).toBe(1);
+  });
+
+  it('a stale copy of the profile without the household for a moment neither shows the gate nor clears data', async () => {
+    users.put(profile('h1'));
+    households.membership('h1', 'sam').next({ kind: 'active', role: 'owner' });
+    auth.user.next(sam);
+    const m = await manager();
+    users.put(profile(null));
+    await settle();
+    users.put(profile('h1'));
+    await settlePointer();
+    expect(m.session.kind).toBe('inHousehold');
+    expect(clears).toBe(0);
   });
 
   it('a membership already gone at start still clears the stale pointer and cache', async () => {
@@ -197,6 +213,7 @@ describe('SessionManager', () => {
     households.membership('h1', 'sam').next({ kind: 'gone' });
     auth.user.next(sam);
     const m = await manager();
+    await settlePointer();
     expect(m.session).toEqual({ kind: 'noHousehold', user: sam, displayName: 'Sam', join: null });
     expect(users.profile('sam')?.householdId).toBeNull();
     expect(clears).toBe(1);
@@ -208,7 +225,7 @@ describe('SessionManager', () => {
     auth.user.next(sam);
     const m = await manager();
     await households.leave('h1', 'sam');
-    await settle();
+    await settlePointer();
     expect(m.session).toEqual({ kind: 'noHousehold', user: sam, displayName: 'Sam', join: null });
     expect(clears).toBe(1);
   });

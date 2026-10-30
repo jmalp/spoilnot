@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { map, of } from 'rxjs';
 import { useObservable } from '../core/hooks';
 import { str, type StringId } from '../core/i18n';
@@ -6,6 +6,7 @@ import { useNav } from '../core/NavProvider';
 import { useHouseholdSession, useServices } from '../core/services';
 import { DEFAULT_QUERY, type PantryQuery } from '../domain/pantry/items';
 import { DEFAULT_RECIPE_QUERY, type RecipeQuery } from '../domain/recipes/box';
+import { Tour, type TourStepId, type TourTarget } from '../domain/tour/tour';
 import { GroceriesScreen } from './grocery/GroceriesScreen';
 import { HomeScreen } from './home/HomeScreen';
 import { HouseholdSettingsScreen } from './household/HouseholdSettingsScreen';
@@ -16,10 +17,14 @@ import { RecipeDetailScreen } from './recipes/RecipeDetailScreen';
 import { RecipeEditScreen } from './recipes/RecipeEditScreen';
 import { RecipesScreen } from './recipes/RecipesScreen';
 import { PantryScreen } from './pantry/PantryScreen';
+import { AboutScreen } from './settings/AboutScreen';
 import { SettingsScreen } from './settings/SettingsScreen';
 import { top, type Route, type Tab } from '../core/navigation';
 import { NavigationBar, SnackbarProvider, type IconName, type NavigationItem } from './kit';
 import { EmptyState, TabScaffold } from './Scaffold';
+import { markOf } from './tour/CoachMarks';
+import { TourRunner } from './tour/runner';
+import { TourOverlay } from './tour/TourOverlay';
 import './shell.css';
 
 /** The bottom-bar tabs in display order, with their icons (TopLevelDestination in the app). */
@@ -36,12 +41,28 @@ export const TAB_ITEMS: NavigationItem<Tab>[] = (
   label: str(label as StringId),
   icon: `outlined/${icon}` as IconName,
   selectedIcon: `round/${icon}` as IconName,
+  tour: id === 'home' ? undefined : `tour_tab_${id}`,
 }));
 
 /** The signed-in app (DESIGN 6.2): five tabs in a bottom navigation bar, each with its own back stack. */
 export function AppShell() {
   const nav = useNav();
   const route = top(nav.state);
+  const { preferences } = useServices();
+  const [tour] = useState(() => new TourRunner(preferences));
+  useEffect(() => tour.start(), [tour]);
+  const step = useSyncExternalStore(tour.subscribe, tour.get);
+  useTourNavigation(step);
+  // A tap on a marked element can move a follow-along step on (DESIGN 5.8); the tap still does its work.
+  useEffect(() => {
+    if (step === null) return;
+    const onTap = (event: MouseEvent) => {
+      const mark = markOf(event.target);
+      if (mark) tour.on({ type: 'targetTapped', target: mark as TourTarget });
+    };
+    document.addEventListener('click', onTap, { capture: true });
+    return () => document.removeEventListener('click', onTap, { capture: true });
+  }, [tour, step]);
   return (
     <div className="sn-shell">
       <div className="sn-shell__main">
@@ -49,9 +70,29 @@ export function AppShell() {
           <Screen tab={nav.state.tab} route={route} />
         </SnackbarProvider>
       </div>
-      <NavigationBar items={TAB_ITEMS} selected={nav.state.tab} onSelect={nav.selectTab} />
+      <NavigationBar
+        items={TAB_ITEMS}
+        selected={nav.state.tab}
+        onSelect={(tab) => {
+          nav.selectTab(tab);
+          tour.on({ type: 'tabOpened', tab });
+        }}
+      />
+      {step && <TourOverlay key={step} step={step} onEvent={tour.on} />}
     </div>
   );
+}
+
+/** Each tour step starts on its tab, at the tab's root (Next may move on to another tab). */
+function useTourNavigation(step: TourStepId | null) {
+  const nav = useNav();
+  const shownFor = useRef<TourStepId | null>(null);
+  useEffect(() => {
+    if (step === shownFor.current) return;
+    shownFor.current = step;
+    const tab = step && Tour.step(step).tab;
+    if (tab && (nav.state.tab !== tab || top(nav.state).name !== 'root')) nav.showRoot(tab);
+  }, [step, nav]);
 }
 
 function Screen({ tab, route }: { tab: Tab; route: Route }) {
@@ -80,9 +121,16 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
   const openRecipe = (id: string) => nav.navigate({ name: 'recipe', id });
   const openSettings = () => nav.navigate({ name: 'settings' });
   if (route.name === 'settings') {
-    return <SettingsScreen onBack={nav.back} onOpenHousehold={() => nav.navigate({ name: 'householdSettings' })} />;
+    return (
+      <SettingsScreen
+        onBack={nav.back}
+        onOpenHousehold={() => nav.navigate({ name: 'householdSettings' })}
+        onOpenAbout={() => nav.navigate({ name: 'about' })}
+      />
+    );
   }
   if (route.name === 'householdSettings') return <HouseholdSettingsScreen onBack={nav.back} />;
+  if (route.name === 'about') return <AboutScreen onBack={nav.back} />;
   if (route.name === 'insights') return <InsightsScreen onBack={nav.back} />;
   if (route.name === 'recipe') {
     return (

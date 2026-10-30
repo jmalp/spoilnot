@@ -1,5 +1,5 @@
-// Households, membership and joining (feature/household/data/FirestoreHouseholdRepository in the app). Clear
-// household data (resetData) comes with Settings in W6.
+// Households, membership and joining (feature/household/data/FirestoreHouseholdRepository in the app), and Clear
+// household data.
 import {
   collection,
   doc,
@@ -10,6 +10,7 @@ import {
   type DocumentReference,
   type DocumentSnapshot,
   type Firestore,
+  type WriteBatch,
 } from 'firebase/firestore';
 import { catchError, distinctUntilChanged, filter, map, of, switchMap, throwError, type Observable } from 'rxjs';
 import { isAppError } from '../core/errors';
@@ -25,6 +26,8 @@ import {
   type Membership,
   type Role,
 } from '../domain/household';
+import type { Actor } from '../domain/write';
+import { Tombstones } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import {
   commitConfirmed,
@@ -338,6 +341,56 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     batch.delete(doc(db, householdPath(household.id)));
     batch.update(doc(db, UserFields.path(uid)), profilePointer(null));
     await commitConfirmed(batch);
+  }
+
+  async resetData(householdId: string, actor: Actor): Promise<void> {
+    const db = this.sdk.current;
+    const base = householdPath(householdId);
+    const read = async (path: string) => (await mapped(getDocsFromServer(collection(db, path)))).docs;
+    const live = async (path: string) => (await read(path)).filter((d) => !Tombstones.is(d));
+    const ops: ((batch: WriteBatch) => void)[] = [];
+    const tombstone = Tombstones.fields(actor);
+    // Tombstones, not deletes: other phones read only what changed (DESIGN 9.8) and must see these go.
+    for (const name of ['products', 'stock', 'recipes', 'meals']) {
+      for (const d of await live(`${base}/${name}`)) ops.push((b) => b.set(d.ref, tombstone, { merge: true }));
+    }
+    for (const list of await read(`${base}/groceryLists`)) {
+      const items = (await mapped(getDocsFromServer(collection(list.ref, 'items')))).docs;
+      if (list.get('isDefault') === true) {
+        items
+          .filter((d) => !Tombstones.is(d))
+          .forEach((d) => ops.push((b) => b.set(d.ref, tombstone, { merge: true })));
+        ops.push((b) =>
+          b.update(list.ref, {
+            name: HouseholdRules.DEFAULT_GROCERY_LIST_NAME,
+            aisleOrder: [],
+            updatedAt: serverTimestamp(),
+          }),
+        );
+      } else {
+        // Nothing listens to a deleted list's items, so they go for real.
+        items.forEach((d) => ops.push((b) => b.delete(d.ref)));
+        ops.push((b) => b.delete(list.ref));
+      }
+    }
+    for (const name of ['activity', 'stats']) {
+      (await read(`${base}/${name}`)).forEach((d) => ops.push((b) => b.delete(d.ref)));
+    }
+    // Last, so Recent activity everywhere starts from here (older events cached on a phone are hidden).
+    ops.push((b) =>
+      b.set(doc(collection(db, `${base}/activity`)), {
+        type: 'household_reset',
+        actorUid: actor.uid,
+        actorName: actor.name,
+        params: {},
+        createdAt: serverTimestamp(),
+      }),
+    );
+    for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      ops.slice(i, i + BATCH_LIMIT).forEach((op) => op(batch));
+      await commitConfirmed(batch);
+    }
   }
 
   /** Every document under the household, deepest first, read from the server so nothing is missed. */

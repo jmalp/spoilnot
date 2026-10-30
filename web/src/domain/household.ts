@@ -1,6 +1,7 @@
 // Households, members and joining (DESIGN 5.1), ported from feature/household/domain.
 import type { Observable } from 'rxjs';
 import type { PendingJoin } from './account';
+import type { Actor } from './write';
 
 export type Role = 'owner' | 'member';
 
@@ -101,6 +102,11 @@ export interface HouseholdRepository {
   leave(householdId: string, uid: string): Promise<void>;
   /** Deletes every subcollection, then the household; requires a connection. */
   deleteHousehold(household: Household, uid: string): Promise<void>;
+  /**
+   * Clear household data (owner, DESIGN 5.1): the pantry, grocery lists, recipes, meals, Recent activity and
+   * Insights go for every member; the household, its members and invite code stay. Requires a connection.
+   */
+  resetData(householdId: string, actor: Actor): Promise<void>;
 }
 
 /** The phone's copy of household data. */

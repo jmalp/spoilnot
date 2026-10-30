@@ -107,7 +107,7 @@ export function RecipesScreen({
             onSelect={(f) => onQueryChange({ ...query, filter: f })}
           />
           {list.length === 0 && <p className="t-body-large sn-recipe-no-matches">{str('recipe_no_matches')}</p>}
-          <div className="sn-recipe-grid" data-testid="recipe_grid" onScroll={onScroll}>
+          <div className="sn-recipe-grid" data-testid="recipe_grid" data-tour="tour_recipe_list" onScroll={onScroll}>
             {list.map((recipe) => (
               <RecipeCard
                 key={recipe.id}
