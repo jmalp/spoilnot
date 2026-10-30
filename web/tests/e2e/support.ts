@@ -9,9 +9,19 @@ export function uniqueEmail(name: string): string {
   return `${name.toLowerCase()}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
 }
 
-export async function openApp(page: Page, { dark = false, textScale = 1 } = {}) {
+/**
+ * Opens the app on a fresh phone. The app tour is marked taken unless [tour] (EmulatorSupport.skipAppTour in the
+ * Android tests), and only the first time, so a test can take it again from Settings.
+ */
+export async function openApp(page: Page, { dark = false, textScale = 1, tour = false } = {}) {
   await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' });
-  await page.addInitScript((scale) => localStorage.setItem('spoilnot.textScale', String(scale)), textScale);
+  await page.addInitScript(
+    ([scale, tourDone]) => {
+      localStorage.setItem('spoilnot.textScale', String(scale));
+      if (localStorage.getItem('spoilnot.tourDone') === null) localStorage.setItem('spoilnot.tourDone', tourDone);
+    },
+    [String(textScale), String(!tour)] as const,
+  );
   await page.goto('/');
 }
 

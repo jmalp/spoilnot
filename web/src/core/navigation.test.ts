@@ -54,7 +54,7 @@ describe('navigation', () => {
   it('leaving a tab closes Settings on it but keeps other screens', () => {
     let s = selectTab(initialNav(), 'pantry');
     s = navigate(navigate(navigate(s, recipe('r1')), settings), householdSettings);
-    s = navigate(selectTab(s, 'groceries'), settings);
+    s = navigate(navigate(selectTab(s, 'groceries'), settings), { name: 'about' });
     s = selectTab(s, 'pantry');
     expect(s.stacks.pantry).toEqual([{ name: 'root' }, recipe('r1')]);
     expect(s.stacks.groceries).toEqual([{ name: 'root' }]);

@@ -1,6 +1,16 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Dialog, FilterChip, IconButton, SnackbarProvider, TextField, UNDO_WINDOW_MS, useSnackbars } from '.';
+import { applyTextScale } from '../../theme/textScale';
+import {
+  Dialog,
+  FilterChip,
+  IconButton,
+  Segmented,
+  SnackbarProvider,
+  TextField,
+  UNDO_WINDOW_MS,
+  useSnackbars,
+} from '.';
 
 describe('kit', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -22,6 +32,31 @@ describe('kit', () => {
     const input = screen.getByLabelText('Email');
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAccessibleDescription('Enter a valid email');
+  });
+
+  it('segmented buttons are radio buttons with a check on the choice, and a radio list at large text', () => {
+    const onPick = vi.fn();
+    const props = {
+      label: 'Theme',
+      options: ['system', 'light', 'dark'] as const,
+      selected: 'light' as const,
+      optionLabel: (o: string) => o.toUpperCase(),
+      onPick,
+    };
+    const { unmount } = render(<Segmented {...props} />);
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toHaveAttribute('data-testid', 'segmented_row');
+    expect(screen.getByRole('radio', { name: 'LIGHT' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'LIGHT' }).querySelector('svg')).not.toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'DARK' }));
+    expect(onPick).toHaveBeenCalledWith('dark');
+    unmount();
+    applyTextScale(2);
+    render(<Segmented {...props} />);
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toHaveAttribute('data-testid', 'segmented_list');
+    expect(screen.getByRole('radio', { name: 'LIGHT' })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: 'SYSTEM' }));
+    expect(onPick).toHaveBeenCalledWith('system');
+    applyTextScale(1);
   });
 
   it('a dialog dismisses on Escape', () => {

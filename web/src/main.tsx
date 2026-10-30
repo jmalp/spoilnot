@@ -8,12 +8,12 @@ import { App } from './App';
 import { ServicesProvider } from './core/services';
 import { createServices } from './data/services';
 import { registerUpdates } from './core/updates';
-import { followSystemTheme } from './theme/follow';
+import { followTheme } from './theme/follow';
 import { applyTextScale } from './theme/textScale';
 
 applyTextScale();
-followSystemTheme();
 const services = createServices();
+followTheme(services.preferences);
 // The restock engine runs on every phone while the user is in a household (DESIGN 9.6).
 services.restock.start();
 registerUpdates();

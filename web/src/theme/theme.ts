@@ -1,10 +1,9 @@
 // Applies a color theme (DESIGN 6.4, 18.2) as CSS custom properties: --md-sys-color-<role> for the Material 3
 // roles and --sn-status-<tone> for the fixed expiry colors. Light or dark follows the phone unless Settings says
-// otherwise (W6).
+// otherwise (follow.ts).
 import { SCHEMES, STATUS_COLORS, THEME_IDS } from './tokens.generated';
 
 export type ThemeId = (typeof THEME_IDS)[number];
-export type DarkMode = 'system' | 'light' | 'dark';
 
 /** The web app has no wallpaper colors (18.1), so its default is the Spoil Not green. */
 export const DEFAULT_THEME: ThemeId = 'spoilnot';

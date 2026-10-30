@@ -1,4 +1,6 @@
+import { AppPreferences } from '../core/preferences';
 import type { Services } from '../core/services';
+import { EXPORT_APP_VERSION } from '../core/version';
 import type { DeviceRegistry } from '../domain/household';
 import { RestockRunner } from '../domain/grocery/restock';
 import { GroceryService } from '../domain/grocery/service';
@@ -10,6 +12,7 @@ import { SessionManager } from '../domain/session';
 import { systemClock } from '../domain/time';
 import { FirestoreActivityRepository } from './activity';
 import { FirebaseAuthRepository } from './auth';
+import { FirestoreHouseholdExporter } from './export';
 import { FirestoreGroceryRepository, groceryMapper } from './grocery';
 import { firebase, type FirebaseSdk } from './firebase';
 import { FirestoreHouseholdRepository, FirestoreLocalData } from './households';
@@ -60,6 +63,8 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     mealPlanService: new MealPlanService(writer, pantryService, recipeService),
     activity: new FirestoreActivityRepository(sdk, log),
     stats: new FirestoreStatsRepository(sdk),
+    exporter: new FirestoreHouseholdExporter(sdk, clock, EXPORT_APP_VERSION),
+    preferences: new AppPreferences(),
     clock,
   };
 }

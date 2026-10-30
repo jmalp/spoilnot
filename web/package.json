@@ -9,8 +9,8 @@
   },
   "scripts": {
     "dev": "vite --host",
-    "gen": "node scripts/gen-theme.ts && node scripts/gen-strings.ts && node scripts/gen-icons.ts",
-    "gen:check": "npm run gen && git diff --exit-code -- src/theme/tokens.generated.ts src/strings.generated.ts src/ui/icons.generated.ts public/icons/icon.svg public/icons/maskable.svg",
+    "gen": "node scripts/gen-theme.ts && node scripts/gen-strings.ts && node scripts/gen-icons.ts && node scripts/gen-licenses.ts",
+    "gen:check": "npm run gen && git diff --exit-code -- src/theme/tokens.generated.ts src/strings.generated.ts src/ui/icons.generated.ts public/icons/icon.svg public/icons/maskable.svg public/licenses.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

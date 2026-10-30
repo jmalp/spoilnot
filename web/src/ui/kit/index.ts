@@ -15,3 +15,4 @@ export { TextArea, TextField } from './TextField';
 export { ErrorText, ListItem } from './ListItem';
 export { DatePickerDialog } from './DatePicker';
 export { SelectField } from './SelectField';
+export { Segmented, SEGMENTED_STACK_SCALE } from './Segmented';

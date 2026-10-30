@@ -1,0 +1,109 @@
+/* Settings (DESIGN 5.6): the Appearance, Data and About cards. */
+.sn-settings__card-title {
+  margin: 0;
+  padding: 16px 16px 0;
+}
+.sn-settings__appearance {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+.sn-settings__help {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-settings__card-action {
+  padding: 0 16px 16px;
+}
+
+/* The color theme swatches (ColorThemePicker): a 42 px circle in quarters, a 3 px ring and a check when chosen. */
+.sn-color-themes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sn-color-themes__row {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 4px;
+  row-gap: 8px;
+}
+.sn-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+}
+.sn-swatch__ring {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  padding: 5px;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+.sn-swatch__ring--selected {
+  box-shadow: inset 0 0 0 3px var(--md-sys-color-on-surface);
+}
+.sn-swatch__colors {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+}
+.sn-swatch__check {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 1.5px solid;
+  border-radius: 50%;
+}
+/* Every label takes two lines, so the swatches in a row line up. */
+.sn-swatch__label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: calc(2 * var(--sp-16));
+  text-align: center;
+}
+
+/* About: the version, the privacy summary and the open source licenses. */
+.sn-about {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-about h2 {
+  margin: 0;
+}
+.sn-about p {
+  margin: 0;
+}
+.sn-about__licenses-title {
+  padding-top: 8px;
+}
+.sn-licenses {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 16px;
+}
+.sn-license-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, monospace;
+  font-size: var(--sp-12);
+  line-height: var(--sp-16);
+}

@@ -871,3 +871,58 @@
     opacity: 0.6;
   }
 }
+
+/* Segmented buttons (SingleChoiceSegmentedButtonRow): 40 px tall in a 48 px target, outlined, the choice filled with
+   secondaryContainer and a check. At large text sizes a list of radio buttons instead (Segmented.tsx). */
+.m3-segmented-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--md-sys-color-on-surface);
+}
+.m3-segmented {
+  display: flex;
+  padding: 4px 0;
+}
+.m3-segmented__button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  margin: 0 0 0 -1px;
+  border: 1px solid var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+}
+.m3-segmented__button:first-child {
+  margin-left: 0;
+  border-radius: 20px 0 0 20px;
+}
+.m3-segmented__button:last-child {
+  border-radius: 0 20px 20px 0;
+}
+.m3-segmented__button--selected {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.m3-segmented__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m3-segmented-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -12px;
+}
+.m3-segmented-list__option {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  cursor: pointer;
+}
