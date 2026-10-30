@@ -29,7 +29,8 @@ export function TabScaffold({
   testId,
   children,
 }: {
-  title: string;
+  /** The title, or a control such as the grocery list switcher. */
+  title: ReactNode;
   onOpenSettings: () => void;
   actions?: ReactNode;
   fab?: ReactNode;

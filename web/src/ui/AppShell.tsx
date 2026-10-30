@@ -5,6 +5,7 @@ import { str, type StringId } from '../core/i18n';
 import { useNav } from '../core/NavProvider';
 import { useHouseholdSession, useServices } from '../core/services';
 import { DEFAULT_QUERY, type PantryQuery } from '../domain/pantry/items';
+import { GroceriesScreen } from './grocery/GroceriesScreen';
 import { HomeScreen } from './home/HomeScreen';
 import { HouseholdSettingsScreen } from './household/HouseholdSettingsScreen';
 import { InsightsScreen } from './insights/InsightsScreen';
@@ -66,6 +67,7 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
   );
   // The Pantry tab's search and filter live here, as its view model outlives the screen in the app.
   const [pantryQuery, setPantryQuery] = useState<PantryQuery>(DEFAULT_QUERY);
+  const [groceryListId, setGroceryListId] = useState<string | null>(null);
   const openSettings = () => nav.navigate({ name: 'settings' });
   if (route.name === 'settings') {
     return <SettingsScreen onBack={nav.back} onOpenHousehold={() => nav.navigate({ name: 'householdSettings' })} />;
@@ -84,6 +86,7 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
             nav.showRoot('pantry');
           },
           openInsights: () => nav.navigate({ name: 'insights' }),
+          openGroceries: () => nav.showRoot('groceries'),
           reviewJoinRequests: () => nav.navigate({ name: 'householdSettings' }),
         }}
       />
@@ -96,6 +99,16 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
         joinRequests={joinRequests}
         query={pantryQuery}
         onQueryChange={setPantryQuery}
+      />
+    );
+  }
+  if (tab === 'groceries') {
+    return (
+      <GroceriesScreen
+        onOpenSettings={openSettings}
+        joinRequests={joinRequests}
+        listId={groceryListId}
+        onSelectList={setGroceryListId}
       />
     );
   }

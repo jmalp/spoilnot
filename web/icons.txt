@@ -59,3 +59,9 @@ round/history
 round/group_add
 round/emoji_events
 round/local_fire_department
+
+# Groceries (W3)
+round/trending_down
+round/expand_less
+round/expand_more
+round/list_alt

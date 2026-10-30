@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { str, type StringId } from '../../core/i18n';
 import {
   CATEGORIES,
@@ -46,7 +46,7 @@ export function parseQuantity(text: string): number | null {
 
 /** From this text size (root font scale) the date tiles take two rows and quantity and unit stack. */
 const LARGE_TEXT_SCALE = 1.3;
-const largeText = () => parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 >= LARGE_TEXT_SCALE;
+export const largeText = () => parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 >= LARGE_TEXT_SCALE;
 
 type FormState = {
   name: string;
@@ -240,7 +240,15 @@ export function EditItemSheet({
 }
 
 /** Scrollable fields with the save button pinned below them, so saving never needs a scroll. */
-function FormSheetColumn({ title, button, children }: { title: string; button: ReactNode; children: ReactNode }) {
+export function FormSheetColumn({
+  title,
+  button,
+  children,
+}: {
+  title: string;
+  button: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="sn-form-sheet">
       <div className="sn-form-sheet__fields">
@@ -388,7 +396,7 @@ function NameField({
         error={error}
         data-testid="field_name"
       />
-      <Menu open={open && suggestions.length > 0} onDismiss={() => setOpen(false)}>
+      <Menu open={open && suggestions.length > 0} onDismiss={() => setOpen(false)} align="start" focusFirst={false}>
         {suggestions.map((p) => (
           <MenuItem
             key={p.id}
@@ -533,7 +541,7 @@ export function DateChips({
 }
 
 /** Location as four equal tiles, icon over label (a 2 by 2 grid at large text sizes); the chosen one is bold with a border. */
-function LocationChoice({
+export function LocationChoice({
   selected,
   grid,
   onPick,
@@ -542,16 +550,13 @@ function LocationChoice({
   grid: boolean;
   onPick: (l: Location) => void;
 }) {
+  const labelId = useId();
   return (
     <div className="sn-field-group">
-      <span className="t-label-large" id="location-label">
+      <span className="t-label-large" id={labelId}>
         {str('field_location')}
       </span>
-      <div
-        className={`sn-tiles ${grid ? 'sn-tiles--two-rows' : ''}`}
-        role="radiogroup"
-        aria-labelledby="location-label"
-      >
+      <div className={`sn-tiles ${grid ? 'sn-tiles--two-rows' : ''}`} role="radiogroup" aria-labelledby={labelId}>
         {LOCATIONS.map((location) => (
           <button
             key={location}

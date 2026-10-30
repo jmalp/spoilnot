@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { shareReplay } from 'rxjs';
 import { messageId } from '../../core/errors';
 import { useObservable, useToday } from '../../core/hooks';
+import { useRemoteChanges } from '../../core/remoteChanges';
 import { str, type StringId } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import {
@@ -287,6 +288,17 @@ function PantryList({
 }) {
   const onScroll = useOnInnerScroll();
   const [showExpired, setShowExpired] = useState(false);
+  // Rows another phone changed get a short highlight (DESIGN 6.4).
+  const batches = useMemo(
+    () => groups.flatMap((g) => g.items).flatMap((i) => (i.kind === 'purchase' ? [i.batch] : [])),
+    [groups],
+  );
+  const remote = useRemoteChanges(
+    batches,
+    (b) => b.id,
+    (b) => b.pendingSync,
+    (b) => ({ ...b, pendingSync: false }),
+  );
   if (groups.length === 0) return <EmptyState icon="round/search" message={str('pantry_no_matches')} />;
   // A backlog of expired food folds into one header; its rows show on request.
   const fold = ExpiredFold.of(groups, query);
@@ -301,7 +313,14 @@ function PantryList({
           />
           {showExpired &&
             fold.expired.map((item) => (
-              <PantryItemRow key={`expired-${item.key}`} item={item} today={today} actions={actions} onOpen={onOpen} />
+              <PantryItemRow
+                key={`expired-${item.key}`}
+                item={item}
+                today={today}
+                actions={actions}
+                onOpen={onOpen}
+                highlight={remote.has(item.key)}
+              />
             ))}
         </>
       )}
@@ -316,7 +335,14 @@ function PantryList({
           <section key={key} aria-label={header ?? undefined}>
             {header && <h2 className="sn-group-header t-label-large">{header}</h2>}
             {group.items.map((item) => (
-              <PantryItemRow key={`${key}-${item.key}`} item={item} today={today} actions={actions} onOpen={onOpen} />
+              <PantryItemRow
+                key={`${key}-${item.key}`}
+                item={item}
+                today={today}
+                actions={actions}
+                onOpen={onOpen}
+                highlight={remote.has(item.key)}
+              />
             ))}
           </section>
         );

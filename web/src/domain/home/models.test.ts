@@ -1,6 +1,7 @@
 // Ported from HomeDashboardTest and ActivityFeedTest.
 import { describe, expect, it } from 'vitest';
 import { batch, product, TODAY } from '../pantry/fixtures';
+import type { GroceryItem } from '../grocery/models';
 import type { PantryData } from '../pantry/models';
 import { ActivityFeed, HomeDashboard, type ActivityEvent, type ActivityType } from './models';
 
@@ -26,15 +27,40 @@ const pantry: PantryData = {
 
 describe('HomeDashboard', () => {
   it('needs attention is expired and expiring within 3 days, soonest first', () => {
-    const s = HomeDashboard.summary(pantry, [], TODAY);
+    const s = HomeDashboard.summary(pantry, [], [], TODAY);
     expect(s.attention.map((r) => r.name)).toEqual(['Yogurt', 'Milk', 'Cheese']);
     expect(s.expiredCount).toBe(1);
   });
 
   it('low stock lists staples below Keep at least, out of stock first', () => {
-    const s = HomeDashboard.summary(pantry, [], TODAY);
+    const s = HomeDashboard.summary(pantry, [], [], TODAY);
     expect(s.lowStock.map((r) => r.name)).toEqual(['Olive oil', 'Eggs']);
     expect(s.lowStock.map((r) => r.isOut)).toEqual([true, false]);
+  });
+});
+
+describe('HomeDashboard grocery count', () => {
+  it('is the items still to buy', () => {
+    const item = (id: string, checked: boolean): GroceryItem => ({
+      id,
+      name: id,
+      nameKey: id,
+      quantity: null,
+      unit: null,
+      note: null,
+      category: null,
+      checked,
+      checkedBy: null,
+      source: 'manual',
+      productId: null,
+      recipeId: null,
+      createdBy: null,
+      createdAt: null,
+      pendingSync: false,
+      aliasOf: null,
+    });
+    const items = [item('a', false), item('b', true), item('c', false)];
+    expect(HomeDashboard.summary(pantry, items, [], TODAY).groceryCount).toBe(2);
   });
 });
 

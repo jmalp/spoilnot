@@ -14,6 +14,8 @@ import { applyTextScale } from './theme/textScale';
 applyTextScale();
 followSystemTheme();
 const services = createServices();
+// The restock engine runs on every phone while the user is in a household (DESIGN 9.6).
+services.restock.start();
 registerUpdates();
 
 createRoot(document.getElementById('root')!).render(

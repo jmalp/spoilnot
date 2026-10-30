@@ -119,13 +119,14 @@ Everything is in `web/` and needs Node 24. Once: `cd web && npm install && npx p
   An iPhone on the same Wi-Fi can open `http://<the Mac's IP>:5173`; the emulators listen on the network too.
 - `npm run check` runs format, lint, type check, unit tests and the build, as CI does. `npm run format` fixes
   formatting.
-- `npm run e2e` (with the emulators running) runs the WebKit tests with an iPhone profile, two browser contexts
-  as two phones (tests seed data through the emulators' REST APIs, `tests/e2e/support.ts`), and compares the
+- `npm run e2e` (with the emulators running) runs the WebKit tests with an iPhone profile, two test files at a time,
+  two browser contexts as two phones (tests seed data through the emulators' REST APIs, `tests/e2e/support.ts`), and compares the
   screenshots in
   `tests/e2e/__screenshots__/`; after an intended change, `npm run e2e:update` and look at the new images in light,
   dark and 200% text next to the Android ones. Images within the 1% tolerance are not rewritten; for a small
   intended change (a line, a color) use `npx playwright test screens --update-snapshots=all` and keep only the
-  images that should change. Month names on Insights are masked, so the images do not change with the calendar.
+  images that should change. Month names on Insights are masked and the invite code is fixed, so the images do not change between runs. If the
+  tests slow down after a long day of runs, stop the emulators, delete `firebase/.emulator-data` and start them again.
 - After changing `strings.xml`, the Android theme colors or `icons.txt`: `npm run gen` (CI fails until it is run).
   After changing the launcher icon: `npm run gen && node scripts/gen-app-icons.ts`.
 

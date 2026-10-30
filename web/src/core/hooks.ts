@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Observable } from 'rxjs';
+import { retry, timer, type Observable } from 'rxjs';
 import { today as todayOf, type Clock, type LocalDate } from '../domain/time';
 import { messageId } from './errors';
 import type { StringId } from './i18n';
 
+/** How long a screen waits before listening again after its data failed to load. */
+export const RELISTEN_MS = 3_000;
+
 /**
- * The latest value of [source] (collectAsStateWithLifecycle). [source] must be stable across renders (useMemo);
- * errors keep the last value, like `.catch {}` in the app's view models.
+ * The latest value of [source] (collectAsStateWithLifecycle). [source] must be stable across renders (useMemo).
+ * Errors keep the last value, like `.catch {}` in the app's view models, and the screen listens again
+ * [RELISTEN_MS] later: a listener refused right after creating or joining a household, while the server is slow to
+ * confirm the membership, would otherwise leave the screen loading until it is reopened. Screens close when the
+ * session changes, so a real refusal (removed from the household) does not retry for long.
  */
 export function useObservable<T>(source: Observable<T>, initial: T): T {
   const [value, setValue] = useState<T>(initial);
   useEffect(() => {
-    const subscription = source.subscribe({ next: setValue, error: () => undefined });
+    const subscription = source.pipe(retry({ delay: () => timer(RELISTEN_MS) })).subscribe({ next: setValue });
     return () => subscription.unsubscribe();
   }, [source]);
   return value;

@@ -1,8 +1,9 @@
 import { useMemo, type ReactNode } from 'react';
-import { catchError, of, startWith } from 'rxjs';
+import { catchError, distinctUntilChanged, map, of, startWith, switchMap } from 'rxjs';
 import { useNow, useObservable, useToday } from '../../core/hooks';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
+import type { GroceryItem } from '../../domain/grocery/models';
 import { HomeDashboard, type ActivityEvent, type HomeSummary } from '../../domain/home/models';
 import { MonthTotals, type InsightsSummary } from '../../domain/insights/insights';
 import type { PantryFilter } from '../../domain/pantry/items';
@@ -27,16 +28,17 @@ export type HomeNavigation = {
   openSettings: () => void;
   openPantry: (filter: PantryFilter) => void;
   openInsights: () => void;
+  openGroceries: () => void;
   reviewJoinRequests: () => void;
 };
 
 /**
- * The Home tab (DESIGN 5.6): what needs attention, low stock, this month's kitchen (5.7) and recent activity. Today's
- * meals, Use it up and the grocery list join with their tabs (W3 to W5).
+ * The Home tab (DESIGN 5.6): what needs attention, low stock, the grocery list, this month's kitchen (5.7) and recent
+ * activity. Today's meals and Use it up join with their tabs (W4, W5).
  */
 export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavigation; joinRequests: number }) {
   const me = useHouseholdSession();
-  const { pantry, activity, stats, clock } = useServices();
+  const { pantry, grocery, activity, stats, clock } = useServices();
   const today = useToday(clock);
   const hid = me.householdId;
   const data = useObservable<PantryData | null>(
@@ -54,12 +56,27 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
     ),
     [],
   );
+  // The default list's items, as the Groceries tab reads them (DESIGN 9.1).
+  const groceryItems = useObservable<GroceryItem[]>(
+    useMemo(
+      () =>
+        grocery.observeLists(hid).pipe(
+          map((lists) => lists.find((l) => l.isDefault)?.id ?? null),
+          distinctUntilChanged(),
+          switchMap((id) => (id === null ? of([]) : grocery.observeItems(hid, id))),
+          catchError(() => of([])),
+          startWith([]),
+        ),
+      [grocery, hid],
+    ),
+    [],
+  );
   // Only the current month: one document per open (DESIGN 9.7).
   const insights = useObservable<InsightsSummary | null>(
     useMemo(() => insights$(stats, hid, of(today), yearMonthOf), [stats, hid, today]),
     null,
   );
-  const summary = data ? HomeDashboard.summary(data, recent, today) : null;
+  const summary = data ? HomeDashboard.summary(data, groceryItems, recent, today) : null;
   return (
     <TabScaffold
       title={str('tab_home')}
@@ -138,6 +155,18 @@ function HomeCards({
             <Badge text={str(row.isOut ? 'badge_out' : 'badge_low')} />
           </div>
         ))}
+      </HomeCard>
+      <HomeCard
+        title={str('home_grocery_list')}
+        icon="round/list_alt"
+        testId="card_home_groceries"
+        action={[str('home_open_list'), navigation.openGroceries]}
+      >
+        <span className="t-body-large">
+          {summary.groceryCount === 0
+            ? str('home_grocery_empty')
+            : plural('home_grocery_count', summary.groceryCount, summary.groceryCount)}
+        </span>
       </HomeCard>
       {insights && <InsightsCard insights={insights} onOpen={navigation.openInsights} />}
       <HomeCard

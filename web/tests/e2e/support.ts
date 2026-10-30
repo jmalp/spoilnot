@@ -180,6 +180,71 @@ export async function seedStats(
   });
 }
 
+/** The id of a household's default grocery list. */
+export async function defaultListId(hid: string): Promise<string> {
+  const response = await fetch(`${FIRESTORE}/households/${hid}:runQuery`, {
+    method: 'POST',
+    headers: ADMIN,
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'groceryLists' }],
+        where: { fieldFilter: { field: { fieldPath: 'isDefault' }, op: 'EQUAL', value: { booleanValue: true } } },
+      },
+    }),
+  });
+  const rows = (await response.json()) as { document?: { name: string } }[];
+  const doc = rows.find((r) => r.document)?.document;
+  if (!doc) throw new Error(`No default list in ${hid}`);
+  return doc.name.split('/').pop()!;
+}
+
+export type SeedGroceryItem = {
+  id: string;
+  name: string;
+  quantity?: number | null;
+  category?: string | null;
+  source?: string;
+  productId?: string | null;
+  checked?: boolean;
+  createdBy?: string;
+  note?: string | null;
+};
+
+/**
+ * Writes grocery items as the app would, added an hour ago. updatedAt is now, like a server timestamp: the
+ * changes-only listeners read what changed since their last full read (DESIGN 9.8).
+ */
+export async function seedGroceries(hid: string, uid: string, listId: string, items: SeedGroceryItem[]) {
+  const now = new Date();
+  const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  for (const item of items) {
+    await put(`households/${hid}/groceryLists/${listId}/items/${item.id}`, {
+      name: item.name,
+      nameKey: item.name.toLowerCase(),
+      quantity: item.quantity ?? null,
+      unit: null,
+      note: item.note ?? null,
+      category: item.category ?? null,
+      checked: item.checked ?? false,
+      checkedBy: item.checked ? uid : null,
+      checkedAt: null,
+      source: item.source ?? 'manual',
+      productId: item.productId ?? null,
+      recipeId: null,
+      aliasOf: null,
+      createdAt: anHourAgo,
+      createdBy: item.createdBy ?? uid,
+      updatedAt: now,
+      updatedBy: uid,
+    });
+  }
+}
+
+/** A member who joined some time ago, for names such as "added by Jordan". */
+export async function seedMember(hid: string, uid: string, displayName: string) {
+  await put(`households/${hid}/members/${uid}`, { role: 'member', displayName, joinedAt: new Date() });
+}
+
 /** One line of Recent activity, written now. */
 export async function seedActivity(
   hid: string,
