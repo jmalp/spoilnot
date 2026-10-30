@@ -6,6 +6,9 @@ export default defineConfig({
   testDir: 'tests/e2e',
   snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',
   fullyParallel: false,
+  // One emulator serves every browser: with more at once it confirms a new household's writes more slowly than the
+  // app's listeners retry right after creating one (retryAfterOwnWrites), and screens wait seconds for data.
+  workers: 2,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01 } },

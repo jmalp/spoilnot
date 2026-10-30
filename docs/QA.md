@@ -125,6 +125,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     same counts; throwing something away on Android appears in Recent activity within seconds. See insights: tap last
     month's bars for its details. Larger Text at the largest size: headlines grow less than body text, the ring's
     percentage stays inside it.
+31. Web app W3 (iPhone, same household as an Android phone): on Groceries type "2 bananas", "Greek yogurt" and
+    "batteries": they sort under Produce, Dairy and eggs, and Other; typing BANANAS asks Already on the list and
+    Increase makes it × 3. Check off yogurt, then bananas; new milk and apples now list Dairy and eggs before Produce.
+    Swipe a row: removed, Undo brings it back; Clear checked has Undo too. Add to pantry: one line each, tap a line to
+    change it or Skip it; Add puts them in the Pantry tab. New list from the list name, rename it, delete it. Set Keep
+    at least on an item on Android and use it up: it appears on the iPhone's default list as Low stock; restock it on
+    Android: Back in stock with Remove. Items added on Android flash briefly on the iPhone and "Name added …" shows.
 
 ## 3. Conditions
 

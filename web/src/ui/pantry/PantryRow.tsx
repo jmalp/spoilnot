@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent } from 'react';
+import { useState } from 'react';
 import { plural, str } from '../../core/i18n';
 import {
   DISCARD_REASONS,
@@ -12,6 +12,7 @@ import type { OutItem, PantryItem, PurchaseItem } from '../../domain/pantry/item
 import { Expiry } from '../../domain/pantry/rules';
 import type { LocalDate } from '../../domain/time';
 import { Button, Dialog, Icon, IconButton, Menu, MenuItem, Radio } from '../kit';
+import { useSwipe } from '../swipe';
 import {
   amountDescription,
   chipText,
@@ -45,38 +46,37 @@ export function PantryItemRow({
   today,
   actions,
   onOpen,
+  highlight = false,
 }: {
   item: PantryItem;
   today: LocalDate;
   actions: BatchActions;
   onOpen: (item: PantryItem) => void;
+  /** Changed on another phone a moment ago (DESIGN 6.4). */
+  highlight?: boolean;
 }) {
   return item.kind === 'purchase' ? (
-    <PurchaseRow item={item} today={today} actions={actions} onOpen={onOpen} />
+    <PurchaseRow item={item} today={today} actions={actions} onOpen={onOpen} highlight={highlight} />
   ) : (
     <OutRow item={item} onOpen={onOpen} />
   );
 }
-
-/** How far a row must be swiped, as a share of its width, to act (SwipeToDismissBox's default threshold). */
-const SWIPE_THRESHOLD = 0.4;
 
 function PurchaseRow({
   item,
   today,
   actions,
   onOpen,
+  highlight,
 }: {
   item: PurchaseItem;
   today: LocalDate;
   actions: BatchActions;
   onOpen: (item: PantryItem) => void;
+  highlight: boolean;
 }) {
   const batch = item.batch;
-  const [dx, setDx] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const drag = useRef<{ x: number; y: number; horizontal: boolean | null; width: number } | null>(null);
-  const moved = useRef(false);
+  const swipe = useSwipe((direction) => (direction === 'right' ? actions.onUsedUp(batch) : actions.onThrowAway(batch)));
   const amount = rowAmount(batch.quantity, batch.unit);
   const location = locationLabel(batch.location);
   const status = statusText(batch.expiryDate, batch.dateType, today);
@@ -84,53 +84,20 @@ function PurchaseRow({
     str('row_description', item.name, amountDescription(batch.quantity, batch.unit), status, location) +
     (batch.openedOn ? str('row_opened_suffix') : '');
 
-  const down = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    drag.current = { x: e.clientX, y: e.clientY, horizontal: null, width: e.currentTarget.offsetWidth };
-    moved.current = false;
-  };
-  const move = (e: PointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    if (!d) return;
-    const x = e.clientX - d.x;
-    const y = e.clientY - d.y;
-    if (d.horizontal === null && Math.hypot(x, y) > 10) {
-      d.horizontal = Math.abs(x) > Math.abs(y);
-      if (d.horizontal) e.currentTarget.setPointerCapture(e.pointerId);
-    }
-    if (d.horizontal) {
-      moved.current = true;
-      setDragging(true);
-      setDx(x);
-    }
-  };
-  const up = () => {
-    const d = drag.current;
-    drag.current = null;
-    setDragging(false);
-    if (!d?.horizontal) return;
-    if (dx > d.width * SWIPE_THRESHOLD) actions.onUsedUp(batch);
-    else if (dx < -d.width * SWIPE_THRESHOLD) actions.onThrowAway(batch);
-    setDx(0);
-  };
-
   return (
-    <div className="sn-pantry-row" data-testid={`pantry_item_${batch.id}`}>
-      {dx !== 0 && <SwipeBackground direction={dx > 0 ? 'usedUp' : 'throwAway'} />}
-      <div
-        className="sn-pantry-row__front"
-        style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dragging ? 'none' : undefined }}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={up}
-      >
+    <div
+      className={`sn-pantry-row ${highlight ? 'sn-remote-highlight' : ''}`}
+      data-testid={`pantry_item_${batch.id}`}
+      data-remote={highlight || undefined}
+    >
+      {swipe.dx !== 0 && <SwipeBackground direction={swipe.dx > 0 ? 'usedUp' : 'throwAway'} />}
+      <div className="sn-pantry-row__front" style={swipe.style} {...swipe.handlers}>
         <button
           type="button"
           className="sn-pantry-row__main m3-state"
           aria-label={description}
           onClick={() => {
-            if (!moved.current) onOpen(item);
+            if (!swipe.wasDragged()) onOpen(item);
           }}
         >
           <span className="sn-pantry-row__text">

@@ -1,5 +1,8 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { AuthRepository, UserRepository } from '../domain/account';
+import type { GroceryRepository } from '../domain/grocery/models';
+import type { RestockRunner } from '../domain/grocery/restock';
+import type { GroceryService } from '../domain/grocery/service';
 import type { ActivityRepository } from '../domain/home/models';
 import type { HouseholdRepository } from '../domain/household';
 import type { StatsRepository } from '../domain/insights/insights';
@@ -18,6 +21,10 @@ export type Services = {
   writer: HouseholdWriter;
   pantry: PantryRepository;
   pantryService: PantryService;
+  grocery: GroceryRepository;
+  groceryService: GroceryService;
+  /** Adds low staples to the default list on every phone (DESIGN 9.6); started with the app. */
+  restock: RestockRunner;
   activity: ActivityRepository;
   stats: StatsRepository;
   clock: Clock;

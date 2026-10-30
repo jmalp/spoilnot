@@ -1241,6 +1241,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-29 | Web app W1: welcome, create account, sign in, password reset, the household gate, Settings (account, household, sign out, delete account) and household settings, on the session state machine ported from the app with its tests; the writer and changes-only listeners move to W2 | 18.8, PRIVACY, SECURITY_REVIEW, QA, RUNBOOK |
 | 2026-10-29 | Web app W2a: the pantry list (search, filters, sort and grouping, expired header) with swipe and menu actions, Mark opened and Undo, on the household writer and changes-only listeners ported from the app with their tests; W2 is split in two | 18.8, QA, RUNBOOK |
 | 2026-10-29 | Web app W2b: Add item (quick dates, the date picker, shelf-life learning, known products, merging into the same purchase) and the Edit window with Undo; Home's Needs attention, Low stock, This month and Recent activity cards leading to the filtered Pantry and Insights; Insights with the ring, the six months, the streak and the reasons. Web text now scales non-linearly like Android 14. Home's grocery, Use it up and Today cards come with W3 to W5, the notification explainer with web push in W6 | 18.2, 18.8, QA, RUNBOOK |
+| 2026-10-29 | Web app W3: the Groceries tab (lists, quick add, guessed aisles and the learned store order, check off, edit, swipe and Clear checked with Undo, Add to pantry) and the restock engine, ported from the app with their tests; Home's grocery card; the remote-change highlight on Pantry and Groceries. Web screens listen again 3 s after a failed load, and only recent additions by others are announced | 18.7, 18.8, QA, RUNBOOK |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
@@ -1318,7 +1319,7 @@ to dev, and to prod only after asking, like the beta script. Strict security hea
 
 **18.7 Testing.** Vitest for the domain (ported cases) and the generators; React Testing Library for components;
 Playwright with WebKit and an iPhone profile against the Firebase emulators, two browser contexts as two phones (like
-`TestPhone`); the screenshots of 18.2. CI runs format, lint, type check, unit tests, the build, a check that the
+`TestPhone`), two test files at a time (one emulator serves every browser); the screenshots of 18.2. CI runs format, lint, type check, unit tests, the build, a check that the
 generated files are current, and the Playwright tests. The owner runs the web QA flows on a real iPhone before the
 first web release.
 
@@ -1330,7 +1331,7 @@ first web release.
 | W1 | Sign in and household: welcome, create account, sign in, password reset, the household gate (create, join, waiting, approve), Settings (account, household, sign out, delete account), household settings (members, invite code, join requests, remove, transfer, rename, new code, pause joining, leave, delete) | Two contexts form a household against the emulators |
 | W2a | Pantry list: the writer, change plans and changes-only listeners (9.8); the pantry list with search, filters, sort and grouping, the expired header, swipe and menu actions (used up, throw away with a reason, one less, one more, move, mark opened), Undo | The pantry list flows pass on WebKit; a second phone follows |
 | W2b | Add and edit, Home and Insights: Add item with quick dates and shelf-life learning, the Edit window, Out staples; Home with Needs attention, Low stock, This month and Recent activity (each card leads to the filtered Pantry or Insights), the join-request card; Insights | The add, edit and Home flows of docs/QA.md pass on WebKit |
-| W3 | Groceries: lists, quick add, aisles and store order, check off, Add to pantry, low-stock restock; Home's grocery card | The grocery flows pass |
+| W3 | Groceries: lists (switch, new, rename, delete), quick add with suggestions and Already on the list, guessed aisles and the learned store order, check off and In cart, edit, swipe delete and Clear checked with Undo, Add to pantry, the restock engine with Back in stock; Home's grocery card; rows another phone changed are highlighted (6.4, on Pantry too) | The grocery flows pass on WebKit; a second phone's addition is highlighted |
 | W4 | Recipes (view only, 18.1): box, detail, scaling, Add to grocery list, I cooked this, Edit, Delete, Use it up (the recipe picker and Home's card) | The recipe flows that do not add recipes pass |
 | W5 | Plan: everything in 5.9, with Home's Today card | The plan flows pass |
 | W6 | Settings and extras: appearance, units, notifications with web push (and the job's `webpush`) and the notification explainer of 5.4, export, clear household data, about and licences, the app tour | Settings flows pass; a web push reaches WebKit in a test |

@@ -1,0 +1,210 @@
+/* Groceries (DESIGN 5.3), as GroceriesScreen and GroceryForms lay them out. */
+
+/* The list's name is the switcher; its menu must not be clipped by the title. */
+.m3-top-app-bar__title:has(.sn-list-switcher) {
+  overflow: visible;
+}
+.sn-list-switcher-anchor {
+  max-width: 100%;
+}
+.sn-list-switcher {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 0 4px 0 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.sn-list-switcher__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sn-menu-spacer {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+}
+
+.sn-quick-add.sn-anchor {
+  display: flex;
+  padding: 8px 16px;
+}
+.sn-quick-add > .m3-text-field {
+  flex: 1;
+}
+.sn-pantry-search.sn-quick-add .m3-text-field__input {
+  padding-left: 16px;
+}
+.sn-quick-add .m3-menu {
+  left: 16px;
+  right: auto;
+  min-width: 200px;
+}
+
+.sn-grocery-row {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.sn-grocery-swipe {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+.sn-grocery-swipe--end {
+  justify-content: flex-end;
+}
+.sn-grocery-row__front {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+  background: var(--md-sys-color-surface);
+  transition: transform 200ms var(--sn-motion-standard);
+}
+.sn-grocery-row__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding-left: 8px;
+  cursor: pointer;
+}
+.sn-grocery-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+}
+.sn-grocery-row__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sn-grocery-row__checked {
+  text-decoration: line-through;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-grocery-row__details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.sn-grocery-row__remove {
+  min-height: 48px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  cursor: pointer;
+}
+.sn-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+.sn-source-badge--good {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.sn-cart-header {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+.sn-cart-header__toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 0 0 16px;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+.sn-cart-header__label {
+  flex: 1;
+  color: var(--md-sys-color-primary);
+  text-align: start;
+  text-transform: uppercase;
+}
+
+.sn-entries {
+  display: flex;
+  flex-direction: column;
+}
+.sn-entry {
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.sn-entry__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+  cursor: pointer;
+}
+.sn-entry__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.sn-entry__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.sn-entry__skip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-entry__skip-help {
+  flex: 1;
+}
+.sn-entry__amount {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.sn-entry__quantity {
+  width: 140px;
+  flex: none;
+}
+.sn-entry__unit {
+  flex: 1;
+  min-width: 0;
+}

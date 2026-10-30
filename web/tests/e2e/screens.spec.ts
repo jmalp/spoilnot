@@ -3,10 +3,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   createHousehold,
+  defaultListId,
   householdId,
   inDays,
   openApp,
   seedActivity,
+  seedGroceries,
+  seedMember,
   seedPantry,
   seedStats,
   signUp,
@@ -15,6 +18,8 @@ import {
 } from './support';
 
 test.skip(!!process.env.CI, 'Linux WebKit draws fonts differently; screenshots are compared on the Mac');
+// Each run walks through every screen so far, with data seeded on the way.
+test.setTimeout(90_000);
 
 /** [mask]: test ids, or locators for text without one. */
 async function shot(page: Page, name: string, mask: (string | Locator)[] = []) {
@@ -51,6 +56,9 @@ for (const dark of [false, true]) {
 
       const household = `The Smiths ${suffix} ${Date.now()}`;
       await createHousehold(page, household);
+      // Loaded: the skeleton is gone and this month's card has its (empty) counts.
+      await expect(page.getByTestId('card_home_insights')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId('home_skeleton')).toHaveCount(0);
       await shot(page, `home_${suffix}`);
 
       // Dates relative to today, so the chips read the same on every run.
@@ -66,6 +74,7 @@ for (const dark of [false, true]) {
       ]);
       await page.getByRole('navigation').getByRole('button', { name: 'Pantry' }).click();
       await expect(page.getByTestId('pantry_item_rice')).toBeVisible();
+      await expect(page.locator('[data-remote]')).toHaveCount(0);
       await shot(page, `pantry_${suffix}`);
       await page.getByTestId('fab_add_item').click();
       await expect(page.getByTestId('sheet_add_item')).toBeVisible();
@@ -109,7 +118,38 @@ for (const dark of [false, true]) {
 
       await page.getByTestId('row_household').click();
       await expect(page.getByTestId('card_members')).toContainText('Sam (you)');
-      await shot(page, `household_${suffix}`, ['invite_code', 'member_since']);
+      // A fixed code: random letters wrap differently at 200%.
+      await page.getByTestId('invite_code').evaluate((el) => (el.textContent = 'ABCDE-FGHJK'));
+      await shot(page, `household_${suffix}`, ['member_since']);
+
+      // Groceries: the kinds of rows the app's GroceryRowTest draws, and the Add to pantry sheet.
+      await seedMember(hid, 'u-jordan', 'Jordan');
+      await seedGroceries(hid, uid, await defaultListId(hid), [
+        {
+          id: 'low_p-rice',
+          name: 'Rice',
+          quantity: 1,
+          category: 'pantry_staples',
+          source: 'low_stock',
+          productId: 'p-rice',
+        },
+        { id: 'eggs', name: 'Eggs', quantity: 2, category: 'dairy', createdBy: 'u-jordan' },
+        { id: 'flour', name: 'Flour', quantity: 2, category: 'pantry_staples', source: 'recipe' },
+        { id: 'tortillas', name: 'Tortillas', quantity: 2, category: 'bakery', source: 'meal_plan' },
+        { id: 'bread', name: 'Bread', quantity: 2, category: 'bakery', checked: true },
+      ]);
+      await page.getByRole('navigation').getByRole('button', { name: 'Groceries' }).click();
+      await expect(page.getByTestId('grocery_item_bread')).toBeVisible();
+      await expect(page.getByTestId('grocery_item_low_p-rice')).toContainText('Back in stock');
+      // The restock engine adds the out-of-stock olive oil; rows from the server are highlighted for a moment as
+      // another phone's changes (DESIGN 6.4).
+      await expect(page.getByTestId('grocery_item_low_p-oil')).toContainText('Low stock');
+      await expect(page.locator('[data-remote]')).toHaveCount(0);
+      await shot(page, `groceries_${suffix}`);
+      await page.getByTestId('fab_add_to_pantry').click();
+      await expect(page.getByTestId('sheet_add_to_pantry')).toBeVisible();
+      await page.waitForTimeout(400); // the sheet's slide-in
+      await shot(page, `add_to_pantry_${suffix}`);
     });
   }
 }

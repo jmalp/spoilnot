@@ -618,6 +618,12 @@
   background: var(--md-sys-color-surface-container);
   box-shadow: var(--sn-elevation-2);
 }
+.m3-menu__divider {
+  height: 1px;
+  margin: 8px 0;
+  border: none;
+  background: var(--md-sys-color-outline-variant);
+}
 .m3-menu__item {
   display: flex;
   align-items: center;
@@ -816,4 +822,34 @@
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
   box-shadow: none;
+}
+
+/* A row changed on another phone (DESIGN 6.4): a secondaryContainer tint fading out over 1.5 s, drawn over the row;
+   with reduce motion it stays still and goes away at the end. */
+.sn-remote-highlight {
+  position: relative;
+}
+.sn-remote-highlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--md-sys-color-secondary-container);
+  opacity: 0;
+  animation: sn-remote-fade 1500ms linear;
+}
+@keyframes sn-remote-fade {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sn-remote-highlight::after {
+    animation: none;
+    opacity: 0.6;
+  }
 }

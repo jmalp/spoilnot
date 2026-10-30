@@ -1,5 +1,6 @@
 // The Home tab (DESIGN 5.6), ported from feature/home/domain: Recent activity and what the cards show.
 import type { Observable } from 'rxjs';
+import type { GroceryItem } from '../grocery/models';
 import { Expiry } from '../pantry/rules';
 import { PantryRows, type PantryRow } from '../pantry/rows';
 import type { DiscardReason, PantryData } from '../pantry/models';
@@ -56,18 +57,20 @@ export interface ActivityRepository {
   observeRecent(householdId: string, limit: number): Observable<ActivityEvent[]>;
 }
 
-/** What the Home tab shows (DESIGN 5.6). The grocery count joins with the grocery list (W3). */
+/** What the Home tab shows (DESIGN 5.6). */
 export type HomeSummary = {
   /** Expired and expiring within 3 days, soonest first. */
   attention: PantryRow[];
   expiredCount: number;
   /** Staples below Keep at least, out of stock first. */
   lowStock: PantryRow[];
+  /** Items still to buy on the default list. */
+  groceryCount: number;
   recent: ActivityEvent[];
 };
 
 export const HomeDashboard = {
-  summary(pantry: PantryData, recent: ActivityEvent[], today: LocalDate): HomeSummary {
+  summary(pantry: PantryData, groceryItems: GroceryItem[], recent: ActivityEvent[], today: LocalDate): HomeSummary {
     const rows = PantryRows.rows(pantry.products, pantry.batches, today);
     const attention = sortedWith(
       rows.filter((r) => r.batches.some((b) => Expiry.needsAttention(Expiry.of(b.expiryDate, today)))),
@@ -81,6 +84,7 @@ export const HomeDashboard = {
         (a, b) => Number(b.isOut) - Number(a.isOut),
         (a, b) => compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
       ),
+      groceryCount: groceryItems.filter((i) => !i.checked).length,
       recent,
     };
   },

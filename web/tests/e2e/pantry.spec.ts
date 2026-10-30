@@ -119,6 +119,11 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   await other.getByTestId('menu_milk').click();
   await other.getByRole('menuitem', { name: 'Used up' }).click();
   await expect(page.getByTestId('pantry_item_milk')).toHaveCount(0);
+  // A row changed there is highlighted here for a moment (DESIGN 6.4).
+  await other.getByTestId('menu_rice').click();
+  await other.getByRole('menuitem', { name: 'Add 1' }).click();
+  await expect(page.getByTestId('pantry_item_rice')).toHaveAttribute('data-remote', 'true');
+  await expect(page.getByTestId('pantry_item_rice')).not.toHaveAttribute('data-remote', 'true', { timeout: 4000 });
 });
 
 test('three expired purchases fold into a header', async ({ page }) => {
