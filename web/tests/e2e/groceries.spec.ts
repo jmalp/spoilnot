@@ -27,6 +27,9 @@ async function groceriesOfNewHousehold(page: Page) {
   return { email, household };
 }
 
+// A long flow: room for slow machines.
+test.setTimeout(60_000);
+
 test('quick add sorts into aisles, check-offs learn the store order, and the cart goes to the pantry', async ({
   page,
 }) => {

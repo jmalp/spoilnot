@@ -1,0 +1,323 @@
+/* Recipes (DESIGN 5.5), as RecipesScreen, RecipeDetailScreen and their sheets lay them out. */
+
+.sn-recipe-image {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-recipe-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sn-recipe-image--primary {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.sn-recipe-image--secondary {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-recipe-image--tertiary {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+/* The recipe chips sit on the page, without the Pantry list's divider (FilterRow in RecipesScreen). */
+.sn-filter-row.sn-filter-row--plain {
+  border-bottom: none;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.sn-recipe-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  align-content: start;
+  gap: 12px;
+  padding: 8px 16px 96px;
+}
+.sn-recipe-card {
+  position: relative;
+  overflow: hidden;
+}
+.sn-recipe-card__open {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  font: inherit;
+}
+.sn-recipe-card__image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+.sn-recipe-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+}
+/* Two lines on every card, so cards side by side match (after v1). */
+.sn-recipe-card__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: calc(2 * var(--sp-24));
+}
+.sn-recipe-card__time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--sp-20);
+}
+.sn-recipe-card__star {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+.sn-recipe-card__star--on {
+  color: var(--md-sys-color-primary);
+}
+.sn-recipe-no-matches {
+  margin: 0;
+  padding: 32px;
+  text-align: center;
+}
+
+.sn-recipe-detail {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 96px;
+}
+.sn-recipe-detail__hero {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.sn-recipe-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-recipe-detail__body p,
+.sn-recipe-detail__body h1,
+.sn-recipe-detail__body h2,
+.sn-recipe-detail__body h3 {
+  margin: 0;
+}
+.sn-info-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.sn-info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+  text-decoration: none;
+}
+a.sn-info-chip {
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline);
+}
+.sn-recipe-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+.sn-recipe-section h2 {
+  flex: 1;
+}
+.sn-recipe-group {
+  padding-top: 8px;
+}
+/* One line; at large text sizes it moves under the heading instead of running off the screen. */
+.sn-stepper {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.sn-stepper__label {
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.sn-stepper .m3-icon-button__layer {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-stepper .m3-icon-button:disabled .m3-icon-button__layer {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+}
+.sn-checklist__line {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  border-radius: 8px;
+}
+.sn-checklist__line--done {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-recipe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sn-recipe-step {
+  display: flex;
+}
+.sn-recipe-step__number {
+  min-width: 32px;
+}
+.sn-open-original {
+  align-self: flex-start;
+}
+
+.sn-cook {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.sn-cook__progress {
+  height: 4px;
+  background: var(--md-sys-color-secondary-container);
+}
+.sn-cook__progress span {
+  display: block;
+  height: 100%;
+  background: var(--md-sys-color-primary);
+  transition: width 200ms var(--sn-motion-standard);
+}
+.sn-cook__step {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  touch-action: pan-y;
+}
+.sn-cook__step p,
+.sn-cook__step h2 {
+  margin: 0;
+}
+.sn-cook__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+}
+.sn-cook__bar .sn-cook__ingredients {
+  flex: 1;
+}
+
+.sn-sheet-rows {
+  display: flex;
+  flex-direction: column;
+}
+.sn-sheet-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-sheet-hint > :first-child {
+  flex: 1;
+}
+.sn-list-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.sn-candidate {
+  display: flex;
+  align-items: flex-start;
+}
+.sn-candidate > .m3-checkbox {
+  margin-top: -2px;
+}
+.sn-candidate__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0 4px;
+}
+.sn-candidate__adds {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sn-candidate__tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+  color: var(--md-sys-color-tertiary);
+}
+.sn-cook-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.sn-cook-row__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  cursor: pointer;
+}
+.sn-cook-row__text {
+  display: flex;
+  flex-direction: column;
+}
+.sn-cook-row__amount {
+  width: 96px;
+  flex: none;
+}
+.sn-rename-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.sn-recipe-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-recipe-form__times {
+  display: flex;
+  gap: 8px;
+}
+.sn-recipe-form__times > * {
+  flex: 1;
+  min-width: 0;
+}

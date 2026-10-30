@@ -46,7 +46,7 @@ const FIRESTORE = 'http://127.0.0.1:8080/v1/projects/demo-spoilnot/databases/(de
 /** The emulator's admin access, which bypasses the rules (test data only). */
 const ADMIN = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
 
-type Value = string | number | boolean | null | Date | string[] | { [key: string]: Value };
+type Value = string | number | boolean | null | Date | Value[] | { [key: string]: Value };
 const firestoreFields = (fields: Record<string, Value>) =>
   Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, firestoreValue(v)]));
 const firestoreValue = (v: Value): object =>
@@ -55,7 +55,7 @@ const firestoreValue = (v: Value): object =>
     : v instanceof Date
       ? { timestampValue: v.toISOString() }
       : Array.isArray(v)
-        ? { arrayValue: { values: v.map((x) => ({ stringValue: x })) } }
+        ? { arrayValue: { values: v.map(firestoreValue) } }
         : typeof v === 'object'
           ? { mapValue: { fields: firestoreFields(v) } }
           : typeof v === 'boolean'
@@ -243,6 +243,49 @@ export async function seedGroceries(hid: string, uid: string, listId: string, it
 /** A member who joined some time ago, for names such as "added by Jordan". */
 export async function seedMember(hid: string, uid: string, displayName: string) {
   await put(`households/${hid}/members/${uid}`, { role: 'member', displayName, joinedAt: new Date() });
+}
+
+export type SeedRecipe = {
+  id: string;
+  title: string;
+  ingredients?: string[];
+  steps?: string[];
+  servings?: number | null;
+  totalMinutes?: number | null;
+  tags?: string[];
+  favorite?: boolean;
+  sourceUrl?: string | null;
+  /** Seconds before now, for the box's Recent order. */
+  createdSecondsAgo?: number;
+};
+
+/** Writes a recipe as the Android app saves one (the web does not add recipes). */
+export async function seedRecipe(hid: string, uid: string, r: SeedRecipe) {
+  const now = new Date();
+  await put(`households/${hid}/recipes/${r.id}`, {
+    title: r.title,
+    sourceUrl: r.sourceUrl ?? null,
+    sourceName: null,
+    imageUrl: null,
+    description: null,
+    servings: r.servings ?? null,
+    servingsText: null,
+    prepMinutes: null,
+    cookMinutes: null,
+    totalMinutes: r.totalMinutes ?? null,
+    // The app saves the parsed fields too; raw alone is how lines it could not parse are kept.
+    ingredients: (r.ingredients ?? []).map((raw) => ({ raw, qty: null, unit: null, name: null, group: null })),
+    steps: (r.steps ?? []).map((text) => ({ text, group: null })),
+    notes: null,
+    tags: r.tags ?? [],
+    importMethod: r.sourceUrl ? 'web' : 'manual',
+    favorite: r.favorite ?? false,
+    rating: null,
+    createdAt: new Date(now.getTime() - (r.createdSecondsAgo ?? 0) * 1000),
+    createdBy: uid,
+    updatedAt: now,
+    updatedBy: uid,
+  });
 }
 
 /** One line of Recent activity, written now. */

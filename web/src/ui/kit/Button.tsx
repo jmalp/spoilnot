@@ -8,6 +8,8 @@ export type ButtonVariant = 'filled' | 'tonal' | 'outlined' | 'text';
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   icon?: IconName;
+  /** An icon after the label, such as the arrow on Next. */
+  trailingIcon?: IconName;
   /** Full width, like PrimaryButton in the app. */
   full?: boolean;
   /** PrimaryButton's 48 px height (a filled button stretched to the touch target), for form buttons. */
@@ -23,6 +25,7 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 export function Button({
   variant = 'filled',
   icon,
+  trailingIcon,
   full,
   large,
   danger,
@@ -37,6 +40,7 @@ export function Button({
     'm3-state',
     `m3-button--${variant}`,
     icon && 'm3-button--with-icon',
+    trailingIcon && 'm3-button--with-trailing-icon',
     full && 'm3-button--full',
     large && 'm3-button--large',
     danger && 'm3-button--error',
@@ -57,6 +61,7 @@ export function Button({
         <>
           {icon && <Icon name={icon} />}
           {children}
+          {trailingIcon && <Icon name={trailingIcon} />}
         </>
       )}
     </button>

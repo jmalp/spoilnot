@@ -23,6 +23,10 @@
 .sn-screen--inner-scroll .sn-screen__content {
   min-height: 0;
 }
+.sn-screen-frame {
+  position: absolute;
+  inset: 0;
+}
 .sn-screen__fab {
   position: absolute;
   right: calc(16px + var(--sn-safe-right));

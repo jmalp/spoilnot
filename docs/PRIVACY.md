@@ -30,7 +30,8 @@ the same way.
 ## What is not collected
 
 - No analytics, no advertising, no tracking.
-- No location, contacts, photos or files. Recipe images stay links to the recipe's website.
+- No location, contacts, photos or files. Recipe images stay links to the recipe's website; showing a recipe loads
+  its photo from that site (the iPhone web app sends no referrer).
 
 ## Other services
 

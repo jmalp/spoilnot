@@ -132,6 +132,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     change it or Skip it; Add puts them in the Pantry tab. New list from the list name, rename it, delete it. Set Keep
     at least on an item on Android and use it up: it appears on the iPhone's default list as Low stock; restock it on
     Android: Back in stock with Remove. Items added on Android flash briefly on the iPhone and "Name added …" shows.
+32. Web app W4 (iPhone, recipes saved on the Android phone): the Recipes tab shows the same cards and stars; search
+    by an ingredient, the Favorites and tag chips, Sort A to Z. Open a recipe: the servings stepper scales the lines;
+    Add to grocery list leaves what is in the pantry unchecked, Change renames a line; I cooked this takes the eggs off
+    the pantry with Undo; Cook keeps the screen on while stepping through. Share opens the iOS share sheet; Open
+    original opens Safari. Edit a step, then Delete: Undo brings it back on both phones. A recipe using food that
+    expires soon shows under Use it up on Home.
 
 ## 3. Conditions
 

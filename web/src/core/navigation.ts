@@ -11,7 +11,9 @@ export type Route =
   | { name: 'settings' }
   | { name: 'householdSettings' }
   | { name: 'insights' }
-  | { name: 'recipe'; id: string };
+  | { name: 'recipe'; id: string }
+  | { name: 'recipeEdit'; id: string }
+  | { name: 'cookMode'; id: string; servings: number | null };
 
 export type NavState = { tab: Tab; stacks: Record<Tab, Route[]> };
 

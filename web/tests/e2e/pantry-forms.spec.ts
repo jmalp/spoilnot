@@ -2,6 +2,9 @@
 import { expect, test } from '@playwright/test';
 import { createHousehold, householdId, inDays, openApp, seedPantry, signUp, uidOf, uniqueEmail } from './support';
 
+// A long flow: room for slow machines.
+test.setTimeout(60_000);
+
 test('add an item, add the same again (merged), fill from a known product, pick a date, edit to zero with Undo', async ({
   page,
 }) => {

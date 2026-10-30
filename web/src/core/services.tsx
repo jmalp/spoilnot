@@ -6,6 +6,8 @@ import type { GroceryService } from '../domain/grocery/service';
 import type { ActivityRepository } from '../domain/home/models';
 import type { HouseholdRepository } from '../domain/household';
 import type { StatsRepository } from '../domain/insights/insights';
+import type { RecipeService } from '../domain/recipes/service';
+import type { RecipeStore } from '../domain/recipes/store';
 import type { PantryRepository } from '../domain/pantry/repository';
 import type { PantryService } from '../domain/pantry/service';
 import type { Session, SessionManager } from '../domain/session';
@@ -25,6 +27,9 @@ export type Services = {
   groceryService: GroceryService;
   /** Adds low staples to the default list on every phone (DESIGN 9.6); started with the app. */
   restock: RestockRunner;
+  /** The recipe box, one listener shared by the recipe screens. */
+  recipes: RecipeStore;
+  recipeService: RecipeService;
   activity: ActivityRepository;
   stats: StatsRepository;
   clock: Clock;

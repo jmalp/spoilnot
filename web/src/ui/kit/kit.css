@@ -97,6 +97,9 @@
 .m3-button--with-icon {
   padding-left: 16px;
 }
+.m3-button--with-trailing-icon {
+  padding-right: 16px;
+}
 .m3-button--filled {
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
@@ -379,6 +382,15 @@
 .m3-text-field--error .m3-text-field__label {
   color: var(--md-sys-color-error);
 }
+.m3-text-field--multiline .m3-text-field__input {
+  min-height: 120px;
+  resize: vertical;
+  font-family: inherit;
+}
+.m3-text-field--multiline:not(.m3-text-field--floating) .m3-text-field__label {
+  top: 16px;
+  transform: none;
+}
 .m3-text-field__trailing {
   display: flex;
   align-items: center;
@@ -617,6 +629,12 @@
   border-radius: 4px;
   background: var(--md-sys-color-surface-container);
   box-shadow: var(--sn-elevation-2);
+}
+/* Lines up items without a leading icon with those that have one (a check on the chosen option). */
+.sn-menu-spacer {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
 }
 .m3-menu__divider {
   height: 1px;

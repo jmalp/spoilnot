@@ -9,10 +9,12 @@ import { MonthTotals, type InsightsSummary } from '../../domain/insights/insight
 import type { PantryFilter } from '../../domain/pantry/items';
 import type { PantryData } from '../../domain/pantry/models';
 import type { PantryRow } from '../../domain/pantry/rows';
+import { UseItUp, type UseItUpSuggestion } from '../../domain/recipes/cooking';
 import { yearMonthOf, type LocalDate } from '../../domain/time';
 import { Button, Card, Icon, type IconName } from '../kit';
 import { insights$, MonthRing } from '../insights/InsightsScreen';
 import { moodText } from '../insights/labels';
+import { chipText } from '../pantry/labels';
 import { Badge, StatusChip } from '../pantry/PantryRow';
 import { OfflineBanner, TabScaffold } from '../Scaffold';
 import { activityText, relativeTime } from './labels';
@@ -29,16 +31,17 @@ export type HomeNavigation = {
   openPantry: (filter: PantryFilter) => void;
   openInsights: () => void;
   openGroceries: () => void;
+  openRecipe: (id: string) => void;
   reviewJoinRequests: () => void;
 };
 
 /**
- * The Home tab (DESIGN 5.6): what needs attention, low stock, the grocery list, this month's kitchen (5.7) and recent
- * activity. Today's meals and Use it up join with their tabs (W4, W5).
+ * The Home tab (DESIGN 5.6): what needs attention, Use it up, low stock, the grocery list, this month's kitchen (5.7)
+ * and recent activity. Today's meals join with the Plan tab (W5).
  */
 export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavigation; joinRequests: number }) {
   const me = useHouseholdSession();
-  const { pantry, grocery, activity, stats, clock } = useServices();
+  const { pantry, grocery, activity, stats, recipes, clock } = useServices();
   const today = useToday(clock);
   const hid = me.householdId;
   const data = useObservable<PantryData | null>(
@@ -76,7 +79,10 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
     useMemo(() => insights$(stats, hid, of(today), yearMonthOf), [stats, hid, today]),
     null,
   );
+  const box = useObservable(recipes.box$, null);
   const summary = data ? HomeDashboard.summary(data, groceryItems, recent, today) : null;
+  // Saved recipes that use food expiring soon (DESIGN 5.6).
+  const useItUp = data && box ? UseItUp.suggestions(box.recipes, data, today) : [];
   return (
     <TabScaffold
       title={str('tab_home')}
@@ -90,7 +96,14 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
         {summary === null ? (
           Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} />)
         ) : (
-          <HomeCards summary={summary} today={today} myUid={me.user.uid} navigation={navigation} insights={insights} />
+          <HomeCards
+            summary={summary}
+            today={today}
+            myUid={me.user.uid}
+            navigation={navigation}
+            insights={insights}
+            useItUp={useItUp}
+          />
         )}
       </div>
     </TabScaffold>
@@ -103,12 +116,14 @@ function HomeCards({
   myUid,
   navigation,
   insights,
+  useItUp,
 }: {
   summary: HomeSummary;
   today: LocalDate;
   myUid: string;
   navigation: HomeNavigation;
   insights: InsightsSummary | null;
+  useItUp: UseItUpSuggestion[];
 }) {
   const { clock } = useServices();
   const now = useNow(clock);
@@ -135,6 +150,7 @@ function HomeCards({
           <AttentionRow key={row.productId} row={row} today={today} />
         ))}
       </HomeCard>
+      {useItUp.length > 0 && <UseItUpCard suggestions={useItUp} today={today} onOpen={navigation.openRecipe} />}
       <HomeCard
         title={str('home_low_stock')}
         icon="round/inventory_2"
@@ -185,6 +201,44 @@ function HomeCards({
         ))}
       </HomeCard>
     </>
+  );
+}
+
+/**
+ * "Use it up" (DESIGN 5.6, after v1): saved recipes that use food expiring soon, each with what it uses and when that
+ * expires. Shown only when there is a match.
+ */
+function UseItUpCard({
+  suggestions,
+  today,
+  onOpen,
+}: {
+  suggestions: UseItUpSuggestion[];
+  today: LocalDate;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <HomeCard title={str('home_use_it_up')} icon="round/restaurant_menu" testId="card_home_use_it_up">
+      {suggestions.map(({ recipe, uses }) => (
+        <button
+          key={recipe.id}
+          type="button"
+          className="sn-use-it-up m3-state"
+          aria-description={str('home_use_it_up_open')}
+          onClick={() => onOpen(recipe.id)}
+        >
+          <span className="t-body-large sn-home-row__name">{recipe.content.title}</span>
+          <span className="t-body-medium c-on-surface-variant">
+            {str(
+              'home_use_it_up_uses',
+              uses
+                .map((u) => `${u.product.name} (${chipText(u.batch.expiryDate, u.batch.dateType, today)})`)
+                .join(', '),
+            )}
+          </span>
+        </button>
+      ))}
+    </HomeCard>
   );
 }
 

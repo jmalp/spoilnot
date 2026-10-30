@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, type UIEvent } from 'react';
 import { str } from '../core/i18n';
-import { Icon, IconButton, TopAppBar, useSnackbars, type IconName } from './kit';
+import { Icon, IconButton, TopAppBar, useOptionalSnackbars, useSnackbars, type IconName } from './kit';
 import './scaffold.css';
 
 const ScrolledContext = createContext<(scrolled: boolean) => void>(() => undefined);
@@ -78,22 +78,32 @@ export function TabScaffold({
   );
 }
 
-/** A pushed screen (DetailScaffold): a titleLarge title with a back button. */
+/** A pushed screen (DetailScaffold): a titleLarge title with a back button, and an optional extended FAB. */
 export function DetailScaffold({
   title,
   onBack,
   actions,
+  fab,
   testId,
   children,
 }: {
   title: string;
   onBack: () => void;
   actions?: ReactNode;
+  /** Stays in place while the content scrolls under it. */
+  fab?: ReactNode;
   testId?: string;
   children: ReactNode;
 }) {
   const [scrolled, setScrolled] = useState(false);
-  return (
+  // Snackbars show above the FAB; screens before sign-in have neither.
+  const snackbars = useOptionalSnackbars();
+  useEffect(() => {
+    if (!fab || !snackbars) return;
+    snackbars.setBottomInset(56 + 16);
+    return () => snackbars.setBottomInset(0);
+  }, [fab, snackbars]);
+  const screen = (
     <div className="sn-screen" data-testid={testId} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
       <TopAppBar
         title={title}
@@ -102,6 +112,13 @@ export function DetailScaffold({
         actions={actions}
       />
       <main className="sn-screen__content">{children}</main>
+    </div>
+  );
+  if (!fab) return screen;
+  return (
+    <div className="sn-screen-frame">
+      {screen}
+      <div className="sn-screen__fab">{fab}</div>
     </div>
   );
 }
