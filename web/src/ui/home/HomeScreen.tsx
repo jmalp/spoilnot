@@ -20,6 +20,7 @@ import { insights$, MonthRing } from '../insights/InsightsScreen';
 import { moodText } from '../insights/labels';
 import { chipText } from '../pantry/labels';
 import { Badge, StatusChip } from '../pantry/PantryRow';
+import { InstallCard } from '../install/InstallHelp';
 import { OfflineBanner, TabScaffold } from '../Scaffold';
 import { activityText, relativeTime } from './labels';
 import './home.css';
@@ -114,6 +115,7 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
     >
       {data?.fromCache && <OfflineBanner />}
       <div className="sn-home">
+        <InstallCard />
         {joinRequests > 0 && <JoinRequestsCard count={joinRequests} onReview={navigation.reviewJoinRequests} />}
         {summary === null ? (
           Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} />)

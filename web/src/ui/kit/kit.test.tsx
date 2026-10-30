@@ -59,6 +59,25 @@ describe('kit', () => {
     applyTextScale(1);
   });
 
+  it('a snackbar with an action runs it once and stays 10 seconds', () => {
+    const update = vi.fn();
+    function Trigger() {
+      const snackbars = useSnackbars();
+      return <button onClick={() => snackbars.showAction('A new version is ready', 'Update', update)}>update</button>;
+    }
+    const { unmount } = render(
+      <SnackbarProvider>
+        <Trigger />
+      </SnackbarProvider>,
+    );
+    fireEvent.click(screen.getByText('update'));
+    act(() => vi.advanceTimersByTime(9_000));
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('status')).toBeNull();
+    unmount();
+  });
+
   it('a dialog dismisses on Escape', () => {
     const onDismiss = vi.fn();
     render(<Dialog title="Clear this week?" actions={null} onDismiss={onDismiss} />);

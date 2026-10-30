@@ -590,7 +590,11 @@ export const STRINGS = {
   "web_license_link": "Project page",
   "web_notif_install": "To get reminders on iPhone, add Spoil Not to your Home Screen: tap Share, then Add to Home Screen, and open it from there.",
   "web_notif_denied": "Turn them on in the iPhone's Settings, under Notifications, then Spoil Not.",
-  "web_notif_unsupported": "This browser cannot show Spoil Not's reminders. On iPhone, add Spoil Not to the Home Screen from Safari."
+  "web_notif_unsupported": "This browser cannot show Spoil Not's reminders. On iPhone, add Spoil Not to the Home Screen from Safari.",
+  "web_install_welcome": "On iPhone, add Spoil Not to your Home Screen: tap Share, then Add to Home Screen.",
+  "web_install_title": "Add Spoil Not to your Home Screen",
+  "web_install_body": "In Safari, tap Share, then Add to Home Screen. Spoil Not then opens full screen and can remind you before food expires.",
+  "web_install_later": "Not now"
 } as const;
 
 export const PLURALS = {

@@ -22,7 +22,7 @@ test('five tabs in the Android order; each tab opens its screen and Back returns
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Pantry' })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 });
 
 test('the in-app back button and a link to a tab', async ({ browser }) => {

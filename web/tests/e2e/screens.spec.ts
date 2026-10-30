@@ -43,7 +43,8 @@ for (const dark of [false, true]) {
   for (const textScale of [1, 2]) {
     const suffix = `${dark ? 'dark' : 'light'}_font${textScale}`;
     test(`screens ${suffix}`, async ({ page }) => {
-      await openApp(page, { dark, textScale });
+      // Safari on an iPhone: the welcome line and Home's card about Add to Home Screen show (DESIGN 18.1).
+      await openApp(page, { dark, textScale, installHelp: true });
       await expect(page.getByTestId('screen_welcome')).toBeVisible();
       await shot(page, `welcome_${suffix}`);
 
@@ -62,6 +63,7 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('card_home_insights')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId('home_skeleton')).toHaveCount(0);
       await shot(page, `home_${suffix}`);
+      await page.getByTestId('card_install').getByRole('button', { name: 'Not now' }).click();
 
       // Dates relative to today, so the chips read the same on every run.
       const hid = await householdId(household);

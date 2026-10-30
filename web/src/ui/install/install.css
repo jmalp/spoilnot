@@ -1,0 +1,20 @@
+/* Add to Home Screen help (DESIGN 18.1). */
+.sn-install-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: start;
+}
+.sn-install-line .m3-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--md-sys-color-primary);
+}
+.sn-install-card__body {
+  margin: 0;
+}
+.sn-install-card__later {
+  align-self: flex-end;
+}

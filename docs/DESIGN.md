@@ -1246,6 +1246,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-30 | Web app W5: the meal planner (5.9) with Home's Today card, ported from the app with its tests; weeks start on the phone region's first day; the recipe picker's empty message points to the Android app | 18.8, QA |
 | 2026-10-30 | Web app W6a: Settings > Appearance (System, Light or Dark, the six themes, units), Export as a download, Clear household data for the owner, About with the open source licenses, and the app tour with coach marks, ported from the app with their tests; W6 is split in two (web push in W6b). The web session no longer flashes the gate right after creating a household | 18.1, 18.3, 18.8, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-30 | Web app W6b: Settings > Notifications, web push (the FCM web token as a `platform: web` device, the service worker showing digests and opening their route), the time zone written at start, and the notification explainer after the third dated item; the rules accept web devices and the reminder job adds a `webpush` part to every digest. The app tour is removed from the web app (owner's choice) | 8.2, 12.3, 18.1, 18.3, 18.4, 18.8, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
+| 2026-10-30 | Web app W7 (code): Firebase Hosting with a strict Content Security Policy and cache headers, `scripts/deploy-web.sh`, Add to Home Screen help on the welcome screen and Home, the Update snackbar, a test of the built app under the hosting headers in CI, and a Lighthouse check (performance 93, accessibility 100). Deploying is the owner's step | 18.5, 18.6, 18.7, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
@@ -1344,19 +1345,40 @@ Web Push certificates) is a human step; its public key goes in the web build's c
 
 **18.5 Offline, install and updates.** A service worker caches the app shell so it opens offline; a web manifest
 gives the name, the launcher icon (rendered from the adaptive icon) and theme colors. A new version is fetched in the
-background and offered with a snackbar (Update, which reloads). `minSupportedBuild` (5.6) does not apply: the web app
-is always the latest version.
+background and offered with a snackbar for 10 s (Update, which reloads; otherwise it starts with the next launch).
+`minSupportedBuild` (5.6) does not apply: the web app is always the latest version. In Safari on an iPhone, the
+welcome screen says how to install (Share, then Add to Home Screen) and Home shows a card about it until Not now; the
+app opened from the Home Screen shows neither.
 
 **18.6 Hosting and release.** Firebase Hosting (free on the Spark plan): `spoilnot-dev.web.app` for testing and
 `spoilnot-prod.web.app` for testers, whose sign-in domains Firebase authorizes by default. Each project needs a
-registered Web app for its config (a human approves creating them). `scripts/deploy-web.sh` builds, tests and deploys
-to dev, and to prod only after asking, like the beta script. Strict security headers (CSP) in `firebase.json`.
+registered Web app for its config (a human approves creating them). `scripts/deploy-web.sh dev|prod` reads that config
+from Firebase and the VAPID key from the git-ignored `web/.env.<dev|prod>.local`, runs the checks and the browser
+tests, builds for the project, offers to deploy the rules, and deploys; prod only from a main that matches GitHub and
+after asking, like the beta script.
+
+- `firebase/firebase.json` serves `web/dist` (without source maps) with every path falling back to `index.html`, and
+  sends on every response: `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self';
+  img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://*.googleapis.com; worker-src 'self';
+  manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';
+  frame-ancestors 'none'; upgrade-insecure-requests`, `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  same-origin`, a `Permissions-Policy` that turns off camera, microphone, location, payment and USB, and
+  `Cross-Origin-Opener-Policy: same-origin` (HSTS is Firebase Hosting's own). Pages, the service worker and
+  `licenses.json` are `no-cache`; the hashed files in `/assets` are cached for a year.
+- To fit the policy, Auth starts without the pop-up and redirect sign-in (no hidden iframe; email and password need
+  neither) and fonts stay files instead of `data:` URLs. `img-src https:` is for recipe photos from their sites.
+- Performance (W7, Lighthouse 13.6, mobile preset, the welcome screen of the build served by `vite preview` without
+  compression, five runs): performance 92–93, accessibility 100, best practices 100; first contentful paint 0.8 s,
+  largest contentful paint 3.2 s (the title, when its font arrives), total blocking time 0 ms, layout shift 0. The
+  Firebase SDK is most of the first download; an installed app loads it from the service worker's cache.
 
 **18.7 Testing.** Vitest for the domain (ported cases) and the generators; React Testing Library for components;
 Playwright with WebKit and an iPhone profile against the Firebase emulators, two browser contexts as two phones (like
 `TestPhone`), two test files at a time (one emulator serves every browser); the screenshots of 18.2. CI runs format, lint, type check, unit tests, the build, a check that the
-generated files are current, and the Playwright tests. The owner runs the web QA flows on a real iPhone before the
-first web release.
+generated files are current, the Playwright tests, and the built app under the hosting headers
+(`playwright.preview.config.ts`: `vite preview` with the headers of `firebase.json`, the service worker installed,
+no policy violations, the pantry offline). The owner runs the web QA flows on a real iPhone before the first web
+release.
 
 **18.8 Milestones** (one PR each, merged when CI passes):
 

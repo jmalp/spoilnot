@@ -34,7 +34,7 @@ test('a second phone joins with the code after the owner approves; removing them
   const requests = alice.getByTestId('card_join_requests');
   await expect(requests).toContainText('Bob');
   await requests.getByRole('button', { name: 'Approve' }).click();
-  await expect(bob.getByRole('heading', { name: 'Home' })).toBeVisible();
+  await expect(bob.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
   await expect(alice.getByTestId('card_members')).toContainText('Bob');
 
   // Removing Bob sends him back to the gate.
@@ -62,11 +62,11 @@ test('sign out, a wrong password, sign in again, and the reset link message', as
   await expect(page.getByText('Email or password is incorrect.')).toBeVisible();
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 
   // Signed in again after a reload: the sign-in is kept on the phone.
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 });
 
 test('the reset screen confirms without saying whether the account exists', async ({ page }) => {

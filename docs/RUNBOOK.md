@@ -133,13 +133,35 @@ Everything is in `web/` and needs Node 24. Once: `cd web && npm install && npx p
   dependency run `npm ci` and `npm run gen` and commit the file.
 - Web push needs the project's Web Push certificate (a human step, once per project): Firebase console > Project
   settings > Cloud Messaging > Web Push certificates > Generate key pair. The public key is not a secret; the build
-  reads it from `VITE_FIREBASE_VAPID_KEY` (set by `scripts/deploy-web.sh`, W7). Without it the web app writes the time
+  reads it from `VITE_FIREBASE_VAPID_KEY` in `web/.env.<dev|prod>.local` (see Deploying the web app). Without it the web app writes the time
   zone but no device, so the digest does not reach that iPhone. The Firestore rules must be deployed with
   `platform: web` devices allowed (2026-10-30) before an iPhone can register.
 - Push cannot be tried in development: the dev server has no service worker. Use a deployed build on an iPhone
   (QA flow 35).
 
-Deploying (Firebase Hosting) comes with milestone W7.
+### Deploying the web app (DESIGN 18.6)
+
+Once per project (spoilnot-dev, then spoilnot-prod), with the owner's OK:
+
+1. Register a Web app: Firebase console > Project settings > Your apps > Add app > Web (nickname "Spoil Not web",
+   no Firebase Hosting setup needed). The deploy script reads its config from Firebase; nothing is copied by hand.
+2. Create the Web Push certificate (Cloud Messaging > Web Push certificates > Generate key pair) and put its public
+   key in `web/.env.dev.local` or `web/.env.prod.local` as `VITE_FIREBASE_VAPID_KEY=...` (git-ignored).
+3. Deploy the Firestore rules (they allow `platform: web` devices since 2026-10-30); the deploy script offers it.
+
+Then, from a clean checkout:
+
+- `./scripts/deploy-web.sh dev` checks, tests (the emulators' ports must be free: stop `./scripts/emulators.sh`
+  first), builds for spoilnot-dev and deploys to https://spoilnot-dev.web.app. `--skip-tests` skips the browser
+  tests, `--dry-run` builds and checks without deploying.
+- `./scripts/deploy-web.sh prod` does the same for https://spoilnot-prod.web.app, only from main matching GitHub and
+  after a yes. Run QA flow 36 on an iPhone against dev first.
+- A bad release: Firebase console > Hosting > Release history > Roll back. Installed apps pick up the rolled-back
+  version like any update.
+- `npm run e2e:preview` builds and tests the app under the hosting headers locally (with the emulators running), as
+  CI does. For a performance check: `npx vite preview --port 4173`, then
+  `CHROME_PATH=<Playwright's Chromium> npx lighthouse http://localhost:4173/ --only-categories=performance,accessibility`
+  (results in DESIGN 18.6).
 
 ## Baseline profile (DESIGN 13.1)
 

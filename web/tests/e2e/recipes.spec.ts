@@ -17,7 +17,7 @@ const tab = (page: Page, name: string) => page.getByRole('navigation').getByRole
 const cards = (page: Page) => page.getByTestId('recipe_grid').getByTestId('recipe_card');
 
 // A long flow: room for slow machines.
-test.setTimeout(60_000);
+test.setTimeout(90_000);
 
 test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode, edit and delete with Undo', async ({
   page,

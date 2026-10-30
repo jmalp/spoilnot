@@ -7,6 +7,7 @@ describe('AppPreferences', () => {
       themeMode: 'system',
       colorTheme: 'spoilnot',
       notificationExplainerShown: false,
+      installHelpDismissed: false,
     });
   });
 
@@ -25,6 +26,7 @@ describe('AppPreferences', () => {
       themeMode: 'dark',
       colorTheme: 'fiery',
       notificationExplainerShown: true,
+      installHelpDismissed: false,
     });
   });
 

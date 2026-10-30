@@ -2,15 +2,13 @@
 // only; the push token is the data layer's (FcmDeviceRegistry).
 import { DeepLinks } from './deepLinks';
 import { str } from './i18n';
+import { isIos } from './install';
 
 /**
  * The system's answer (granted, denied, or not asked yet), `install` on an iPhone outside a Home Screen web app
  * (Safari shows web notifications only there), or `unsupported` in a browser without web push.
  */
 export type PushStatus = NotificationPermission | 'install' | 'unsupported';
-
-const isIos = () =>
-  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 export function pushStatus(): PushStatus {
   if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {

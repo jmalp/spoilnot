@@ -10,7 +10,7 @@ export { IconButton } from './IconButton';
 export { Menu, MenuDivider, MenuItem } from './Menu';
 export { Progress } from './Progress';
 export { Checkbox, Radio, Switch } from './Selection';
-export { SnackbarProvider, useOptionalSnackbars, useSnackbars, SHORT_MS, UNDO_WINDOW_MS } from './Snackbar';
+export { SnackbarProvider, useOptionalSnackbars, useSnackbars, LONG_MS, SHORT_MS, UNDO_WINDOW_MS } from './Snackbar';
 export { TextArea, TextField } from './TextField';
 export { ErrorText, ListItem } from './ListItem';
 export { DatePickerDialog } from './DatePicker';

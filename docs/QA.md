@@ -158,6 +158,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     arrives shortly after it, on the iPhone and the Android phone, with the same words; tapping it opens Pantry on
     Expiring soon (or Plan when only meals are listed). Turn notifications off for Spoil Not in the iPhone's Settings:
     the banner says where to turn them on. Sign out: the next digest does not reach this iPhone.
+36. Web app W7 (an iPhone and `https://spoilnot-dev.web.app`, then prod): in Safari the welcome screen says how to add
+    Spoil Not to the Home Screen and Home shows the card; Not now hides it. Share > Add to Home Screen: the icon is
+    the Spoil Not jar, the app opens full screen with no Safari bars and neither hint shows. Sign in, then turn on
+    Airplane Mode and reopen the app: it opens and shows the pantry; an item added offline appears on the Android
+    phone once the iPhone is back online. Deploy a new build: within a day of opening the app, "A new version of Spoil
+    Not is ready" offers Update, which reloads into it. Run flows 28 to 35 on this install.
 
 ## 3. Conditions
 

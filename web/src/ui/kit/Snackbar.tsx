@@ -6,6 +6,8 @@ import { Button } from './Button';
 export const UNDO_WINDOW_MS = 8_000;
 /** SnackbarDuration.Short. */
 export const SHORT_MS = 4_000;
+/** SnackbarDuration.Long. */
+export const LONG_MS = 10_000;
 
 type Message = { id: number; text: string; action?: { label: string; run: () => void }; durationMs: number };
 
@@ -14,6 +16,8 @@ type Snackbars = {
   show: (text: string) => void;
   /** A message with Undo for 8 seconds (MessageEffect in the app). */
   showUndo: (text: string, undo: () => void) => void;
+  /** A message with another action, for [durationMs] (SnackbarDuration.Long by default). */
+  showAction: (text: string, label: string, run: () => void, durationMs?: number) => void;
   /** Room to leave below snackbars, such as a floating action button's (Scaffold puts snackbars above it). */
   setBottomInset: (px: number) => void;
 };
@@ -44,6 +48,7 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
       show: (text) => enqueue({ text, durationMs: SHORT_MS }),
       showUndo: (text, undo) =>
         enqueue({ text, durationMs: UNDO_WINDOW_MS, action: { label: str('action_undo'), run: undo } }),
+      showAction: (text, label, run, durationMs = LONG_MS) => enqueue({ text, durationMs, action: { label, run } }),
       setBottomInset,
     }),
     [enqueue],

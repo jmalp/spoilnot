@@ -1,5 +1,7 @@
 dist/
 dev-dist/
 playwright-report/
+playwright-report-preview/
 test-results/
+test-results-preview/
 /blob-report/

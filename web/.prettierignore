@@ -2,6 +2,8 @@ dist
 dev-dist
 node_modules
 playwright-report
+playwright-report-preview
 test-results
+test-results-preview
 tests/e2e/__screenshots__
 *.generated.ts
