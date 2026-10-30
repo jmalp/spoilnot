@@ -1,18 +1,19 @@
 import { AppPreferences } from '../core/preferences';
 import type { Services } from '../core/services';
-import { EXPORT_APP_VERSION } from '../core/version';
-import type { DeviceRegistry } from '../domain/household';
+import { APP_VERSION } from '../core/version';
 import { RestockRunner } from '../domain/grocery/restock';
 import { GroceryService } from '../domain/grocery/service';
 import { PantryService } from '../domain/pantry/service';
 import { MealPlanService } from '../domain/plan/service';
 import { RecipeService } from '../domain/recipes/service';
 import { RecipeStore } from '../domain/recipes/store';
+import { DeviceSync } from '../domain/notifications';
 import { SessionManager } from '../domain/session';
 import { systemClock } from '../domain/time';
 import { FirestoreActivityRepository } from './activity';
 import { FirebaseAuthRepository } from './auth';
 import { FirestoreHouseholdExporter } from './export';
+import { FcmDeviceRegistry, FirestoreNotificationPrefsRepository } from './notifications';
 import { FirestoreGroceryRepository, groceryMapper } from './grocery';
 import { firebase, type FirebaseSdk } from './firebase';
 import { FirestoreHouseholdRepository, FirestoreLocalData } from './households';
@@ -24,15 +25,13 @@ import { FirestoreUserRepository } from './users';
 import { SyncLog } from './delta-sync';
 import { FirestoreHouseholdWriter } from './writer';
 
-/** Web push registration arrives with W6; until then the phone has no device to register. */
-const noDevices: DeviceRegistry = { sync: async () => undefined, unregister: async () => undefined };
-
 /** The real services, on Firebase (the app's Hilt modules). */
 export function createServices(sdk: FirebaseSdk = firebase()): Services {
   const auth = new FirebaseAuthRepository(sdk);
   const users = new FirestoreUserRepository(sdk);
   const households = new FirestoreHouseholdRepository(sdk);
-  const session = new SessionManager(auth, users, households, new FirestoreLocalData(sdk), noDevices);
+  const devices = new FcmDeviceRegistry(sdk, APP_VERSION);
+  const session = new SessionManager(auth, users, households, new FirestoreLocalData(sdk), devices);
   const clock = systemClock;
   const writer = new FirestoreHouseholdWriter(sdk, [
     pantryMapper,
@@ -63,7 +62,9 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     mealPlanService: new MealPlanService(writer, pantryService, recipeService),
     activity: new FirestoreActivityRepository(sdk, log),
     stats: new FirestoreStatsRepository(sdk),
-    exporter: new FirestoreHouseholdExporter(sdk, clock, EXPORT_APP_VERSION),
+    exporter: new FirestoreHouseholdExporter(sdk, clock, APP_VERSION),
+    notificationPrefs: new FirestoreNotificationPrefsRepository(sdk),
+    deviceSync: new DeviceSync(session.session$, devices),
     preferences: new AppPreferences(),
     clock,
   };

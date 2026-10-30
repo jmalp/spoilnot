@@ -3,12 +3,14 @@ import { combineLatest, map } from 'rxjs';
 import { useAction, useObservable } from '../../core/hooks';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, usePreferences, useServices } from '../../core/services';
+import { NotificationRules } from '../../domain/notifications';
 import { ExportFormat } from '../../domain/settings/export';
 import { today } from '../../domain/time';
 import { Button, Card, Dialog, ErrorText, Icon, ListItem, useSnackbars } from '../kit';
 import { PasswordField } from '../forms';
 import { DetailScaffold } from '../Scaffold';
-import { AppearanceCard, DataCard, TourAndAboutCard } from './SettingsSections';
+import { formatHour, useNotificationPrefs } from '../notifications/NotificationSettingsScreen';
+import { AboutCard, AppearanceCard, DataCard } from './SettingsSections';
 import '../household/household.css';
 
 /** The steps of Clear household data: an "are you sure" step, then the owner's password. */
@@ -27,16 +29,18 @@ function download(name: string, text: string) {
 }
 
 /**
- * Settings (DESIGN 5.6): the account, the household, appearance and units, export, the app tour and About, signing
- * out, deleting the account and, for the owner, clearing the household's data. Notifications come with W6b.
+ * Settings (DESIGN 5.6): the account, the household, notifications, appearance and units, export and About, signing
+ * out, deleting the account and, for the owner, clearing the household's data.
  */
 export function SettingsScreen({
   onBack,
   onOpenHousehold,
+  onOpenNotifications,
   onOpenAbout,
 }: {
   onBack: () => void;
   onOpenHousehold: () => void;
+  onOpenNotifications: () => void;
   onOpenAbout: () => void;
 }) {
   const me = useHouseholdSession();
@@ -48,6 +52,7 @@ export function SettingsScreen({
   const [verificationSent, setVerificationSent] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [clearStep, setClearStep] = useState<ClearStep>('none');
+  const notifications = useNotificationPrefs();
   const household = useObservable(
     useMemo(
       () =>
@@ -112,6 +117,21 @@ export function SettingsScreen({
             testId="row_household"
           />
         </Card>
+        <Card>
+          <ListItem
+            headline={str('settings_notifications')}
+            supporting={
+              notifications &&
+              (notifications.enabled
+                ? str('settings_notifications_on', formatHour(NotificationRules.hour(notifications)))
+                : str('settings_notifications_off'))
+            }
+            leading={<Icon name="round/notifications" />}
+            trailing={<Icon name="round/keyboard_arrow_right" />}
+            onClick={onOpenNotifications}
+            testId="row_notifications"
+          />
+        </Card>
         <AppearanceCard
           themeMode={themeMode}
           colorTheme={colorTheme}
@@ -129,8 +149,7 @@ export function SettingsScreen({
             })
           }
         />
-        {/* Starts the tour again (DESIGN 5.8); the shell picks it up. */}
-        <TourAndAboutCard onTakeTour={() => preferences.set({ tourDone: false })} onOpenAbout={onOpenAbout} />
+        <AboutCard onOpenAbout={onOpenAbout} />
         <Button
           variant="outlined"
           full

@@ -131,8 +131,13 @@ Everything is in `web/` and needs Node 24. Once: `cd web && npm install && npx p
   After changing the launcher icon: `npm run gen && node scripts/gen-app-icons.ts`. `npm run gen` also rewrites
   `public/licenses.json` (About's open source licenses) from the installed packages, so after adding or updating a
   dependency run `npm ci` and `npm run gen` and commit the file.
-- The app tour starts on a new phone; the browser tests mark it taken (`openApp` in `tests/e2e/support.ts`) unless a
-  test asks for it with `{ tour: true }`.
+- Web push needs the project's Web Push certificate (a human step, once per project): Firebase console > Project
+  settings > Cloud Messaging > Web Push certificates > Generate key pair. The public key is not a secret; the build
+  reads it from `VITE_FIREBASE_VAPID_KEY` (set by `scripts/deploy-web.sh`, W7). Without it the web app writes the time
+  zone but no device, so the digest does not reach that iPhone. The Firestore rules must be deployed with
+  `platform: web` devices allowed (2026-10-30) before an iPhone can register.
+- Push cannot be tried in development: the dev server has no service worker. Use a deployed build on an iPhone
+  (QA flow 35).
 
 Deploying (Firebase Hosting) comes with milestone W7.
 

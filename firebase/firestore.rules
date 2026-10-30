@@ -64,7 +64,8 @@ service cloud.firestore {
         allow read, delete: if signedIn() && me() == uid;
         allow create, update: if signedIn() && me() == uid
           && s(request.resource.data.token, 20, 4096)
-          && request.resource.data.platform == 'android';
+          // The web app for iPhone registers its FCM web token too (after v1, DESIGN 18.4).
+          && request.resource.data.platform in ['android', 'web'];
       }
     }
 

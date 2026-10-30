@@ -494,7 +494,7 @@ users/{uid}:                          # private to the user
   lastExpiredThrough: string | null   # SERVER-WRITTEN: expired items up to this date were reported
 users/{uid}/devices/{installId}:
   token: string
-  platform: android
+  platform: android | web             # web: the web app for iPhone (after v1, 18.4)
   appVersion: string
   updatedAt
 
@@ -949,7 +949,7 @@ service cloud.firestore {
         allow read, delete: if signedIn() && me() == uid;
         allow create, update: if signedIn() && me() == uid
           && s(request.resource.data.token, 20, 4096)
-          && request.resource.data.platform == 'android';
+          && request.resource.data.platform in ['android', 'web'];
       }
     }
 
@@ -1245,6 +1245,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-29 | Web app W4: recipes, view only (18.1): the box, detail and scaling, Add to grocery list, I cooked this, cook mode, Edit, Share, Delete with Undo and Home's Use it up card, ported from the app with their tests; no Add recipe on the web, and an empty box says recipes come from the Android app | 18.8, QA, PRIVACY, SECURITY_REVIEW |
 | 2026-10-30 | Web app W5: the meal planner (5.9) with Home's Today card, ported from the app with its tests; weeks start on the phone region's first day; the recipe picker's empty message points to the Android app | 18.8, QA |
 | 2026-10-30 | Web app W6a: Settings > Appearance (System, Light or Dark, the six themes, units), Export as a download, Clear household data for the owner, About with the open source licenses, and the app tour with coach marks, ported from the app with their tests; W6 is split in two (web push in W6b). The web session no longer flashes the gate right after creating a household | 18.1, 18.3, 18.8, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
+| 2026-10-30 | Web app W6b: Settings > Notifications, web push (the FCM web token as a `platform: web` device, the service worker showing digests and opening their route), the time zone written at start, and the notification explainer after the third dated item; the rules accept web devices and the reminder job adds a `webpush` part to every digest. The app tour is removed from the web app (owner's choice) | 8.2, 12.3, 18.1, 18.3, 18.4, 18.8, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
@@ -1262,8 +1263,10 @@ live. The Android app does not change.
 - **No wallpaper colors**: Settings > Appearance offers the Spoil Not green and the five preset themes (6.4); Material
   You exists only on Android.
 - **No crash reports**: there is no Crashlytics on the web, so Settings has no crash reports switch and About no test
-  crash; About's privacy summary says so. The app tour's Add recipe step (5.8) shows the recipe box instead: recipes
-  saved in the Android app, ready to cook, plan and shop from (`web_tour_recipes`).
+  crash; About's privacy summary says so.
+- **No app tour** (owner's choice, October 30, 2026): the web app has no tour (5.8) and Settings no Take the app tour
+  row. W6a shipped one; W6b removed it.
+- **No battery tip** in Settings > Notifications: iPhones have no battery restrictions to lift for web push.
 - **Installed from Safari** with Share > Add to Home Screen (iOS 16.4 or later, needed for notifications). It opens
   full screen with the Spoil Not icon. It also works in any current browser, but it is designed and tested for iPhone.
 
@@ -1305,8 +1308,8 @@ live. The Android app does not change.
   (`POINTER_SETTLE_MS`), because the web SDK can raise the server's older copy of the profile, without the pointer,
   between the acknowledgement of the phone's own write and the newer version; acting on it showed the gate and
   cleared the cache right after creating a household.
-- Settings > Appearance and the tour live in `localStorage` (`AppPreferences` in `web/src/core/preferences.ts`), like
-  the app's DataStore: per phone, not household data. Export downloads the JSON file (Safari asks, then keeps it in
+- Settings > Appearance and whether the notification explainer was shown live in `localStorage` (`AppPreferences` in
+  `web/src/core/preferences.ts`), like the app's DataStore: per phone, not household data. Export downloads the JSON file (Safari asks, then keeps it in
   Files > Downloads), in the app's format with `appVersion` "web <commit>". About lists the open source licenses of
   every run-time package in `package-lock.json` with the text each ships (`public/licenses.json`, written by
   `npm run gen`, like the app's AboutLibraries data).
@@ -1319,8 +1322,25 @@ live. The Android app does not change.
 **18.4 Notifications.** iPhones show web push from Home Screen web apps (iOS 16.4 and later). The permission is asked
 from a tap (iOS requires one): the explainer after the third dated item, as 5.4, and Settings > Notifications. The FCM
 web token goes to `users/{uid}/devices/{installId}` with `platform: web`; the reminder job adds a `webpush` part with
-the same title, body and route. A VAPID key pair from the Firebase console (Cloud Messaging > Web Push certificates)
-is a human step; its public key goes in the web build's config.
+the same title, body and tag (the route stays in `data`). A VAPID key pair from the Firebase console (Cloud Messaging >
+Web Push certificates) is a human step; its public key goes in the web build's config (`VITE_FIREBASE_VAPID_KEY`).
+
+- **Registration** (`FcmDeviceRegistry`, `DeviceSync`): at each start for the signed-in user, and right after the user
+  allows notifications, the phone writes its time zone when it changed and, when it has a token, its device document
+  (`installId` is a random id kept in `localStorage`). A token needs the permission, the Push API (a Home Screen web
+  app), the service worker (not in development) and the VAPID key; `firebase/messaging` loads only then. Sign-out
+  deletes the device document, as in the app.
+- **The service worker shows every push itself** (`web/src/sw.ts`, `core/pushMessages.ts`), without FCM's own
+  service worker: iOS ends the subscription of an app that receives a push without showing a notification. A tap
+  sends an open window to the route (a message, no reload) or opens the app there; only same-site paths are used, and
+  the app acts only on the digest's two routes (`DeepLinks`: the Pantry on Expiring soon, or Plan).
+- **Settings > Notifications** has the app's settings and a banner when reminders cannot appear: not allowed yet
+  (Turn on), turned off in the iPhone's Settings (where to turn them on; a web app cannot open them), or Safari
+  outside the Home Screen (how to add it). Send test notification shows a local notification through the service
+  worker.
+- **Tests**: Playwright's WebKit has neither the Notification nor the Push API (like Safari outside the Home Screen),
+  so the browser tests give the page both to play an installed app; the service worker's handling, the registration
+  logic and the job's `webpush` part have unit and integration tests, and a real push to an iPhone is a QA flow.
 
 **18.5 Offline, install and updates.** A service worker caches the app shell so it opens offline; a web manifest
 gives the name, the launcher icon (rendered from the adaptive icon) and theme colors. A new version is fetched in the
@@ -1349,8 +1369,8 @@ first web release.
 | W3 | Groceries: lists (switch, new, rename, delete), quick add with suggestions and Already on the list, guessed aisles and the learned store order, check off and In cart, edit, swipe delete and Clear checked with Undo, Add to pantry, the restock engine with Back in stock; Home's grocery card; rows another phone changed are highlighted (6.4, on Pantry too) | The grocery flows pass on WebKit; a second phone's addition is highlighted |
 | W4 | Recipes (view only, 18.1): the box (search, Favorites and tag chips, sort, favorite stars), detail with the servings stepper and checklist, Add to grocery list (shopping names, product links, Change), I cooked this, cook mode (screen kept awake), Edit, Share (the iOS share sheet), Delete with Undo, Home's Use it up card; the recipe picker's Use it up comes with Plan | The recipe flows that do not add recipes pass; a stored link opens only when it is http(s) |
 | W5 | Plan: everything in 5.9 (the week from the phone region's first day, adding recipes or something else with cooks, servings and notes, Cooked with the pantry, Move, Copy last week, Clear this week, the week's ingredients to a grocery list, Use it up in the picker, Undo throughout), with Home's Today card | The plan flows pass on WebKit |
-| W6a | Settings and extras: appearance (System, Light or Dark, the six themes), units, export, clear household data, About and licences, the app tour | The settings and tour flows pass on WebKit |
-| W6b | Notifications: Settings > Notifications, web push (the FCM web token as a `platform: web` device, the job's `webpush`) and the notification explainer of 5.4 | A web push reaches WebKit in a test |
+| W6a | Settings and extras: appearance (System, Light or Dark, the six themes), units, export, clear household data, About and licences, the app tour (removed in W6b, 18.1) | The settings and tour flows pass on WebKit |
+| W6b | Notifications: Settings > Notifications, web push (the FCM web token as a `platform: web` device, the job's `webpush`) and the notification explainer of 5.4; the app tour removed | The notification flows pass on WebKit with the push APIs played by the test, the service worker's push handling and the job's `webpush` part are tested, and a push reaches an iPhone in QA (WebKit in Playwright has no Push API) |
 | W7 | Release: hosting config, `scripts/deploy-web.sh`, install help, performance check (Lighthouse), docs | The owner's iPhone QA passes; deployed to prod with the owner's OK |
 
 ## Appendix A. Kickoff prompt and CLAUDE.md

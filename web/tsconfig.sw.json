@@ -11,5 +11,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["src/sw.ts"]
+  "include": ["src/sw.ts", "src/core/pushMessages.ts", "src/core/deepLinks.ts"]
 }

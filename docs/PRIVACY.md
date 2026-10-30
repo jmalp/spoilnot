@@ -17,8 +17,10 @@ This page lists exactly what is collected (DESIGN 12.2, control 11).
 Firestore stores data in the `us-east1` region. The phone keeps an offline copy of the household's data, which is
 cleared when you sign out, leave a household or are removed from it. Spoil Not for iPhone (the web app, after v1)
 does the same in the browser's storage on the phone (IndexedDB): the sign-in and the household's offline copy, cleared
-the same way. Its theme, colors and whether you finished the app tour stay in the browser's storage on that phone;
-it sends no crash reports. Its Export saves the file on the phone; nothing is uploaded.
+the same way. Its theme, colors, a random id for its device record and whether it explained notifications stay in
+the browser's storage on that phone; it sends no crash reports. Its notification token (from Firebase Cloud Messaging,
+delivered through Apple's web push service) is stored like the Android app's, and deleted when you sign out. Its
+Export saves the file on the phone; nothing is uploaded.
 
 ## Who can see it
 

@@ -163,7 +163,6 @@ function HomeCards({
         title={str('home_attention')}
         icon="round/warning_amber"
         testId="card_home_attention"
-        tour="tour_home_cards"
         action={
           summary.attention.length > 0
             ? [
@@ -345,7 +344,6 @@ function HomeCard({
   title,
   icon,
   testId,
-  tour,
   action,
   calm,
   children,
@@ -353,14 +351,13 @@ function HomeCard({
   title: string;
   icon: IconName;
   testId: string;
-  tour?: string;
   action?: [string, () => void];
   calm?: string;
   children?: ReactNode;
 }) {
   if (calm !== undefined) {
     return (
-      <Card data-testid={testId} data-tour={tour}>
+      <Card data-testid={testId}>
         <div className="sn-home-calm">
           <span className="c-primary">
             <Icon name="round/check_circle" />
@@ -374,7 +371,7 @@ function HomeCard({
     );
   }
   return (
-    <Card data-testid={testId} data-tour={tour}>
+    <Card data-testid={testId}>
       <div className="sn-home-card">
         <div className="sn-home-card__header">
           <span className="c-primary">

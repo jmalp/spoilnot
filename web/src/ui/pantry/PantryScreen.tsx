@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { shareReplay } from 'rxjs';
 import { messageId } from '../../core/errors';
+import { pushStatus } from '../../core/push';
 import { useObservable, useToday } from '../../core/hooks';
 import { useRemoteChanges } from '../../core/remoteChanges';
 import { str, type StringId } from '../../core/i18n';
@@ -16,6 +17,8 @@ import {
 } from '../../domain/pantry/items';
 import type { PantryData, Product, StockBatch } from '../../domain/pantry/models';
 import type { Undo } from '../../domain/write';
+import { NotificationRules } from '../../domain/notifications';
+import { NotificationExplainer } from '../notifications/NotificationExplainer';
 import { Button, Fab, FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
 import { EmptyState, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { categoryLabel, locationLabel } from './labels';
@@ -48,7 +51,7 @@ export function PantryScreen({
   onQueryChange: (query: PantryQuery) => void;
 }) {
   const me = useHouseholdSession();
-  const { pantry, pantryService, writer, clock } = useServices();
+  const { pantry, pantryService, writer, clock, preferences } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
   const data$ = useMemo(
@@ -62,6 +65,17 @@ export function PantryScreen({
   const [editing, setEditing] = useState<StockBatch | null>(null);
   // An Out staple opens Add item for that product.
   const [adding, setAdding] = useState<{ prefill: Product | null } | null>(null);
+  const [explaining, setExplaining] = useState(false);
+  /**
+   * After the third dated item, explain notifications once (DESIGN 5.4): already allowed or refused, it is not
+   * needed; in Safari outside the Home Screen it waits until the app is installed.
+   */
+  const askForNotifications = (hasDate: boolean, datedBefore: number) => {
+    if (!NotificationRules.shouldExplain(hasDate, datedBefore, preferences.get().notificationExplainerShown)) return;
+    const status = pushStatus();
+    if (status === 'default') setExplaining(true);
+    else if (status === 'granted' || status === 'denied') preferences.set({ notificationExplainerShown: true });
+  };
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
 
   // Invariant 1: delete batches that reached 0, whoever notices first.
@@ -125,7 +139,6 @@ export function PantryScreen({
             icon="round/add"
             label={str('action_add_item')}
             data-testid="fab_add_item"
-            data-tour="tour_add_item"
             onClick={() => setAdding({ prefill: null })}
           />
         ) : undefined
@@ -138,13 +151,7 @@ export function PantryScreen({
         </div>
       ) : empty ? (
         <EmptyState icon="outlined/kitchen" message={str('pantry_empty_body')}>
-          <Button
-            full
-            large
-            data-testid="button_add_first_item"
-            data-tour="tour_add_item"
-            onClick={() => setAdding({ prefill: null })}
-          >
+          <Button full large data-testid="button_add_first_item" onClick={() => setAdding({ prefill: null })}>
             {str('action_add_first_item')}
           </Button>
         </EmptyState>
@@ -207,15 +214,25 @@ export function PantryScreen({
           imperialFirst={me.units === 'imperial'}
           prefill={adding.prefill}
           onDismiss={() => setAdding(null)}
-          onSave={(draft) =>
+          onSave={(draft) => {
+            const datedBefore = data.batches.filter((b) => b.expiryDate !== null).length;
             void pantryService.add(hid, actor, draft, data).then(
               (result) => {
                 setAdding(null);
                 snackbars.show(str(result.merged ? 'added_merged_message' : 'added_message', draft.name.trim()));
+                askForNotifications(draft.expiryDate !== null, datedBefore);
               },
               (e: unknown) => snackbars.show(str(messageId(e))),
-            )
-          }
+            );
+          }}
+        />
+      )}
+      {explaining && (
+        <NotificationExplainer
+          onDone={() => {
+            setExplaining(false);
+            preferences.set({ notificationExplainerShown: true });
+          }}
         />
       )}
       {editing && data && (
@@ -310,7 +327,7 @@ function PantryList({
   // A backlog of expired food folds into one header; its rows show on request.
   const fold = ExpiredFold.of(groups, query);
   return (
-    <div className="sn-pantry-list" data-testid="pantry_list" data-tour="tour_pantry_list" onScroll={onScroll}>
+    <div className="sn-pantry-list" data-testid="pantry_list" onScroll={onScroll}>
       {fold && (
         <>
           <ExpiredHeader

@@ -151,19 +151,12 @@ export function DataCard({ busy, onExport }: { busy: boolean; onExport: () => vo
 }
 
 /**
- * The app tour (DESIGN 5.8) and About. The app's card also has the crash reports switch; the web app sends no crash
- * reports (DESIGN 18.1).
+ * About. The app's card also has the crash reports switch and the app tour; the web app sends no crash reports and
+ * has no tour (DESIGN 18.1).
  */
-export function TourAndAboutCard({ onTakeTour, onOpenAbout }: { onTakeTour: () => void; onOpenAbout: () => void }) {
+export function AboutCard({ onOpenAbout }: { onOpenAbout: () => void }) {
   return (
     <Card>
-      <ListItem
-        headline={str('settings_take_tour')}
-        supporting={str('settings_take_tour_summary')}
-        leading={<Icon name="round/school" />}
-        onClick={onTakeTour}
-        testId="row_take_tour"
-      />
       <ListItem
         headline={str('settings_about')}
         supporting={str('settings_about_summary')}

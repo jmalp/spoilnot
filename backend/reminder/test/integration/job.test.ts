@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { PLAN_ROUTE, runJob, ROUTE, type Message, type Sender } from '../../src/job.ts';
+import { PLAN_ROUTE, runJob, ROUTE, WEB_ICON, type Message, type Sender } from '../../src/job.ts';
 
 const PROJECT = 'demo-reminder-test';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -48,6 +48,7 @@ beforeEach(async () => {
   user('frank', { notificationPrefs: { ...prefs, stages: [] , expiredMode: 'never' } });
   batch.set(db.doc('users/alice/devices/phone'), { token: 'alice-token-1234567890', platform: 'android' });
   batch.set(db.doc('users/alice/devices/old'), { token: 'dead-token', platform: 'android' });
+  batch.set(db.doc('users/alice/devices/iphone'), { token: 'alice-web-token-1234567890', platform: 'web' });
   batch.set(db.doc('users/frank/devices/phone'), { token: 'frank-token-1234567890', platform: 'android' });
   batch.set(db.doc('users/erin/devices/phone'), { token: 'erin-token-1234567890', platform: 'android' });
   batch.set(db.doc('households/h1'), { name: 'Test', ownerUid: 'alice' });
@@ -88,10 +89,17 @@ describe('reminder job against the emulator', () => {
     const summary = await runJob(db, sender, { now: NOW });
 
     const alice = sender.sent.filter((m) => m.token.startsWith('alice') || m.token === 'dead-token');
-    assert.equal(alice.length, 2);
+    assert.equal(alice.length, 3);
     assert.deepEqual(alice[0]!.notification, { title: '3 items need attention', body: 'Throw away: Milk. Tomorrow: Yogurt, Eggs.' });
     assert.deepEqual(alice[0]!.data, { type: 'expiry_digest', route: ROUTE, date: '2026-10-12' });
     assert.deepEqual(alice[0]!.android, { priority: 'high', notification: { channelId: 'expiry', tag: 'expiry_digest' } });
+    // The web app's iPhone gets the same digest through its service worker (DESIGN 18.4).
+    const web = alice.find((m) => m.token.startsWith('alice-web'))!;
+    assert.deepEqual(web.webpush, {
+      headers: { Urgency: 'high' },
+      notification: { title: '3 items need attention', body: 'Throw away: Milk. Tomorrow: Yogurt, Eggs.', tag: 'expiry_digest', icon: WEB_ICON },
+    });
+    assert.equal(web.data.route, ROUTE);
 
     assert.equal((await db.doc('users/alice/devices/old').get()).exists, false, 'dead token deleted');
     assert.equal((await db.doc('users/alice/devices/phone').get()).exists, true);

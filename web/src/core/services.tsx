@@ -13,6 +13,7 @@ import type { MealPlanRepository } from '../domain/plan/models';
 import type { MealPlanService } from '../domain/plan/service';
 import type { PantryService } from '../domain/pantry/service';
 import type { HouseholdExporter } from '../domain/settings/export';
+import type { DeviceSync, NotificationPrefsRepository } from '../domain/notifications';
 import type { Session, SessionManager } from '../domain/session';
 import type { Clock } from '../domain/time';
 import type { HouseholdWriter } from '../domain/write';
@@ -38,9 +39,13 @@ export type Services = {
   mealPlanService: MealPlanService;
   activity: ActivityRepository;
   stats: StatsRepository;
+  /** Settings > Notifications (DESIGN 10.2). */
+  notificationPrefs: NotificationPrefsRepository;
+  /** Registers this phone for digests; started with the app (DESIGN 18.4). */
+  deviceSync: DeviceSync;
   /** Settings > Data > Export (DESIGN 13.4). */
   exporter: HouseholdExporter;
-  /** Theme, colors and the tour, kept on this phone. */
+  /** Theme, colors and the notification explanation, kept on this phone. */
   preferences: AppPreferences;
   clock: Clock;
 };
