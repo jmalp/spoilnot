@@ -77,6 +77,9 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   page,
   browser,
 }) => {
+  // Two phones and a long flow: the same room as the plan and recipes flows (under a full run's load the first phone's
+  // part alone took most of 60 s).
+  test.setTimeout(90_000);
   const email = await pantryWithItems(page);
 
   // Swipe right: used up, with Undo.
