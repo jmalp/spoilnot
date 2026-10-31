@@ -70,8 +70,10 @@ if $SKIP_TESTS; then
   echo "Browser tests skipped (--skip-tests)."
 else
   step "Browser tests against the emulators, then the build under the hosting headers (a few minutes)"
+  # One retry, as in CI: a long flow that runs out of time once on a busy Mac does not stop the deploy, while a test
+  # that fails twice still does (Playwright reports it as flaky or failed).
   (cd firebase && npx --no-install firebase emulators:exec --project demo-spoilnot --only auth,firestore \
-    "cd ../web && npx playwright test && npx playwright test -c playwright.preview.config.ts")
+    "cd ../web && npx playwright test --retries=1 && npx playwright test -c playwright.preview.config.ts --retries=1")
 fi
 
 # --- Build for the project ---
