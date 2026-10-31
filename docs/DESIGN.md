@@ -1195,7 +1195,8 @@ Each milestone ends with its acceptance checks passing and a short summary to th
 - **Next:** barcode scanning with the free Open Food Facts database, on-device camera reading of expiry dates, “use it up” recipe suggestions based on expiring items, opened-package tracking (a new expiry once opened).
 - **Dropped:** a push notification for the owner when someone asks to join (the owner decided it is not useful enough, October 18, 2026).
 - **Later:** meal planner, home-screen widgets (Jetpack Glance), receipt scanning, recipe photo upload (needs file storage), custom storage locations, import from Paprika export files.
-- **In progress (October 29, 2026):** the web app for iPhone (section 18), in milestones W0 to W7.
+- **Released (October 31, 2026):** the web app for iPhone (section 18), milestones W0 to W7, at
+  https://spoilnot-prod.web.app for testers after the owner's iPhone QA on https://spoilnot-dev.web.app.
 - **Maybe:** Google sign-in (Credential Manager), multiple households, biometric app lock, push notifications for household activity (needs Cloud Functions on the Blaze plan), voice add.
 
 ## 17. Changes after v1
@@ -1248,6 +1249,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-30 | Web app W6b: Settings > Notifications, web push (the FCM web token as a `platform: web` device, the service worker showing digests and opening their route), the time zone written at start, and the notification explainer after the third dated item; the rules accept web devices and the reminder job adds a `webpush` part to every digest. The app tour is removed from the web app (owner's choice) | 8.2, 12.3, 18.1, 18.3, 18.4, 18.8, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-30 | Web app W7 (code): Firebase Hosting with a strict Content Security Policy and cache headers, `scripts/deploy-web.sh`, Add to Home Screen help on the welcome screen and Home, the Update snackbar, a test of the built app under the hosting headers in CI, and a Lighthouse check (performance 93, accessibility 100). Deploying is the owner's step | 18.5, 18.6, 18.7, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-31 | Web browser tests: the two-phone Pantry flow gets 90 s like the other long flows; under a full local run (the deploy script's) it timed out three times in a row while its first phone used most of 60 s. Hosting serves a copy of the build inside `firebase/`, which the Firebase CLI requires | 18.6, 18.7 |
+| 2026-10-31 | Web app released: rules allowing web devices and the app deployed to spoilnot-dev, the owner's iPhone QA (flows 28–36) passed there, then both deployed to spoilnot-prod (build 3f09a54) | 16, 18.8, QA, RUNBOOK |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)

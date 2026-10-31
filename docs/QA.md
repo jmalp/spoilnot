@@ -207,3 +207,6 @@ new report.
 | 3 Conditions | | | |
 | 4 Budgets | | | |
 | 5 Crash reports | | | |
+
+Web app for iPhone (flows 28–36): passed on the owner's iPhone against https://spoilnot-dev.web.app on 2026-10-31,
+before the first deploy to https://spoilnot-prod.web.app.
