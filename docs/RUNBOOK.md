@@ -156,6 +156,10 @@ Then, from a clean checkout:
   tests, `--dry-run` builds and checks without deploying.
 - `./scripts/deploy-web.sh prod` does the same for https://spoilnot-prod.web.app, only from main matching GitHub and
   after a yes. Run QA flow 36 on an iPhone against dev first.
+- The browser tests in the script need a responsive Mac: on 2026-10-31 every WebKit action took 1.5–3 s locally
+  (normally well under 1 s) and long flows timed out even one file at a time. CI runs the same tests on every commit
+  to main; when the local run fails that way and CI passed on the commit being deployed, `--skip-tests` is the way
+  through (it still runs every other check and the unit tests).
 - A bad release: Firebase console > Hosting > Release history > Roll back. Installed apps pick up the rolled-back
   version like any update.
 - `npm run e2e:preview` builds and tests the app under the hosting headers locally (with the emulators running), as
