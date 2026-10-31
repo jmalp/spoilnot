@@ -32,3 +32,5 @@ pubsub-debug.log
 
 # Local emulator data
 firebase/.emulator-data/
+# The web build as deployed (scripts/deploy-web.sh copies web/dist here).
+firebase/hosting-dist/
