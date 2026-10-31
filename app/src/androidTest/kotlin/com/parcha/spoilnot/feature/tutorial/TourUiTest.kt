@@ -5,9 +5,12 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -90,5 +93,24 @@ class TourUiTest {
             compose.onAllNodes(hasText(str(R.string.tour_skip))).fetchSemanticsNodes().isEmpty()
         }
         assertTrue(runBlocking { preferences.tourDone.first() })
+    }
+
+    @Test
+    fun takenFromSettingsTheHomeStepShowsHome() {
+        EmulatorSupport.skipAppTour()
+        compose.setContent { SpoilNotTheme { AppShell(session) } }
+        // Settings opened on the Home tab, then Take the app tour.
+        compose.onNodeWithContentDescription(str(R.string.open_settings)).performClick()
+        compose.onNodeWithTag("row_take_tour").performScrollTo().performClick()
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasText(str(R.string.tour_start))).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("coach_mark_next").performClick() // Start the tour
+
+        // The Home step closes Settings, so its highlight has something to point at.
+        compose.onNodeWithText(str(R.string.tour_progress, 1, Tour.countedSteps)).assertIsDisplayed()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("screen_settings").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithTag("screen_home").assertIsDisplayed()
+        compose.onNodeWithTag("coach_mark_skip").performClick()
     }
 }
