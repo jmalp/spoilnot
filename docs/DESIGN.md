@@ -1252,6 +1252,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-31 | Web app released: rules allowing web devices and the app deployed to spoilnot-dev, the owner's iPhone QA (flows 28–36) passed there, then both deployed to spoilnot-prod (build 3f09a54) | 16, 18.8, QA, RUNBOOK |
 | 2026-10-31 | Dependencies: Firebase BoM 35.1.0, datastore 1.3.0, OkHttp 5.5.1, Roborazzi 1.77.0, Gradle 9.8.2, and the Firebase SDK and CLI for the rules tests; AGP stays at 9.4.1 because 9.5.0 cannot configure release variants | 12.2 |
 | 2026-10-31 | The web app's PNG icons are lossless palette PNGs (33 KB to 12 KB) from ImgBot, which now leaves generated SVGs and test screenshots alone | 18.2, RUNBOOK |
+| 2026-10-31 | The web deploy script retries a failed browser test once, as CI does | 18.6, RUNBOOK |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
@@ -1359,8 +1360,8 @@ app opened from the Home Screen shows neither.
 `spoilnot-prod.web.app` for testers, whose sign-in domains Firebase authorizes by default. Each project needs a
 registered Web app for its config (a human approves creating them). `scripts/deploy-web.sh dev|prod` reads that config
 from Firebase and the VAPID key from the git-ignored `web/.env.<dev|prod>.local`, runs the checks and the browser
-tests, builds for the project, offers to deploy the rules, and deploys; prod only from a main that matches GitHub and
-after asking, like the beta script.
+tests (with one retry, as CI), builds for the project, offers to deploy the rules, and deploys; prod only from a main
+that matches GitHub and after asking, like the beta script.
 
 - `firebase/firebase.json` serves the build from `firebase/hosting-dist` (a git-ignored copy of `web/dist` that the
   deploy script makes, because Firebase deploys only folders inside `firebase/`; without source maps) with every path falling back to `index.html`, and
