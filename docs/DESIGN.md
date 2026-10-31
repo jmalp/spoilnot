@@ -1250,6 +1250,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-30 | Web app W7 (code): Firebase Hosting with a strict Content Security Policy and cache headers, `scripts/deploy-web.sh`, Add to Home Screen help on the welcome screen and Home, the Update snackbar, a test of the built app under the hosting headers in CI, and a Lighthouse check (performance 93, accessibility 100). Deploying is the owner's step | 18.5, 18.6, 18.7, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-31 | Web browser tests: the two-phone Pantry flow gets 90 s like the other long flows; under a full local run (the deploy script's) it timed out three times in a row while its first phone used most of 60 s. Hosting serves a copy of the build inside `firebase/`, which the Firebase CLI requires | 18.6, 18.7 |
 | 2026-10-31 | Web app released: rules allowing web devices and the app deployed to spoilnot-dev, the owner's iPhone QA (flows 28–36) passed there, then both deployed to spoilnot-prod (build 3f09a54) | 16, 18.8, QA, RUNBOOK |
+| 2026-10-31 | Dependencies: Firebase BoM 35.1.0, datastore 1.3.0, OkHttp 5.5.1, Roborazzi 1.77.0, Gradle 9.8.2, and the Firebase SDK and CLI for the rules tests; AGP stays at 9.4.1 because 9.5.0 cannot configure release variants | 12.2 |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
