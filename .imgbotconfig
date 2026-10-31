@@ -1,0 +1,6 @@
+{
+  "ignoredFiles": [
+    "web/public/icons/*.svg",
+    "web/tests/e2e/__screenshots__/*"
+  ]
+}

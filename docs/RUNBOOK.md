@@ -128,7 +128,8 @@ Everything is in `web/` and needs Node 24. Once: `cd web && npm install && npx p
   images that should change. Month names on Insights are masked and the invite code is fixed, so the images do not change between runs. If the
   tests slow down after a long day of runs, stop the emulators, delete `firebase/.emulator-data` and start them again.
 - After changing `strings.xml`, the Android theme colors or `icons.txt`: `npm run gen` (CI fails until it is run).
-  After changing the launcher icon: `npm run gen && node scripts/gen-app-icons.ts`. `npm run gen` also rewrites
+  After changing the launcher icon: `npm run gen && node scripts/gen-app-icons.ts` (the PNGs come out full-colour;
+  ImgBot later offers lossless palette versions, about a third of the size). `npm run gen` also rewrites
   `public/licenses.json` (About's open source licenses) from the installed packages, so after adding or updating a
   dependency run `npm ci` and `npm run gen` and commit the file.
 - Web push needs the project's Web Push certificate (a human step, once per project): Firebase console > Project
