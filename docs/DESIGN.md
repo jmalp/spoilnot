@@ -1247,6 +1247,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-30 | Web app W6a: Settings > Appearance (System, Light or Dark, the six themes, units), Export as a download, Clear household data for the owner, About with the open source licenses, and the app tour with coach marks, ported from the app with their tests; W6 is split in two (web push in W6b). The web session no longer flashes the gate right after creating a household | 18.1, 18.3, 18.8, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-30 | Web app W6b: Settings > Notifications, web push (the FCM web token as a `platform: web` device, the service worker showing digests and opening their route), the time zone written at start, and the notification explainer after the third dated item; the rules accept web devices and the reminder job adds a `webpush` part to every digest. The app tour is removed from the web app (owner's choice) | 8.2, 12.3, 18.1, 18.3, 18.4, 18.8, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-10-30 | Web app W7 (code): Firebase Hosting with a strict Content Security Policy and cache headers, `scripts/deploy-web.sh`, Add to Home Screen help on the welcome screen and Home, the Update snackbar, a test of the built app under the hosting headers in CI, and a Lighthouse check (performance 93, accessibility 100). Deploying is the owner's step | 18.5, 18.6, 18.7, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
+| 2026-10-31 | Web browser tests: the two-phone Pantry flow gets 90 s like the other long flows; under a full local run (the deploy script's) it timed out three times in a row while its first phone used most of 60 s. Hosting serves a copy of the build inside `firebase/`, which the Firebase CLI requires | 18.6, 18.7 |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
@@ -1357,7 +1358,8 @@ from Firebase and the VAPID key from the git-ignored `web/.env.<dev|prod>.local`
 tests, builds for the project, offers to deploy the rules, and deploys; prod only from a main that matches GitHub and
 after asking, like the beta script.
 
-- `firebase/firebase.json` serves `web/dist` (without source maps) with every path falling back to `index.html`, and
+- `firebase/firebase.json` serves the build from `firebase/hosting-dist` (a git-ignored copy of `web/dist` that the
+  deploy script makes, because Firebase deploys only folders inside `firebase/`; without source maps) with every path falling back to `index.html`, and
   sends on every response: `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self';
   img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://*.googleapis.com; worker-src 'self';
   manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';
@@ -1374,7 +1376,8 @@ after asking, like the beta script.
 
 **18.7 Testing.** Vitest for the domain (ported cases) and the generators; React Testing Library for components;
 Playwright with WebKit and an iPhone profile against the Firebase emulators, two browser contexts as two phones (like
-`TestPhone`), two test files at a time (one emulator serves every browser); the screenshots of 18.2. CI runs format, lint, type check, unit tests, the build, a check that the
+`TestPhone`), two test files at a time (one emulator serves every browser), 60 s per test and 90 s for the long
+flows (two phones in Pantry, recipes, the plan); the screenshots of 18.2. CI runs format, lint, type check, unit tests, the build, a check that the
 generated files are current, the Playwright tests, and the built app under the hosting headers
 (`playwright.preview.config.ts`: `vite preview` with the headers of `firebase.json`, the service worker installed,
 no policy violations, the pantry offline). The owner runs the web QA flows on a real iPhone before the first web

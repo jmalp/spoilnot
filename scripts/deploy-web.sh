@@ -79,6 +79,9 @@ step "Building for $PROJECT"
 (cd web && VITE_FIREBASE_CONFIG="$CONFIG" npx vite build --mode "$TARGET" >/dev/null)
 # The config is inlined at build time; without it the app would use the emulators' demo project.
 grep -rqF "$APP_ID" web/dist/assets || die "the build does not carry the $PROJECT config"
+# Firebase Hosting deploys only a folder inside firebase/: a copy of the build (git-ignored).
+rm -rf firebase/hosting-dist
+cp -R web/dist firebase/hosting-dist
 echo "Built $(git rev-parse --short HEAD) for $PROJECT."
 
 if $DRY_RUN; then
