@@ -457,7 +457,7 @@ app/src/androidTest/      instrumented and Compose UI tests
 
 **7.4 Environments.** Two Firebase projects: `spoilnot-dev` and `spoilnot-prod`. Gradle product flavors `dev` and `prod` with different application IDs (an `applicationIdSuffix` of `.dev`, so both install side by side: com.parcha.spoilnot for prod and com.parcha.spoilnot.dev for dev), each with its own `google-services.json` in `app/src/dev` and `app/src/prod`. Local development and all automated tests MUST use the Firebase Emulator Suite (Auth and Firestore; the Android emulator reaches the host at `10.0.2.2`) so they never touch real data.
 
-**7.5 Errors and logging.** Repositories throw typed domain errors (`PermissionDenied`, `QuotaExceeded`, `Offline`, `NotFound`, `Conflict`); the UI maps them to messages. Map Firestore `resource-exhausted` to `QuotaExceeded` and show the banner from 6.7. Uncaught errors go to Crashlytics when enabled. Use `Timber`, planted only in debug builds.
+**7.5 Errors and logging.** Repositories throw typed domain errors (`PermissionDenied`, `QuotaExceeded`, `Offline`, `NotFound`, `Conflict`); the UI maps them to messages. Map Firestore `resource-exhausted` to `QuotaExceeded` and show the banner from 6.7. Uncaught errors go to Crashlytics when enabled, and only from builds on real Firebase: debug and dev benchmark builds, which use the emulators, never send (after v1; their failed uploads restarted the app between benchmark runs). Use `Timber`, planted only in debug builds.
 
 **7.6 Platform floors.** `minSdk` 26 (Android 8.0), or higher if a library requires it (some Firebase libraries already need API level 23 or higher). `compileSdk` and `targetSdk` at the latest stable level.
 
@@ -1253,6 +1253,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-31 | Dependencies: Firebase BoM 35.1.0, datastore 1.3.0, OkHttp 5.5.1, Roborazzi 1.77.0, Gradle 9.8.2, and the Firebase SDK and CLI for the rules tests; AGP stays at 9.4.1 because 9.5.0 cannot configure release variants | 12.2 |
 | 2026-10-31 | The web app's PNG icons are lossless palette PNGs (33 KB to 12 KB) from ImgBot, which now leaves generated SVGs and test screenshots alone | 18.2, RUNBOOK |
 | 2026-10-31 | The web deploy script retries a failed browser test once, as CI does | 18.6, RUNBOOK |
+| 2026-10-31 | Crash reports only from builds on real Firebase, and Firebase Sessions off in the emulator builds: their failed uploads to the demo project restarted the app after each benchmark kill, which made `StartupBenchmark` fail. The benchmark helpers retry a tap that a fling swallowed and press Back only when something opened. Measured on a headless software-rendered emulator: cold start median 691 ms without the profile, 623 ms with it | 7.5, 13.1, RUNBOOK |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
