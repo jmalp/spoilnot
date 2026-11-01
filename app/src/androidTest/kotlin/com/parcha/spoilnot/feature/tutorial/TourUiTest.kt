@@ -29,6 +29,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -92,7 +93,9 @@ class TourUiTest {
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText(str(R.string.tour_skip))).fetchSemanticsNodes().isEmpty()
         }
-        assertTrue(runBlocking { preferences.tourDone.first() })
+        // Skip hides the tour at once and saves the choice right after.
+        val remembered = runBlocking { withTimeoutOrNull(5_000) { preferences.tourDone.first { it } } }
+        assertTrue("Skip was not remembered within 5 s", remembered == true)
     }
 
     @Test

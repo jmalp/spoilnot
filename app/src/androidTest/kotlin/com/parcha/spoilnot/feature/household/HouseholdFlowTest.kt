@@ -145,13 +145,16 @@ class HouseholdFlowTest {
     @Test
     fun ownerDeletesHousehold_everyoneReturnsToGate() = runBlocking {
         val householdId = aliceAndBobInOneHousehold()
-        val household = alice.households.observeHousehold(householdId).first { it != null }!!
+        val household = withTimeout(10_000) { alice.households.observeHousehold(householdId).first { it != null }!! }
+        val bobsFirestore = bob.firestore.current
 
         alice.households.deleteHousehold(household, alice.uid)
 
         alice.awaitSession { it is Session.NoHousehold }
         bob.awaitSession(timeoutMs = 5_000) { it is Session.NoHousehold }
-        assertNull(bob.households.findInviteCode(household.inviteCode))
+        // Reading during Bob's own reset can wait forever on the terminated instance.
+        bob.awaitLocalDataCleared(bobsFirestore)
+        assertNull(withTimeout(10_000) { bob.households.findInviteCode(household.inviteCode) })
     }
 
     @Test
