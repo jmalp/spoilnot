@@ -187,7 +187,13 @@ It seeds the emulator-only 500-batch household (`PantryScrollPerfTest`), runs `B
 copies the result into the app (the benchmarks tap Skip tour when the app tour shows). Review the diff and commit it. `--measure` also runs `StartupBenchmark` and
 `PantryScrollBenchmark` without and with the profile and prints the medians; `--measure-only` runs just the
 benchmarks with the profile already in the app. Emulator numbers compare builds; they
-are not phone timings.
+are not phone timings, and a headless emulator with software rendering (`-gpu swiftshader_indirect`) draws scroll
+frames about twice as slowly as one on the Mac's GPU, so compare scroll numbers only between runs on the same setup.
+
+If a benchmark says the app "must not be running prior to cold start", something restarted the app right after the
+benchmark closed it: look in `adb logcat` for `Start proc … com.parcha.spoilnot.dev … for bound-service`. Crash
+reports and Firebase Sessions caused it until 2026-10-31 (their uploads to the emulators' demo project failed and were
+retried); both are now off in the emulator builds.
 
 ## Nightly export and restore (DESIGN 13.4)
 

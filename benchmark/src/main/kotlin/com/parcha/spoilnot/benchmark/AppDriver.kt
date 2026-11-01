@@ -3,6 +3,7 @@ package com.parcha.spoilnot.benchmark
 import android.os.Build
 import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
@@ -93,29 +94,46 @@ fun MacrobenchmarkScope.flingList(times: Int = 3) {
 /** Swipe steps take about 5 ms each, so 10 steps is a quick fling. */
 private const val FLING_STEPS = 10
 
+/**
+ * Taps [target] until [opened] shows, at most three times, and says whether it did. A tap right after a fling only
+ * stops the fling in Compose, so the first tap can do nothing.
+ */
+private fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector): Boolean {
+    repeat(3) {
+        device.wait(Until.findObject(target), TIMEOUT_MS)?.click() ?: return false
+        if (device.wait(Until.hasObject(opened), OPEN_TIMEOUT_MS)) return true
+    }
+    return false
+}
+
+/**
+ * Presses Back while [shown] is on screen, at most twice (the keyboard, then the window), so a Back never leaves the
+ * tab, or the app, by mistake.
+ */
+private fun MacrobenchmarkScope.closeWhileShown(shown: BySelector) {
+    repeat(2) {
+        if (!device.hasObject(shown)) return
+        device.pressBack()
+        device.waitForIdle()
+    }
+}
+
+private const val OPEN_TIMEOUT_MS = 5_000L
+
 /** Opens the Add item window from the Pantry tab and closes it again. */
 fun MacrobenchmarkScope.openAndCloseAddItem() {
-    device.wait(Until.findObject(By.text("Add item")), TIMEOUT_MS)?.click() ?: return
-    device.wait(Until.hasObject(By.text("Name")), TIMEOUT_MS)
-    device.pressBack()
-    device.pressBack()
-    device.waitForIdle()
+    if (tapUntil(By.text("Add item"), By.text("Name"))) closeWhileShown(By.text("Name"))
 }
 
 /** Opens the add sheet of the first slot on the Plan tab (DESIGN 5.9) and closes it again. */
 fun MacrobenchmarkScope.openAndCloseAddMeal() {
-    device.wait(Until.findObject(By.descStartsWith("Add to ")), TIMEOUT_MS)?.click() ?: return
-    device.wait(Until.hasObject(By.text("Who's cooking?")), TIMEOUT_MS)
-    device.pressBack()
-    device.waitForIdle()
+    if (tapUntil(By.descStartsWith("Add to "), By.text("Who's cooking?"))) closeWhileShown(By.text("Who's cooking?"))
 }
 
 /** Opens Insights from Home's "Your kitchen this month" card and comes back. */
 fun MacrobenchmarkScope.openAndCloseInsights() {
     device.findObject(By.scrollable(true))?.scrollUntil(Direction.DOWN, Until.findObject(button("See insights")))
-    device.wait(Until.findObject(button("See insights")), TIMEOUT_MS)?.click() ?: return
-    device.wait(Until.hasObject(By.text("Last 6 months")), TIMEOUT_MS)
+    if (!tapUntil(button("See insights"), By.text("Last 6 months"))) return
     flingList(times = 1)
-    device.pressBack()
-    device.waitForIdle()
+    closeWhileShown(By.text("Last 6 months"))
 }
