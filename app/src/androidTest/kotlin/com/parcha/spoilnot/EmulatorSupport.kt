@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.parcha.spoilnot.core.firebase.ACCESS_LOCAL_NETWORK
 import com.parcha.spoilnot.core.firebase.FirebaseEmulators
 import com.parcha.spoilnot.core.firebase.FirestoreHouseholdWriter
@@ -39,9 +40,13 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assume.assumeTrue
 
@@ -62,7 +67,7 @@ object EmulatorSupport {
     }
 
     /** UI tests start without the app tour over the screen (DESIGN 5.8); `TourUiTest` turns it on. */
-    fun skipAppTour(done: Boolean = true) = kotlinx.coroutines.runBlocking {
+    fun skipAppTour(done: Boolean = true) = runBlocking {
         AppPreferences(InstrumentationRegistry.getInstrumentation().targetContext.applicationContext).setTourDone(done)
     }
 
@@ -71,14 +76,13 @@ object EmulatorSupport {
 
 /**
  * One simulated phone: its own FirebaseApp (so its own Auth user and Firestore cache) wired to the production
- * repositories and session manager, exactly as the app wires them.
+ * repositories and session manager, exactly as the app wires them. [close] releases its Firestore after each test.
  */
 class TestPhone(private val name: String) : AutoCloseable {
-    private val app: FirebaseApp = run {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val appName = "$name-${UUID.randomUUID()}"
-        FirebaseApp.initializeApp(context, FirebaseApp.getInstance().options, appName)
-    }
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val app: FirebaseApp =
+        FirebaseApp.initializeApp(context, FirebaseApp.getInstance().options, "$name-${UUID.randomUUID()}")
+    private val syncLogPrefs = "delta_sync_${app.name}"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val firestore = FirestoreProvider(app, BuildConfig.FIREBASE_EMULATOR_HOST)
     private val auth = FirebaseAuth.getInstance(app).also {
@@ -115,8 +119,7 @@ class TestPhone(private val name: String) : AutoCloseable {
 
     /** Each phone has its own record of full reads, as separate phones would (DESIGN 9.8). */
     val syncLog = SyncLog(
-        InstrumentationRegistry.getInstrumentation().targetContext
-            .getSharedPreferences("delta_sync_${app.name}", android.content.Context.MODE_PRIVATE),
+        context.getSharedPreferences(syncLogPrefs, android.content.Context.MODE_PRIVATE),
         Clock.systemUTC(),
     )
     val pantryRepository = FirestorePantryRepository(firestore, syncLog)
@@ -153,9 +156,39 @@ class TestPhone(private val name: String) : AutoCloseable {
                 "$name: session still ${sessionManager.session.value} after $timeoutMs ms; saw $history",
             )
 
-    /** Signs out and stops listening. The FirebaseApp is kept: Auth keeps internal references to deleted apps. */
+    /**
+     * Losing a household clears local data in the background (DESIGN 12.2), which terminates the Firestore instance
+     * a read could still be waiting on. Waits until [before] has been replaced by a fresh instance.
+     */
+    suspend fun awaitLocalDataCleared(before: FirebaseFirestore, timeoutMs: Long = 15_000) {
+        withTimeoutOrNull(timeoutMs) { firestore.instance.first { it !== before } }
+            ?: throw AssertionError("$name: local data still not cleared after $timeoutMs ms")
+    }
+
+    /**
+     * Stops listening, then terminates Firestore before signing out: its gRPC channel and connectivity monitor
+     * each hold a ConnectivityManager callback, and Android allows about 100 per app, so phones that are never
+     * terminated crash a full test run. Then deletes the cache and sync log and signs out. The FirebaseApp is kept:
+     * Auth's shared emulator client keeps the last app it configured, so deleting apps makes `useEmulator` on the
+     * next one throw "FirebaseApp was deleted".
+     */
     override fun close() {
-        runCatching { auth.signOut() }
-        scope.cancel()
+        runBlocking {
+            try {
+                withTimeout(CLOSE_TIMEOUT_MS) {
+                    scope.coroutineContext.job.cancelAndJoin()
+                    val db = firestore.current
+                    db.terminate().await()
+                    db.clearPersistence().await()
+                }
+            } finally {
+                runCatching { auth.signOut() }
+                context.deleteSharedPreferences(syncLogPrefs)
+            }
+        }
+    }
+
+    private companion object {
+        const val CLOSE_TIMEOUT_MS = 10_000L
     }
 }

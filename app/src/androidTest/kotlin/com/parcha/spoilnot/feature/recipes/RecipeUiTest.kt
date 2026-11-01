@@ -100,9 +100,10 @@ class RecipeUiTest {
         val elapsed = (System.nanoTime() - start) / 1_000_000
         Log.i("RecipeUiTest", "share to preview: launch $launched ms, preview $elapsed ms")
         // The app's own work (resumed to preview) has the 5 s budget; the activity start depends on the device
-        // and the host (an emulator on a busy computer can take several seconds to draw any app).
+        // and the host (an emulator on a busy computer took up to 31 s to start it), so the whole share only has to
+        // show the preview within a minute.
         assertTrue("preview ${elapsed - launched} ms after launch", elapsed - launched < 5_000)
-        assertTrue("share to preview $elapsed ms", elapsed < 15_000)
+        assertTrue("share to preview $elapsed ms", elapsed < 60_000)
 
         awaitTag("preview_save").performClick()
         awaitTag("screen_recipe_detail")
