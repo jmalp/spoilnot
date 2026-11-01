@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { getFirestore } from 'firebase-admin/firestore';
 import { applyRestore, planRestore, shortId, type HouseholdExport } from './backup.ts';
 import { fromEnv } from './credentials.ts';
+import { JobError, runMain } from './errors.ts';
 
 /** Documents a restore would write, by collection: counts only, never contents. */
 function summarize(plan: ReturnType<typeof planRestore>): string {
@@ -33,7 +34,10 @@ async function list(dir: string): Promise<void> {
 async function main(): Promise<void> {
   const [file, householdId, flag] = process.argv.slice(2);
   if (file === '--list' && householdId) return list(householdId);
-  if (!file || !householdId) throw new Error('Usage: restore-main.js <file.json> <householdId> [--apply] | --list <dir>');
+  if (!file || !householdId) {
+    console.log('Usage: restore-main.js <file.json> <householdId> [--apply] | --list <dir>');
+    throw new JobError('usage', 'Missing arguments');
+  }
   const plan = planRestore(JSON.parse(await readFile(file, 'utf8')) as HouseholdExport, householdId);
   console.log(`Household ${shortId(householdId)}: ${summarize(plan)}`);
   if (flag !== '--apply') {
@@ -41,12 +45,13 @@ async function main(): Promise<void> {
     return;
   }
   const credentials = fromEnv('restore');
-  if (!credentials) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not set');
-  const written = await applyRestore(getFirestore(credentials.app), plan);
-  console.log(`project ${credentials.projectId}: restored ${written} document(s)`);
+  if (!credentials) throw new JobError('no-key', 'FIREBASE_SERVICE_ACCOUNT_JSON is not set');
+  const { written, failed } = await applyRestore(getFirestore(credentials.app), plan);
+  console.log(`project ${credentials.projectId}: restored ${written} document(s), ${failed} failed`);
+  if (failed > 0) {
+    console.error(`${failed} document(s) were not written. Running the restore again writes the same documents.`);
+    process.exitCode = 1;
+  }
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+runMain('restore', main);
