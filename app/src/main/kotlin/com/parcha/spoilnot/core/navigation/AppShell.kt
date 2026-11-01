@@ -110,12 +110,10 @@ fun AppShell(
     }
 
     val openSettings = { navigator.navigate(SettingsRoute(navigator.currentTab)) }
-    // Each tour step starts on its tab (Next may move on to another one).
+    // Each tour step starts on its tab, at its root (Next may move on to another one): taken from Settings, the
+    // Home step must close Settings on the Home tab too, or it points at nothing.
     LaunchedEffect(tourStep) {
-        tourStep?.tab?.let { tab ->
-            val destination = tab.destination()
-            if (navigator.currentTab != destination) navigator.showRoot(destination)
-        }
+        tourStep?.tab?.let { tab -> navigator.showRoot(tab.destination()) }
     }
     // A tapped digest or a Home card opens the Pantry tab at its root; the Pantry screen applies the filter.
     LaunchedEffect(deepLink) {
