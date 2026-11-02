@@ -740,7 +740,7 @@ Hourly (GitHub Actions) -> reminder job (Node.js + firebase-admin)
 **10.2 Client responsibilities**
 
 - After the first dated item is saved (or from Settings) show a short explanation, then request the notification permission (`POST_NOTIFICATIONS`, a runtime permission on Android 13 and later).
-- Get the FCM token and write `users/{uid}/devices/{installId}` (token, platform, appVersion). Refresh in `FirebaseMessagingService.onNewToken` and at app start, writing only when it changed. Delete the device document on sign-out.
+- Get the FCM token and write `users/{uid}/devices/{installId}` (token, platform, appVersion). Refresh in `FirebaseMessagingService.onNewToken` and at app start, writing only when it changed. Delete the device document on sign-out. After v1, the phone also deletes its FCM token whenever nobody is signed in: after a sign-out or an account deletion, and at every app start without a signed-in user. A device document that a sign-out could not delete (for example offline) then holds a token FCM rejects, and the job deletes it (10.3).
 - Write the IANA `timezone` (from `ZoneId.systemDefault()`) to `users/{uid}` at app start when it changes.
 - Create the notification channel `expiry` (importance high, name Expiry reminders) at startup.
 - Tapping the notification starts `MainActivity` with the message data as intent extras; read `route` (`/pantry?filter=expiring`) in `onCreate` and `onNewIntent`. In the foreground do not show a system notification; the Home card is already live.
@@ -893,7 +893,7 @@ JSON.stringify({
 3. Every household path checks membership in the rules; owner-only actions check the owner role.
 4. Invite codes: 10 characters (50 bits) from a cryptographically secure generator, readable only by exact `get` (no listing). The owner can pause or rotate instantly. A leaked code only lets a stranger send a join request; nobody enters the household until the owner approves, and pause, rotate and remove exist as further controls.
 5. Removed or departed members lose access at once (rules re-check membership on every request) and the app clears the local cache.
-6. On sign-out or account switch call `terminate()` then `clearPersistence()` so another person on the same phone cannot see cached data.
+6. On sign-out or account switch call `terminate()` then `clearPersistence()` so another person on the same phone cannot see cached data. Sign-out and account deletion must finish even when the screen that started them closes (after v1: they run in the application scope, and instrumented tests sign out and delete an account through Settings, then check the cache and the server).
 7. TLS only. No cleartext traffic in the app (Android `usesCleartextTraffic=false` in the manifest).
 8. No secrets in the app (Firebase configuration values are identifiers, not secrets). The service account key exists only as a GitHub Actions secret. `.gitignore` covers `*.jks`, `keystore.properties`, `local.properties`, `service-account*.json` and `.env*`. Enable GitHub secret scanning and push protection.
 9. Supply chain: Dependabot or Renovate for Gradle, npm and GitHub Actions; pin Actions to major versions or commit hashes.
@@ -1256,6 +1256,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-31 | App tour: each step opens its tab at its root, so the tour taken from Settings on the Home tab closes Settings instead of highlighting nothing (an instrumented test covers it) | 5.8, QA |
 | 2026-10-31 | Crash reports only from builds on real Firebase, and Firebase Sessions off in the emulator builds: their failed uploads to the demo project restarted the app after each benchmark kill, which made `StartupBenchmark` fail. The benchmark helpers retry a tap that a fling swallowed and press Back only when something opened. Measured on a headless software-rendered emulator: cold start median 691 ms without the profile, 623 ms with it | 7.5, 13.1, RUNBOOK |
 | 2026-10-31 | Two-phone instrumented tests terminate each simulated phone's Firestore after the test, so the full `connectedDevDebugAndroidTest` run no longer stops after about 50 phones (Android allows about 100 network callbacks per app); `TestPhoneTest` guards it. The household-deletion test waits for the member's local reset before its last read, which could hang the run, the share test allows 60 s from the share to the preview on a busy emulator (the app's own 5 s is unchanged), and the tour test waits for Skip to be saved | 13.1, DECISIONS |
+| 2026-11-01 | Sign-out and account deletion finish even when Settings closes: they run in the session's application scope, their cleanup steps no longer treat cancellation as a failure, and the phone deletes its push token whenever nobody is signed in (after a sign-out or an account deletion, and at a start without a signed-in user). Instrumented tests sign out and delete an account through Settings and check the phone's cache and the server | 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
 ## 18. Web app for iPhone (after v1)
@@ -1339,7 +1340,8 @@ Web Push certificates) is a human step; its public key goes in the web build's c
   allows notifications, the phone writes its time zone when it changed and, when it has a token, its device document
   (`installId` is a random id kept in `localStorage`). A token needs the permission, the Push API (a Home Screen web
   app), the service worker (not in development) and the VAPID key; `firebase/messaging` loads only then. Sign-out
-  deletes the device document, as in the app.
+  deletes the device document, as in the app. The app also deletes its FCM token while nobody is signed in (10.2,
+  2026-11-01); the web app does not yet.
 - **The service worker shows every push itself** (`web/src/sw.ts`, `core/pushMessages.ts`), without FCM's own
   service worker: iOS ends the subscription of an app that receives a push without showing a notification. A tap
   sends an open window to the route (a message, no reload) or opens the app there; only same-site paths are used, and
