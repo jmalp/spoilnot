@@ -182,6 +182,7 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 | A DST day | On or just after a daylight saving change (or simulate with the time zone of a place changing that week) | Reminder arrives once, at the chosen hour |
 | Notification permission denied | Deny the permission when asked; open Settings > Notifications | A banner explains how to turn it on; no crash |
 | Battery saver | Turn on battery saver overnight | The morning reminder still arrives (it may be a little late) |
+| A removed member's phone left closed | Close the app on the second phone (reminders on), then remove that member on the owner's phone; wait for the member's reminder hour | No reminder reaches the second phone; opening its app shows the gate |
 | 200% font | Settings > Display > Font size at maximum | Every screen readable, nothing cut off or overlapping |
 | Dark mode | Settings > Appearance > Dark, then System with the phone in dark mode | All screens readable; status colors still distinct |
 | TalkBack | Turn on TalkBack; go through Home, Pantry, a recipe and Groceries | Every control is announced with its name and state ("Milk, 2, expires tomorrow, fridge"); every swipe action is also in a menu |

@@ -13,7 +13,7 @@ hour, once per Firebase project:
 | `spoilnot-dev` (development, optional) | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
 
 A project whose secret is missing logs "nothing to do" and succeeds. A key stored under the wrong secret fails the
-run with "This key is for project …", and every run logs the project it served.
+run with `expiry-reminders failed: wrong-project`, and every run logs the project it served.
 
 ### Create the service account (once per Firebase project)
 
@@ -35,11 +35,22 @@ run with "This key is for project …", and every run logs the project it served
 
 Never commit the key or put it anywhere else. Do not link a billing account (DESIGN 3).
 
-### Rotate the key (yearly)
+### Rotate the key (yearly, or at once if it shows in a log)
 
 Create a new key (step 4), replace the secret (step 5), run the workflow once by hand (below), then delete the old
 key under **Keys** in the console. The nightly export and the restore workflow use the same prod secret, so they
 pick up the new key too.
+
+### If the key ever shows in a log
+
+Run logs are public for 90 days, and GitHub hides a multi-line secret only line by line. The jobs never print an
+error itself, only its code, but if a log ever shows any part of a key (`private_key`, `BEGIN PRIVATE KEY`, lines of
+base64, or the account's `@….iam.gserviceaccount.com` email), treat the key as leaked:
+
+1. Rotate it at once (above): new key, new secret, then delete the old key under **Keys**. Deleting it is what makes
+   the copy in the log useless.
+2. Delete each run whose log shows it: the run's **⋯ → Delete workflow run**, or `gh run delete <run-id>`.
+3. In Firestore → Usage, look for reads or writes you don't recognize since that run.
 
 ### Run the job by hand
 
@@ -58,6 +69,22 @@ gh workflow run reminders.yml -f dry_run=true
   never sends twice a day.
 - The log line `skippedNoDevices` counts users whose phones have not registered (they have not opened the app
   since installing, or notifications are blocked).
+- `skippedNotMember` counts due users whose household no longer lists them (removed, or the household was
+  deleted) and whose app has not run since. They get nothing, and the job clears their household pointer as their
+  app would, so they are not counted again.
+- `pruneFailures` (07:00 UTC run only) counts old documents the daily prune could not delete. The run then fails so
+  GitHub emails you; the next day's prune finds them again.
+- A failed run prints one line, `<job> failed: <code>.`, and never the error itself (logs are public):
+
+  | Code | Meaning |
+  | --- | --- |
+  | `wrong-project` | The secret holds the other project's key |
+  | `key-not-json`, `app/invalid-credential` | The secret is not a valid JSON key file; store it again (step 5) |
+  | `PERMISSION_DENIED`, `UNAUTHENTICATED` | The key was deleted or lost a role; check the service account (steps 3 and 4) |
+  | `RESOURCE_EXHAUSTED` | The day's free reads or writes ran out (Check quota usage) |
+  | `UNAVAILABLE`, `DEADLINE_EXCEEDED` | Google was briefly unreachable; the next run catches up |
+  | `usage`, `no-key`, `not-an-export`, `no-such-household` | A restore that could not start (Restore a household) |
+  | Anything else, or `no code` | Run it again by hand. If it keeps failing, reproduce it on a computer with the dev key; never commit a change that prints the error |
 
 ## Firestore rules
 
@@ -232,7 +259,10 @@ exported version.
    `households`.
 2. Run it again with the first characters of the household ID (four or more, enough to match one export) and
    "apply" unticked. The log shows how many documents would be written, by kind.
-3. Run it again with **apply** ticked.
+3. Run it again with **apply** ticked. The log ends with `restored N document(s), M failed`. If M is not 0, the
+   run fails: those documents were not written (for example one too large for Firestore, which can take others in
+   its batch with it). A restore sets each document as exported, so running it again is safe. `restore failed: no-such-household` means
+   the target household does not exist (step 4).
 4. To restore into a different household (for example after the original was deleted, recreate one in the app,
    then find its ID in the Firebase console under `households`), fill in **target household**.
 
@@ -260,7 +290,7 @@ deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 del
 household or a new feature.
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
-2026-10-28 with changes-only listeners, Use it up, changes-only Recent activity and the meal planner (30 products, 60 batches, 25 grocery items, 15 recipes, this
+2026-11-01 with changes-only listeners, Use it up, changes-only Recent activity, the meal planner and the digest's membership check (30 products, 60 batches, 25 grocery items, 15 recipes, this
 month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 phones opening the app 8 times a
 day, the first open a full read, Home reading recipes and this week's meals on every open, the 40 daily writes spread between opens, each logging an activity event, 10 of
 them finishing a batch):
@@ -269,15 +299,16 @@ them finishing a batch):
 | --- | --- | --- |
 | App listeners | 13,000 | |
 | Security-rule lookups | 3,040 | |
-| Scheduled jobs (reminders, housekeeping, export) | 3,480 | |
-| **Total for 10 households** | **19,520** | **39.0%** |
-| Per household | about 1,950 | 3.9% |
+| Scheduled jobs (reminders, housekeeping, export) | 3,520 | |
+| **Total for 10 households** | **19,560** | **39.1%** |
+| Per household | about 1,960 | 3.9% |
 
 Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and
 19,320 before Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner (week's
 grocery list, Cooked, Use it up while picking) left it at 19,440: those sheets listen to the pantry and lists only while
 open, which the cache already holds from Home and Pantry. Part 3 adds the digest's query for today's meals (about 2
-reads per user a day): 19,520. So the free plan holds about 18
+reads per user a day): 19,520. Checking that each due user is still a member (2026-11-01) adds one read per user a
+day: 19,560. So the free plan holds about 18
 households of this size under the 70% warning line. The largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 

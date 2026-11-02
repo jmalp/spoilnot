@@ -1,6 +1,8 @@
 // Nightly JSON exports and restoring from one (DESIGN 13.4, M7). The file format is the app's Settings > Export
 // format (formatVersion 1), so a file from either source can be restored. Uses the Admin SDK.
 import { Timestamp, type DocumentData, type Firestore } from 'firebase-admin/firestore';
+import { bulkWrites } from './bulk.ts';
+import { JobError } from './errors.ts';
 
 export const FORMAT = 'spoilnot-export';
 export const FORMAT_VERSION = 1;
@@ -103,7 +105,7 @@ export interface RestorePlan {
  */
 export function planRestore(file: HouseholdExport, householdId: string): RestorePlan {
   if (file.format !== FORMAT || file.formatVersion > FORMAT_VERSION) {
-    throw new Error(`Not a Spoil Not export this job understands (format ${file.format} ${file.formatVersion})`);
+    throw new JobError('not-an-export', `Not a Spoil Not export this job understands (format ${file.format} ${file.formatVersion})`);
   }
   const base = `households/${householdId}`;
   const writes: RestorePlan['writes'] = [];
@@ -124,14 +126,19 @@ export function planRestore(file: HouseholdExport, householdId: string): Restore
   return { householdId, writes };
 }
 
-/** Applies a plan with the Admin SDK's bulk writer. The household must still exist. */
-export async function applyRestore(db: Firestore, plan: RestorePlan): Promise<number> {
+/**
+ * Applies a plan with the Admin SDK's bulk writer. The household must still exist. A document that cannot be written
+ * is counted, not thrown (bulk.ts); running the restore again writes the same documents.
+ */
+export async function applyRestore(db: Firestore, plan: RestorePlan): Promise<{ written: number; failed: number }> {
   const household = await db.doc(`households/${plan.householdId}`).get();
-  if (!household.exists) throw new Error(`Household ${plan.householdId} does not exist; create it in the app first`);
-  const writer = db.bulkWriter();
-  for (const w of plan.writes) void writer.set(db.doc(w.path), w.data);
-  await writer.close();
-  return plan.writes.length;
+  if (!household.exists) {
+    throw new JobError('no-such-household', `Household ${shortId(plan.householdId)} does not exist; create it in the app first`);
+  }
+  const writes = bulkWrites(db);
+  for (const w of plan.writes) writes.set(db.doc(w.path), w.data);
+  const failed = await writes.close();
+  return { written: plan.writes.length - failed, failed };
 }
 
 /** The first four characters of a household ID, enough to pick an export without publishing the ID. */

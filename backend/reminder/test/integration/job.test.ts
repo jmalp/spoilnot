@@ -52,6 +52,9 @@ beforeEach(async () => {
   batch.set(db.doc('users/frank/devices/phone'), { token: 'frank-token-1234567890', platform: 'android' });
   batch.set(db.doc('users/erin/devices/phone'), { token: 'erin-token-1234567890', platform: 'android' });
   batch.set(db.doc('households/h1'), { name: 'Test', ownerUid: 'alice' });
+  for (const uid of ['alice', 'bob', 'carol', 'erin', 'frank']) {
+    batch.set(db.doc(`households/h1/members/${uid}`), { role: uid === 'alice' ? 'owner' : 'member', displayName: uid });
+  }
   const stock = (id: string, productName: string, expiryDate: string | null, dateType = 'use_by') =>
     batch.set(db.doc(`households/h1/stock/${id}`), { productName, expiryDate, dateType, quantity: 1, location: 'fridge' });
   stock('s1', 'Milk', '2026-10-11');
@@ -82,6 +85,17 @@ beforeEach(async () => {
   batch.set(db.doc('households/h1/joinRequests/fresh'), { status: 'pending', requestedAt: recent });
   await batch.commit();
 });
+
+/** A profile that still points at a household that no longer lists them, with a registered phone. */
+async function seedFormerMember(uid: string, householdId: string) {
+  const batch = db.batch();
+  batch.set(db.doc(`users/${uid}`), {
+    displayName: uid, householdId, timezone: 'America/New_York', locale: 'en', notificationPrefs: prefs,
+    lastDigestDate: null, lastExpiredThrough: null,
+  });
+  batch.set(db.doc(`users/${uid}/devices/phone`), { token: `${uid}-token-1234567890`, platform: 'android' });
+  await batch.commit();
+}
 
 describe('reminder job against the emulator', () => {
   it('sends the right digest to every device, deletes dead tokens and records the day', async () => {
@@ -191,6 +205,57 @@ describe('reminder job against the emulator', () => {
     assert.deepEqual(frank.notification, { title: 'You\'re cooking Tacos for dinner', body: 'You\'re cooking: Tacos (dinner).' });
     assert.equal(frank.data.route, PLAN_ROUTE);
     assert.equal(summary.emptyDigests, 0);
+  });
+
+  it('a removed member gets nothing, and their pointer is cleared as their app would', async () => {
+    // The owner removed gus, who cooks tonight; his app has not run since. Hana's household was deleted.
+    await db.doc('households/h1/meals/m-today').set({
+      date: '2026-10-12', slot: 'dinner', position: 0, title: 'Tacos', cooks: ['gus', 'frank'], cookedAt: null,
+    });
+    await seedFormerMember('gus', 'h1');
+    await seedFormerMember('hana', 'h-deleted');
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: NOW, prune: false });
+
+    assert.equal(sender.sent.some((m) => m.token.startsWith('gus') || m.token.startsWith('hana')), false);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('frank')), 'the members still get theirs');
+    assert.equal(summary.skippedNotMember, 2);
+    const gus = (await db.doc('users/gus').get()).data()!;
+    assert.equal(gus.householdId, null);
+    assert.ok(gus.updatedAt instanceof Timestamp);
+    assert.equal(gus.lastDigestDate, null);
+    assert.equal((await db.doc('users/hana').get()).get('householdId'), null);
+
+    // No longer due anywhere, so later runs read nothing for them.
+    const later = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T14:07:00Z'), prune: false });
+    assert.equal(later.skippedNotMember, 0);
+  });
+
+  it('a dry run skips a removed member and leaves the pointer', async () => {
+    await seedFormerMember('gus', 'h1');
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: NOW, dryRun: true });
+    assert.equal(summary.skippedNotMember, 1);
+    assert.equal((await db.doc('users/gus').get()).get('householdId'), 'h1');
+  });
+
+  it('a removed member who joined a household while the run was going keeps the new pointer', async () => {
+    await seedFormerMember('gus', 'h1');
+    // Gus's app writes his new household between the job's reads and its clearing.
+    const racing = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'getAll') return typeof value === 'function' ? value.bind(target) : value;
+        return async (...refs: Parameters<Firestore['getAll']>) => {
+          const snapshots = await target.getAll(...refs);
+          await target.doc('users/gus').update({ householdId: 'h2' });
+          return snapshots;
+        };
+      },
+    });
+    const summary = await runJob(racing, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(summary.skippedNotMember, 1);
+    assert.equal((await db.doc('users/gus').get()).get('householdId'), 'h2');
   });
 
   it('the cooking line can be switched off', async () => {

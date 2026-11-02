@@ -62,8 +62,7 @@ it('a restore puts deleted and changed documents back as they were', async () =>
   await db.doc('households/h1/products/p2').set({ name: 'Bread' });
   await db.doc('households/h1/meals/m1').delete();
 
-  const written = await applyRestore(db, planRestore(data, 'h1'));
-  assert.equal(written, 6);
+  assert.deepEqual(await applyRestore(db, planRestore(data, 'h1')), { written: 6, failed: 0 });
   assert.equal((await db.doc('households/h1/meals/m1').get()).get('title'), 'Pie', 'meals come back too');
   const milk = await db.doc('households/h1/products/p1').get();
   assert.equal(milk.get('name'), 'Milk');
@@ -77,5 +76,5 @@ it('a restore puts deleted and changed documents back as they were', async () =>
 
 it('refuses to restore into a household that does not exist', async () => {
   const data = await exportHousehold(db, 'h1', new Date(), 'test');
-  await assert.rejects(applyRestore(db, planRestore(data, 'gone')), /does not exist/);
+  await assert.rejects(applyRestore(db, planRestore(data, 'gone')), { code: 'no-such-household' });
 });

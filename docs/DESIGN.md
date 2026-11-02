@@ -707,7 +707,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
-- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790. The meal planner (5.9) adds about 150 (this week's meals, their changes, the nightly export and two housekeeping queries): about 1,940; the digest's meals query adds about 8: about 1,950.
+- After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790. The meal planner (5.9) adds about 150 (this week's meals, their changes, the nightly export and two housekeeping queries): about 1,940; the digest's meals query adds about 8: about 1,950. Checking that each due user is still a member (10.3) adds about 4, one read per member a day: about 1,960.
 - So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
@@ -730,7 +730,8 @@ The meal plan (after v1, 5.9) uses the same two listeners limited to a window of
 Hourly (GitHub Actions) -> reminder job (Node.js + firebase-admin)
   1. load users with notificationPrefs.enabled
   2. keep users who are due: local time is at or after their digest time, before 22:00, and not yet sent today
-  3. per household: query stock with expiryDate between (today - 14 days) and (today + 3 days)
+  3. per household: keep due users it still lists as members (after v1; clear a removed member's pointer), then
+     query stock with expiryDate between (today - 14 days) and (today + 3 days)
   4. build each due user's digest from their own stages and local date
   5. send through FCM to the user's device tokens; delete dead tokens
   6. update users/{uid}: lastDigestDate, lastExpiredThrough
@@ -759,6 +760,12 @@ for user in users where notificationPrefs.enabled == true:
   due.add(user, local)
 group due by householdId
 for each household:
+  # after v1: only current members (12.2 control 5); one read per due user
+  for each due user u whose households/{id}/members/{u} does not exist:     # removed, or the household was deleted
+    skippedNotMember += 1
+    unless dry run: update users/{u} { householdId: null, updatedAt: server time }    # as their app would
+                    only if the profile is unchanged since it was read (else they may have joined again; skip)
+  keep the others; if none remain: continue
   lo = min(local.date of its due users) - 14 days
   hi = max(local.date of its due users) + 3 days
   batches = query stock where expiryDate >= lo and expiryDate <= hi   # tombstones skipped (after v1, 9.8)
@@ -779,7 +786,11 @@ for each household:
     if any send succeeded:
       update u { lastDigestDate: local.date, lastExpiredThrough: local.date minus 1 day }
 prune activity documents older than 30 days and join requests older than 7 days (after v1 also tombstones older than 2 days, 9.8, and planned meals more than 28 days past, 5.9)
+  # after v1: a deletion that fails after BulkWriter's retries is counted (pruneFailures), never thrown or printed;
+  # the run then exits non-zero so GitHub emails, and the next prune finds the document again
 ```
+
+After v1 every entry point (reminders, nightly export, restore) prints a failure as one fixed line with the error's code (a gRPC status name such as `PERMISSION_DENIED`, a Firebase or Node code, or one of the jobs' own such as `wrong-project`), never the error object or its message, including errors nothing handled: a Firestore error can hold the client and, through it, the service account key, and its message can name a full document path (13.4).
 
 Message shape per device token:
 
@@ -892,7 +903,7 @@ JSON.stringify({
 2. Firebase Auth with email and password, minimum 8 characters; keep email enumeration protection enabled in the console.
 3. Every household path checks membership in the rules; owner-only actions check the owner role.
 4. Invite codes: 10 characters (50 bits) from a cryptographically secure generator, readable only by exact `get` (no listing). The owner can pause or rotate instantly. A leaked code only lets a stranger send a join request; nobody enters the household until the owner approves, and pause, rotate and remove exist as further controls.
-5. Removed or departed members lose access at once (rules re-check membership on every request) and the app clears the local cache.
+5. Removed or departed members lose access at once (rules re-check membership on every request) and the app clears the local cache. After v1 the reminder job, which reads with the Admin SDK and so skips the rules, also sends a household's digest only to users it lists as members, and clears a removed member's household pointer as their app would (10.3).
 6. On sign-out or account switch call `terminate()` then `clearPersistence()` so another person on the same phone cannot see cached data. Sign-out and account deletion must finish even when the screen that started them closes (after v1: they run in the application scope, and instrumented tests sign out and delete an account through Settings, then check the cache and the server).
 7. TLS only. No cleartext traffic in the app (Android `usesCleartextTraffic=false` in the manifest).
 8. No secrets in the app (Firebase configuration values are identifiers, not secrets). The service account key exists only as a GitHub Actions secret. `.gitignore` covers `*.jks`, `keystore.properties`, `local.properties`, `service-account*.json` and `.env*`. Enable GitHub secret scanning and push protection.
@@ -1119,7 +1130,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 - **Update gate:** on launch read `config/app.minSupportedBuild`; if the installed `versionCode` is lower, show a full-screen “Please update” with a link.
 - **Runbook** (`docs/RUNBOOK.md`): rotate the service account key, regenerate an invite code by hand, check quota usage, re-enable the workflow, restore from an export.
 
-**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days. After v1 the repository is public, so the export is encrypted (AES-256 with a key-stretched passphrase in the `EXPORT_ENCRYPTION_KEY` secret) before it is uploaded, the restore workflow decrypts it, and workflow logs never contain user IDs, full household IDs or household contents (docs/RUNBOOK.md). After v1 both exports also include the planned meals (5.9) as an added `meals` array, which the restore workflow writes back.
+**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days. After v1 the repository is public, so the export is encrypted (AES-256 with a key-stretched passphrase in the `EXPORT_ENCRYPTION_KEY` secret) before it is uploaded, the restore workflow decrypts it, and workflow logs never contain user IDs, full household IDs or household contents (docs/RUNBOOK.md). Nor the service account key: the jobs count failed writes instead of throwing them and print errors as a fixed line with their code only (10.3). After v1 both exports also include the planned meals (5.9) as an added `meals` array, which the restore workflow writes back.
 
 ## 14. Milestones for Claude Code
 
@@ -1256,6 +1267,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-31 | App tour: each step opens its tab at its root, so the tour taken from Settings on the Home tab closes Settings instead of highlighting nothing (an instrumented test covers it) | 5.8, QA |
 | 2026-10-31 | Crash reports only from builds on real Firebase, and Firebase Sessions off in the emulator builds: their failed uploads to the demo project restarted the app after each benchmark kill, which made `StartupBenchmark` fail. The benchmark helpers retry a tap that a fling swallowed and press Back only when something opened. Measured on a headless software-rendered emulator: cold start median 691 ms without the profile, 623 ms with it | 7.5, 13.1, RUNBOOK |
 | 2026-10-31 | Two-phone instrumented tests terminate each simulated phone's Firestore after the test, so the full `connectedDevDebugAndroidTest` run no longer stops after about 50 phones (Android allows about 100 network callbacks per app); `TestPhoneTest` guards it. The household-deletion test waits for the member's local reset before its last read, which could hang the run, the share test allows 60 s from the share to the preview on a busy emulator (the app's own 5 s is unchanged), and the tour test waits for Skip to be saved | 13.1, DECISIONS |
+| 2026-11-01 | Reminder digests go only to the household's current members: the job checks each due user's member document (one read per due user) and clears a removed member's household pointer as their app would. The prune and the restore count failed writes instead of throwing them, and every job prints an error as one fixed line with its code | 9.7, 10.1, 10.3, 12.2, 13.4, RUNBOOK, QA, SECURITY_REVIEW |
 | 2026-11-01 | Sign-out and account deletion finish even when Settings closes: they run in the session's application scope, their cleanup steps no longer treat cancellation as a failure, and the phone deletes its push token whenever nobody is signed in (after a sign-out or an account deletion, and at a start without a signed-in user). Instrumented tests sign out and delete an account through Settings and check the phone's cache and the server | 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 
