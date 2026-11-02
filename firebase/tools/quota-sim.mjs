@@ -175,14 +175,15 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
 // household the activity and join request queries, the lists, and a tombstone query for products, stock, recipes
 // and each list's items, each at least one read, plus the tombstones it deletes); once a day per user a stock query
 // and a devices read; the nightly export reads every household document once, tombstones included. After v1 the
-// digest also reads today's meals (about two) once per user and day, the worst case of members due in different runs.
+// digest also reads today's meals (about two) once per user and day, the worst case of members due in different runs,
+// and since 2026-11-01 the user's member document (only members get the household's digest).
 const users = HOUSEHOLDS * PHONES;
 const TODAY_MEALS = 2;
 // Housekeeping per household: activity, join requests, lists, tombstones (products, stock, recipes, meals, each
 // list's items) and past meals (after v1), each at least one read.
 const housekeeping = HOUSEHOLDS + HOUSEHOLDS * (2 + 1 + 4 + 2 + 1) + HOUSEHOLDS * TOMBSTONES_PER_DAY;
 const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1 + TOMBSTONES + WEEK_MEALS + OTHER_MEALS; // + stats, meals
-reads.jobs = REMINDER_RUNS_PER_DAY * users + housekeeping + users * (2 + TODAY_MEALS) + HOUSEHOLDS * perHousehold;
+reads.jobs = REMINDER_RUNS_PER_DAY * users + housekeeping + users * (3 + TODAY_MEALS) + HOUSEHOLDS * perHousehold;
 writes += users; // lastDigestDate once a day
 
 const total = reads.listeners + reads.ruleLookups + reads.jobs;

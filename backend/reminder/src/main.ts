@@ -3,6 +3,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { fromEnv } from './credentials.ts';
+import { runMain } from './errors.ts';
 import { runJob, type Sender } from './job.ts';
 
 const PRUNE_HOUR_UTC = 7;
@@ -34,9 +35,11 @@ async function main(): Promise<void> {
   const prune = now.getUTCHours() === PRUNE_HOUR_UTC;
   const summary = await runJob(db, sender, { now, dryRun, prune, log: (line) => console.log(line) });
   console.log(`${dryRun ? '[dry run] ' : ''}project ${projectId}: ${JSON.stringify(summary)}`);
+  if (summary.pruneFailures > 0) {
+    // A failed run makes GitHub send its failure email.
+    console.error(`${summary.pruneFailures} deletion(s) failed; tomorrow's prune tries them again.`);
+    process.exitCode = 1;
+  }
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+runMain('expiry-reminders', main);

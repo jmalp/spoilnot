@@ -1,6 +1,7 @@
 // The hourly reminder job (DESIGN 10.1, 10.3). Reads Firestore with the Admin SDK (which bypasses the rules),
 // sends one digest per due user through FCM, and prunes old activity, join requests and tombstones.
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, GrpcStatus, type Firestore } from 'firebase-admin/firestore';
+import { bulkWrites } from './bulk.ts';
 import {
   afterSend, buildDigestWithMeals, cookingFor, dueAt, readPrefs, selectItems, stockWindow, type Batch, type Meal,
   type UserDoc,
@@ -47,12 +48,18 @@ export interface JobSummary {
   sent: number;
   emptyDigests: number;
   skippedNoDevices: number;
+  /** Due users whose household no longer lists them (removed, or it was deleted): no digest, pointer cleared. */
+  skippedNotMember: number;
   deadTokens: number;
   prunedActivity: number;
   prunedJoinRequests: number;
   prunedTombstones: number;
   prunedMeals: number;
+  /** Prune deletions that failed after retries (also in the counts above); the next prune finds them again. */
+  pruneFailures: number;
 }
+
+type Profile = FirebaseFirestore.QueryDocumentSnapshot;
 
 export const ROUTE = '/pantry?filter=expiring';
 /** A digest with only meals opens the Plan tab (after v1, DESIGN 5.9). */
@@ -109,15 +116,15 @@ function toBatch(data: FirebaseFirestore.DocumentData): Batch | null {
 export async function runJob(db: Firestore, sender: Sender, options: JobOptions): Promise<JobSummary> {
   const { now, dryRun = false, prune: shouldPrune = true } = options;
   const log = options.log ?? (() => {});
-  const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0, prunedTombstones: 0, prunedMeals: 0 };
+  const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, skippedNotMember: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0, prunedTombstones: 0, prunedMeals: 0, pruneFailures: 0 };
 
   // 1-2. Users with reminders on who are due now.
   const users = await db.collection('users').where('notificationPrefs.enabled', '==', true).get();
-  const due: Array<{ user: UserDoc; local: LocalTime }> = [];
+  const due: Array<{ user: UserDoc; local: LocalTime; profile: Profile }> = [];
   for (const doc of users.docs) {
     const user = toUser(doc.id, doc.data());
     const local = dueAt(user, now);
-    if (local) due.push({ user, local });
+    if (local) due.push({ user, local, profile: doc });
   }
   summary.due = due.length;
 
@@ -129,7 +136,17 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
     byHousehold.set(entry.user.householdId!, list);
   }
 
-  for (const [householdId, members] of byHousehold) {
+  for (const [householdId, entries] of byHousehold) {
+    // Only current members (DESIGN 12.2 control 5): a removed member's profile points here until their own app
+    // clears it, so the job clears it instead. One read per due user.
+    const memberships = await db.getAll(...entries.map((e) => db.doc(`households/${householdId}/members/${e.user.uid}`)));
+    const members = entries.filter((_, i) => memberships[i]!.exists);
+    for (const { profile } of entries.filter((_, i) => !memberships[i]!.exists)) {
+      summary.skippedNotMember++;
+      if (!dryRun) await clearHousehold(profile);
+    }
+    if (members.length === 0) continue;
+
     const { lo, hi } = stockWindow(members.map((m) => m.local.date));
     const stock = await db.collection(`households/${householdId}/stock`)
       .where('expiryDate', '>=', lo)
@@ -205,18 +222,36 @@ export async function runJob(db: Firestore, sender: Sender, options: JobOptions)
     summary.prunedJoinRequests = pruned.joinRequests;
     summary.prunedTombstones = pruned.tombstones;
     summary.prunedMeals = pruned.meals;
+    summary.pruneFailures = pruned.failures;
   }
   return summary;
 }
 
 /**
+ * What a removed member's app writes when it notices (SessionManager), unless the profile changed since this run read
+ * it: they may have joined a household again. The next run looks again.
+ */
+async function clearHousehold(profile: Profile): Promise<void> {
+  try {
+    await profile.ref.update(
+      { householdId: null, updatedAt: FieldValue.serverTimestamp() },
+      { lastUpdateTime: profile.updateTime },
+    );
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    if (code !== GrpcStatus.FAILED_PRECONDITION && code !== GrpcStatus.NOT_FOUND) throw error;
+  }
+}
+
+/**
  * Deletes activity older than 30 days, join requests older than 7 days, tombstones older than 2 days and planned
  * meals more than 28 days past (after v1). Each query costs at least one read, even when empty (quota simulation).
+ * A deletion that fails is counted, never thrown (bulk.ts).
  */
 async function prune(
   db: Firestore,
   now: Date,
-): Promise<{ activity: number; joinRequests: number; tombstones: number; meals: number }> {
+): Promise<{ activity: number; joinRequests: number; tombstones: number; meals: number; failures: number }> {
   const activityCutoff = new Date(now.getTime() - ACTIVITY_DAYS * 86_400_000);
   const requestCutoff = new Date(now.getTime() - JOIN_REQUEST_DAYS * 86_400_000);
   const tombstoneCutoff = new Date(now.getTime() - TOMBSTONE_DAYS * 86_400_000);
@@ -226,6 +261,7 @@ async function prune(
   let meals = 0;
   let joinRequests = 0;
   let tombstones = 0;
+  let failures = 0;
   const households = await db.collection('households').select().get();
   for (const household of households.docs) {
     const old = await household.ref.collection('activity').where('createdAt', '<', activityCutoff).get();
@@ -238,20 +274,20 @@ async function prune(
       ...lists.docs.map((list) => list.ref.collection('items')),
     ].map((collection) => collection.where('deletedAt', '<', tombstoneCutoff).get());
     const deleted = (await Promise.all(tombstoneQueries)).flatMap((snapshot) => snapshot.docs);
-    const writer = db.bulkWriter();
-    old.docs.forEach((d) => writer.delete(d.ref));
-    stale.docs.forEach((d) => writer.delete(d.ref));
-    deleted.forEach((d) => writer.delete(d.ref));
+    const writes = bulkWrites(db);
+    old.docs.forEach((d) => writes.delete(d.ref));
+    stale.docs.forEach((d) => writes.delete(d.ref));
+    deleted.forEach((d) => writes.delete(d.ref));
     // A past meal that is also an old tombstone is already being deleted.
     const deletedPaths = new Set(deleted.map((d) => d.ref.path));
     const oldMeals = pastMeals.docs.filter((d) => !deletedPaths.has(d.ref.path));
-    oldMeals.forEach((d) => writer.delete(d.ref));
-    await writer.close();
+    oldMeals.forEach((d) => writes.delete(d.ref));
+    failures += await writes.close();
     meals += oldMeals.length;
     activity += old.size;
     joinRequests += stale.size;
     tombstones += deleted.length;
   }
-  return { activity, joinRequests, tombstones, meals };
+  return { activity, joinRequests, tombstones, meals, failures };
 }
 
