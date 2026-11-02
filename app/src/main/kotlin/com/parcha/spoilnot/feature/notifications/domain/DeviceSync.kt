@@ -7,11 +7,16 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/** Registers this phone for digests once per signed-in user per app start, and again when FCM rotates the token. */
+/**
+ * Registers this phone for digests once per signed-in user per app start, and again when FCM rotates the token.
+ * While nobody is signed in the phone keeps no push token (DESIGN 10.2): it is deleted after every sign-out and at
+ * every start without a signed-in user, which also stops digests to a device document that a sign-out left behind.
+ * The steps run one at a time, so a sign-in right after a start registers only once the old token is gone.
+ */
 @Singleton
 class DeviceSync @Inject constructor(
     private val session: SessionManager,
@@ -25,10 +30,10 @@ class DeviceSync @Inject constructor(
         started = true
         scope.launch {
             session.session
+                .filterNot { it is Session.Loading }
                 .map { (it as? Session.NoHousehold)?.user?.uid ?: (it as? Session.InHousehold)?.user?.uid }
                 .distinctUntilChanged()
-                .filterNotNull()
-                .collect { uid -> registry.sync(uid) }
+                .collect { uid -> if (uid == null) registry.deleteToken() else registry.sync(uid) }
         }
     }
 

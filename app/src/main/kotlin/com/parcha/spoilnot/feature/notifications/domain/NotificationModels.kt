@@ -49,4 +49,10 @@ interface DeviceRegistry {
 
     /** On sign-out, so the signed-out phone stops receiving this user's digests. */
     suspend fun unregister(uid: String)
+
+    /**
+     * While nobody is signed in: invalidates this phone's push token, so a device document left on the server (for
+     * example by a sign-out without a connection) gets no more digests and the reminder job removes it.
+     */
+    suspend fun deleteToken()
 }

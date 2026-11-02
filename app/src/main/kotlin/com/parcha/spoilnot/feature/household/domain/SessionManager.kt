@@ -17,6 +17,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +74,8 @@ sealed interface JoinState {
  * - Completes an approved join request.
  * - When the membership disappears (removed, or the household was deleted) it clears the profile pointer, which
  *   returns the user to the gate; whenever a household is left for any reason the local cache is cleared.
- * - Sign-out and account deletion pause all listeners while local data is cleared.
+ * - Sign-out and account deletion pause all listeners while local data is cleared, and run in the application scope
+ *   so that closing a screen cannot stop them halfway.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -111,14 +113,17 @@ class SessionManager @Inject constructor(
 
     suspend fun signIn(email: String, password: String) = auth.signIn(email.trim(), password)
 
-    /** Clears this device's copy of the household before signing out (DESIGN 12.2, control 6). */
-    suspend fun signOut() {
+    /**
+     * Clears this device's copy of the household before signing out (DESIGN 12.2, control 6). Runs to the end even
+     * when the screen that asked is closed (see [untilDone]).
+     */
+    suspend fun signOut() = untilDone {
         val uid = auth.currentUser?.uid
         shuttingDown.value = true
         try {
             // This phone stops receiving the user's digests (DESIGN 10.2).
-            if (uid != null) runCatching { devices.unregister(uid) }
-            runCatching { localData.clear() }
+            if (uid != null) bestEffort { devices.unregister(uid) }
+            bestEffort { localData.clear() }
             auth.signOut()
         } finally {
             pendingDisplayName.set(null)
@@ -130,7 +135,8 @@ class SessionManager @Inject constructor(
     /**
      * Deletes the account (DESIGN 5.1): checks the password, leaves the household, deletes the profile and devices,
      * clears local data and deletes the sign-in. An owner must transfer ownership or delete the household first.
-     * The sign-in is refreshed only at the very end if Firebase requires it, after all Firestore writes.
+     * The sign-in is refreshed only at the very end if Firebase requires it, after all Firestore writes. Once the
+     * password is checked it runs to the end even when the screen that asked is closed (see [untilDone]).
      */
     suspend fun deleteAccount(password: String) {
         val uid = auth.currentUser?.uid ?: return
@@ -139,26 +145,46 @@ class SessionManager @Inject constructor(
             ?: throw AppError.Offline()
         if (current is Session.InHousehold && current.role == Role.Owner) throw AppError.OwnerMustTransferFirst()
         auth.verifyPassword(password)
-        shuttingDown.value = true
-        try {
-            when (current) {
-                is Session.InHousehold -> households.leave(current.householdId, uid)
-                is Session.NoHousehold -> current.join?.let { households.abandonJoin(uid, it.pending) }
-                else -> Unit
-            }
-            users.deleteProfile(uid)
-            runCatching { localData.clear() }
+        untilDone {
+            shuttingDown.value = true
             try {
-                auth.deleteAccount()
-            } catch (e: AppError.RecentLoginRequired) {
-                // Firestore work is finished, so refreshing the sign-in now cannot affect it.
-                auth.reauthenticate(password)
-                auth.deleteAccount()
+                when (current) {
+                    is Session.InHousehold -> households.leave(current.householdId, uid)
+                    is Session.NoHousehold -> current.join?.let { households.abandonJoin(uid, it.pending) }
+                    else -> Unit
+                }
+                users.deleteProfile(uid)
+                bestEffort { localData.clear() }
+                try {
+                    auth.deleteAccount()
+                } catch (e: AppError.RecentLoginRequired) {
+                    // Firestore work is finished, so refreshing the sign-in now cannot affect it.
+                    auth.reauthenticate(password)
+                    auth.deleteAccount()
+                }
+            } finally {
+                pendingDisplayName.set(null)
+                lastHouseholdId.set(null)
+                shuttingDown.value = false
             }
-        } finally {
-            pendingDisplayName.set(null)
-            lastHouseholdId.set(null)
-            shuttingDown.value = false
+        }
+    }
+
+    /**
+     * Runs [block] in the application scope and waits for it. Sign-out and account deletion start by turning the
+     * session to Loading, which removes the screen that asked and cancels its coroutines; the work belongs to the
+     * session, not to that screen, so it must finish anyway. The caller still gets the result or the error.
+     */
+    private suspend fun <T> untilDone(block: suspend () -> T): T = scope.async { block() }.await()
+
+    /** A cleanup step whose failure must not stop the next one. Cancellation is never swallowed. */
+    private suspend fun bestEffort(step: suspend () -> Unit) {
+        try {
+            step()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best effort: the next step runs anyway.
         }
     }
 
@@ -226,7 +252,7 @@ class SessionManager @Inject constructor(
             is Session.InHousehold -> lastHouseholdId.set(session.householdId)
 
             is Session.NoHousehold -> {
-                if (lastHouseholdId.getAndSet(null) != null) scope.launch { runCatching { localData.clear() } }
+                if (lastHouseholdId.getAndSet(null) != null) scope.launch { bestEffort { localData.clear() } }
             }
 
             Session.SignedOut -> lastHouseholdId.set(null)

@@ -165,6 +165,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Airplane Mode and reopen the app: it opens and shows the pantry; an item added offline appears on the Android
     phone once the iPhone is back online. Deploy a new build: within a day of opening the app, "A new version of Spoil
     Not is ready" offers Update, which reloads into it. Run flows 28 to 35 on this install.
+37. Sign out and Delete account in Settings (Android, after v1): on Phone B, with reminders on and an item expiring
+    tomorrow, sign out from Settings (not from the gate): Welcome shows within a few seconds. Leave Phone B signed
+    out past the digest hour: no digest reaches it, while Phone A gets its own. Sign in again, then sign out in
+    Airplane Mode: Welcome still shows. Turn Airplane Mode off, swipe Spoil Not away and open it again: no digest
+    reaches Phone B from then on. With a spare member account on Phone B: Settings > Delete account, the password,
+    Delete: Welcome shows; signing in with that account says the email or password is wrong, and Phone A's member
+    list no longer has it.
 
 ## 3. Conditions
 

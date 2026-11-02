@@ -101,6 +101,8 @@ class TestPhone(private val name: String) : AutoCloseable {
             override suspend fun sync(uid: String) = Unit
 
             override suspend fun unregister(uid: String) = Unit
+
+            override suspend fun deleteToken() = Unit
         },
         scope,
     )
