@@ -8,6 +8,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -323,7 +324,11 @@ describe('members', () => {
     await assertSucceeds(getDocs(collection(db, `households/${HID}/groceryLists/g1/items`)));
     await assertSucceeds(getDocs(collection(db, `households/${HID}/recipes`)));
     await assertSucceeds(getDocs(collection(db, `households/${HID}/members`)));
-    await assertSucceeds(deleteDoc(doc(db, `households/${HID}/stock/s1`)));
+    // Members delete a batch by marking it (DESIGN 9.8); deleting for real is the owner's, with the household.
+    await assertFails(deleteDoc(doc(db, `households/${HID}/stock/s1`)));
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/stock/s1`), {
+      deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }, { merge: true }));
   });
 
   it('cannot write an invalid quantity, date format or location, or stamp someone else', async () => {
@@ -669,12 +674,14 @@ describe('recipes', () => {
     await assertFails(setDoc(ref, recipe('bob', { steps: many(101, (i) => ({ text: `${i}`, group: null })) })));
   });
 
-  it('favorite is a stamped update, and any member may delete', async () => {
+  it('favorite is a stamped update; members delete with a tombstone, only the owner outright', async () => {
     await assertSucceeds(setDoc(doc(as('alice'), `households/${HID}/recipes/r1`), recipe('alice')));
     const ref = doc(as('bob'), `households/${HID}/recipes/r1`);
     await assertSucceeds(updateDoc(ref, { favorite: true, updatedAt: serverTimestamp(), updatedBy: 'bob' }));
     await assertFails(updateDoc(ref, { favorite: false }));
-    await assertSucceeds(deleteDoc(ref));
+    await assertFails(deleteDoc(ref));
+    await assertSucceeds(setDoc(ref, { deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: 'bob' }, { merge: true }));
+    await assertSucceeds(deleteDoc(doc(as('alice'), `households/${HID}/recipes/r1`)));
   });
 
   it('a save writes the recipe and its recipe_saved event in one batch', async () => {
@@ -716,7 +723,9 @@ describe('insights stats', () => {
       await setDoc(doc(ctx.firestore(), `households/${HID}/stock/s1`), stock('bob'));
     });
     const b = writeBatch(db);
-    b.delete(doc(db, `households/${HID}/stock/s1`));
+    b.set(doc(db, `households/${HID}/stock/s1`), {
+      deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }, { merge: true });
     b.set(doc(db, `households/${HID}/activity/e1`), {
       type: 'discarded', actorUid: 'bob', actorName: 'Bob', productId: 'p1',
       params: { name: 'Milk', quantity: 2, reason: 'expired' }, createdAt: serverTimestamp(),
@@ -744,13 +753,13 @@ describe('insights stats', () => {
   });
 
   it('only the owner deletes counts (with the household)', async () => {
-    await assertSucceeds(setDoc(doc(as('bob'), path()), counted('bob', { used: 2 })));
+    await assertSucceeds(setDoc(doc(as('bob'), path()), counted('bob', { used: 1 })));
     await assertFails(deleteDoc(doc(as('bob'), path())));
     await assertSucceeds(deleteDoc(doc(as('alice'), path())));
   });
 
   it('outsiders cannot read or write counts', async () => {
-    await assertSucceeds(setDoc(doc(as('bob'), path()), counted('bob', { used: 2 })));
+    await assertSucceeds(setDoc(doc(as('bob'), path()), counted('bob', { used: 1 })));
     await assertFails(getDoc(doc(as('carol'), path())));
     await assertFails(getDocs(collection(as('erin'), `households/${HID}/stats`)));
     await assertFails(setDoc(doc(as('carol'), path()), counted('carol', { used: increment(1) }), { merge: true }));
@@ -866,7 +875,9 @@ describe('meal plan', () => {
     }));
     await assertSucceeds(setDoc(doc(as('alice'), path()), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: 'alice' }, { merge: true }));
     await assertSucceeds(getDocs(collection(db, `households/${HID}/meals`)));
-    await assertSucceeds(deleteDoc(doc(db, path('m2'))));
+    // A meal goes by tombstone; only the owner (deleting the household) removes it for real.
+    await assertFails(deleteDoc(doc(db, path('m2'))));
+    await assertSucceeds(deleteDoc(doc(as('alice'), path('m2'))));
   });
 
   it('dates, slots, titles, servings, cooks and notes are checked', async () => {
@@ -955,5 +966,399 @@ describe('clear household data', () => {
 
   it('a member cannot (other people\'s activity and the counts are the owner\'s to delete)', async () => {
     await assertFails(clearBatch('bob').commit());
+  });
+});
+
+// After v1 (2026-11-08): what each person may do on paths the matrix above did not cover, who wrote a document,
+// deletes and counts, and the allowed fields and sizes (DESIGN 8.1, 8.5, 12.4).
+describe('more of the matrix', () => {
+  const t0 = new Date('2026-10-01T00:00:00Z');
+  const h = (path) => `households/${HID}/${path}`;
+  const meal = (uid, extra = {}) => ({
+    date: '2026-11-01', slot: 'dinner', position: 0, recipeId: null, title: 'Tacos', servings: 4, cooks: [uid],
+    note: null, cookedAt: null, cookedBy: null, createdAt: serverTimestamp(), createdBy: uid,
+    updatedAt: serverTimestamp(), updatedBy: uid, ...extra,
+  });
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'config/app'), { minSupportedBuild: 1, message: '' });
+      await setDoc(doc(db, 'users/erin'), profile('Erin', OTHER_HID));
+      await setDoc(doc(db, h('groceryLists/g1/items/i1')), { ...groceryItem('alice'), createdAt: t0, updatedAt: t0 });
+      await setDoc(doc(db, h('products/p1')), { ...product('alice'), createdAt: t0, updatedAt: t0 });
+      await setDoc(doc(db, h('stock/s1')), { ...stock('alice'), createdAt: t0, updatedAt: t0 });
+      await setDoc(doc(db, h('recipes/r1')), { ...recipe('alice'), createdAt: t0, updatedAt: t0 });
+      await setDoc(doc(db, h('meals/m1')), { ...meal('alice'), createdAt: t0, updatedAt: t0 });
+      await setDoc(doc(db, h('activity/a1')), {
+        type: 'stock_added', actorUid: 'bob', actorName: 'Bob', params: { name: 'Milk' }, createdAt: t0,
+      });
+      await setDoc(doc(db, h('stats/2026-10')), { used: 3, expired: 1, updatedAt: t0, updatedBy: 'alice' });
+      await setDoc(doc(db, h('joinRequests/carol')), {
+        displayName: 'Carol', joinCode: CODE, status: 'pending', requestedAt: t0,
+      });
+    });
+  });
+
+  describe('paths and people', () => {
+    it('config is listable when signed in, never updated or deleted by a client', async () => {
+      await assertSucceeds(getDocs(collection(as('carol'), 'config')));
+      await assertFails(getDocs(collection(anon(), 'config')));
+      await assertFails(updateDoc(doc(as('alice'), 'config/app'), { minSupportedBuild: 0 }));
+      await assertFails(deleteDoc(doc(as('alice'), 'config/app')));
+    });
+
+    it('nobody lists users; a member cannot change or delete another profile', async () => {
+      await assertFails(getDocs(collection(as('alice'), 'users')));
+      await assertFails(updateDoc(doc(as('bob'), 'users/alice'), { timezone: 'Pacific/Kiritimati', updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(doc(as('bob'), 'users/alice'), { notificationPrefs: { enabled: false }, updatedAt: serverTimestamp() }));
+      await assertFails(deleteDoc(doc(as('bob'), 'users/alice')));
+    });
+
+    it('a device is read, re-pointed and deleted only by its owner', async () => {
+      await assertSucceeds(getDoc(doc(as('alice'), 'users/alice/devices/d1')));
+      await assertFails(getDoc(doc(as('bob'), 'users/alice/devices/d1')));
+      await assertFails(setDoc(doc(as('bob'), 'users/alice/devices/d1'), { token: 'b'.repeat(160), platform: 'android' }));
+      await assertFails(deleteDoc(doc(as('bob'), 'users/alice/devices/d1')));
+    });
+
+    it('nobody lists households; a member or another owner cannot delete one', async () => {
+      await assertFails(getDocs(collection(as('alice'), 'households')));
+      await assertFails(deleteDoc(doc(as('bob'), `households/${HID}`)));
+      await assertFails(deleteDoc(doc(as('erin'), `households/${HID}`)));
+    });
+
+    it('members get one member document; outsiders cannot; nobody renames someone else', async () => {
+      await assertSucceeds(getDoc(doc(as('bob'), h('members/alice'))));
+      await assertFails(getDoc(doc(as('carol'), h('members/alice'))));
+      await assertFails(updateDoc(doc(as('bob'), h('members/alice')), { displayName: 'Mallory' }));
+      await assertFails(updateDoc(doc(as('alice'), h('members/bob')), { displayName: 'Mallory' }));
+    });
+
+    it('only the requester or the owner removes a join request', async () => {
+      await assertFails(deleteDoc(doc(as('dave'), h('joinRequests/carol'))));
+      await assertFails(deleteDoc(doc(as('bob'), h('joinRequests/carol'))));
+      await assertSucceeds(deleteDoc(doc(as('alice'), h('joinRequests/carol'))));
+    });
+
+    it('products: members get; outsiders cannot get, update or delete; nobody stamps as someone else', async () => {
+      await assertSucceeds(getDoc(doc(as('bob'), h('products/p1'))));
+      await assertFails(getDoc(doc(as('carol'), h('products/p1'))));
+      await assertFails(updateDoc(doc(as('carol'), h('products/p1')), { name: 'X', updatedAt: serverTimestamp(), updatedBy: 'carol' }));
+      await assertFails(updateDoc(doc(as('bob'), h('products/p1')), { name: 'X', updatedAt: serverTimestamp(), updatedBy: 'alice' }));
+      await assertFails(deleteDoc(doc(as('carol'), h('products/p1'))));
+      await assertFails(deleteDoc(doc(as('erin'), h('products/p1'))));
+    });
+
+    it('stock, items, recipes, meals, lists and activity: members get; outsiders cannot get or delete', async () => {
+      for (const path of ['stock/s1', 'groceryLists/g1/items/i1', 'recipes/r1', 'meals/m1', 'groceryLists/g1', 'activity/a1']) {
+        await assertSucceeds(getDoc(doc(as('bob'), h(path))));
+        await assertFails(getDoc(doc(as('carol'), h(path))));
+        await assertFails(getDoc(doc(as('erin'), h(path))));
+      }
+      for (const path of ['stock/s1', 'groceryLists/g1/items/i1', 'recipes/r1', 'meals/m1', 'activity/a1', 'stats/2026-10']) {
+        await assertFails(deleteDoc(doc(as('carol'), h(path))));
+      }
+    });
+
+    it('members list the grocery lists; outsiders cannot list a list\'s items', async () => {
+      await assertSucceeds(getDocs(collection(as('bob'), h('groceryLists'))));
+      await assertFails(getDocs(collection(as('carol'), h('groceryLists/g1/items'))));
+    });
+
+    it('nobody queries a subcollection across households', async () => {
+      for (const group of ['members', 'stock', 'joinRequests', 'devices', 'meals', 'activity']) {
+        await assertFails(getDocs(collectionGroup(as('bob'), group)));
+      }
+      await assertFails(getDocs(query(collectionGroup(as('alice'), 'members'), where('role', '==', 'owner'))));
+    });
+
+    it('an activity event cannot be edited, not even by its author', async () => {
+      await assertFails(updateDoc(doc(as('bob'), h('activity/a1')), { params: { name: 'Cake' } }));
+      await assertFails(updateDoc(doc(as('alice'), h('activity/a1')), { params: { name: 'Cake' } }));
+    });
+  });
+
+  describe('membership and ownership', () => {
+    it('an outsider cannot make themselves a member or the owner in one batch', async () => {
+      const db = as('carol');
+      const b = writeBatch(db);
+      b.update(doc(db, `households/${HID}`), { ownerUid: 'carol', updatedAt: serverTimestamp() });
+      b.set(doc(db, h('members/carol')), { role: 'owner', displayName: 'Carol', joinedAt: serverTimestamp() });
+      await assertFails(b.commit());
+    });
+
+    it('someone waiting to join cannot read the household or its members', async () => {
+      await assertFails(getDoc(doc(as('carol'), `households/${HID}`)));
+      await assertFails(getDocs(collection(as('carol'), h('members'))));
+    });
+
+    it('a member cannot take ownership in a batch, demote the owner, approve a join or change the code', async () => {
+      const db = as('bob');
+      const b = writeBatch(db);
+      b.update(doc(db, `households/${HID}`), { ownerUid: 'bob', updatedAt: serverTimestamp() });
+      b.update(doc(db, h('members/bob')), { role: 'owner' });
+      await assertFails(b.commit());
+      await assertFails(updateDoc(doc(db, h('members/alice')), { role: 'member' }));
+      await assertFails(updateDoc(doc(db, `households/${HID}`), { inviteCode: 'BOBCD23456', updatedAt: serverTimestamp() }));
+    });
+
+    it('the owner cannot approve someone straight in as owner', async () => {
+      const db = as('alice');
+      const b = writeBatch(db);
+      b.update(doc(db, h('joinRequests/carol')), { status: 'approved' });
+      b.set(doc(db, h('members/carol')), { role: 'owner', displayName: 'Carol', joinedAt: serverTimestamp() });
+      await assertFails(b.commit());
+    });
+
+    it('the owner of another household cannot approve into this one or join without a request', async () => {
+      const db = as('erin');
+      const b = writeBatch(db);
+      b.update(doc(db, h('joinRequests/carol')), { status: 'approved' });
+      b.set(doc(db, h('members/carol')), { role: 'member', displayName: 'Carol', joinedAt: serverTimestamp() });
+      await assertFails(b.commit());
+      await assertFails(setDoc(doc(db, h('members/erin')), { role: 'member', displayName: 'Erin', joinedAt: serverTimestamp() }));
+    });
+
+    it('a member cannot create a code for this household', async () => {
+      await assertFails(setDoc(doc(as('bob'), 'inviteCodes/BOBCD23456'), {
+        householdId: HID, householdName: 'x', active: true, createdBy: 'bob', createdAt: serverTimestamp(),
+      }));
+    });
+
+    it('a removed member cannot write their membership back, log events or read requests and meals', async () => {
+      await deleteDoc(doc(as('alice'), h('members/bob')));
+      const db = as('bob');
+      await assertFails(setDoc(doc(db, h('members/bob')), { role: 'member', displayName: 'Bob', joinedAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(db, h('activity/x')), { type: 'stock_added', actorUid: 'bob', actorName: 'Bob', params: {}, createdAt: serverTimestamp() }));
+      await assertFails(getDocs(collection(db, h('joinRequests'))));
+      await assertFails(getDocs(collection(db, h('meals'))));
+    });
+
+    it('an ownership transfer must demote the old owner in the same batch', async () => {
+      const db = as('alice');
+      const b = writeBatch(db);
+      b.update(doc(db, `households/${HID}`), { ownerUid: 'bob', updatedAt: serverTimestamp() });
+      b.update(doc(db, h('members/bob')), { role: 'owner' });
+      await assertFails(b.commit());
+      // So the old owner cannot then remove the new one: Alice is still the only owner.
+      await assertFails(updateDoc(doc(db, h('members/alice')), { role: 'member' }));
+      await assertFails(updateDoc(doc(db, h('members/bob')), { role: 'owner' }));
+    });
+  });
+
+  describe('who wrote it', () => {
+    it('updatedAt and deletedAt are the request time, updatedBy is the writer', async () => {
+      const db = as('bob');
+      await assertFails(setDoc(doc(db, h('products/p9')), { ...product('bob'), updatedAt: new Date('2030-01-01') }));
+      await assertFails(setDoc(doc(db, h('groceryLists/g1/items/i9')), { ...groceryItem('bob'), updatedBy: 'alice' }));
+      await assertFails(setDoc(doc(db, h('recipes/r9')), { ...recipe('bob'), deletedAt: new Date('2030-01-01') }));
+      await assertFails(setDoc(doc(db, h('meals/m9')), { ...meal('bob'), deletedAt: new Date('2020-01-01') }));
+    });
+
+    it('createdBy is the writer on create and does not change after', async () => {
+      const db = as('bob');
+      await assertFails(setDoc(doc(db, h('stock/s9')), { ...stock('bob'), createdBy: 'alice' }));
+      await assertFails(setDoc(doc(db, h('products/p9')), { ...product('bob'), createdBy: 'alice' }));
+      await assertFails(setDoc(doc(db, h('recipes/r9')), { ...recipe('bob'), createdBy: 'alice' }));
+      await assertFails(setDoc(doc(db, h('meals/m9')), meal('bob', { createdBy: 'alice' })));
+      await assertFails(setDoc(doc(db, h('groceryLists/g1/items/i9')), { ...groceryItem('bob'), createdBy: 'alice' }));
+      await assertSucceeds(setDoc(doc(db, h('stock/s9')), stock('bob')));
+      // Alice's batch stays Alice's, whoever edits it.
+      await assertFails(updateDoc(doc(db, h('stock/s1')), { createdBy: 'bob', updatedAt: serverTimestamp(), updatedBy: 'bob' }));
+      await assertSucceeds(updateDoc(doc(db, h('stock/s1')), { quantity: 1, updatedAt: serverTimestamp(), updatedBy: 'bob' }));
+    });
+
+    it('Undo brings a deleted document back with its creator, or with the writer as creator', async () => {
+      const db = as('bob');
+      const tombstone = { deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: 'bob' };
+      await assertSucceeds(setDoc(doc(db, h('stock/s1')), tombstone, { merge: true }));
+      await assertSucceeds(setDoc(doc(db, h('stock/s1')), { ...stock('bob'), createdAt: t0 }));
+      await assertSucceeds(setDoc(doc(db, h('recipes/r1')), tombstone, { merge: true }));
+      await assertSucceeds(setDoc(doc(db, h('recipes/r1')), { ...recipe('bob'), createdAt: t0, createdBy: 'alice' }));
+      // A live document keeps its creator.
+      await assertFails(setDoc(doc(db, h('meals/m1')), { ...meal('bob'), createdAt: t0 }));
+    });
+
+    it('checkedBy is the writer or nobody; another member\'s check stays as it was', async () => {
+      const ref = (uid) => doc(as(uid), h('groceryLists/g1/items/i1'));
+      const check = (uid, by) => ({ checked: true, checkedBy: by, checkedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid });
+      await assertFails(updateDoc(ref('bob'), check('bob', 'alice')));
+      await assertSucceeds(updateDoc(ref('bob'), check('bob', 'bob')));
+      await assertSucceeds(updateDoc(ref('alice'), { quantity: 6, updatedAt: serverTimestamp(), updatedBy: 'alice' }));
+      await assertFails(updateDoc(ref('alice'), { checkedBy: 'carol', updatedAt: serverTimestamp(), updatedBy: 'alice' }));
+      await assertSucceeds(updateDoc(ref('alice'), {
+        checked: false, checkedBy: null, checkedAt: null, updatedAt: serverTimestamp(), updatedBy: 'alice',
+      }));
+      await assertFails(setDoc(doc(as('bob'), h('groceryLists/g1/items/i9')), groceryItem('bob', { checked: true, checkedBy: 'alice' })));
+    });
+
+    it('events have a known type, the writer as author and a name of 1 to 40 characters', async () => {
+      const db = as('bob');
+      const event = (extra) => ({ type: 'discarded', actorUid: 'bob', actorName: 'Bob', params: {}, createdAt: serverTimestamp(), ...extra });
+      for (const type of ['stock_added', 'grocery_added', 'grocery_checked', 'recipe_saved', 'discarded', 'recipe_cooked']) {
+        await assertSucceeds(setDoc(doc(db, h(`activity/${type}`)), event({ type })));
+      }
+      await assertFails(setDoc(doc(db, h('activity/x1')), event({ type: 'stock_stolen' })));
+      await assertFails(setDoc(doc(db, h('activity/x2')), event({ actorName: '' })));
+      await assertFails(setDoc(doc(db, h('activity/x3')), event({ actorName: 'B'.repeat(41) })));
+      await assertFails(setDoc(doc(db, h('activity/x4')), event({ actorUid: 'alice' })));
+      await assertFails(setDoc(doc(db, h('activity/x5')), event({ params: { name: 'Milk', note: 'x' } })));
+      await assertFails(setDoc(doc(db, h('activity/x6')), event({ params: { name: 'x'.repeat(201) } })));
+      await assertFails(setDoc(doc(db, h('activity/x7')), event({ params: { reason: 'boredom' } })));
+      await assertSucceeds(setDoc(doc(db, h('activity/x8')), event({
+        productId: 'p1', params: { name: 'Milk', quantity: 2, reason: 'spoiled' },
+      })));
+    });
+  });
+
+  describe('deletes and counts', () => {
+    it('members delete products, batches, items, recipes and meals only with a tombstone', async () => {
+      for (const path of ['products/p1', 'stock/s1', 'recipes/r1', 'meals/m1', 'groceryLists/g1/items/i1']) {
+        await assertFails(deleteDoc(doc(as('bob'), h(path))));
+        await assertSucceeds(setDoc(doc(as('bob'), h(path)), {
+          deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: 'bob',
+        }, { merge: true }));
+      }
+    });
+
+    it('the owner deletes them outright (deleting the household)', async () => {
+      for (const path of ['products/p1', 'stock/s1', 'recipes/r1', 'meals/m1', 'groceryLists/g1/items/i1']) {
+        await assertSucceeds(deleteDoc(doc(as('alice'), h(path))));
+      }
+    });
+
+    it('a member deletes a list with its items in one batch, the list first or last', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, h('groceryLists/g2')), { name: 'Party', isDefault: false, createdAt: t0, updatedAt: t0 });
+        for (const id of ['i1', 'i2', 'i3']) {
+          await setDoc(doc(db, h(`groceryLists/g2/items/${id}`)), { ...groceryItem('alice'), createdAt: t0, updatedAt: t0 });
+        }
+      });
+      const db = as('bob');
+      await assertFails(deleteDoc(doc(db, h('groceryLists/g2/items/i1'))));
+      // The app deletes the list first, so items in later batches (over 400 operations) still go.
+      const first = writeBatch(db);
+      first.delete(doc(db, h('groceryLists/g2')));
+      first.delete(doc(db, h('groceryLists/g2/items/i1')));
+      await assertSucceeds(first.commit());
+      const later = writeBatch(db);
+      later.delete(doc(db, h('groceryLists/g2/items/i2')));
+      later.delete(doc(db, h('groceryLists/g2/items/i3')));
+      await assertSucceeds(later.commit());
+    });
+
+    it('counts move by at most one per field per write', async () => {
+      const ref = doc(as('bob'), h('stats/2026-10'));
+      const counted = (fields) => ({ ...fields, updatedAt: serverTimestamp(), updatedBy: 'bob' });
+      await assertFails(setDoc(ref, counted({ used: 0, expired: 100000 })));
+      await assertFails(setDoc(ref, counted({ used: increment(2) }), { merge: true }));
+      await assertFails(setDoc(ref, counted({ used: increment(-2) }), { merge: true }));
+      await assertSucceeds(setDoc(ref, counted({ used: increment(1), expired: increment(-1) }), { merge: true }));
+      await assertSucceeds(setDoc(ref, counted({ spoiled: increment(1), thrownByDay: { 3: increment(1) } }), { merge: true }));
+      await assertFails(setDoc(ref, counted({ thrownByDay: { 3: increment(2) } }), { merge: true }));
+      await assertFails(setDoc(ref, counted({ thrownByDay: { 4: increment(1), 5: increment(1) } }), { merge: true }));
+      await assertSucceeds(setDoc(ref, counted({ spoiled: increment(-1), thrownByDay: { 3: increment(-1) } }), { merge: true }));
+      // A new month starts from nothing.
+      await assertFails(setDoc(doc(as('bob'), h('stats/2026-11')), counted({ used: 5 })));
+      await assertSucceeds(setDoc(doc(as('bob'), h('stats/2026-11')), counted({ used: 1 })));
+    });
+
+    it('two counts of the same field in one batch count as one write', async () => {
+      const db = as('bob');
+      const b = writeBatch(db);
+      const counted = { used: increment(1), updatedAt: serverTimestamp(), updatedBy: 'bob' };
+      b.set(doc(db, h('stats/2026-10')), counted, { merge: true });
+      b.set(doc(db, h('stats/2026-10')), counted, { merge: true });
+      await assertFails(b.commit());
+    });
+  });
+
+  describe('allowed fields and sizes', () => {
+    const MB = 1_000_000;
+
+    it('names up to 80 characters, notes up to 500', async () => {
+      const db = as('bob');
+      await assertSucceeds(setDoc(doc(db, h('stock/s8')), stock('bob', { productName: 'x'.repeat(80), note: 'n'.repeat(500) })));
+      await assertFails(setDoc(doc(db, h('stock/s9')), stock('bob', { productName: 'x'.repeat(81) })));
+      await assertFails(setDoc(doc(db, h('stock/s9')), stock('bob', { productName: 'x'.repeat(MB) })));
+      await assertFails(setDoc(doc(db, h('stock/s9')), stock('bob', { note: 'n'.repeat(501) })));
+      await assertFails(setDoc(doc(db, h('products/p9')), product('bob', { name: 'x'.repeat(81) })));
+      await assertFails(setDoc(doc(db, h('groceryLists/g1/items/i9')), groceryItem('bob', { note: 'n'.repeat(501) })));
+      await assertFails(setDoc(doc(db, h('groceryLists/g1/items/i9')), groceryItem('bob', { name: 'x'.repeat(81) })));
+    });
+
+    it('only the fields the apps write', async () => {
+      const db = as('bob');
+      const junk = 'j'.repeat(1000);
+      await assertFails(setDoc(doc(db, h('products/big')), product('bob', { junk })));
+      await assertFails(setDoc(doc(db, h('stock/big')), stock('bob', { junk })));
+      await assertFails(setDoc(doc(db, h('groceryLists/g1/items/big')), groceryItem('bob', { junk })));
+      await assertFails(setDoc(doc(db, h('recipes/big')), recipe('bob', { junk })));
+      await assertFails(setDoc(doc(db, h('meals/big')), meal('bob', { junk })));
+      await assertFails(setDoc(doc(db, h('groceryLists/big')), { name: 'Big', isDefault: false, junk }));
+      await assertFails(setDoc(doc(db, h('activity/big')), {
+        type: 'discarded', actorUid: 'bob', actorName: 'Bob', params: { junk }, createdAt: serverTimestamp(),
+      }));
+      await assertFails(setDoc(doc(db, h('activity/big2')), {
+        type: 'discarded', actorUid: 'bob', actorName: 'Bob', params: {}, junk, createdAt: serverTimestamp(),
+      }));
+      await assertFails(setDoc(doc(as('alice'), 'users/alice/devices/d2'), { token: 'w'.repeat(160), platform: 'web', junk }));
+      // A merge cannot add one either.
+      await assertFails(setDoc(doc(db, h('products/p1')), { junk, updatedAt: serverTimestamp(), updatedBy: 'bob' }, { merge: true }));
+    });
+
+    it('lists of names are short: aliases, tags, cooks and aisle order', async () => {
+      const db = as('bob');
+      await assertSucceeds(setDoc(doc(db, h('products/p8')), product('bob', { aliases: ['scallion', 'green onion'] })));
+      await assertFails(setDoc(doc(db, h('products/p9')), product('bob', { aliases: ['a'.repeat(MB / 2)] })));
+      await assertFails(setDoc(doc(db, h('recipes/r9')), recipe('bob', { tags: ['t'.repeat(1000)] })));
+      await assertFails(setDoc(doc(db, h('recipes/r9')), recipe('bob', { tags: Array.from({ length: 9 }, (_, i) => `t${i}`) })));
+      await assertFails(setDoc(doc(db, h('meals/m9')), meal('bob', { cooks: ['c'.repeat(5000)] })));
+      await assertFails(updateDoc(doc(db, h('groceryLists/g1')), { aisleOrder: ['d'.repeat(5000)], updatedAt: serverTimestamp() }));
+    });
+
+    it('recipe lists are lists, links are http or https, and quantities are finite', async () => {
+      const db = as('bob');
+      await assertFails(setDoc(doc(db, h('recipes/odd')), recipe('bob', { ingredients: 'not a list' })));
+      await assertFails(setDoc(doc(db, h('recipes/odd')), recipe('bob', { sourceUrl: 'javascript:alert(1)' })));
+      await assertFails(setDoc(doc(db, h('recipes/odd')), recipe('bob', { sourceUrl: 'tel:+15555550100' })));
+      await assertFails(setDoc(doc(db, h('recipes/odd')), recipe('bob', { imageUrl: 'data:image/png;base64,AAAA' })));
+      await assertFails(setDoc(doc(db, h('recipes/odd')), recipe('bob', { sourceUrl: `https://example.com/${'x'.repeat(2000)}` })));
+      await assertFails(setDoc(doc(db, h('recipes/odd')), recipe('bob', { notes: 'n'.repeat(5001) })));
+      await assertSucceeds(setDoc(doc(db, h('recipes/ok')), recipe('bob', {
+        sourceUrl: 'https://example.com/pancakes', imageUrl: 'HTTPS://example.com/p.jpg', notes: 'n'.repeat(5000),
+      })));
+      await assertFails(setDoc(doc(db, h('stock/inf')), stock('bob', { quantity: Infinity })));
+      await assertFails(setDoc(doc(db, h('stock/nan')), stock('bob', { quantity: NaN })));
+      await assertFails(setDoc(doc(db, h('groceryLists/g1/items/inf')), groceryItem('bob', { quantity: Infinity })));
+    });
+
+    it('a new account\'s own household gets the same limits', async () => {
+      const db = as('dave');
+      const b = writeBatch(db);
+      b.set(doc(db, 'households/hx'), { name: 'X', ownerUid: 'dave', inviteCode: 'DAVEX23456', schemaVersion: 1, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      b.set(doc(db, 'households/hx/members/dave'), { role: 'owner', displayName: 'Dave', joinedAt: serverTimestamp() });
+      b.set(doc(db, 'inviteCodes/DAVEX23456'), { householdId: 'hx', householdName: 'X', active: true, createdBy: 'dave', createdAt: serverTimestamp() });
+      b.update(doc(db, 'users/dave'), { householdId: 'hx', updatedAt: serverTimestamp() });
+      await assertSucceeds(b.commit());
+      await assertSucceeds(setDoc(doc(db, 'households/hx/products/p0'), product('dave')));
+      await assertFails(setDoc(doc(db, 'households/hx/products/p1'), product('dave', { junk: 'j'.repeat(MB) })));
+    });
+
+    it('a profile keeps a short time zone and locale and the known notification settings', async () => {
+      const ref = doc(as('carol'), 'users/carol');
+      await assertSucceeds(updateDoc(ref, { timezone: 'America/Argentina/ComodRivadavia', updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref, { timezone: 'z'.repeat(MB / 2), updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref, { locale: 'l'.repeat(21), updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref, { units: 'cubits', updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref, { notificationPrefs: { enabled: true, stages: 'abc' }, updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref, { notificationPrefs: { enabled: true, extra: 1 }, updatedAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(ref, {
+        notificationPrefs: { enabled: true, digestMinutes: 1260, stages: [3, 1, 0], expiredMode: 'daily', cooking: false },
+        updatedAt: serverTimestamp(),
+      }));
+    });
   });
 });

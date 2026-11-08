@@ -6,11 +6,12 @@ import { discardReasonOf } from '../domain/pantry/models';
 import { liveNewest, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import { activity } from './pantry';
+import { capOrNull, capTo, ReadCaps } from '../domain/caps';
 
 const num = (value: unknown): number | null => (typeof value === 'number' ? value : null);
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-function toEvent(s: DocumentSnapshot): ActivityEvent | null {
+export function toEvent(s: DocumentSnapshot): ActivityEvent | null {
   const type = activityTypeOf(s.get('type'));
   if (type === null) return null;
   const params = (s.get('params') as Record<string, unknown> | null) ?? {};
@@ -19,11 +20,12 @@ function toEvent(s: DocumentSnapshot): ActivityEvent | null {
     id: s.id,
     type,
     actorUid: text(s.get('actorUid')) ?? '',
-    actorName: text(s.get('actorName')) ?? '',
-    name: text(params.name),
+    actorName: capTo(text(s.get('actorName')) ?? '', ReadCaps.PERSON),
+    // A product, list item or recipe title.
+    name: capOrNull(text(params.name), ReadCaps.RECIPE_TITLE),
     quantity: num(params.quantity),
     reason: discardReasonOf(params.reason),
-    listName: text(params.listName),
+    listName: capOrNull(text(params.listName), ReadCaps.LIST_NAME),
     count: count === null ? null : Math.trunc(count),
     createdAt: (s.get('createdAt', { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null,
   };

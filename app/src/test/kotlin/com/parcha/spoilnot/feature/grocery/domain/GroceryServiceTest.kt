@@ -242,6 +242,19 @@ class GroceryServiceTest {
     }
 
     @Test
+    fun `deleting a list deletes the list first, then its items for real`() = runTest {
+        service.deleteList("h", actor, GroceryList("g2", "Party", isDefault = false))
+        assertEquals(
+            listOf(
+                GroceryChange.DeleteList("g2"),
+                GroceryChange.DeleteItem("g2", "i1", tombstone = false),
+                GroceryChange.DeleteItem("g2", "i2", tombstone = false),
+            ),
+            writer.last,
+        )
+    }
+
+    @Test
     fun `the default list cannot be deleted`() = runTest {
         try {
             service.deleteList("h", actor, GroceryList("g1", "Groceries", isDefault = true))
@@ -300,6 +313,7 @@ class GroceryServiceTest {
 
         override suspend fun isCached(householdId: String, listId: String, itemId: String) = false
 
-        override suspend fun itemIds(householdId: String, listId: String) = emptyList<String>()
+        override suspend fun itemIds(householdId: String, listId: String) =
+            if (listId == "g2") listOf("i1", "i2") else emptyList()
     }
 }

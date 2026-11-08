@@ -10,6 +10,7 @@ import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
+import com.parcha.spoilnot.feature.home.domain.ActivityFeed
 import com.parcha.spoilnot.feature.home.domain.ActivityRepository
 import com.parcha.spoilnot.feature.home.domain.HomeDashboard
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
@@ -132,7 +133,9 @@ class HomeViewModel @Inject constructor(
                 }
                 val members = households.observeMembers(hid).catch { emit(emptyList()) }.onStart { emit(emptyList()) }
                 combine(home, box, today, members) { (state, p), saved, meals, people ->
+                    val names = people.associate { it.uid to it.displayName }
                     state.copy(
+                        summary = state.summary?.let { it.copy(recent = ActivityFeed.named(it.recent, names)) },
                         useItUp = UseItUp.suggestions(saved, p, state.today),
                         todayMeals = meals,
                         members = people,

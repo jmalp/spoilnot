@@ -7,6 +7,8 @@ import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.write.ReadCaps
+import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
@@ -100,7 +102,7 @@ class FirestorePantryRepository @Inject constructor(
         // New fields are optional on read with defaults, because phones run different versions (DESIGN 8.1).
         fun DocumentSnapshot.toProduct() = Product(
             id = id,
-            name = getString("name").orEmpty(),
+            name = getString("name").orEmpty().capTo(ReadCaps.NAME),
             nameKey = getString("nameKey").orEmpty(),
             category = Category.fromWire(getString("category")),
             defaultLocation = Location.fromWire(getString("defaultLocation")),
@@ -122,7 +124,7 @@ class FirestorePantryRepository @Inject constructor(
         fun DocumentSnapshot.toBatch() = StockBatch(
             id = id,
             productId = getString("productId").orEmpty(),
-            productName = getString("productName").orEmpty(),
+            productName = getString("productName").orEmpty().capTo(ReadCaps.NAME),
             unit = QuantityUnit.fromWire(getString("unit")),
             category = Category.fromWire(getString("category")),
             quantity = getDouble("quantity") ?: 0.0,
@@ -147,7 +149,7 @@ class FirestorePantryRepository @Inject constructor(
             return PantryEvent(
                 id = id,
                 type = type,
-                actorName = getString("actorName").orEmpty(),
+                actorName = getString("actorName").orEmpty().capTo(ReadCaps.PERSON),
                 quantity = (params?.get("quantity") as? Number)?.toDouble(),
                 reason = DiscardReason.fromWire(params?.get("reason") as? String),
                 createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),

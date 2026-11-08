@@ -89,6 +89,22 @@ describe('ActivityFeed', () => {
     expect(ActivityFeed.sinceReset(events).map((e) => e.id)).toEqual(['e5', 'e4']);
   });
 
+  it('authors are named from the member list, and someone who left keeps the stored name', () => {
+    const events = [
+      { ...event('e2', 'discarded'), actorName: 'Alice' },
+      { ...event('e1', 'stock_added'), actorUid: 'u9', actorName: 'Former' },
+    ];
+    const named = ActivityFeed.named(
+      events,
+      new Map([
+        ['u1', 'Sam'],
+        ['u2', 'Alice'],
+      ]),
+    );
+    expect(named.map((e) => e.actorName)).toEqual(['Sam', 'Former']);
+    expect(ActivityFeed.named(events, new Map())).toEqual(events);
+  });
+
   it('without a clear every event shows', () => {
     const events = [event('e2', 'grocery_added'), event('e1', 'stock_added')];
     expect(ActivityFeed.sinceReset(events)).toEqual(events);

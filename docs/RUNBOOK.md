@@ -122,6 +122,47 @@ cd firebase && npx firebase deploy --only firestore:rules --project prod
 
 Both projects run the same rules; deploy to dev first. `spoilnot-prod` was opened for the beta on 2026-10-18.
 
+A rules change that refuses something an older build writes goes out **after** the builds that no longer write it:
+Android first (then raise `minSupportedBuild`), the web app next (then raise `minWebBuild` if its build raised
+`WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
+Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
+
+### The 2026-11-08 rules (allowed fields, authors, deletes and counts; DESIGN 8.1 and 8.5)
+
+What the released builds (Android 1.0.0-beta.9, versionCode 10, and web build 55edcc5) do that these rules refuse:
+
+- **Throwing several batches away at once**, and its Undo: the count moves by more than one in one write.
+- **I cooked this when it uses up two or more whole batches**, and its Undo: two counts of one month in one batch.
+
+Everything else they write passes (the instrumented tests and the web's browser tests ran against these rules). A
+refused write shows "You don't have permission to do that." and the phone rolls it back; nothing is lost. The order:
+
+1. Merge the pull request.
+2. Release the Android beta: `./scripts/release-beta.sh "..."`. When it asks **"Deploy the rules to spoilnot-dev,
+   then spoilnot-prod?"**, answer **N**.
+3. Once the testers have it, raise `minSupportedBuild` in Firestore `config/app` (spoilnot-prod) to the new
+   `versionCode` (11, unless another release came first).
+4. Deploy the web app: `./scripts/deploy-web.sh dev`, check it, then `./scripts/deploy-web.sh prod`. When the script
+   offers to deploy the rules, answer **no** for prod (yes for dev is fine).
+5. Wait until the iPhones run the new web build: ask the testers to close the Home Screen app and open it again
+   (or tap Update), or wait a day.
+6. Deploy the rules to dev and try on spoilnot-dev with both apps: throw two batches away at once and Undo, I cooked
+   this using up two batches, delete a list with items as a member, Clear household data, and on a spare household
+   transfer ownership and delete the household:
+
+   ```bash
+   cd firebase && npx firebase deploy --only firestore:rules --project dev
+   ```
+
+7. Deploy the rules to prod:
+
+   ```bash
+   cd firebase && npx firebase deploy --only firestore:rules --project prod
+   ```
+
+8. Watch for refused writes for a day (testers seeing "You don't have permission to do that."). If one shows,
+   publish the previous version in the console (above).
+
 ## Beta releases (Firebase App Distribution)
 
 A merge does not update the app on phones: a release must be signed with the upload key, which stays on the

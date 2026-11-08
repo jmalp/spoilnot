@@ -10,6 +10,8 @@ import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.write.ReadCaps
+import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
@@ -32,16 +34,7 @@ class FirestoreGroceryRepository @Inject constructor(
         .flatMapLatest { db -> db.collection(lists(householdId)).snapshotFlow().retryAfterOwnWrites(db) }
         .map { snapshot ->
             snapshot.documents
-                .map {
-                    GroceryList(
-                        it.id,
-                        it.getString("name").orEmpty(),
-                        it.getBoolean("isDefault") == true,
-                        (it.get("aisleOrder") as? List<*>).orEmpty().mapNotNull { wire ->
-                            (wire as? String)?.let { w -> Category.entries.firstOrNull { c -> c.wire == w } }
-                        },
-                    )
-                }
+                .map { it.toList() }
                 .sortedWith(compareByDescending<GroceryList> { it.isDefault }.thenBy { it.name.lowercase() })
         }
         .distinctUntilChanged()
@@ -70,10 +63,19 @@ class FirestoreGroceryRepository @Inject constructor(
 
         fun items(hid: String, listId: String) = "households/$hid/groceryLists/$listId/items"
 
+        fun DocumentSnapshot.toList() = GroceryList(
+            id,
+            getString("name").orEmpty().capTo(ReadCaps.LIST_NAME),
+            getBoolean("isDefault") == true,
+            (get("aisleOrder") as? List<*>).orEmpty().mapNotNull { wire ->
+                (wire as? String)?.let { w -> Category.entries.firstOrNull { c -> c.wire == w } }
+            },
+        )
+
         // New fields are optional on read with defaults (DESIGN 8.1); `checked` absent means false (DESIGN 8.2).
         fun DocumentSnapshot.toItem() = GroceryItem(
             id = id,
-            name = getString("name").orEmpty(),
+            name = getString("name").orEmpty().capTo(ReadCaps.NAME),
             nameKey = getString("nameKey").orEmpty(),
             quantity = getDouble("quantity"),
             unit = getString("unit")?.let { QuantityUnit.fromWire(it) },

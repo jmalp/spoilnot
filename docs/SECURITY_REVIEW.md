@@ -8,21 +8,23 @@ they are listed at the end with exact steps.
 
 | Threat | Mitigation | Checked |
 | --- | --- | --- |
-| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests at sign-off, 81 after v1 (`firebase/test/rules.test.js`; since 2026-11-08 one checks that clients can neither read nor write the reminder job's `jobs/state`), "non-members" and "signed out" groups |
+| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests at sign-off, 81 after v1, 116 since 2026-11-08 (`firebase/test/rules.test.js`; since 2026-11-08 one checks that clients can neither read nor write the reminder job's `jobs/state`), "non-members" and "signed out" groups |
 | A guessed or leaked invite code | 50-bit codes, readable only by exact `get`; a code only lets someone ask to join; the owner approves, can pause or rotate | Rules tests "join requests"; `InviteCodes` uses `SecureRandom` |
 | A removed member keeps access | Rules re-check membership on every request; the app's membership watcher returns them to the gate and clears the cache; after v1 the reminder job (Admin SDK, outside the rules) sends a digest only to members and clears a removed member's household pointer | `HouseholdFlowTest` (removed member back at the gate within 5 s), rules tests; `backend/reminder/test/integration/job.test.ts` (a removed member gets nothing, pointer cleared; 2026-11-01) |
 | A lost or shared phone | Sign-out and account deletion clear the local copy (`terminate()` then `clearPersistence()`) and remove the phone's device record; after v1 the phone also deletes its push token while nobody is signed in, and (2026-11-08) clearing local data also clears the sync log on both apps and the built-in browser's cookies, storage and cache and the photo caches on Android; the web app deletes its push token when a user leaves the phone, again at the next start if it could not; the owner can remove a lost phone's member | `FirestoreProvider.clearLocalData`, `SessionManager.signOut`; after v1 (2026-11-01) `SettingsAccountUiTest` and `DeviceSyncTest`; (2026-11-08) `SettingsAccountUiTest` (sync log, cookie and photo caches gone after sign-out), web `session.test.ts` with a fake push identity, `notifications.test.ts`, `delta-sync.test.ts`, `household.spec.ts` |
 | Leaked secrets | No secrets in the app or repository; the service account key exists only as GitHub secrets; gitleaks scans every push and the full history weekly; after v1 the jobs never print an error object (a code only), and RUNBOOK says to rotate the key at once if it ever shows in a log | History sweep 2026-10-18: only the Firebase configuration's public API keys; `.gitleaks.toml` |
-| Abuse of the free quota | Rules limit sizes and shapes of writes; API keys restricted to the app (**Owner**); App Check not adopted (see control 10) | Quota simulation: about 4,700 reads per household per day at sign-off; after v1 (2026-11-08, counting activity events, the daily prune's reads and its deletes) about 2,040 reads, 94 writes and 57 deletes, about 17 households under 70% (docs/RUNBOOK.md) |
-| Malicious recipe pages | Hardened web view; imported text sanitized and capped (DESIGN 11.6) | Control 12 |
+| Abuse of the free quota | Rules limit sizes and shapes of writes (since 2026-11-08 every household collection accepts only the fields the apps write, with DESIGN 8.1's sizes; recipe ingredients and steps are limited in number, the 1 MiB document limit bounding their text); the reminder job caps what it reads per run (DESIGN 10.1); API keys restricted to the app (**Owner**); App Check not adopted (see control 10) | Quota simulation: about 4,700 reads per household per day at sign-off; after v1 (2026-11-08, counting activity events, the daily prune's reads and its deletes) about 2,040 reads, 94 writes and 57 deletes, about 17 households under 70% (docs/RUNBOOK.md) |
+| Malicious recipe pages | Hardened web view; imported text sanitized and capped (DESIGN 11.6); the rules accept recipe links and photos only as http or https (2026-11-08), and Android drops any other stored value when it reads a recipe (the web app when it shows one) | Control 12; rules tests "allowed fields and sizes"; `RecipeReadTest` |
+| A member's app writing for someone else, or removing shared data for good | Since 2026-11-08: `createdBy`, `checkedBy` and an event's `actorUid` must be the writer, and the apps name authors from the member list; members delete only by tombstone (outright deletes are the owner's, or a list's items with the list); Insights counts move by one per write; an ownership transfer must demote the old owner, so there is one owner; the nightly export can restore a household (DESIGN 13.4) | Rules tests "who wrote it", "deletes and counts", "membership and ownership"; `ActivityFeedTest`, web `models.test.ts` |
+| Very long text from another client | The rules limit sizes (above); both apps cut names to DESIGN 8.1's lengths when they read them (2026-11-08) | `PantryReadTest`, `GroceryReadTest`, `HouseholdReadTest`, `ActivityReadTest`, web `reads.test.ts` |
 
 ## 12.2 Controls
 
 | # | Control | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests (81 after v1) |
+| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests (81 after v1, 116 since 2026-11-08) |
 | 2 | Email and password, minimum 8 characters; email enumeration protection on | ✅ | `AccountValidation` requires 8; the server password policy (8, enforced) and email enumeration protection are on in both projects (owner, 2026-10-18) |
-| 3 | Membership on every household path; owner-only actions check the role | ✅ | `isMember` / `isOwner` in `firestore.rules`; rules tests for owner-only delete, transfer, approve; after v1, Clear household data is owner-only in the app, needs the owner's password again (`verifyPassword`), and its batch fails for a member (rules test "clear household data"); the web app (W6a) offers it to the owner only and checks the password the same way (`settings.spec.ts`) |
+| 3 | Membership on every household path; owner-only actions check the role | ✅ | `isMember` / `isOwner` in `firestore.rules`; rules tests for owner-only delete, transfer, approve; since 2026-11-08 a transfer must demote the old owner in the same batch, and outright deletes of shared data are the owner's; after v1, Clear household data is owner-only in the app, needs the owner's password again (`verifyPassword`), and its batch fails for a member (rules test "clear household data"); the web app (W6a) offers it to the owner only and checks the password the same way (`settings.spec.ts`) |
 | 4 | Invite codes: 10 characters (50 bits), secure generator, `get` only, pause and rotate | ✅ | `InviteCodes.kt` (`SecureRandom`); rules `allow list: if false`; Household settings pause and rotate |
 | 5 | Removed members lose access at once; cache cleared | ✅ | Rules; `SessionManager` membership watcher; `HouseholdFlowTest`. After v1 (2026-11-01) the reminder job checks each due user's member document before reading the household and clears a stale pointer as the app would (`job.ts`, `job.test.ts`) |
 | 6 | `terminate()` then `clearPersistence()` on sign-out or account switch | ✅ | `FirestoreProvider.clearLocalData`, called by `SessionManager.signOut` and `deleteAccount` and on leaving a household. After v1 (2026-11-01) sign-out and account deletion run in `SessionManager`'s application scope, so they finish when Settings closes (`SessionManagerTest` cancels the caller); `SettingsAccountUiTest` signs out through Settings and checks that the household and profile are gone from the cache (`Source.CACHE` fails) and the device document from the server, and deletes an account through Settings and checks that the profile, devices, membership and sign-in are gone; web app (after v1): `FirebaseSdk.clearLocalData` (`terminate`, `clearIndexedDbPersistence`, a new instance), called by its `SessionManager` port, tested in `session.test.ts`. After v1 (2026-11-08) both apps' local-data clear also forgets the sync log (`SyncLog.clear`), and Android's clears the built-in browser's cookies, site storage, saved HTTP sign-ins and cache and Coil's caches (`AndroidDeviceCaches`); the web app deletes its push token after a sign-out or account deletion and keeps `spoilnot.push.tokenToDelete` until FCM confirms (`DeviceSync`); both household gates offer Delete account (`deleteAccountFromTheGate`, `household.spec.ts`) |
@@ -58,8 +60,24 @@ Re-reviewed against 12.1: the documents hold numbers only, readable only by memb
 **After v1:** store order (2026-10-19): a grocery list's update may also change `aisleOrder`, a list of at most 30.
 1 test ("store order"), 73 in total.
 
+**After v1:** allowed fields, authors, deletes and counts (2026-11-08, DESIGN 8.1 and 8.5). Every household
+collection, profiles and devices accept only the fields the apps write, with DESIGN 8.1's and 11.6's sizes (lists of
+names also in total characters, through `join`), finite numbers and http or https recipe links. `createdBy` is the
+writer on create (or when Undo brings a tombstone back) and fixed after; `checkedBy` is the writer, null or
+unchanged; an event has the writer as `actorUid`, a known type, a name of 1 to 40 characters and small `params`.
+Members delete products, batches, items, recipes and meals only by tombstone; outright deletes are the owner's, and a
+grocery item's once its list is gone. Insights counts move by at most one per field per write and one day per write.
+An ownership transfer must set the old owner's role to member in the same batch. Not checked by the rules: an event's
+stored `actorName` against the member list (the apps name authors by `actorUid` instead), how many devices a user
+registers (the reminder job reads only the 10 newest), and the text inside recipe ingredients and steps (the document
+limit applies). 35 tests ("more of the matrix": the matrix pairs the earlier tests left out, membership and ownership,
+who wrote it, deletes and counts, allowed fields and sizes), 116 in total; 6 earlier tests now expect the tombstone
+or a step of one.
+
 Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
-deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed).
+deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed). The
+2026-11-08 rules refuse two things the released builds (Android 1.0.0-beta.9, web 55edcc5) do, so they are deployed
+only after the fixed Android and web releases (docs/RUNBOOK.md, Firestore rules).
 
 ## Operations
 

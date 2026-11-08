@@ -231,14 +231,18 @@ class GroceryService @Inject constructor(
     suspend fun renameList(householdId: String, actor: Actor, list: GroceryList, name: String) =
         writer.apply(householdId, actor, listOf(GroceryChange.RenameList(list.id, cleanListName(name))))
 
-    /** Deletes a list and its items (no cascade in Firestore). The default list cannot be deleted. */
+    /**
+     * Deletes a list and its items (no cascade in Firestore). The default list cannot be deleted. The list goes first:
+     * the rules let a member delete items for real only once their list is gone, also in a later batch (DESIGN 8.5).
+     */
     suspend fun deleteList(householdId: String, actor: Actor, list: GroceryList) {
         require(!list.isDefault) { "The default list cannot be deleted" }
         val items = repository.itemIds(householdId, list.id)
         writer.apply(
             householdId,
             actor,
-            items.map { GroceryChange.DeleteItem(list.id, it, tombstone = false) } + GroceryChange.DeleteList(list.id),
+            listOf(GroceryChange.DeleteList(list.id)) +
+                items.map { GroceryChange.DeleteItem(list.id, it, tombstone = false) },
         )
     }
 
