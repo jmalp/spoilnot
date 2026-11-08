@@ -1,19 +1,27 @@
 package com.parcha.spoilnot.a11y
 
+import androidx.compose.material3.R as Material3R
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.tryPerformAccessibilityChecks
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.auth.FirebaseAuth
 import com.parcha.spoilnot.EmulatorSupport
@@ -35,9 +43,12 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
+import com.parcha.spoilnot.feature.plan.domain.MealPlanService
+import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeLines
+import com.parcha.spoilnot.feature.recipes.domain.RecipeRepository
 import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -53,11 +64,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The accessibility pass (DESIGN 6.8, M6): Google's Accessibility Test Framework checks every main screen with real
- * data for touch targets under 48 dp, missing labels, duplicate descriptions and low text contrast. TalkBack itself
- * is covered by the manual QA script.
+ * The accessibility pass (DESIGN 6.8): Google's Accessibility Test Framework checks the 13 main screens with real
+ * data, and the sheets, menus and dialogs they open, for touch targets under 48 dp, missing labels, duplicate
+ * descriptions and low text contrast. The app's own rule adds what ATF misses: every control has a name
+ * ([assertEveryControlHasAName]). The floating buttons are found by their names, as TalkBack, Voice Access and the
+ * benchmark journey find them. TalkBack itself is covered by the manual QA script.
+ *
+ * Every stop is checked and the test fails at the end with every problem it saw; a screen it can't reach ends the walk
+ * there, and the failure lists it with the problems found before it.
+ * `enableAccessibilityChecks()` needs Android 14 (API 34), so older phones skip this class (review 11, CODE-12).
  */
 @OptIn(ExperimentalTestApi::class)
+@SdkSuppress(minSdkVersion = 34)
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class AccessibilityChecksTest {
@@ -81,9 +99,16 @@ class AccessibilityChecksTest {
 
     @Inject lateinit var recipes: RecipeService
 
-    private var scenario: ActivityScenario<MainActivity>? = null
+    @Inject lateinit var recipeRepository: RecipeRepository
 
-    private fun str(id: Int) = InstrumentationRegistry.getInstrumentation().targetContext.getString(id)
+    @Inject lateinit var mealPlan: MealPlanService
+
+    private var scenario: ActivityScenario<MainActivity>? = null
+    private val problems = mutableListOf<String>()
+
+    private fun resources() = InstrumentationRegistry.getInstrumentation().targetContext.resources
+
+    private fun str(id: Int) = resources().getString(id)
 
     @Before
     fun householdWithData() = runBlocking {
@@ -125,6 +150,9 @@ class AccessibilityChecksTest {
             ),
             emptyList(),
         )
+        // A planned recipe with ingredients, so Plan offers the week's ingredients.
+        val pancakes = withTimeout(15_000) { recipeRepository.observe(hid).first { it.recipes.isNotEmpty() } }.recipes
+        mealPlan.addRecipe(hid, actor, today, MealSlot.Dinner, pancakes.single(), listOf(uid), emptyList())
         Unit
     }
 
@@ -134,41 +162,177 @@ class AccessibilityChecksTest {
         FirebaseAuth.getInstance().signOut()
     }
 
+    private fun tagPrefix(prefix: String) = tagMatching(Regex("${Regex.escape(prefix)}.*"))
+
+    private fun tagMatching(pattern: Regex) = SemanticsMatcher("test tag matches $pattern") {
+        it.config.getOrNull(SemanticsProperties.TestTag)?.matches(pattern) == true
+    }
+
+    private fun await(matcher: SemanticsMatcher) = compose.waitUntilAtLeastOneExists(matcher, 20_000)
+
     private fun awaitTag(tag: String): SemanticsNodeInteraction {
-        compose.waitUntilAtLeastOneExists(hasTestTag(tag), 20_000)
+        await(hasTestTag(tag))
         return compose.onNodeWithTag(tag)
     }
 
-    private fun tab(label: Int) = compose.onNode(hasText(str(label)) and isSelectable())
+    /** A floating button, found by its name: what A11Y-01 broke and B22's journey relies on. */
+    private fun fab(text: String): SemanticsNodeInteraction {
+        val matcher = hasText(text) and hasClickAction()
+        await(matcher)
+        return compose.onNode(matcher)
+    }
 
-    private fun check() {
+    private fun tab(label: Int) = compose.onNode(hasText(str(label)) and isSelectable()).performClick()
+
+    private fun windows() = compose.onAllNodes(isRoot()).fetchSemanticsNodes().size
+
+    /** Waits for a sheet, menu or dialog to open its own window. */
+    private fun awaitWindow() = compose.waitUntil(20_000) { windows() >= 2 }
+
+    private fun back() {
+        Espresso.pressBackUnconditionally()
         compose.waitForIdle()
-        compose.onRoot().tryPerformAccessibilityChecks()
+    }
+
+    /** Back until only the screen's own window is left (sheets animate out). */
+    private fun closeWindows() {
+        back()
+        compose.waitUntil(20_000) { windows() == 1 }
+    }
+
+    /** Runs ATF and the name rule on every window open now, and keeps what fails. */
+    private fun check(stop: String) {
+        compose.waitForIdle()
+        runCatching { compose.onAllNodes(isRoot()).tryPerformAccessibilityChecks() }
+            .onFailure { problems += "$stop (ATF): ${it.message}" }
+        runCatching { compose.assertEveryControlHasAName() }
+            .onFailure { problems += "$stop (names): ${it.message}" }
     }
 
     @Test
-    fun mainScreensPassAccessibilityChecks() {
+    fun mainScreensAndTheirSheetsPassAccessibilityChecks() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
-        compose.enableAccessibilityChecks()
+        compose.enableAccessibilityChecks(
+            spoilNotAccessibilityValidator(str(Material3R.string.m3c_bottom_sheet_drag_handle_description)),
+        )
+        val stopped = runCatching { walk() }.exceptionOrNull()
+        val report = buildList {
+            stopped?.let { add("Stopped before the end: $it") }
+            addAll(problems)
+        }
+        if (report.isNotEmpty()) {
+            throw AssertionError(
+                "Accessibility problems:\n" + report.joinToString("\n\n"),
+                stopped,
+            )
+        }
+    }
 
+    private fun walk() {
         awaitTag("card_home_attention")
-        check()
+        check("Home")
 
-        tab(R.string.tab_pantry).performClick()
+        tab(R.string.tab_pantry)
         awaitTag("pantry_search")
-        check()
+        check("Pantry")
+        fab(str(R.string.action_add_item)).performClick()
+        awaitTag("sheet_add_item")
+        check("Add item sheet")
+        closeWindows()
+        compose.onAllNodes(tagPrefix("pantry_item_"))[0].performClick()
+        awaitTag("sheet_edit_item")
+        check("Edit item sheet")
+        closeWindows()
+        compose.onAllNodes(tagPrefix("menu_"))[0].performClick()
+        awaitWindow()
+        check("Pantry row menu")
+        compose.onNode(hasText(str(R.string.action_mark_opened))).performClick()
+        awaitTag("sheet_opened")
+        check("Mark opened sheet")
+        closeWindows()
+        compose.onAllNodes(tagPrefix("menu_"))[0].performClick()
+        awaitWindow()
+        compose.onNode(hasText(str(R.string.action_throw_away))).performClick()
+        await(hasText(str(R.string.reason_spoiled))) // the dialog, not the menu still closing
+        check("Throw away dialog")
+        closeWindows()
 
-        tab(R.string.tab_recipes).performClick()
+        tab(R.string.tab_plan)
+        awaitTag("screen_plan")
+        check("Plan")
+        compose.onAllNodes(tagMatching(Regex("plan_add_\\d{4}-.*")))[0].performClick() // plan_add_<date>_<slot>
+        awaitTag("sheet_add_meal")
+        check("Add meal sheet")
+        closeWindows()
+        compose.onAllNodes(tagPrefix("plan_meal_"))[0].performScrollTo().performClick()
+        awaitTag("sheet_meal")
+        check("Meal sheet")
+        closeWindows()
+        awaitTag("plan_shop").performClick()
+        awaitTag("sheet_week_grocery")
+        check("This week's ingredients sheet")
+        closeWindows()
+
+        tab(R.string.tab_recipes)
+        awaitTag("recipe_card")
+        check("Recipes")
+        fab(str(R.string.recipe_add)).performClick()
+        awaitTag("add_recipe_manual")
+        check("Add recipe sheet")
+        closeWindows()
         awaitTag("recipe_card").performClick()
         awaitTag("recipe_title")
-        check()
+        check("Recipe detail")
+        fab(str(R.string.recipe_cook)).performClick()
+        awaitTag("screen_cook_mode")
+        check("Cook mode")
+        back()
+        awaitTag("recipe_cooked").performClick()
+        awaitTag("sheet_cooked")
+        check("I cooked this sheet")
+        closeWindows()
+        awaitTag("recipe_add_to_list").performClick()
+        awaitTag("recipe_add_items")
+        check("Add to grocery list sheet")
+        closeWindows()
+        awaitTag("recipe_edit").performClick()
+        awaitTag("screen_recipe_edit")
+        check("Recipe edit")
+        back()
+        awaitTag("recipe_title")
+        back()
 
-        tab(R.string.tab_groceries).performClick()
-        compose.waitUntilAtLeastOneExists(hasText("flour"), 20_000)
-        check()
+        tab(R.string.tab_groceries)
+        await(tagPrefix("grocery_item_"))
+        check("Groceries")
+        compose.onAllNodes(tagPrefix("grocery_item_"))[0].performClick()
+        fab(resources().getQuantityString(R.plurals.grocery_add_to_pantry, 1, 1)).performClick()
+        awaitTag("sheet_add_to_pantry")
+        check("Add to pantry sheet")
+        closeWindows()
 
         compose.onNode(hasContentDescription(str(R.string.open_settings))).performClick()
         awaitTag("screen_settings")
-        check()
+        check("Settings")
+        awaitTag("row_household").performScrollTo().performClick()
+        awaitTag("screen_household")
+        check("Household")
+        back()
+        awaitTag("row_notifications").performScrollTo().performClick()
+        awaitTag("screen_notifications")
+        check("Notifications")
+        back()
+        awaitTag("row_about").performScrollTo().performClick()
+        awaitTag("screen_about")
+        check("About")
+        back()
+        awaitTag("screen_settings")
+        back()
+
+        tab(R.string.tab_home)
+        await(hasText(str(R.string.insights_see)))
+        compose.onNode(hasText(str(R.string.insights_see))).performScrollTo().performClick()
+        awaitTag("screen_insights")
+        check("Insights")
     }
 }

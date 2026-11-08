@@ -148,13 +148,15 @@ private fun PurchaseRow(
                     Modifier
                         .fillMaxWidth()
                         .clickable(onClickLabel = editLabel) { onOpen(item) }
+                        // The sentence names the node TalkBack activates, as on Out rows; ⋮ stays its own stop.
+                        .semantics { contentDescription = description }
                         .heightIn(min = 64.dp)
                         .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Row(
-                        Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description },
+                        Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
