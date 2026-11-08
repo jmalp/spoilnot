@@ -131,7 +131,7 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 
 **Sign-up and sign-in.** Email and password. Sign-up asks for display name, email and password (minimum 8 characters) and sends a verification email; verification is encouraged but not required. Password reset by email. Sign-out. **Delete account** in Settings (Google Play requires it for apps with accounts, and it is good practice even for a private app): removes the profile and device tokens, leaves the household and deletes the sign-in (recent re-authentication may be required). An owner must first transfer ownership or delete the household.
 
-**Household gate.** After sign-in, a user with no household sees two large cards on the main screen: **Create a household** (name field) and **Join with a code** (10-character field, auto-uppercase, hyphen after 5 characters, paste supported). Nothing else is reachable until one is done.
+**Household gate.** After sign-in, a user with no household sees two large cards on the main screen: **Create a household** (name field) and **Join with a code** (10-character field, auto-uppercase, hyphen after 5 characters, paste supported). Nothing else is reachable until one is done. The menu offers Sign out and, after v1 (2026-11-08), Delete account with the same password dialog as Settings, so someone who never joined a household can also delete their account; if the deletion fails after the gate gave way to Loading, the gate comes back with the dialog and the error.
 
 **Create.** Generates a 10-character invite code from the alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0, 1) with a cryptographically secure random source (`java.security.SecureRandom`). The household, owner membership, invite code, default grocery list and the user's `householdId` are written together in batched writes.
 
@@ -321,7 +321,7 @@ A fifth tab, **Plan** (Home, Pantry, Plan, Recipes, Groceries), shows one week o
 | Screen | Key elements |
 | --- | --- |
 | Welcome, Sign in, Sign up | Logo, email, password, display name (sign-up), reset link |
-| Household gate | Create card, Join card |
+| Household gate | Create card, Join card; menu with Sign out and Delete account (after v1) |
 | Home | Four cards (5.6) |
 | Pantry | Search bar, filter chips, grouped list, extended FAB |
 | Add or edit batch | Bottom sheet form (5.2) |
@@ -746,7 +746,7 @@ Three times an hour (GitHub Actions, after v1; hourly in v1) -> reminder job (No
 **10.2 Client responsibilities**
 
 - After the first dated item is saved (or from Settings) show a short explanation, then request the notification permission (`POST_NOTIFICATIONS`, a runtime permission on Android 13 and later).
-- Get the FCM token and write `users/{uid}/devices/{installId}` (token, platform, appVersion). Refresh in `FirebaseMessagingService.onNewToken` and at app start, writing only when it changed. Delete the device document on sign-out. After v1, the phone also deletes its FCM token whenever nobody is signed in: after a sign-out or an account deletion, and at every app start without a signed-in user. A device document that a sign-out could not delete (for example offline) then holds a token FCM rejects, and the job deletes it (10.3).
+- Get the FCM token and write `users/{uid}/devices/{installId}` (token, platform, appVersion). Refresh in `FirebaseMessagingService.onNewToken` and at app start, writing only when it changed. Delete the device document on sign-out. After v1, the phone also deletes its FCM token whenever nobody is signed in: after a sign-out or an account deletion, and at every app start without a signed-in user. A device document that a sign-out could not delete (for example offline) then holds a token FCM rejects, and the job deletes it (10.3). The web app (18.4, 2026-11-08) deletes its token when a user leaves the phone and keeps a "token to delete" flag in `localStorage` until FCM confirms it, so a phone signed out offline deletes it at its next start, before anyone registers.
 - Write the IANA `timezone` (from `ZoneId.systemDefault()`) to `users/{uid}` at app start when it changes.
 - Create the notification channel `expiry` (importance high, name Expiry reminders) at startup.
 - Tapping the notification starts `MainActivity` with the message data as intent extras; read `route` (`/pantry?filter=expiring`) in `onCreate` and `onNewIntent`. In the foreground do not show a system notification; the Home card is already live.
@@ -927,7 +927,7 @@ JSON.stringify({
 3. Every household path checks membership in the rules; owner-only actions check the owner role.
 4. Invite codes: 10 characters (50 bits) from a cryptographically secure generator, readable only by exact `get` (no listing). The owner can pause or rotate instantly. A leaked code only lets a stranger send a join request; nobody enters the household until the owner approves, and pause, rotate and remove exist as further controls.
 5. Removed or departed members lose access at once (rules re-check membership on every request) and the app clears the local cache. After v1 the reminder job, which reads with the Admin SDK and so skips the rules, also sends a household's digest only to users it lists as members, and clears a removed member's household pointer as their app would (10.3).
-6. On sign-out or account switch call `terminate()` then `clearPersistence()` so another person on the same phone cannot see cached data. Sign-out and account deletion must finish even when the screen that started them closes (after v1: they run in the application scope, and instrumented tests sign out and delete an account through Settings, then check the cache and the server).
+6. On sign-out or account switch call `terminate()` then `clearPersistence()` so another person on the same phone cannot see cached data. Sign-out and account deletion must finish even when the screen that started them closes (after v1: they run in the application scope, and instrumented tests sign out and delete an account through Settings, then check the cache and the server). After v1 (2026-11-08) clearing local data, on sign-out, account deletion and leaving or losing a household, also clears the sync log (9.8, whose keys name the household's collections) on both apps, and on Android the built-in browser's cookies, site storage, saved HTTP sign-ins and cache, and Coil's memory and disk caches of recipe photos (`DeviceCaches`). The web app also deletes its push token (10.2, 18.4). What stays on the phone is listed in PRIVACY.md.
 7. TLS only. No cleartext traffic in the app (Android `usesCleartextTraffic=false` in the manifest).
 8. No secrets in the app (Firebase configuration values are identifiers, not secrets). The service account key exists only as a GitHub Actions secret. `.gitignore` covers `*.jks`, `keystore.properties`, `local.properties`, `service-account*.json` and `.env*`. Enable GitHub secret scanning and push protection.
 9. Supply chain: Dependabot or Renovate for Gradle, npm and GitHub Actions; pin Actions to major versions or commit hashes.
@@ -1294,6 +1294,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-01 | Sign-out and account deletion finish even when Settings closes: they run in the session's application scope, their cleanup steps no longer treat cancellation as a failure, and the phone deletes its push token whenever nobody is signed in (after a sign-out or an account deletion, and at a start without a signed-in user). Instrumented tests sign out and delete an account through Settings and check the phone's cache and the server | 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 | 2026-11-08 | Reminder job: three schedule entries an hour (minutes 7, 27, 47), still one digest a day per user; the daily prune runs in the first run of each UTC day, keyed on `jobs/state.lastPruneDate`, which the summary prints; a failed household or user is counted and the run carries on, then exits non-zero. The job reads devices first (at most the 10 newest), caps the stock query at 500, sends in chunks of 500, marks a user done for the day after 3 runs without a delivery, deletes a token only when FCM says it is unregistered or invalid, cuts names to 80 characters and the body to 1,000 bytes, and decides the title by distinct names. quota-sim counts events, housekeeping reads and deletes and has `RUNS` and `WEB` knobs: about 17 households. Plan B (Cloud Functions) closed | 9.7, 9.8, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
+| 2026-11-08 | What stays on a phone after sign-out: both apps clear the sync log with the local data, and Android also clears the built-in browser's cookies, site storage and cache and the cached recipe photos. The web app deletes its push token when a user leaves the phone, keeping a flag until FCM confirms so a phone signed out offline deletes it at its next start. Notification links stay on this site (`safeRoute` resolves the route on the app's origin). Both household gates offer Delete account, and a deletion that fails after the gate gave way to Loading shows its error when the gate comes back | 5.1, 6, 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
 
 ## 18. Web app for iPhone (after v1)
 
@@ -1376,12 +1377,19 @@ Web Push certificates) is a human step; its public key goes in the web build's c
   allows notifications, the phone writes its time zone when it changed and, when it has a token, its device document
   (`installId` is a random id kept in `localStorage`). A token needs the permission, the Push API (a Home Screen web
   app), the service worker (not in development) and the VAPID key; `firebase/messaging` loads only then. Sign-out
-  deletes the device document, as in the app. The app also deletes its FCM token while nobody is signed in (10.2,
-  2026-11-01); the web app does not yet.
+  deletes the device document, as in the app. The token comes from `FcmPushIdentity` (PushIdentity in the app; a
+  fake in `session.test.ts`). When a user leaves the phone (sign-out, account deletion, or Firebase signing them out)
+  `DeviceSync` deletes the token (2026-11-08): it sets `spoilnot.push.tokenToDelete` in `localStorage` first and
+  clears it once FCM confirms, within 5 s; while it is set, every start deletes the token before registering anyone,
+  so a phone signed out offline stops getting digests at its next start online. A start with nobody signed in and no
+  flag loads nothing. `deleteToken` is called after `getToken` with the app's service worker, because without one
+  FCM's SDK would register its own worker in place of the app's.
 - **The service worker shows every push itself** (`web/src/sw.ts`, `core/pushMessages.ts`), without FCM's own
   service worker: iOS ends the subscription of an app that receives a push without showing a notification. A tap
   sends an open window to the route (a message, no reload) or opens the app there; only same-site paths are used, and
-  the app acts only on the digest's two routes (`DeepLinks`: the Pantry on Expiring soon, or Plan).
+  the app acts only on the digest's two routes (`DeepLinks`: the Pantry on Expiring soon, or Plan). After v1
+  (2026-11-08) `safeRoute` reads the route as a URL on the app's origin, as the browser will, and keeps only its path
+  and query when it stays on that origin; anything else opens `/`.
 - **Settings > Notifications** has the app's settings and a banner when reminders cannot appear: not allowed yet
   (Turn on), turned off in the iPhone's Settings (where to turn them on; a web app cannot open them), or Safari
   outside the Home Screen (how to add it). Send test notification shows a local notification through the service

@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.parcha.spoilnot.core.cache.DeviceCaches
 import com.parcha.spoilnot.core.firebase.ACCESS_LOCAL_NETWORK
 import com.parcha.spoilnot.core.firebase.FirebaseEmulators
 import com.parcha.spoilnot.core.firebase.FirestoreHouseholdWriter
@@ -91,11 +92,24 @@ class TestPhone(private val name: String) : AutoCloseable {
 
     val authRepository = FirebaseAuthRepository(auth)
     val households = FirestoreHouseholdRepository(firestore)
+
+    /** Each phone has its own record of full reads, as separate phones would (DESIGN 9.8). */
+    val syncLog = SyncLog(
+        context.getSharedPreferences(syncLogPrefs, android.content.Context.MODE_PRIVATE),
+        Clock.systemUTC(),
+    )
     val sessionManager = SessionManager(
         authRepository,
         FirestoreUserRepository(firestore),
         households,
-        FirestoreLocalData(firestore),
+        // The browser and photo caches belong to the app under test, which these phones share.
+        FirestoreLocalData(
+            firestore,
+            syncLog,
+            object : DeviceCaches {
+                override suspend fun clear() = Unit
+            },
+        ),
         // Emulator builds cannot register for push; device sync is covered by the live test (DESIGN 14 M4).
         object : DeviceRegistry {
             override suspend fun sync(uid: String) = Unit
@@ -119,11 +133,6 @@ class TestPhone(private val name: String) : AutoCloseable {
         ),
     )
 
-    /** Each phone has its own record of full reads, as separate phones would (DESIGN 9.8). */
-    val syncLog = SyncLog(
-        context.getSharedPreferences(syncLogPrefs, android.content.Context.MODE_PRIVATE),
-        Clock.systemUTC(),
-    )
     val pantryRepository = FirestorePantryRepository(firestore, syncLog)
     val pantry = PantryService(writer, Clock.systemDefaultZone())
     val groceryRepository = FirestoreGroceryRepository(firestore, syncLog)

@@ -50,10 +50,15 @@ test('sign out, a wrong password, sign in again, and the reset link message', as
   const email = uniqueEmail('Sam');
   await signUp(page, 'Sam', email);
   await createHousehold(page, 'Sam home');
+  // The sync log names the household's collections (DESIGN 9.8); sign-out clears it with the rest.
+  const syncKeys = () =>
+    page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('spoilnot.sync.')).length);
+  await expect.poll(syncKeys).toBeGreaterThan(0);
   await page.getByRole('button', { name: /Open settings/ }).click();
   await expect(page.getByTestId('screen_settings')).toContainText(email);
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByTestId('screen_welcome')).toBeVisible();
+  expect(await syncKeys()).toBe(0);
 
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByLabel('Email').fill(email);
@@ -89,4 +94,26 @@ test('a member deletes their account; an owner must hand over first', async ({ b
   await page.getByRole('dialog').getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('dialog')).toContainText('Make someone else the owner');
+});
+
+test('someone without a household deletes their account from the gate', async ({ page }) => {
+  await openApp(page);
+  const email = uniqueEmail('Gale');
+  await signUp(page, 'Gale', email);
+  await page.getByRole('button', { name: 'More options' }).click();
+  await page.getByRole('menuitem', { name: 'Delete account' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Password', { exact: true }).fill('wrong-password');
+  await dialog.getByRole('button', { name: 'Delete' }).click();
+  await expect(dialog).toContainText('Email or password is incorrect.');
+  await dialog.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await dialog.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByTestId('screen_welcome')).toBeVisible();
+
+  // The sign-in is gone.
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByText('Email or password is incorrect.')).toBeVisible();
 });

@@ -5,6 +5,7 @@ import { str } from '../../core/i18n';
 import { useServices } from '../../core/services';
 import { HouseholdRules, InviteCodes, type InviteCode } from '../../domain/household';
 import type { JoinState, Session } from '../../domain/session';
+import { useDeleteAccount } from '../settings/DeleteAccount';
 import { Button, Card, Dialog, ErrorText, IconButton, Menu, MenuItem, Progress, TextField, TopAppBar } from '../kit';
 import './household.css';
 
@@ -20,6 +21,7 @@ export function GateScreen({ session }: { session: NoHousehold }) {
   const join = useAction();
   const request = useAction();
   const [menuOpen, setMenuOpen] = useState(false);
+  const deleteAccount = useDeleteAccount();
   const [confirm, setConfirm] = useState<InviteCode | null>(null);
   const busy = create.busy || join.busy || request.busy;
   const uid = session.user.uid;
@@ -46,6 +48,13 @@ export function GateScreen({ session }: { session: NoHousehold }) {
                 onClick={() => {
                   setMenuOpen(false);
                   void create.run(() => manager.signOut());
+                }}
+              />
+              <MenuItem
+                label={str('action_delete_account')}
+                onClick={() => {
+                  setMenuOpen(false);
+                  deleteAccount.open();
                 }}
               />
             </Menu>
@@ -107,6 +116,7 @@ export function GateScreen({ session }: { session: NoHousehold }) {
           {str('join_confirm_body', confirm.householdName)}
         </Dialog>
       )}
+      {deleteAccount.dialog}
     </div>
   );
 }

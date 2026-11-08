@@ -11,6 +11,7 @@ import { PasswordField } from '../forms';
 import { DetailScaffold } from '../Scaffold';
 import { formatHour, useNotificationPrefs } from '../notifications/NotificationSettingsScreen';
 import { AboutCard, AppearanceCard, DataCard } from './SettingsSections';
+import { useDeleteAccount } from './DeleteAccount';
 import '../household/household.css';
 
 /** The steps of Clear household data: an "are you sure" step, then the owner's password. */
@@ -50,7 +51,7 @@ export function SettingsScreen({
   const action = useAction();
   const [verified, setVerified] = useState(me.user.emailVerified);
   const [verificationSent, setVerificationSent] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteAccount = useDeleteAccount();
   const [clearStep, setClearStep] = useState<ClearStep>('none');
   const notifications = useNotificationPrefs();
   const household = useObservable(
@@ -74,7 +75,7 @@ export function SettingsScreen({
   return (
     <DetailScaffold title={str('settings')} onBack={onBack} testId="screen_settings">
       <div className="sn-stack">
-        <ErrorText text={!confirmDelete && clearStep === 'none' && action.error ? str(action.error) : null} />
+        <ErrorText text={clearStep === 'none' && action.error ? str(action.error) : null} />
         <Card>
           <h2 className="t-title-medium sn-settings__card-title">{str('settings_account')}</h2>
           <ListItem
@@ -167,7 +168,7 @@ export function SettingsScreen({
           disabled={action.busy}
           onClick={() => {
             action.clearError();
-            setConfirmDelete(true);
+            deleteAccount.open();
           }}
         >
           {str('action_delete_account')}
@@ -232,14 +233,7 @@ export function SettingsScreen({
           }
         />
       )}
-      {confirmDelete && (
-        <DeleteAccountDialog
-          busy={action.busy}
-          error={action.error && str(action.error)}
-          onDismiss={() => setConfirmDelete(false)}
-          onDelete={(password) => void action.run(() => session.deleteAccount(password))}
-        />
-      )}
+      {deleteAccount.dialog}
     </DetailScaffold>
   );
 }
@@ -286,42 +280,6 @@ function PasswordConfirmDialog({
     >
       <div className="sn-dialog-form">
         <p>{body}</p>
-        <PasswordField value={password} onValueChange={setPassword} />
-        <ErrorText text={error} />
-      </div>
-    </Dialog>
-  );
-}
-
-function DeleteAccountDialog({
-  busy,
-  error,
-  onDismiss,
-  onDelete,
-}: {
-  busy: boolean;
-  error: string | null;
-  onDismiss: () => void;
-  onDelete: (password: string) => void;
-}) {
-  const [password, setPassword] = useState('');
-  return (
-    <Dialog
-      title={str('delete_account_title')}
-      onDismiss={onDismiss}
-      actions={
-        <>
-          <Button variant="text" onClick={onDismiss}>
-            {str('action_cancel')}
-          </Button>
-          <Button variant="text" danger disabled={busy || password === ''} onClick={() => onDelete(password)}>
-            {str('action_delete')}
-          </Button>
-        </>
-      }
-    >
-      <div className="sn-dialog-form">
-        <p>{str('delete_account_body')}</p>
         <PasswordField value={password} onValueChange={setPassword} />
         <ErrorText text={error} />
       </div>

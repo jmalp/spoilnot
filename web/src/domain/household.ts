@@ -115,8 +115,9 @@ export interface LocalData {
   clear(): Promise<void>;
 }
 
-/** This phone's push registration (DESIGN 10.2, 18.4); a no-op until web push (W6). */
+/** This phone's device document for digests (DESIGN 10.2, 18.4); the push token itself is DeviceSync's. */
 export interface DeviceRegistry {
   sync(uid: string): Promise<void>;
+  /** On sign-out; waits a few seconds at most, so offline the delete may not reach the server. */
   unregister(uid: string): Promise<void>;
 }

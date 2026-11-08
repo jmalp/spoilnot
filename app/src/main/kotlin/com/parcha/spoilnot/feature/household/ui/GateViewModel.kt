@@ -33,6 +33,9 @@ class GateViewModel @Inject constructor(
         @StringRes val requestError: Int? = null,
         /** A found, active code waiting for "Send a request to join?" confirmation. */
         val confirm: InviteCode? = null,
+        /** Delete account's password dialog is open. */
+        val deletingAccount: Boolean = false,
+        @StringRes val deleteError: Int? = null,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -69,13 +72,28 @@ class GateViewModel @Inject constructor(
 
     fun signOut() = launch(onError = { e -> copy(createError = e.messageRes()) }) { session.signOut() }
 
+    fun openDeleteAccount() = _state.update { it.copy(deletingAccount = true, deleteError = null) }
+
+    fun dismissDeleteAccount() = _state.update { it.copy(deletingAccount = false, deleteError = null) }
+
+    /**
+     * Delete account for someone without a household (DESIGN 5.1). Once it starts, Loading replaces the gate; this
+     * ViewModel belongs to the activity, so when a failed deletion brings the gate back the dialog shows the error.
+     */
+    fun deleteAccount(password: String) = launch(onError = { e -> copy(deleteError = e.messageRes()) }) {
+        session.deleteAccount(password)
+        _state.update { it.copy(deletingAccount = false) }
+    }
+
     private fun signedIn(): Session.NoHousehold =
         session.session.value as? Session.NoHousehold ?: throw AppError.PermissionDenied()
 
     private fun launch(onError: UiState.(Exception) -> UiState, block: suspend () -> Unit) {
         if (_state.value.busy) return
         viewModelScope.launch {
-            _state.update { it.copy(busy = true, createError = null, joinError = null, requestError = null) }
+            _state.update {
+                it.copy(busy = true, createError = null, joinError = null, requestError = null, deleteError = null)
+            }
             try {
                 block()
             } catch (e: CancellationException) {

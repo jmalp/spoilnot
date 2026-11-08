@@ -172,6 +172,15 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     reaches Phone B from then on. With a spare member account on Phone B: Settings > Delete account, the password,
     Delete: Welcome shows; signing in with that account says the email or password is wrong, and Phone A's member
     list no longer has it.
+38. What sign-out leaves behind (Android and the iPhone web app, after v1): on Phone B open a recipe's source in the
+    built-in browser and sign in to that site, or accept its cookies; open a recipe with a photo. Sign out from
+    Settings and sign in with another account: the built-in browser no longer remembers the site's sign-in, and the
+    photo loads again from the network (it shows a moment later than before). On the iPhone (Home Screen app with
+    notifications on, item expiring tomorrow): sign out in Airplane Mode, turn Airplane Mode off, swipe Spoil Not away
+    and open it again (leave it on Welcome): no digest reaches the iPhone from then on, while Phone A gets its own. Signed in
+    without a household on either phone: the gate's menu has Delete account; a wrong password says so in the
+    dialog; the right one shows Welcome, and signing in with that account then fails. A test notification still
+    opens the Pantry on Expiring soon (notification links stay on this site).
 
 ## 3. Conditions
 

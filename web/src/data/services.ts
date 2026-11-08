@@ -13,7 +13,13 @@ import { systemClock } from '../domain/time';
 import { FirestoreActivityRepository } from './activity';
 import { FirebaseAuthRepository } from './auth';
 import { FirestoreHouseholdExporter } from './export';
-import { FcmDeviceRegistry, FirestoreNotificationPrefsRepository } from './notifications';
+import {
+  FcmDeviceRegistry,
+  FcmPushIdentity,
+  FirestoreNotificationPrefsRepository,
+  storedFlag,
+  TOKEN_TO_DELETE_KEY,
+} from './notifications';
 import { FirestoreGroceryRepository, groceryMapper } from './grocery';
 import { firebase, type FirebaseSdk } from './firebase';
 import { FirestoreHouseholdRepository, FirestoreLocalData } from './households';
@@ -30,9 +36,11 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
   const auth = new FirebaseAuthRepository(sdk);
   const users = new FirestoreUserRepository(sdk);
   const households = new FirestoreHouseholdRepository(sdk);
-  const devices = new FcmDeviceRegistry(sdk, APP_VERSION);
-  const session = new SessionManager(auth, users, households, new FirestoreLocalData(sdk), devices);
+  const push = new FcmPushIdentity(sdk);
+  const devices = new FcmDeviceRegistry(sdk, push, APP_VERSION);
   const clock = systemClock;
+  const log = new SyncLog(() => clock.now());
+  const session = new SessionManager(auth, users, households, new FirestoreLocalData(sdk, log), devices);
   const writer = new FirestoreHouseholdWriter(sdk, [
     pantryMapper,
     groceryMapper,
@@ -40,7 +48,6 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     mealPlanMapper,
     statsMapper,
   ]);
-  const log = new SyncLog(() => clock.now());
   const pantry = new FirestorePantryRepository(sdk, log);
   const pantryService = new PantryService(writer, clock);
   const grocery = new FirestoreGroceryRepository(sdk, log);
@@ -64,7 +71,7 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     stats: new FirestoreStatsRepository(sdk),
     exporter: new FirestoreHouseholdExporter(sdk, clock, APP_VERSION),
     notificationPrefs: new FirestoreNotificationPrefsRepository(sdk),
-    deviceSync: new DeviceSync(session.session$, devices),
+    deviceSync: new DeviceSync(session.session$, devices, push, storedFlag(TOKEN_TO_DELETE_KEY)),
     preferences: new AppPreferences(),
     clock,
   };

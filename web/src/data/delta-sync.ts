@@ -34,18 +34,41 @@ export const Tombstones = {
   is: (snapshot: DocumentSnapshot) => snapshot.get('deletedAt') != null,
 };
 
-/** When each collection was last read in full on this phone (local, not household data). */
+const SYNC_KEY_PREFIX = 'spoilnot.sync.';
+
+/**
+ * When each collection was last read in full on this phone (local, not household data). Its keys name the
+ * collections, so household and list ids, and it is cleared with the local data (DESIGN 12.2, control 6).
+ */
 export class SyncLog {
   constructor(
     private readonly now: () => number = Date.now,
-    private readonly storage: Pick<Storage, 'getItem' | 'setItem'> | null = safeStorage(),
+    private readonly storage: Pick<
+      Storage,
+      'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'
+    > | null = safeStorage(),
   ) {}
   lastFullSync(key: string): number | null {
-    const value = Number(this.storage?.getItem(`spoilnot.sync.${key}`));
+    const value = Number(this.storage?.getItem(`${SYNC_KEY_PREFIX}${key}`));
     return value > 0 ? value : null;
   }
   markFullSync(key: string): void {
-    this.storage?.setItem(`spoilnot.sync.${key}`, String(this.now()));
+    this.storage?.setItem(`${SYNC_KEY_PREFIX}${key}`, String(this.now()));
+  }
+  /** Forgets every collection; the next read of each is a full one. Other keys (display settings) stay. */
+  clear(): void {
+    const storage = this.storage;
+    if (!storage) return;
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key?.startsWith(SYNC_KEY_PREFIX)) keys.push(key);
+      }
+      keys.forEach((key) => storage.removeItem(key));
+    } catch {
+      // Storage refused: nothing was kept either.
+    }
   }
   current(): number {
     return this.now();

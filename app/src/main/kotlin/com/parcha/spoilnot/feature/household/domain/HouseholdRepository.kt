@@ -69,6 +69,9 @@ interface HouseholdRepository {
 
 /** The on-device copy of household data. */
 interface LocalData {
-    /** Sends pending writes if possible, then wipes the cache (DESIGN 12.2, control 6). */
+    /**
+     * Sends pending writes if possible, then wipes the cache, the sync log, the built-in browser's data and the
+     * cached photos (DESIGN 12.2, control 6).
+     */
     suspend fun clear()
 }

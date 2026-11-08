@@ -81,11 +81,17 @@ object Tombstones {
     fun DocumentSnapshot.isTombstone(): Boolean = contains(FIELD) && get(FIELD) != null
 }
 
-/** When each collection was last read in full on this phone (local preference, not household data). */
+/**
+ * When each collection was last read in full on this phone (local preference, not household data). Its keys are
+ * collection paths, so household and list IDs, and it is cleared with the local data (DESIGN 12.2, control 6).
+ */
 class SyncLog(private val prefs: SharedPreferences, private val clock: Clock) {
     fun lastFullSync(path: String): Instant? = prefs.getLong(path, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
 
     fun markFullSync(path: String) = prefs.edit().putLong(path, clock.millis()).apply()
+
+    /** Forgets every collection, so the next read of each is a full one. */
+    fun clear() = prefs.edit().clear().apply()
 
     fun now(): Instant = clock.instant()
 }

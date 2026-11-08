@@ -1,5 +1,8 @@
 package com.parcha.spoilnot.feature.settings
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.webkit.CookieManager
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasAnyAncestor
@@ -13,9 +16,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import coil3.SingletonImageLoader
+import coil3.asImage
+import coil3.memory.MemoryCache
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
@@ -54,6 +61,8 @@ import org.junit.runner.RunWith
 /**
  * Sign out and Delete account through Settings in the real app (DESIGN 5.1, 10.2, 12.2 control 6). Both remove the
  * Settings screen as they start, and must still finish: checked on the emulators' server and in the phone's cache.
+ * Sign-out also clears the sync log, the built-in browser's cookies and the cached photos; Delete account is also
+ * offered at the household gate.
  */
 @OptIn(ExperimentalTestApi::class)
 @HiltAndroidTest
@@ -155,6 +164,9 @@ class SettingsAccountUiTest {
         eventually("device registered") { EmulatorAdmin.documentExists(devicePath(uid)) }
         openSettings()
         eventually("household cached before sign-out") { cached("households/${me.householdId}") }
+        // Home's lists read the household in full once, which the sync log records by collection path.
+        eventually("sync log written") { syncLog.all.isNotEmpty() }
+        val caches = BrowserAndPhotos().apply { fill() }
 
         button(R.string.action_sign_out).performScrollTo().performClick()
         awaitTag("screen_welcome")
@@ -163,6 +175,67 @@ class SettingsAccountUiTest {
         assertFalse("Household no longer in this phone's cache", cached("households/${me.householdId}"))
         assertFalse("Profile no longer in this phone's cache", cached("users/$uid"))
         eventually("token deleted after sign-out") { push.tokenDeletes.get() == 2 }
+        assertEquals("Sync log cleared", emptyMap<String, Any?>(), syncLog.all)
+        caches.assertCleared()
+    }
+
+    @Test
+    fun deleteAccountFromTheGate() {
+        awaitTag("screen_welcome")
+        val uid = runBlocking {
+            sessionManager.signUp("Gale", uniqueEmail("gale"), PASSWORD)
+            val gate = withTimeout(20_000) { sessionManager.session.first { it is Session.NoHousehold } }
+            (gate as Session.NoHousehold).user.uid
+        }
+        awaitTag("screen_gate")
+        eventually("device registered") { EmulatorAdmin.documentExists(devicePath(uid)) }
+
+        compose.onNodeWithContentDescription(str(R.string.more_options)).performClick()
+        compose.onNode(hasText(str(R.string.action_delete_account)) and hasClickAction()).performClick()
+        compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog())).performTextInput("wrong-password")
+        val delete = hasText(str(R.string.action_delete)) and hasClickAction() and hasAnyAncestor(isDialog())
+        compose.onNode(delete).performClick()
+        compose.waitUntilAtLeastOneExists(hasText(str(R.string.error_invalid_credentials)), 20_000)
+        assertTrue("A wrong password deletes nothing", EmulatorAdmin.authUserExists(uid))
+
+        compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog())).performTextClearance()
+        compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog())).performTextInput(PASSWORD)
+        compose.onNode(delete).performClick()
+        awaitTag("screen_welcome", timeoutMs = 30_000)
+
+        eventually("profile deleted") { !EmulatorAdmin.documentExists("users/$uid") }
+        assertEquals(emptyList<String>(), EmulatorAdmin.documentIds("users/$uid/devices"))
+        assertFalse("Sign-in deleted", EmulatorAdmin.authUserExists(uid))
+    }
+
+    /** The app's sync log (SyncLogModule's preferences). */
+    private val syncLog get() = context.getSharedPreferences("delta_sync", Context.MODE_PRIVATE)
+
+    private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
+
+    /** A cookie from a recipe site, and a cached photo in Coil's memory and disk caches. */
+    private inner class BrowserAndPhotos {
+        private val images = SingletonImageLoader.get(context)
+        private val photo = MemoryCache.Key("test-photo")
+
+        fun fill() {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                CookieManager.getInstance().setCookie(RECIPE_SITE, "session=signed-in")
+            }
+            assertTrue(CookieManager.getInstance().getCookie(RECIPE_SITE).orEmpty().contains("session"))
+            val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+            images.memoryCache!![photo] = MemoryCache.Value(bitmap.asImage())
+            val editor = checkNotNull(images.diskCache!!.openEditor(PHOTO_URL))
+            images.diskCache!!.fileSystem.write(editor.data) { writeUtf8("photo") }
+            editor.commit()
+            assertTrue(images.diskCache!!.openSnapshot(PHOTO_URL)?.also { it.close() } != null)
+        }
+
+        fun assertCleared() {
+            eventually("browser cookies cleared") { CookieManager.getInstance().getCookie(RECIPE_SITE) == null }
+            assertEquals("Photo memory cache cleared", null, images.memoryCache!![photo])
+            assertEquals("Photo disk cache cleared", null, images.diskCache!!.openSnapshot(PHOTO_URL))
+        }
     }
 
     @Test
@@ -209,5 +282,7 @@ class SettingsAccountUiTest {
 
     private companion object {
         const val POLL_MS = 250L
+        const val RECIPE_SITE = "https://recipes.example.com"
+        const val PHOTO_URL = "https://recipes.example.com/photo.jpg"
     }
 }

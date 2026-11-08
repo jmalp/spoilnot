@@ -11,6 +11,7 @@ import type {
   LocalData,
   Membership,
 } from './household';
+import { DeviceSync, type PushIdentity, type StoredFlag } from './notifications';
 import { SessionManager, SIGNED_OUT } from './session';
 
 const sam: AuthUser = { uid: 'sam', email: 'sam@example.com', displayName: 'Sam', emailVerified: false };
@@ -300,5 +301,145 @@ describe('SessionManager', () => {
     expect(m.session).toEqual(SIGNED_OUT);
     // The profile must not be recreated while the account is being deleted.
     expect(users.profile('sam')).toBeNull();
+  });
+});
+
+// Ported from DeviceSyncTest: the session and this browser's push token together.
+describe('DeviceSync with the session', () => {
+  let events: string[];
+  let auth: FakeAuth;
+  let users: FakeUsers;
+  let households: FakeHouseholds;
+  let online: boolean;
+  let flag: boolean;
+
+  /** A fixed push identity, as on a phone; offline its token delete fails. */
+  const push: PushIdentity = {
+    installId: () => 'browser-1',
+    token: async () => 'token-1',
+    deleteToken: async () => {
+      events.push(online ? 'deleteToken' : 'deleteToken failed');
+      if (!online) throw new AppError('offline');
+    },
+  };
+  const tokenToDelete: StoredFlag = { get: () => flag, set: (on) => void (flag = on) };
+  const devices: DeviceRegistry = {
+    sync: async (uid) => void events.push(`sync ${uid}`),
+    unregister: async (uid) => void events.push(`unregister ${uid}`),
+  };
+  const localData: LocalData = { clear: async () => void events.push('clear') };
+
+  beforeEach(() => {
+    events = [];
+    auth = new FakeAuth(events);
+    users = new FakeUsers();
+    households = new FakeHouseholds(users);
+    online = true;
+    flag = false;
+  });
+
+  const started = async () => {
+    const repo = new Proxy(households, { get: (t, k) => (k in t ? t[k as keyof FakeHouseholds] : unused) });
+    const m = new SessionManager(auth, users, repo as unknown as HouseholdRepository, localData, devices, POINTER_MS);
+    const sync = new DeviceSync(m.session$, devices, push, tokenToDelete);
+    sync.start();
+    await settle();
+    /** The page closes. */
+    const close = () => {
+      sync.stop();
+      m.dispose();
+    };
+    return Object.assign(m, { close });
+  };
+
+  const samInHousehold = () => {
+    users.put(profile('h1'));
+    households.membership('h1', 'sam').next({ kind: 'active', role: 'member' });
+  };
+
+  it('a start without a signed-in user and no token to delete loads nothing', async () => {
+    await started();
+    expect(events).toEqual([]);
+  });
+
+  it('a start with a signed-in user registers the phone once', async () => {
+    samInHousehold();
+    auth.user.next(sam);
+    await started();
+    expect(events).toEqual(['sync sam']);
+  });
+
+  it('signing in registers the phone and signing out deletes the token', async () => {
+    const m = await started();
+    samInHousehold();
+    auth.user.next(sam);
+    await settle();
+    await m.signOut();
+    await settle();
+    expect(events).toEqual(['sync sam', 'unregister sam', 'clear', 'signOut', 'deleteToken']);
+    expect(flag).toBe(false);
+  });
+
+  it('signing out offline keeps the token to delete, and the next start deletes it before anyone registers', async () => {
+    samInHousehold();
+    auth.user.next(sam);
+    const m = await started();
+    online = false;
+    await m.signOut();
+    await settle();
+    expect(events).toEqual(['sync sam', 'unregister sam', 'clear', 'signOut', 'deleteToken failed']);
+    expect(flag).toBe(true);
+    m.close();
+
+    // The next start, online again: Alex signs in on this phone.
+    online = true;
+    events.length = 0;
+    const alex: AuthUser = { ...sam, uid: 'alex', email: 'alex@example.com', displayName: 'Alex' };
+    users.put({ ...profile(null), uid: 'alex', displayName: 'Alex' });
+    auth.user.next(alex);
+    await started();
+    expect(events).toEqual(['deleteToken', 'sync alex']);
+    expect(flag).toBe(false);
+  });
+
+  it('deleting the account deletes the token', async () => {
+    samInHousehold();
+    auth.user.next(sam);
+    const m = await started();
+    await m.deleteAccount('password1');
+    await settle();
+    expect(events).toEqual(['sync sam', 'clear', 'delete', 'deleteToken']);
+  });
+
+  it('a deletion that fails after leaving the household is kept for the gate, until dismissed or retried', async () => {
+    samInHousehold();
+    auth.user.next(sam);
+    const m = await started();
+    auth.deleteAccount = async () => {
+      throw new AppError('offline');
+    };
+    await expect(m.deleteAccount('password1')).rejects.toMatchObject({ kind: 'offline' });
+    await settle();
+    expect(m.session.kind).toBe('noHousehold');
+    expect(m.deleteFailure).toMatchObject({ kind: 'offline' });
+    m.dismissDeleteFailure();
+    expect(m.deleteFailure).toBeNull();
+
+    // A wrong password fails before anything starts: the dialog that asked shows it, so nothing is kept.
+    await expect(m.deleteAccount('wrong')).rejects.toMatchObject({ kind: 'invalidCredentials' });
+    expect(m.deleteFailure).toBeNull();
+  });
+
+  it('a deletion that fails while still in the household keeps nothing, as no screen would show it', async () => {
+    samInHousehold();
+    auth.user.next(sam);
+    const m = await started();
+    households.leave = async () => {
+      throw new AppError('offline');
+    };
+    await expect(m.deleteAccount('password1')).rejects.toMatchObject({ kind: 'offline' });
+    await settle();
+    expect(m.session.kind).toBe('inHousehold');
+    expect(m.deleteFailure).toBeNull();
   });
 });

@@ -2,13 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { DeepLinks, OPEN_ROUTE_MESSAGE } from './deepLinks';
 import { notificationFor, openRoute, safeRoute } from './pushMessages';
 
+const ORIGIN = 'https://spoilnot-prod.web.app';
+
 describe('push messages', () => {
   it("shows the digest from the job's message", () => {
-    const { title, options } = notificationFor({
-      notification: { title: '3 items need attention', body: 'Tomorrow: Milk.', tag: 'expiry_digest' },
-      data: { type: 'expiry_digest', route: '/pantry?filter=expiring', date: '2026-10-30' },
-      from: '1234',
-    });
+    const { title, options } = notificationFor(
+      {
+        notification: { title: '3 items need attention', body: 'Tomorrow: Milk.', tag: 'expiry_digest' },
+        data: { type: 'expiry_digest', route: '/pantry?filter=expiring', date: '2026-10-30' },
+        from: '1234',
+      },
+      ORIGIN,
+    );
     expect(title).toBe('3 items need attention');
     expect(options).toEqual({
       body: 'Tomorrow: Milk.',
@@ -19,18 +24,37 @@ describe('push messages', () => {
   });
 
   it('a push without a notification still shows one (iOS requires it), opening the app', () => {
-    expect(notificationFor(null)).toEqual({
+    expect(notificationFor(null, ORIGIN)).toEqual({
       title: 'Spoil Not',
       options: { body: '', tag: 'expiry_digest', icon: '/icons/icon-192.png', data: { route: '/' } },
     });
   });
 
   it('routes stay on this site', () => {
-    expect(safeRoute('/plan')).toBe('/plan');
-    expect(safeRoute('https://example.com/')).toBe('/');
-    expect(safeRoute('//example.com/')).toBe('/');
-    expect(safeRoute('/\\example.com')).toBe('/');
-    expect(safeRoute(42)).toBe('/');
+    expect(safeRoute('/plan', ORIGIN)).toBe('/plan');
+    expect(safeRoute('/pantry?filter=expiring', ORIGIN)).toBe('/pantry?filter=expiring');
+    expect(safeRoute('https://example.com/', ORIGIN)).toBe('/');
+    expect(safeRoute('//example.com/', ORIGIN)).toBe('/');
+    expect(safeRoute('/\\example.com', ORIGIN)).toBe('/');
+    expect(safeRoute('javascript:alert(1)', ORIGIN)).toBe('/');
+    expect(safeRoute(42, ORIGIN)).toBe('/');
+    expect(safeRoute('', ORIGIN)).toBe('/');
+  });
+
+  it('a tab, newline or return inside a route cannot lead to another site', () => {
+    // The URL parser drops these characters, so "/<tab>/example.com" would open https://example.com/.
+    for (const gap of ['\t', '\n', '\r']) {
+      expect(safeRoute(`/${gap}/example.com`, ORIGIN)).toBe('/');
+      expect(safeRoute(`${gap}//example.com/plan`, ORIGIN)).toBe('/');
+    }
+    expect(notificationFor({ data: { route: '/\t/example.com' } }, ORIGIN).options.data).toEqual({ route: '/' });
+  });
+
+  it('keeps only the path and query of a same-site route', () => {
+    expect(safeRoute(`${ORIGIN}/plan#week`, ORIGIN)).toBe('/plan');
+    expect(safeRoute('/pantry/../plan?x=1#top', ORIGIN)).toBe('/plan?x=1');
+    expect(safeRoute('plan', ORIGIN)).toBe('/plan');
+    expect(safeRoute('http://spoilnot-prod.web.app/plan', ORIGIN)).toBe('/');
   });
 
   it('a tap moves an open window to the route, or opens the app there', async () => {
