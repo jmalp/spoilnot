@@ -1,7 +1,12 @@
-// Quota simulation (DESIGN 9.7, M7): 10 households against the Firestore emulator, to check the daily read and
-// write math against the free Spark plan (50,000 reads, 20,000 writes per day).
+// Quota simulation (DESIGN 9.7, M7): 10 households against the Firestore emulator, to check the daily read, write
+// and delete math against the free Spark plan (50,000 reads, 20,000 writes, 20,000 deletes per day).
 //
 //   cd firebase && npm run quota-sim
+//   HOUSEHOLDS=10 RUNS=24 WEB=0 npm run quota-sim
+//
+// Knobs: HOUSEHOLDS; RUNS, the reminder job's runs that start in a day (72 are scheduled, three an hour, but GitHub
+// started about 5 of 24 a day in October 2026, DESIGN 10.4; 24 is the planning figure and RUNS=72 the worst case);
+// WEB, how many of each household's 4 phones are the web app for iPhone (no update-gate listener).
 //
 // Each household is DESIGN 9.7's typical one: 30 products, 60 batches, 2 grocery lists (25 items), 15 recipes,
 // 4 phones. Every phone "opens the app" 8 times a day, attaching the listeners the app attaches at start, and once
@@ -15,12 +20,13 @@ import {
   collection, doc, documentId, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
-const QUOTA = { reads: 50_000, writes: 20_000 };
+const QUOTA = { reads: 50_000, writes: 20_000, deletes: 20_000 };
 const HOUSEHOLDS = Number(process.env.HOUSEHOLDS ?? 10);
 const PHONES = 4;
 const OPENS_PER_DAY = 8;
 const WRITES_PER_HOUSEHOLD = 40;
-const REMINDER_RUNS_PER_DAY = 24;
+const REMINDER_RUNS_PER_DAY = Number(process.env.RUNS ?? 24);
+const WEB = Math.min(PHONES, Number(process.env.WEB ?? 0));
 // Of the day's writes, this many finish a batch (used up or thrown away) and also bump the month's Insights counts.
 const FINISHES_PER_HOUSEHOLD = 10;
 const MONTH = '2026-10';
@@ -32,6 +38,10 @@ const WEEK_MEALS = 12;
 const OTHER_MEALS = 30;
 const WEEK_START = '2026-10-26';
 const WEEK_END = '2026-11-01';
+// Each of the day's writes logs an activity event (in the app only some do); the prune deletes as many 30 days on.
+const EVENTS_PER_DAY = WRITES_PER_HOUSEHOLD;
+// Planned meals that pass the 28-day mark each day (about this week's meals spread over 7 days).
+const MEALS_EXPIRING_PER_DAY = 2;
 
 const env = await initializeTestEnvironment({
   projectId: 'demo-quota-sim',
@@ -63,7 +73,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
         displayName: `User ${p}`, householdId: hid, pendingJoin: null, timezone: 'America/New_York', locale: 'en',
         units: 'imperial', notificationPrefs: { enabled: true, digestMinutes: 540, stages: [3, 2, 1, 0], expiredMode: 'once' },
       });
-      await put(`users/${uid}/devices/d1`, { token: `token-${uid}-123456789012345`, platform: 'android' });
+      const platform = p < PHONES - WEB ? 'android' : 'web';
+      await put(`users/${uid}/devices/d1`, { token: `token-${uid}-123456789012345`, platform, updatedAt: new Date() });
       await put(`households/${hid}/members/${uid}`, { role: p === 0 ? 'owner' : 'member', displayName: `User ${p}`, joinedAt: new Date() });
     }
     for (let i = 0; i < 30; i++) {
@@ -94,6 +105,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 // --- Counting ---
 const reads = { listeners: 0, ruleLookups: 0, jobs: 0 };
 let writes = 0;
+let deletes = 0;
 
 /** Attaches a listener, counts the first snapshot (an empty result still costs one read), then detaches. */
 function once(ref) {
@@ -112,13 +124,12 @@ function once(ref) {
  * since the previous open (the app starts 5 minutes before its newest cached change; in reality a few documents
  * more). Each query costs at least one read.
  */
-async function open(db, uid, hid, isOwner, since) {
+async function open(db, uid, hid, isOwner, isWeb, since) {
   const h = `households/${hid}`;
   const synced = (path) => (since ? query(collection(db, path), where('updatedAt', '>', since)) : collection(db, path));
   const targets = [
     doc(db, `users/${uid}`), // session and notification settings
     doc(db, `${h}/members/${uid}`), // membership watcher
-    doc(db, 'config/app'), // update gate
     synced(`${h}/products`), // pantry, Home, restock engine (one listener each in the SDK)
     synced(`${h}/stock`),
     collection(db, `${h}/groceryLists`),
@@ -129,6 +140,8 @@ async function open(db, uid, hid, isOwner, since) {
       : query(collection(db, `${h}/activity`), orderBy('createdAt', 'desc'), limit(10)),
     query(collection(db, `${h}/stats`), where(documentId(), '>=', MONTH)), // Home > Your kitchen this month
   ];
+  // The Android app's update gate; the web app has none (DESIGN 18).
+  if (!isWeb) targets.push(doc(db, 'config/app'));
   if (isOwner) targets.push(collection(db, `${h}/joinRequests`)); // owner's badge
   targets.push(synced(`${h}/recipes`)); // Home > Use it up reads the recipes on every open (after v1)
   // Plan tab and Home's Today card: this week's meals, changes-only (DESIGN 9.8); the full read is the week only.
@@ -137,7 +150,7 @@ async function open(db, uid, hid, isOwner, since) {
     : query(collection(db, `${h}/meals`), where('date', '>=', WEEK_START), where('date', '<=', WEEK_END)));
   await Promise.all(targets.map(once));
   // Rules: every household-scoped query checks membership with one exists() (users and config need none).
-  reads.ruleLookups += targets.length - 3;
+  reads.ruleLookups += targets.length - (isWeb ? 2 : 3);
 }
 
 const started = Date.now();
@@ -164,37 +177,52 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
     for (let p = 0; p < PHONES; p++) {
       const since = lastOpen[p];
       lastOpen[p] = new Date();
-      await open(phones[p], `${hid}-u${p}`, hid, p === 0, since);
+      await open(phones[p], `${hid}-u${p}`, hid, p === 0, p >= PHONES - WEB, since);
     }
   }
-  writes += WRITES_PER_HOUSEHOLD + FINISHES_PER_HOUSEHOLD;
-  reads.ruleLookups += WRITES_PER_HOUSEHOLD; // isMember on each write
+  // The 40 actions, the 10 month counts and the 40 activity events; isMember on each action and each event.
+  writes += WRITES_PER_HOUSEHOLD + FINISHES_PER_HOUSEHOLD + EVENTS_PER_DAY;
+  reads.ruleLookups += WRITES_PER_HOUSEHOLD + EVENTS_PER_DAY;
 }
 
-// Scheduled jobs (backend/reminder): the users query every hour; housekeeping once a day (households, then per
-// household the activity and join request queries, the lists, and a tombstone query for products, stock, recipes
-// and each list's items, each at least one read, plus the tombstones it deletes); once a day per user a stock query
-// and a devices read; the nightly export reads every household document once, tombstones included. After v1 the
-// digest also reads today's meals (about two) once per user and day, the worst case of members due in different runs,
-// and since 2026-11-01 the user's member document (only members get the household's digest).
+// Scheduled jobs (backend/reminder, DESIGN 10.1). Every run: the users query (every user with reminders on) and the
+// job's own state document. Once a day per user: their member document, their devices, and a share of the
+// household's stock query; the digest also reads today's meals (about two), the worst case of members due in
+// different runs. Once a day, in the first run of the UTC day, housekeeping: the households, then per household the
+// activity, join request, past meal and list queries and a tombstone query for products, stock, recipes, meals and
+// each list's items (each at least one read), plus every document it deletes (read before deleting): a day's
+// tombstones, a day's activity events from 30 days ago and the meals passing 28 days. The nightly export reads every
+// household document once, tombstones included.
 const users = HOUSEHOLDS * PHONES;
 const TODAY_MEALS = 2;
-// Housekeeping per household: activity, join requests, lists, tombstones (products, stock, recipes, meals, each
-// list's items) and past meals (after v1), each at least one read.
-const housekeeping = HOUSEHOLDS + HOUSEHOLDS * (2 + 1 + 4 + 2 + 1) + HOUSEHOLDS * TOMBSTONES_PER_DAY;
+const pruned = TOMBSTONES_PER_DAY + EVENTS_PER_DAY + MEALS_EXPIRING_PER_DAY;
+const housekeeping = HOUSEHOLDS + HOUSEHOLDS * (3 + 1 + 4 + 2) + HOUSEHOLDS * pruned;
 const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1 + TOMBSTONES + WEEK_MEALS + OTHER_MEALS; // + stats, meals
-reads.jobs = REMINDER_RUNS_PER_DAY * users + housekeeping + users * (3 + TODAY_MEALS) + HOUSEHOLDS * perHousehold;
-writes += users; // lastDigestDate once a day
+const jobs = {
+  runs: REMINDER_RUNS_PER_DAY * (users + 1),
+  digests: users * (3 + TODAY_MEALS),
+  housekeeping,
+  export: HOUSEHOLDS * perHousehold,
+};
+reads.jobs = Object.values(jobs).reduce((a, b) => a + b, 0);
+writes += users + 1; // lastDigestDate once a day per user, lastPruneDate once a day
+deletes += HOUSEHOLDS * pruned;
 
 const total = reads.listeners + reads.ruleLookups + reads.jobs;
 const pct = (n, of) => `${((100 * n) / of).toFixed(1)}%`;
-console.log(`\nQuota simulation: ${HOUSEHOLDS} households x ${PHONES} phones, ${OPENS_PER_DAY} opens a day`);
-console.log(`  app listeners       ${reads.listeners.toLocaleString('en-US')} reads`);
-console.log(`  rule lookups        ${reads.ruleLookups.toLocaleString('en-US')} reads`);
-console.log(`  scheduled jobs      ${reads.jobs.toLocaleString('en-US')} reads`);
-console.log(`  total               ${total.toLocaleString('en-US')} reads = ${pct(total, QUOTA.reads)} of ${QUOTA.reads.toLocaleString('en-US')}`);
-console.log(`  per household       ${Math.round(total / HOUSEHOLDS).toLocaleString('en-US')} reads`);
-console.log(`  writes              ${writes.toLocaleString('en-US')} = ${pct(writes, QUOTA.writes)} of ${QUOTA.writes.toLocaleString('en-US')}`);
+const n = (v) => Math.round(v).toLocaleString('en-US');
+// Households of this size that fit under 70% of every daily limit.
+const fit = Math.min(...['reads', 'writes', 'deletes'].map((k) =>
+  (0.7 * QUOTA[k]) / ({ reads: total, writes, deletes }[k] / HOUSEHOLDS)));
+console.log(`\nQuota simulation: ${HOUSEHOLDS} households x ${PHONES} phones (${WEB} web), ${OPENS_PER_DAY} opens a day, ${REMINDER_RUNS_PER_DAY} reminder runs a day`);
+console.log(`  app listeners       ${n(reads.listeners)} reads`);
+console.log(`  rule lookups        ${n(reads.ruleLookups)} reads`);
+console.log(`  scheduled jobs      ${n(reads.jobs)} reads (runs ${n(jobs.runs)}, digests ${n(jobs.digests)}, housekeeping ${n(jobs.housekeeping)}, export ${n(jobs.export)})`);
+console.log(`  total               ${n(total)} reads = ${pct(total, QUOTA.reads)} of ${n(QUOTA.reads)}`);
+console.log(`  per household       ${n(total / HOUSEHOLDS)} reads`);
+console.log(`  writes              ${n(writes)} = ${pct(writes, QUOTA.writes)} of ${n(QUOTA.writes)}`);
+console.log(`  deletes             ${n(deletes)} = ${pct(deletes, QUOTA.deletes)} of ${n(QUOTA.deletes)}`);
+console.log(`  households under 70% of every limit: ${fit.toFixed(1)}`);
 console.log(`  (simulated in ${((Date.now() - started) / 1000).toFixed(0)} s)\n`);
 
 await env.cleanup();

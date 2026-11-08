@@ -2,7 +2,7 @@
   "name": "spoilnot-reminder",
   "private": true,
   "type": "module",
-  "description": "Hourly expiry-reminder job for Spoil Not (DESIGN 10)",
+  "description": "Expiry-reminder job for Spoil Not, three runs an hour (DESIGN 10)",
   "engines": {
     "node": ">=24"
   },

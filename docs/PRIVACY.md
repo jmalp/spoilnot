@@ -14,6 +14,10 @@ This page lists exactly what is collected (DESIGN 12.2, control 11).
 | Preferred units | Firestore (`users/{you}`) | The order of the unit menu |
 | Theme, colors, crash-report choice and whether you finished the app tour | On the phone only | Settings |
 
+A daily cleanup deletes what has passed its time: activity after 30 days, past meal-plan weeks after 4 weeks, join
+requests after 7 days, and deleted items after 2 days (until then they wait as markers so every phone removes them).
+It runs once each day, in the reminder job's first run of the UTC day; if it fails, the next run tries again.
+
 Firestore stores data in the `us-east1` region. The phone keeps an offline copy of the household's data, which is
 cleared when you sign out, leave a household or are removed from it. While nobody is signed in, the Android app also
 deletes its notification token, so the phone gets no reminders even if its device record could not be removed when

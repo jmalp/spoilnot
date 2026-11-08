@@ -1,10 +1,14 @@
 name: expiry-reminders
 
-# DESIGN 10.4: hourly, off the busy top of the hour. Scheduled runs are best effort (late or occasionally
-# skipped); the job catches up until 22:00 local time and never sends twice a day.
+# DESIGN 10.4: three entries an hour, off the busy top of the hour. GitHub starts scheduled runs late or drops
+# many of them (about 5 of 24 a day in October 2026), so more entries make a gap less likely. The job catches up
+# until 22:00 local time and sends at most one digest a day per user, however many runs start; the first run of
+# each UTC day also prunes (jobs/state.lastPruneDate).
 on:
   schedule:
     - cron: '7 * * * *'
+    - cron: '27 * * * *'
+    - cron: '47 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:

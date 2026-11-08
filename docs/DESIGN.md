@@ -421,7 +421,7 @@ Android phones (Kotlin, Jetpack Compose)  <---- push notifications (FCM) ----+
 Firebase free Spark plan: Auth | Firestore | Cloud Messaging | Crashlytics   |
    ^                                                                         |
    |  Admin SDK (reads Firestore, asks FCM to send)                          |
-   +------------ Reminder job (Node.js, GitHub Actions, hourly) -------------+
+   +------- Reminder job (Node.js, GitHub Actions, 3 times an hour) ---------+
 ```
 
 No other servers exist. The only backend code is the reminder job.
@@ -702,13 +702,14 @@ for each product p with p.autoAddToGrocery and p.minQuantity != null:
 
 Properties: idempotent (two phones doing it at once write identical data), respects deletion (it stays disarmed until stock recovers to the minimum), never un-checks an item, no nagging. Editing `minQuantity` upward sets `restockArmed = true`. Unit tests MUST cover: crossing down, recovery then dropping again, the user deleting the item, two concurrent evaluations, a product without a minimum, a minimum raised while already low, and batches with quantity 0.
 
-**9.7 Quota budget.** Spark allows 50,000 reads and 20,000 writes per day.
+**9.7 Quota budget.** Spark allows 50,000 reads, 20,000 writes and 20,000 deletes per day.
 
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
 - Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
 - After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790. The meal planner (5.9) adds about 150 (this week's meals, their changes, the nightly export and two housekeeping queries): about 1,940; the digest's meals query adds about 8: about 1,950. Checking that each due user is still a member (10.3) adds about 4, one read per member a day: about 1,960.
 - So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day.
+- After v1 (2026-11-08) the simulation also counts what it left out: each activity event as a write with its rule lookup, the documents the daily prune reads before deleting them, the prune's deletes (about 57 per household a day: a day's tombstones, activity events from 30 days ago and meals passing 28 days), and the job's state document (one read per run). It takes the number of job runs that start in a day (`RUNS`) and how many phones are the web app (`WEB`). With 24 runs a day a typical household costs about 2,040 reads, 94 writes and 57 deletes a day, so **about 17 households** fit under 70% of every limit (reads run out first). The job is scheduled 72 times a day (10.4); if every run started it would be about 2,240 reads, about 15.6 households, since each run reads every user with reminders on. GitHub has started far fewer (10.4).
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
 **9.8 Changes-only listeners (after v1).** Most reads were phones re-reading every document after more than 30 minutes away. Products, stock, grocery items and recipes are now each read with two listeners (`liveDocuments` in `core/firebase/DeltaSync.kt`):
@@ -716,7 +717,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - a **cache** listener on the whole collection (free; it shows the phone's copy, its own unsent writes and whatever the other listener brings in), and
 - a **server** listener on `updatedAt` after the newest cached change minus 5 minutes, which costs one read per changed document (at least one per query).
 
-The first open of a collection, an empty cache, and any open more than 20 hours after the last full read use a full server listener instead, recorded per phone (`SyncLog`). That daily full read also drops anything kept by mistake, so tombstones (8.1) only need to outlive it. `fromCache` and the offline banner come from the server listener; the pending-sync icon from the cache. The quota simulation puts a typical household at about 1,890 reads a day (from about 4,760), so about 18 households fit under the 70% line. Older app builds would show tombstones as items, so the release that adds this raises `config/app.minSupportedBuild` (docs/RUNBOOK.md).
+The first open of a collection, an empty cache, and any open more than 20 hours after the last full read use a full server listener instead, recorded per phone (`SyncLog`). That daily full read also drops anything kept by mistake, so tombstones (8.1) only need to outlive it. `fromCache` and the offline banner come from the server listener; the pending-sync icon from the cache. The quota simulation puts a typical household at about 1,890 reads a day (from about 4,760), so about 18 households fit under the 70% line (about 17 once the simulation counted events, the prune and its deletes, 9.7). Older app builds would show tombstones as items, so the release that adds this raises `config/app.minSupportedBuild` (docs/RUNBOOK.md).
 
 Recent activity (after v1) works the same way without tombstones, since events are only added (`liveNewest`): a cache listener on the newest 10 by `createdAt`, and a server listener on `createdAt` after the newest cached event minus 5 minutes, or the newest 10 on the daily full read. A new event costs one read per phone instead of the newest ten on every open. Removing an event (Undo of a throw-away, the 30-day pruning) shows at once when the phone saw the event arrive and by the next daily full read otherwise. The quota simulation puts a typical household at about 1,790 reads a day.
 
@@ -727,15 +728,19 @@ The meal plan (after v1, 5.9) uses the same two listeners limited to a window of
 **10.1 Flow**
 
 ```
-Hourly (GitHub Actions) -> reminder job (Node.js + firebase-admin)
+Three times an hour (GitHub Actions, after v1; hourly in v1) -> reminder job (Node.js + firebase-admin)
   1. load users with notificationPrefs.enabled
   2. keep users who are due: local time is at or after their digest time, before 22:00, and not yet sent today
-  3. per household: keep due users it still lists as members (after v1; clear a removed member's pointer), then
-     query stock with expiryDate between (today - 14 days) and (today + 3 days)
+  3. per household: keep due users it still lists as members (after v1; clear a removed member's pointer), keep
+     those with a device (after v1, read first), then query stock with expiryDate between (today - 14 days) and
+     (today + 3 days)
   4. build each due user's digest from their own stages and local date
-  5. send through FCM to the user's device tokens; delete dead tokens
+  5. send through FCM to the user's device tokens; delete tokens FCM says are unregistered or invalid
   6. update users/{uid}: lastDigestDate, lastExpiredThrough
-  7. prune activity older than 30 days and join requests older than 7 days
+  7. prune activity older than 30 days and join requests older than 7 days (after v1: in the first run of each
+     UTC day, keyed on jobs/state.lastPruneDate)
+  after v1 a household or user whose step fails is counted (failures) and the run carries on; it exits non-zero at
+  the end
 ```
 
 **10.2 Client responsibilities**
@@ -745,7 +750,7 @@ Hourly (GitHub Actions) -> reminder job (Node.js + firebase-admin)
 - Write the IANA `timezone` (from `ZoneId.systemDefault()`) to `users/{uid}` at app start when it changes.
 - Create the notification channel `expiry` (importance high, name Expiry reminders) at startup.
 - Tapping the notification starts `MainActivity` with the message data as intent extras; read `route` (`/pantry?filter=expiring`) in `onCreate` and `onNewIntent`. In the foreground do not show a system notification; the Home card is already live.
-- Notification settings: on or off, delivery hour (whole hours), stages, expired mode. Real delivery is shortly after the chosen hour because the job runs hourly.
+- Notification settings: on or off, delivery hour (whole hours), stages, expired mode. Real delivery is shortly after the chosen hour when GitHub starts the job on time; it is scheduled three times an hour (after v1), but GitHub starts scheduled runs late or drops them (10.4).
 
 **10.3 Reminder job** (`backend/reminder/`, TypeScript, Node.js LTS, `firebase-admin`)
 
@@ -765,10 +770,16 @@ for each household:
     skippedNotMember += 1
     unless dry run: update users/{u} { householdId: null, updatedAt: server time }    # as their app would
                     only if the profile is unchanged since it was read (else they may have joined again; skip)
-  keep the others; if none remain: continue
+  keep the others
+  # after v1: devices first, so a user with none costs no stock read
+  for each kept user u:
+    tokens = users/{u}/devices, the 10 most recently updated              # at most 10 a user
+    if tokens is empty: skippedNoDevices += 1; drop u                     # try again next run
+  if none remain: continue
   lo = min(local.date of its due users) - 14 days
   hi = max(local.date of its due users) + 3 days
-  batches = query stock where expiryDate >= lo and expiryDate <= hi   # tombstones skipped (after v1, 9.8)
+  batches = query stock where expiryDate >= lo and expiryDate <= hi,
+            ordered by expiryDate, at most 500                              # tombstones skipped (after v1, 9.8)
   for each due user u:
     items = []
     for b in batches:
@@ -777,17 +788,25 @@ for each household:
       if d < 0 and u.expiredMode != 'never':
         if u.expiredMode == 'daily' or b.expiryDate > (u.lastExpiredThrough ?? ''):
           items.add(stage = expired, batch = b)
-    tokens = users/{u}/devices
-    if tokens is empty: continue                                # try again next run
     cooking = meals today where u is a cook, not cooked     # after v1 (5.9), when u.cooking; one meals query per household
     if items and cooking are empty: update u.lastDigestDate = local.date; continue
-    result = fcm.sendEach(tokens, buildDigest(items, cooking, u.locale))
-    delete tokens that returned unregistered or invalid-argument errors
+    result = fcm.sendEach(tokens, buildDigest(items, cooking, u.locale))    # after v1 in chunks of 500
+    delete tokens that returned registration-token-not-registered or invalid-registration-token
+      # after v1 not invalid-argument: FCM also answers it for a message it refuses, and the token is fine
     if any send succeeded:
       update u { lastDigestDate: local.date, lastExpiredThrough: local.date minus 1 day }
-prune activity documents older than 30 days and join requests older than 7 days (after v1 also tombstones older than 2 days, 9.8, and planned meals more than 28 days past, 5.9)
-  # after v1: a deletion that fails after BulkWriter's retries is counted (pruneFailures), never thrown or printed;
-  # the run then exits non-zero so GitHub emails, and the next prune finds the document again
+    else:                                                       # after v1
+      count the attempt (u.digestAttempts = { date: local.date, count }); at 3 in one local day
+      update u.lastDigestDate = local.date                      # done for the day; expired items wait for tomorrow
+  # after v1: each household and each user in try/catch. A failure is counted (failures, no IDs) and logged as
+  # "<step> failed: <code>"; the run carries on and exits non-zero at the end so GitHub emails. A profile deleted
+  # during the run (NOT_FOUND) is an account deletion: skippedDeleted, not a failure.
+if the first run of this UTC day (jobs/state.lastPruneDate before today; after v1, 10.4):
+  prune activity documents older than 30 days and join requests older than 7 days (after v1 also tombstones older than 2 days, 9.8, and planned meals more than 28 days past, 5.9)
+  # after v1: a deletion that fails after BulkWriter's retries is counted (pruneFailures), never thrown or printed,
+  # and so is a household whose queries fail; the run then exits non-zero so GitHub emails
+  if nothing failed: set jobs/state.lastPruneDate = today (UTC)   # else the next run prunes again
+  # jobs/state is the job's own document; the rules match no such path, so clients can neither read nor write it
 ```
 
 After v1 every entry point (reminders, nightly export, restore) prints a failure as one fixed line with the error's code (a gRPC status name such as `PERMISSION_DENIED`, a Firebase or Node code, or one of the jobs' own such as `wrong-project`), never the error object or its message, including errors nothing handled: a Firestore error can hold the client and, through it, the service account key, and its message can name a full document path (13.4).
@@ -800,7 +819,7 @@ data: { type: expiry_digest, route: '/pantry?filter=expiring' (after v1 '/plan' 
 android: { priority: high, notification: { channelId: expiry, tag: expiry_digest } }
 ```
 
-Digest text: one item gives the title “Milk expires tomorrow”; several give “N items need attention”. The body has up to four lines in this order: Throw away, Today, Tomorrow, In 2 to 3 days. Each line names up to three products, then “+K more”. Best-before items say “past best before” instead of “throw away”. After v1 the cook's meals are a last line, or the whole notification when nothing expires (5.4).
+Digest text: one item gives the title “Milk expires tomorrow”; several give “N items need attention”. After v1 the title is decided by distinct names: one product with batches in several stages is one item, and its title is the sentence for its most urgent batch (the body's order), so it never reads “1 items”. Product names and meal titles are cut to 80 characters and the body to 1,000 bytes, ending with “…”, well inside FCM's 4,096-byte limit. The body has up to four lines in this order: Throw away, Today, Tomorrow, In 2 to 3 days. Each line names up to three products, then “+K more”. Best-before items say “past best before” instead of “throw away”. After v1 the cook's meals are a last line, or the whole notification when nothing expires (5.4).
 
 **10.4 Scheduler** (`.github/workflows/reminders.yml`)
 
@@ -808,7 +827,9 @@ Digest text: one item gives the title “Milk expires tomorrow”; several give 
 name: expiry-reminders
 on:
   schedule:
-    - cron: '7 * * * *'          # hourly, off the busy top of the hour
+    - cron: '7 * * * *'          # after v1 three entries an hour, off the busy top of the hour
+    - cron: '27 * * * *'
+    - cron: '47 * * * *'
   workflow_dispatch: {}
 concurrency:
   group: expiry-reminders
@@ -834,11 +855,13 @@ Pin the action versions to the current majors at build time.
 
 **Reliability (verified, Appendix C).** GitHub scheduled runs are best-effort: they can start 15 to 60 minutes late at busy times and are occasionally skipped; the minimum interval is 5 minutes; in public repositories schedules are disabled after 60 days without repository activity. (After v1 the repository is public; `keepalive.yml` re-enables the scheduled workflows monthly.) The design tolerates this: reminders are stateless windows (an item inside the 3-day window appears in every daily digest), the job catches up at any time before 22:00, and `lastDigestDate` prevents duplicates. The hourly job uses about 720 billed minutes per month of the 2,000 free for private repositories, so keep CI frugal (path filters, caching). Make sure Actions failure notifications are enabled in your GitHub notification settings.
 
+*After v1 (2026-11-08), measured.* GitHub started 61 of about 290 hourly runs from 21 October to 2 November 2026, about 5 a day at any minute, with gaps of 5 hours on average and up to 8.5. Morning digests came about three hours late, and a digest chosen for 20:00 or 21:00 often had no run before 22:00 and was skipped for the day. So the workflow has three schedule entries an hour (minutes 7, 27 and 47): a dropped run then costs 20 minutes, not an hour. The job still sends at most one digest a day per user, however many runs start (`lastDigestDate`; `backend/reminder/test/job.test.ts` replays every scheduled start over six days and every offered hour in five time zones). The repository is public, so Actions minutes are free. After a week, compare the start times by hour (`gh run list --workflow reminders.yml`); if whole hours are still missing, the next options are a free external cron service calling `workflow_dispatch` (10.6) or Plan C. The daily prune no longer depends on a run starting in one UTC hour: it runs in the first run of each UTC day (10.3).
+
 **Service account.** Create a dedicated service account for the job with least privilege (Firestore read and write, and permission to send FCM messages; confirm the current role names in the Google Cloud console). Store its JSON key only as the `FIREBASE_SERVICE_ACCOUNT_JSON` repository secret. Rotate it yearly. Never commit it.
 
-**10.5 Tests.** Pure functions with a fixed clock: time zones on both sides of UTC, DST start and end days, month and year boundaries, a missed run followed by a catch-up, once versus daily expired mode, stage subsets, best-before wording, an empty digest, a user with no devices. `DRY_RUN=true` logs messages instead of sending. One integration test against the Firestore emulator with seeded data.
+**10.5 Tests.** Pure functions with a fixed clock: time zones on both sides of UTC, DST start and end days, month and year boundaries, a missed run followed by a catch-up, once versus daily expired mode, stage subsets, best-before wording, an empty digest, a user with no devices. `DRY_RUN=true` logs messages instead of sending. One integration test against the Firestore emulator with seeded data. After v1 (2026-11-08) also: the schedule replay (one digest a day per user), the prune key, which FCM codes delete a token, chunks, the title by distinct names and the length limits as unit tests; and against the emulator a day of three runs an hour, a sender that throws, three failed attempts, the device cap, devices read before stock, the stock cap, a profile deleted during the run, and a prune with failures that the next run repeats.
 
-**10.6 Alternatives.** *Plan B, a more reliable scheduler.* If GitHub timing proves too flaky, deploy the same core module as a Cloud Function triggered by Cloud Scheduler. That requires the Blaze plan with a payment card; expected cost is cents per month, but budget alerts do not cap spending. Keep the core as a pure module with two entry points (`main.ts` for GitHub, `functions/index.ts` for Cloud Functions) so the switch takes under an hour. A free external cron service can also trigger the workflow through `workflow_dispatch`.
+**10.6 Alternatives.** *Plan B, a more reliable scheduler (closed after v1, 2026-11-08).* It was to deploy the same core module as a Cloud Function triggered by Cloud Scheduler, which needs the Blaze plan with a payment card. The project uses no Cloud Functions and no paid Google Cloud service, so Plan B is not an option; GitHub's timing is handled with more schedule entries (10.4). If that is not enough, a free external cron service can trigger the workflow through `workflow_dispatch`, with a fine-grained token limited to this repository and Actions: write, kept only in that service; the workflow's only input stays `dry_run`.
 
 *Plan C, on-device reminders (possible because the app is Android only).* No server, no service account, no GitHub job and no FCM tokens. A WorkManager task chained daily (each run schedules the next one at the user's chosen hour) queries the server, not the cache, for batches expiring inside the window, builds the same digest and posts it as a local notification; it falls back to the cache when offline. Trade-offs: timing is approximate, and aggressive battery management on some phone brands can delay or block background work, whereas FCM delivery is generally less affected, so add a Settings screen that explains how to exempt the app from battery optimization. Do not request exact-alarm permissions. The human chose the server-sent digest, so Plan C is not part of v1; it is kept here in case the reminder job proves too burdensome; the digest rules stay the same, and `users.timezone`, the `devices` subcollection and the server-written fields are then unused.
 
@@ -1130,7 +1153,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 - **Update gate:** on launch read `config/app.minSupportedBuild`; if the installed `versionCode` is lower, show a full-screen “Please update” with a link.
 - **Runbook** (`docs/RUNBOOK.md`): rotate the service account key, regenerate an invite code by hand, check quota usage, re-enable the workflow, restore from an export.
 
-**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days. After v1 the repository is public, so the export is encrypted (AES-256 with a key-stretched passphrase in the `EXPORT_ENCRYPTION_KEY` secret) before it is uploaded, the restore workflow decrypts it, and workflow logs never contain user IDs, full household IDs or household contents (docs/RUNBOOK.md). Nor the service account key: the jobs count failed writes instead of throwing them and print errors as a fixed line with their code only (10.3). After v1 both exports also include the planned meals (5.9) as an added `meals` array, which the restore workflow writes back.
+**13.4 Backups.** Do not assume the free plan includes managed backups (verify in the Firebase console). v1 provides Settings > Export (JSON of products, stock, lists and recipes, without tombstones; after v1 also the Insights month documents, as an added `stats` array in format version 1, which the restore workflow also writes). In M7 the reminder job SHOULD also save a nightly JSON export per household as a private Actions artifact kept for 14 days. After v1 the repository is public, so the export is encrypted (AES-256 with a key-stretched passphrase in the `EXPORT_ENCRYPTION_KEY` secret) before it is uploaded, the restore workflow decrypts it, and workflow logs never contain user IDs, full household IDs or household contents (docs/RUNBOOK.md). Nor the service account key: the jobs count failed writes instead of throwing them and print errors as a fixed line with their code only (10.3). After v1 (2026-11-08) the reminder job also counts a failed household or user (`failures`) and logs it as `<step> failed: <code>`, without IDs, and the daily prune that keeps the retention in PRIVACY.md runs in the first run of each UTC day. After v1 both exports also include the planned meals (5.9) as an added `meals` array, which the restore workflow writes back.
 
 ## 14. Milestones for Claude Code
 
@@ -1270,6 +1293,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-01 | Reminder digests go only to the household's current members: the job checks each due user's member document (one read per due user) and clears a removed member's household pointer as their app would. The prune and the restore count failed writes instead of throwing them, and every job prints an error as one fixed line with its code | 9.7, 10.1, 10.3, 12.2, 13.4, RUNBOOK, QA, SECURITY_REVIEW |
 | 2026-11-01 | Sign-out and account deletion finish even when Settings closes: they run in the session's application scope, their cleanup steps no longer treat cancellation as a failure, and the phone deletes its push token whenever nobody is signed in (after a sign-out or an account deletion, and at a start without a signed-in user). Instrumented tests sign out and delete an account through Settings and check the phone's cache and the server | 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
 | 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
+| 2026-11-08 | Reminder job: three schedule entries an hour (minutes 7, 27, 47), still one digest a day per user; the daily prune runs in the first run of each UTC day, keyed on `jobs/state.lastPruneDate`, which the summary prints; a failed household or user is counted and the run carries on, then exits non-zero. The job reads devices first (at most the 10 newest), caps the stock query at 500, sends in chunks of 500, marks a user done for the day after 3 runs without a delivery, deletes a token only when FCM says it is unregistered or invalid, cuts names to 80 characters and the body to 1,000 bytes, and decides the title by distinct names. quota-sim counts events, housekeeping reads and deletes and has `RUNS` and `WEB` knobs: about 17 households. Plan B (Cloud Functions) closed | 9.7, 9.8, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 
 ## 18. Web app for iPhone (after v1)
 

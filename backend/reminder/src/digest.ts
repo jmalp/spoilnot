@@ -22,6 +22,8 @@ export interface UserDoc {
   prefs: NotificationPrefs;
   lastDigestDate: string | null;
   lastExpiredThrough: string | null;
+  /** Runs on `date` (the user's local date) in which the digest reached no device; the job's own field. */
+  digestAttempts?: { date: string; count: number } | null;
 }
 
 export interface Batch {
@@ -97,29 +99,63 @@ export function selectItems(user: UserDoc, localDate: string, batches: Batch[]):
 }
 
 const MAX_NAMES = 3;
+/** A product name or meal title in a digest is cut to this many characters (DESIGN 10.3). */
+export const MAX_NAME_CHARS = 80;
+/** The body is cut to this many UTF-8 bytes, well inside FCM's 4,096-byte message limit (DESIGN 10.3). */
+export const MAX_BODY_BYTES = 1000;
+
+/** At most [max] characters (code points), ending with "…" when cut. */
+export function shorten(text: string, max = MAX_NAME_CHARS): string {
+  const chars = [...text];
+  return chars.length <= max ? text : `${chars.slice(0, max - 1).join('')}…`;
+}
+
+/** At most [max] UTF-8 bytes, cut between characters and ending with "…" when cut. */
+export function capBytes(text: string, max = MAX_BODY_BYTES): string {
+  const encoder = new TextEncoder();
+  if (encoder.encode(text).length <= max) return text;
+  const room = max - encoder.encode('…').length;
+  let out = '';
+  let bytes = 0;
+  for (const ch of text) {
+    const size = encoder.encode(ch).length;
+    if (bytes + size > room) break;
+    out += ch;
+    bytes += size;
+  }
+  return `${out}…`;
+}
 
 function names(items: DigestItem[]): string {
-  const unique = [...new Set(items.map((i) => i.name))];
+  const unique = [...new Set(items.map((i) => shorten(i.name)))];
   const shown = unique.slice(0, MAX_NAMES).join(', ');
   return unique.length > MAX_NAMES ? `${shown} +${unique.length - MAX_NAMES} more` : shown;
 }
 
+/** Most urgent first, in the body's order: throw away, past best before, today, tomorrow, in 2 to 3 days. */
+function urgency(item: DigestItem): number {
+  if (item.stage === 'expired') return item.dateType === 'use_by' ? 0 : 1;
+  return 2 + item.stage;
+}
+
 function single(item: DigestItem): string {
   const bb = item.dateType === 'best_before';
+  const name = shorten(item.name);
   switch (item.stage) {
     case 'expired':
-      return bb ? `${item.name} is past its best before date` : `${item.name} has expired. Throw it away`;
+      return bb ? `${name} is past its best before date` : `${name} has expired. Throw it away`;
     case 0:
-      return bb ? `${item.name} is best before today` : `${item.name} expires today`;
+      return bb ? `${name} is best before today` : `${name} expires today`;
     case 1:
-      return bb ? `${item.name} is best before tomorrow` : `${item.name} expires tomorrow`;
+      return bb ? `${name} is best before tomorrow` : `${name} expires tomorrow`;
     default:
-      return bb ? `${item.name} is best before in ${item.days} days` : `${item.name} expires in ${item.days} days`;
+      return bb ? `${name} is best before in ${item.days} days` : `${name} expires in ${item.days} days`;
   }
 }
 
 /**
- * The notification text (DESIGN 10.3). One item: "Milk expires tomorrow". Several: "N items need attention".
+ * The notification text (DESIGN 10.3). One product: "Milk expires tomorrow", from its most urgent batch. Several:
+ * "N items need attention", N being the number of distinct names.
  * The body lists, in order, Throw away, Past best before, Today, Tomorrow and In 2 to 3 days, up to three names
  * each then "+K more". Best-before items say "past best before" instead of "throw away".
  */
@@ -141,8 +177,9 @@ export function buildDigest(items: DigestItem[]): { title: string; body: string 
     .map(([label, list]) => `${label}: ${names(list)}.`)
     .join(' ');
   const count = new Set(all.map((i) => i.name)).size;
-  const title = all.length === 1 ? single(all[0]!) : `${count} items need attention`;
-  return { title, body };
+  const mostUrgent = [...all].sort((a, b) => urgency(a) - urgency(b) || a.days - b.days)[0]!;
+  const title = count === 1 ? single(mostUrgent) : `${count} items need attention`;
+  return { title, body: capBytes(body) };
 }
 
 export type Slot = 'breakfast' | 'lunch' | 'dinner';
@@ -169,7 +206,7 @@ export function cookingFor(user: UserDoc, localDate: string, meals: Meal[]): Mea
 
 /** "You're cooking: Tacos (dinner), Pancakes (breakfast)." */
 function cookingLine(meals: Meal[]): string {
-  return `You're cooking: ${meals.map((m) => `${m.title} (${m.slot})`).join(', ')}.`;
+  return `You're cooking: ${meals.map((m) => `${shorten(m.title)} (${m.slot})`).join(', ')}.`;
 }
 
 /**
@@ -183,11 +220,11 @@ export function buildDigestWithMeals(
   const food = buildDigest(items);
   if (meals.length === 0) return food && { ...food, mealsOnly: false };
   const line = cookingLine(meals);
-  if (food) return { title: food.title, body: `${food.body} ${line}`, mealsOnly: false };
+  if (food) return { title: food.title, body: capBytes(`${food.body} ${line}`), mealsOnly: false };
   const title = meals.length === 1
-    ? `You're cooking ${meals[0]!.title} for ${meals[0]!.slot}`
+    ? `You're cooking ${shorten(meals[0]!.title)} for ${meals[0]!.slot}`
     : `You're cooking ${meals.length} meals today`;
-  return { title, body: line, mealsOnly: true };
+  return { title, body: capBytes(line), mealsOnly: true };
 }
 
 /** What to record after a digest was delivered: today, and expired items reported up to yesterday. */
