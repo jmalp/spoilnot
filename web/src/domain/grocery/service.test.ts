@@ -25,7 +25,7 @@ const noRepository: GroceryRepository = {
   observeLists: () => of([]),
   observeItems: () => of([]),
   isCached: async () => false,
-  itemIds: async () => [],
+  itemIds: async (_hid, listId) => (listId === 'g2' ? ['i1', 'i2'] : []),
 };
 
 const actor = { uid: 'u1', name: 'Sam' };
@@ -246,6 +246,15 @@ describe('GroceryService', () => {
     expect(new Set(ofType(changes, 'grocery.deleteItem').map((c) => c.itemId))).toEqual(
       new Set(['i1', 'i2', 'i3', 'i4']),
     );
+  });
+
+  it('deleting a list deletes the list first, then its items for real', async () => {
+    await service.deleteList('h', actor, { id: 'g2', name: 'Party', isDefault: false, aisleOrder: [] });
+    expect(writer.last).toEqual([
+      { type: 'grocery.deleteList', listId: 'g2' },
+      { type: 'grocery.deleteItem', listId: 'g2', itemId: 'i1', tombstone: false },
+      { type: 'grocery.deleteItem', listId: 'g2', itemId: 'i2', tombstone: false },
+    ]);
   });
 
   it('the default list cannot be deleted', async () => {

@@ -27,6 +27,7 @@ import type { Actor, HouseholdChange } from '../domain/write';
 import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
+import { capTo, ReadCaps } from '../domain/caps';
 
 export const products = (hid: string) => `households/${hid}/products`;
 export const stock = (hid: string) => `households/${hid}/stock`;
@@ -43,7 +44,7 @@ const millis = (s: DocumentSnapshot, field: string): number | null =>
 export function toProduct(s: DocumentSnapshot): Product {
   return {
     id: s.id,
-    name: str(s.get('name')) ?? '',
+    name: capTo(str(s.get('name')) ?? '', ReadCaps.NAME),
     nameKey: str(s.get('nameKey')) ?? '',
     category: categoryOf(s.get('category')),
     defaultLocation: locationOf(s.get('defaultLocation')),
@@ -67,7 +68,7 @@ export function toBatch(s: DocumentSnapshot): StockBatch {
   return {
     id: s.id,
     productId: str(s.get('productId')) ?? '',
-    productName: str(s.get('productName')) ?? '',
+    productName: capTo(str(s.get('productName')) ?? '', ReadCaps.NAME),
     unit: unitOf(s.get('unit')),
     category: categoryOf(s.get('category')),
     quantity: num(s.get('quantity')) ?? 0,

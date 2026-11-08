@@ -24,6 +24,7 @@ import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import { activity } from './pantry';
 import type { ChangeMapper } from './writer';
+import { capTo, ReadCaps } from '../domain/caps';
 
 export const recipes = (hid: string) => `households/${hid}/recipes`;
 
@@ -38,7 +39,7 @@ export function toRecipe(s: DocumentSnapshot): Recipe {
   return {
     id: s.id,
     content: {
-      title: text(s.get('title')) ?? '',
+      title: capTo(text(s.get('title')) ?? '', ReadCaps.RECIPE_TITLE),
       sourceUrl: text(s.get('sourceUrl')),
       sourceName: text(s.get('sourceName')),
       imageUrl: text(s.get('imageUrl')),

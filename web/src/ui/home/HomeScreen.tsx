@@ -4,7 +4,7 @@ import { useNow, useObservable, useToday } from '../../core/hooks';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import type { GroceryItem } from '../../domain/grocery/models';
-import { HomeDashboard, type ActivityEvent, type HomeSummary } from '../../domain/home/models';
+import { ActivityFeed, HomeDashboard, type ActivityEvent, type HomeSummary } from '../../domain/home/models';
 import { MonthTotals, type InsightsSummary } from '../../domain/insights/insights';
 import type { PantryFilter } from '../../domain/pantry/items';
 import type { PantryData } from '../../domain/pantry/models';
@@ -103,7 +103,12 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
     useMemo(() => households.observeMembers(hid).pipe(catchError(() => of([]))), [households, hid]),
     [],
   );
-  const summary = data ? HomeDashboard.summary(data, groceryItems, recent, today) : null;
+  // Authors are named from the member list (by actorUid), not by the name stored with the event.
+  const named = useMemo(
+    () => ActivityFeed.named(recent, new Map(members.map((m) => [m.uid, m.displayName]))),
+    [recent, members],
+  );
+  const summary = data ? HomeDashboard.summary(data, groceryItems, named, today) : null;
   // Saved recipes that use food expiring soon (DESIGN 5.6).
   const useItUp = data && box ? UseItUp.suggestions(box.recipes, data, today) : [];
   return (

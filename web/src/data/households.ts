@@ -38,6 +38,7 @@ import {
   retryAfterOwnWrites,
 } from './firestore-rx';
 import { UserFields } from './users';
+import { capTo, ReadCaps } from '../domain/caps';
 
 const SCHEMA_VERSION = 1;
 /** DESIGN 8.5: chunk batched writes at 400 operations. */
@@ -61,25 +62,39 @@ const text = (s: DocumentSnapshot, field: string): string => {
 };
 const same = <T>(a: T, b: T) => JSON.stringify(a) === JSON.stringify(b);
 
-function toHousehold(s: DocumentSnapshot): Household {
-  return { id: s.id, name: text(s, 'name'), ownerUid: text(s, 'ownerUid'), inviteCode: text(s, 'inviteCode') };
+export function toHousehold(s: DocumentSnapshot): Household {
+  return {
+    id: s.id,
+    name: capTo(text(s, 'name'), ReadCaps.LIST_NAME),
+    ownerUid: text(s, 'ownerUid'),
+    inviteCode: text(s, 'inviteCode'),
+  };
 }
 
-function toInviteCode(s: DocumentSnapshot): InviteCode {
+export function toMember(d: DocumentSnapshot): Member {
+  return {
+    uid: d.id,
+    displayName: capTo(text(d, 'displayName'), ReadCaps.PERSON),
+    role: roleOf(d),
+    joinedAt: dateOf(d.get('joinedAt')),
+  };
+}
+
+export function toInviteCode(s: DocumentSnapshot): InviteCode {
   return {
     code: s.id,
     householdId: text(s, 'householdId'),
-    householdName: text(s, 'householdName'),
+    householdName: capTo(text(s, 'householdName'), ReadCaps.LIST_NAME),
     active: s.get('active') === true,
   };
 }
 
-function toJoinRequest(s: DocumentSnapshot): JoinRequest | null {
+export function toJoinRequest(s: DocumentSnapshot): JoinRequest | null {
   const status: unknown = s.get('status');
   if (status !== 'pending' && status !== 'approved' && status !== 'declined') return null;
   return {
     uid: s.id,
-    displayName: text(s, 'displayName'),
+    displayName: capTo(text(s, 'displayName'), ReadCaps.PERSON),
     code: text(s, 'joinCode'),
     status,
     requestedAt: dateOf(s.get('requestedAt')),
@@ -135,12 +150,7 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     ).pipe(
       map((snapshot) =>
         snapshot.docs
-          .map((d): Member => ({
-            uid: d.id,
-            displayName: text(d, 'displayName'),
-            role: roleOf(d),
-            joinedAt: dateOf(d.get('joinedAt')),
-          }))
+          .map(toMember)
           // Ordered by join date; a join not yet stamped by the server goes last.
           .sort((a, b) => (a.joinedAt?.getTime() ?? Infinity) - (b.joinedAt?.getTime() ?? Infinity)),
       ),

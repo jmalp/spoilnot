@@ -112,13 +112,13 @@ describe('PantryService', () => {
     );
     expect(repo.last).toEqual([
       { type: 'pantry.deleteBatch', batchId: 'e1' },
-      { type: 'stats.countUsedUp', month: MONTH, delta: 1 } satisfies StatsChange,
+      { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: 1 } satisfies StatsChange,
       { type: 'pantry.addToBatch', batchId: 'e2', delta: -3 },
       extra,
     ]);
     expect(undo!.changes).toEqual([
       { type: 'pantry.restoreBatch', batch: soon },
-      { type: 'stats.countUsedUp', month: MONTH, delta: -1 },
+      { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: -1 },
       { type: 'pantry.addToBatch', batchId: 'e2', delta: 3 },
       extra,
     ]);
@@ -199,12 +199,12 @@ describe('PantryService', () => {
     const undo = await service.adjust('h', actor, b, -1);
     expect(repo.last).toEqual([
       { type: 'pantry.deleteBatch', batchId: 'm1' },
-      { type: 'stats.countUsedUp', month: MONTH, delta: 1 },
+      { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: 1 },
     ]);
     await service.undo('h', actor, undo!);
     expect(repo.last).toEqual([
       { type: 'pantry.restoreBatch', batch: b },
-      { type: 'stats.countUsedUp', month: MONTH, delta: -1 },
+      { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: -1 },
     ]);
   });
 
@@ -221,7 +221,14 @@ describe('PantryService', () => {
     const event = ofType(repo.last, 'pantry.logEvent')[0]!;
     expect(repo.last[0]).toEqual({ type: 'pantry.deleteBatch', batchId: 'm1' });
     expect([event.eventType, event.reason, event.quantity]).toEqual(['discarded', 'spoiled', 2]);
-    const counted: StatsChange = { type: 'stats.countThrownAway', month: MONTH, day: 12, reason: 'spoiled', delta: 1 };
+    const counted: StatsChange = {
+      type: 'stats.countThrownAway',
+      month: MONTH,
+      counter: MONTH,
+      day: 12,
+      reason: 'spoiled',
+      delta: 1,
+    };
     expect(repo.last[2]).toEqual(counted);
     expect(undo.changes).toEqual([
       { type: 'pantry.restoreBatch', batch: b },
@@ -230,11 +237,18 @@ describe('PantryService', () => {
     ]);
   });
 
-  it('throwing away several is one write, counted once, and one undo', async () => {
+  it('throwing away several is one plan, counted once (the writer sends it a step at a time), and one undo', async () => {
     const a = batch('m1', 'milk', { inDays: -1 });
     const b = batch('y1', 'yogurt', { inDays: -3 });
     const undo = await service.throwAwayAll('h', actor, [a, b], 'expired');
-    const counted: StatsChange = { type: 'stats.countThrownAway', month: MONTH, day: 12, reason: 'expired', delta: 2 };
+    const counted: StatsChange = {
+      type: 'stats.countThrownAway',
+      month: MONTH,
+      counter: MONTH,
+      day: 12,
+      reason: 'expired',
+      delta: 2,
+    };
     expect(repo.last).toHaveLength(5);
     expect(ofType(repo.last, 'pantry.deleteBatch').map((c) => c.batchId)).toEqual(['m1', 'y1']);
     expect(ofType(repo.last, 'pantry.logEvent').filter((e) => e.reason === 'expired')).toHaveLength(2);
@@ -255,11 +269,11 @@ describe('PantryService', () => {
     });
     expect(repo.last).toEqual([
       { type: 'pantry.deleteBatch', batchId: 'm1' },
-      { type: 'stats.countUsedUp', month: MONTH, delta: 1 },
+      { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: 1 },
     ]);
     expect(undo!.changes).toEqual([
       { type: 'pantry.restoreBatch', batch: b },
-      { type: 'stats.countUsedUp', month: MONTH, delta: -1 },
+      { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: -1 },
     ]);
     await service.move('h', actor, b, 'freezer');
     expect(ofType(repo.last, 'pantry.updateBatch')[0]!.edit).toEqual({

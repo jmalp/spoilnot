@@ -274,9 +274,11 @@ export class GroceryService {
   async deleteList(householdId: string, actor: Actor, list: GroceryList): Promise<void> {
     if (list.isDefault) throw new Error('The default list cannot be deleted');
     const ids = await this.repository.itemIds(householdId, list.id);
+    // The list goes first: the rules let a member delete items for real only once their list is gone, also in a
+    // later batch (DESIGN 8.5).
     await this.write(householdId, actor, [
-      ...ids.map((itemId): Change => ({ type: 'grocery.deleteItem', listId: list.id, itemId, tombstone: false })),
       { type: 'grocery.deleteList', listId: list.id },
+      ...ids.map((itemId): Change => ({ type: 'grocery.deleteItem', listId: list.id, itemId, tombstone: false })),
     ]);
   }
 

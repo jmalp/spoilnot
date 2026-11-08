@@ -50,6 +50,16 @@ export const ActivityFeed = {
     const reset = events.findIndex((e) => e.type === 'household_reset');
     return reset < 0 ? events : events.slice(0, reset + 1);
   },
+  /**
+   * [events] with each author's name from the member list ([names], uid to display name), so a line always names who
+   * wrote it (the rules check `actorUid`, not the stored `actorName`). Someone who has left keeps the stored name.
+   */
+  named(events: ActivityEvent[], names: ReadonlyMap<string, string>): ActivityEvent[] {
+    return events.map((event) => {
+      const name = names.get(event.actorUid);
+      return name === undefined || name === event.actorName ? event : { ...event, actorName: name };
+    });
+  },
 };
 
 export interface ActivityRepository {

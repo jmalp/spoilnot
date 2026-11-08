@@ -4,6 +4,8 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.liveDocuments
+import com.parcha.spoilnot.core.write.ReadCaps
+import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.plan.domain.MealPlanData
 import com.parcha.spoilnot.feature.plan.domain.MealPlanRepository
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
@@ -46,7 +48,7 @@ class FirestoreMealPlanRepository @Inject constructor(
                 slot = slot,
                 position = getLong("position") ?: 0L,
                 recipeId = getString("recipeId"),
-                title = getString("title").orEmpty(),
+                title = getString("title").orEmpty().capTo(ReadCaps.MEAL_TITLE),
                 servings = getLong("servings")?.toInt(),
                 cooks = (get("cooks") as? List<*>)?.filterIsInstance<String>().orEmpty(),
                 note = getString("note"),
