@@ -117,7 +117,7 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 | Term | Meaning |
 | --- | --- |
 | Household | A group of people sharing one pantry, grocery lists and recipe box |
-| Owner, member | The owner created the household and controls the invite code and members; everyone else is a member |
+| Owner, member | The owner created the household and controls the invite code and members; everyone else is a member. A household has exactly one owner. Members delete shared things by marking them deleted (tombstones, 8.1); only the owner deletes them for real, when deleting the household |
 | Product | A kind of food in the household catalog, such as Milk. Holds its unit, category and minimum quantity |
 | Stock batch | A quantity of one product with one expiration date and one location, for example 2 cartons of milk expiring Oct 12 in the fridge. A product can have many batches |
 | Date type | Use by (safety date) or Best before (quality date) |
@@ -470,9 +470,10 @@ app/src/androidTest/      instrumented and Compose UI tests
 - `createdAt` and `updatedAt` are server timestamps. Every mutable document also has `createdBy` and `updatedBy` (uid).
 - **Dates** (expiry and similar) are calendar dates stored as strings `YYYY-MM-DD` with no time zone, and compared as strings.
 - `nameKey` is the name lowercased, trimmed, with whitespace collapsed and diacritics removed. It is used for matching and de-duplication.
-- Limits: names up to 80 characters, notes up to 500, arrays up to 100 items, documents far below 1 MiB.
+- Limits: names up to 80 characters (people 40, households and lists 60, recipe titles 200, meal titles 120), notes up to 500 (recipe text has 11.6's limits), other strings about 100, recipe links and photos http or https up to 2,000 characters, arrays up to 100 items, documents far below 1 MiB. **After v1 (2026-11-08) the rules enforce them:** each collection accepts only the fields the apps write (8.2), every string and list within its limit (lists of names, tags, cooks and aisles also in total characters), and finite numbers; recipe ingredients and steps are checked only by number, because rules cannot walk a list of maps. Both apps also cut names to these lengths when they read them, and Android drops recipe links and photos that are not http or https (the web app skips them when it shows a recipe), so data another client wrote cannot slow a list or open another app.
+- **Who wrote it (after v1, 2026-11-08).** `createdBy` is the writer when a document is created or brought back from a tombstone (Undo), and never changes after (a missing one may be filled in by the writer). A grocery item's `checkedBy` is the writer, null, or left as it was. An activity event's `actorUid` is the writer, its `type` one of 8.2's, `actorName` 1 to 40 characters and `params` only 8.2's fields. The apps name an event's author from the member list by `actorUid`; the stored `actorName` is shown only for someone who has left.
 - Write every field explicitly (use null, not a missing field) unless it is documented as optional. New fields MUST be optional on read with defaults, because phones will run different versions.
-- **Tombstones (after v1, 9.8).** Products, stock batches, grocery items and recipes are deleted by merging `deletedAt` (the server time) and the update stamp into the document, not by deleting it, so other phones' change listeners see the deletion. Every reader skips documents with `deletedAt`; restoring (Undo) writes the document without it. The reminder job deletes tombstones after 2 days. Deleting a whole list or household still deletes for real.
+- **Tombstones (after v1, 9.8).** Products, stock batches, grocery items and recipes are deleted by merging `deletedAt` (the server time) and the update stamp into the document, not by deleting it, so other phones' change listeners see the deletion. Every reader skips documents with `deletedAt`; restoring (Undo) writes the document without it. The reminder job deletes tombstones after 2 days. Deleting a whole list or household still deletes for real. After v1 (2026-11-08) members can only tombstone these and meals: an outright delete is the owner's (deleting the household), or a list's items going with their list (8.5).
 
 **8.2 Collections**
 
@@ -646,6 +647,9 @@ updatedBy: uidAnna
 4. `nameKey` is unique among a household's products. The client looks it up before creating and reuses the match.
 5. Exactly one default grocery list exists per household, created with the household.
 6. Deleting a household deletes all its subcollections client-side first, because Firestore does not cascade deletes.
+7. (After v1, 2026-11-08) A household has exactly one owner: an ownership transfer sets the new owner's role to owner and the old owner's to member in the same batch, and the rules refuse a transfer that does not.
+8. (After v1, 2026-11-08) Members delete products, batches, grocery items, recipes and meals only with a tombstone. Deleting a list (not the default one) deletes the list first and then its items for real: the rules accept a member's outright delete of an item only once its list is gone, which also holds for the later batches of a list with more than 400 items. Clear household data and deleting the household are the owner's.
+9. (After v1, 2026-11-08) An Insights count (5.7) moves by at most one per field per write, and only one day of `thrownByDay` changes per write. The rules see a batch's writes to one document together, so both apps' writers send a larger count (throwing several batches away at once, I cooked this using up several, and their Undo) as one step in the batch it belongs to and further batches of one step each, at most one step per month document in a batch (`WriteBatches` in the app, `planBatches` on the web).
 
 **8.6 Versioning.** `households.schemaVersion` and `config/app.minSupportedBuild` allow forced upgrades. Migrations are idempotent scripts in `tools/migrations/`. Never assume every phone runs the same version.
 
@@ -1094,7 +1098,7 @@ service cloud.firestore {
 }
 ```
 
-Notes on the draft: after v1 the deployed rules (`firebase/firestore.rules`) also check tombstones (`deletedAt`, 9.8) on products, stock, items and recipes, recipe names on products (`aliases`, at most 30) and on items (`aliasOf`), opened batches (`openedOn`, a date) and products (`openedShelfLifeDays`, 1 to 365), a list's `aisleOrder` (at most 30), and the Insights `stats` documents (5.7). The reminder job uses the Admin SDK, which bypasses rules. The household creation batch (household, owner member, invite code, user profile update) relies on `getAfter` and `existsAfter`. Always write `expiryDate` explicitly (null when there is none), because the stock rule reads it. To delete a household, the owner deletes every subcollection first, then the owner's own member document and the household document in the same batch.
+Notes on the draft: after v1 the deployed rules (`firebase/firestore.rules`) also check tombstones (`deletedAt`, 9.8) on products, stock, items and recipes, recipe names on products (`aliases`, at most 30) and on items (`aliasOf`), opened batches (`openedOn`, a date) and products (`openedShelfLifeDays`, 1 to 365), a list's `aisleOrder` (at most 30), and the Insights `stats` documents (5.7). The reminder job uses the Admin SDK, which bypasses rules. The household creation batch (household, owner member, invite code, user profile update) relies on `getAfter` and `existsAfter`. Always write `expiryDate` explicitly (null when there is none), because the stock rule reads it. To delete a household, the owner deletes every subcollection first, then the owner's own member document and the household document in the same batch. After v1 (2026-11-08) the rules also list each collection's allowed fields and sizes and check who wrote a document (8.1), let members delete only by tombstone, let Insights counts move by one per write and require an ownership transfer to demote the old owner (8.5); each needs one `getAfter` at most, and a stats write evaluates only the day that changed, to stay under the 1,000 expressions a request may evaluate.
 
 Joining takes two steps: the person creates a join request with a valid code, then the owner approves it in one batch that sets the request to approved and creates the member document (the rules accept a member document for someone else only in that case). Declining sets the request to declined; the person's app shows the result and deletes the request.
 
@@ -1128,6 +1132,12 @@ Joining takes two steps: the person creates a join request with a valid code, th
 | Client | Write `lastDigestDate` or `lastExpiredThrough` | Denied |
 | Removed member | Any household read | Denied immediately |
 | New user | Create household batch (household, owner member, code, own profile update) | Allowed |
+| Owner | Transfer ownership without demoting themselves in the same batch (after v1) | Denied |
+| Member | Delete a product, batch, item, recipe or meal outright instead of by tombstone (after v1) | Denied |
+| Member | Delete a list's items in the batch that deletes the list, or after it (after v1) | Allowed |
+| Member | Set an Insights count to any value, or move it by more than one in a write (after v1) | Denied |
+| Member | Write a field the apps do not write, or text, lists or numbers beyond 8.1's limits (after v1) | Denied |
+| Member | Name someone else as `createdBy` or `checkedBy`, or log an event of an unknown type or with a name over 40 characters (after v1) | Denied |
 
 **12.5 If you ever publish on Google Play.** Add a privacy policy URL, the Data safety form, a web link for account deletion, App Check enforcement, and a fresh review of the free-quota math.
 
@@ -1296,6 +1306,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-08 | Reminder job: three schedule entries an hour (minutes 7, 27, 47), still one digest a day per user; the daily prune runs in the first run of each UTC day, keyed on `jobs/state.lastPruneDate`, which the summary prints; a failed household or user is counted and the run carries on, then exits non-zero. The job reads devices first (at most the 10 newest), caps the stock query at 500, sends in chunks of 500, marks a user done for the day after 3 runs without a delivery, deletes a token only when FCM says it is unregistered or invalid, cuts names to 80 characters and the body to 1,000 bytes, and decides the title by distinct names. quota-sim counts events, housekeeping reads and deletes and has `RUNS` and `WEB` knobs: about 17 households. Plan B (Cloud Functions) closed | 9.7, 9.8, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-11-08 | Instrumented tests cancel each Hilt test's application scope after it (`TestCoroutinesModule`, `ReleaseAppScopes` added by `HiltTestRunner`), so no earlier test's `SessionManager` clears local data and terminates the shared Firestore under a later one; this made `SettingsAccountUiTest.deleteAccountRemovesProfileDevicesMembershipAndSignIn` time out in the full run. `AppScopeReleaseTest` guards it | 13.1, DECISIONS |
 | 2026-11-08 | What stays on a phone after sign-out: both apps clear the sync log with the local data, and Android also clears the built-in browser's cookies, site storage and cache and the cached recipe photos. The web app deletes its push token when a user leaves the phone, keeping a flag until FCM confirms so a phone signed out offline deletes it at its next start. Notification links stay on this site (`safeRoute` resolves the route on the app's origin). Both household gates offer Delete account, and a deletion that fails after the gate gave way to Loading shows its error when the gate comes back | 5.1, 6, 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
+| 2026-11-08 | Firestore rules: each collection accepts only the fields the apps write, with DESIGN 8.1's sizes (names 80, people 40, notes 500, recipe text 11.6's, links http or https up to 2,000, lists bounded), finite numbers, a known event type and a 1 to 40 character author name; `createdBy` is the writer on create and fixed after, `checkedBy` the writer or nobody; members delete only by tombstone (outright: the owner, or a list's items with their list); Insights counts move by one per write; an ownership transfer demotes the old owner in the same batch. Both apps: counts go one step per write, Delete list deletes the list before its items, names are cut to 8.1's lengths on read, Home names authors from the member list, and Android drops non-web recipe links and photos on read. 116 rules tests. The rules deploy after the Android and web releases (RUNBOOK) | 4, 8.1, 8.5, 12.3, 12.4, 18.5, RUNBOOK, SECURITY_REVIEW |
 
 ## 18. Web app for iPhone (after v1)
 
@@ -1402,7 +1413,7 @@ Web Push certificates) is a human step; its public key goes in the web build's c
 **18.5 Offline, install and updates.** A service worker caches the app shell so it opens offline; a web manifest
 gives the name, the launcher icon (rendered from the adaptive icon) and theme colors. A new version is fetched in the
 background and offered with a snackbar for 10 s (Update, which reloads; otherwise it starts with the next launch).
-`minSupportedBuild` (5.6) does not apply: the web app is always the latest version. In Safari on an iPhone, the
+`minSupportedBuild` (5.6) does not apply: the web app is always the latest version once it restarts. An app left open keeps running its version until then, so a rules change that refuses what an older web build writes is deployed only after the new web build has been out for a while (RUNBOOK). In Safari on an iPhone, the
 welcome screen says how to install (Share, then Add to Home Screen) and Home shows a card about it until Not now; the
 app opened from the Home Screen shows neither.
 

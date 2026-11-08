@@ -8,6 +8,7 @@ import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.core.write.HouseholdWriter
+import com.parcha.spoilnot.core.write.WriteBatches
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -45,7 +46,8 @@ class FirestoreHouseholdWriter @Inject constructor(
 
     override suspend fun apply(householdId: String, actor: Actor, changes: List<HouseholdChange>) {
         val db = firestore.current
-        changes.chunked(BATCH_LIMIT).forEach { chunk ->
+        // Counts go one step per write (DESIGN 8.5), so a plan may need more batches than its size alone.
+        WriteBatches.plan(changes).forEach { chunk ->
             val batch = db.batch()
             chunk.forEach { change ->
                 check(mappers.any { it.write(batch, db, householdId, actor, change) }) { "No mapper for $change" }
@@ -59,11 +61,6 @@ class FirestoreHouseholdWriter @Inject constructor(
                 }
             }
         }
-    }
-
-    private companion object {
-        /** DESIGN 8.5: chunk batched writes at 400 operations. */
-        const val BATCH_LIMIT = 400
     }
 }
 

@@ -24,6 +24,7 @@ import type { Actor, HouseholdChange } from '../domain/write';
 import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
+import { capTo, ReadCaps } from '../domain/caps';
 
 export const meals = (hid: string) => `households/${hid}/meals`;
 
@@ -42,7 +43,7 @@ export function toMeal(s: DocumentSnapshot): PlannedMeal | null {
     slot,
     position: typeof s.get('position') === 'number' ? (s.get('position') as number) : 0,
     recipeId: text(s.get('recipeId')),
-    title: text(s.get('title')) ?? '',
+    title: capTo(text(s.get('title')) ?? '', ReadCaps.MEAL_TITLE),
     servings: typeof servings === 'number' ? Math.trunc(servings) : null,
     cooks: ((s.get('cooks') as unknown[] | null) ?? []).filter((c): c is string => typeof c === 'string'),
     note: text(s.get('note')),
