@@ -181,6 +181,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     without a household on either phone: the gate's menu has Delete account; a wrong password says so in the
     dialog; the right one shows Welcome, and signing in with that account then fails. A test notification still
     opens the Pantry on Expiring soon (notification links stay on this site).
+39. Deleting offline (Android and the iPhone web app, after v1): with a few grocery items and a pantry item, turn on
+    Airplane Mode. Delete a grocery item: it disappears at once; Undo brings it back. Check off two items and Add to
+    pantry: the In cart section and the Add to pantry button disappear at once, and the items show in the Pantry with
+    "Waiting to sync". Used up on a pantry item: it disappears. Turn Airplane Mode off: within a minute the icons go,
+    Phone A shows the same pantry, and each bought item is there once, not twice.
 
 ## 3. Conditions
 

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenSource
@@ -78,7 +79,12 @@ object Tombstones {
     /** The fields that mark a document deleted, merged into it (rules require the stamp). */
     fun fields(actor: Actor): Map<String, Any> = mapOf(FIELD to FieldValue.serverTimestamp()) + Stamps.updated(actor)
 
-    fun DocumentSnapshot.isTombstone(): Boolean = contains(FIELD) && get(FIELD) != null
+    /**
+     * Deleted means `deletedAt` holds a time, the phone's estimate included: until the server confirms an offline
+     * delete, the default read gives null, and the document would stay on screen (DESIGN 9.8). The rules never allow
+     * `deletedAt: null`, so Undo removes the field with a full write.
+     */
+    fun DocumentSnapshot.isTombstone(): Boolean = get(FIELD, ServerTimestampBehavior.ESTIMATE) != null
 }
 
 /**
