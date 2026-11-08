@@ -19,6 +19,8 @@ import com.parcha.spoilnot.core.firebase.commitQueued
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
 import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.ReadCaps
+import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.auth.data.UserFields
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.home.domain.ActivityType
@@ -71,14 +73,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         }
         .map { snapshot ->
             snapshot.documents
-                .map {
-                    Member(
-                        it.id,
-                        it.getString("displayName").orEmpty(),
-                        it.role(),
-                        it.getTimestamp("joinedAt")?.toInstant(),
-                    )
-                }
+                .map { it.toMember() }
                 .sortedWith(compareBy(nullsLast()) { it.joinedAt })
         }
         .distinctUntilChanged()
@@ -376,7 +371,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         "createdAt" to FieldValue.serverTimestamp(),
     )
 
-    private companion object {
+    internal companion object {
         const val SCHEMA_VERSION = 1
         const val ROLE_OWNER = "owner"
         const val ROLE_MEMBER = "member"
@@ -401,9 +396,16 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
 
         fun DocumentSnapshot.role() = if (getString("role") == ROLE_OWNER) Role.Owner else Role.Member
 
+        fun DocumentSnapshot.toMember() = Member(
+            id,
+            getString("displayName").orEmpty().capTo(ReadCaps.PERSON),
+            role(),
+            getTimestamp("joinedAt")?.toInstant(),
+        )
+
         fun DocumentSnapshot.toHousehold() = Household(
             id = id,
-            name = getString("name").orEmpty(),
+            name = getString("name").orEmpty().capTo(ReadCaps.LIST_NAME),
             ownerUid = getString("ownerUid").orEmpty(),
             inviteCode = getString("inviteCode").orEmpty(),
         )
@@ -411,7 +413,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         fun DocumentSnapshot.toInviteCode() = InviteCode(
             code = id,
             householdId = getString("householdId").orEmpty(),
-            householdName = getString("householdName").orEmpty(),
+            householdName = getString("householdName").orEmpty().capTo(ReadCaps.LIST_NAME),
             active = getBoolean("active") == true,
         )
 
@@ -424,7 +426,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             }
             return JoinRequest(
                 uid = id,
-                displayName = getString("displayName").orEmpty(),
+                displayName = getString("displayName").orEmpty().capTo(ReadCaps.PERSON),
                 code = getString("joinCode").orEmpty(),
                 status = status,
                 requestedAt = getTimestamp("requestedAt")?.toInstant(),

@@ -2,6 +2,12 @@ rules_version = '2';
 
 // Spoil Not security rules. Based on DESIGN 12.3; deviations are listed in docs/DECISIONS.md.
 // Correctness is defined by the test matrix in firebase/test (DESIGN 12.4). Deny by default.
+//
+// After v1 (2026-11-08, DESIGN 8.1 and 8.5): every household document has a list of allowed fields (every field
+// any Android or web build writes) and sizes; createdBy, checkedBy and activity authors are the writer; members
+// delete products, batches, items, recipes and meals by writing a tombstone, and only the owner (deleting the
+// household) or a list deleted in the same batch removes them for real; Insights counts move by at most one per
+// field per write; an ownership transfer demotes the old owner in the same batch.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -10,12 +16,29 @@ service cloud.firestore {
     function hhPath(hid) { return /databases/$(database)/documents/households/$(hid); }
     function memberPath(hid, u) { return /databases/$(database)/documents/households/$(hid)/members/$(u); }
     function requestPath(hid, u) { return /databases/$(database)/documents/households/$(hid)/joinRequests/$(u); }
+    function listPath(hid, l) { return /databases/$(database)/documents/households/$(hid)/groceryLists/$(l); }
     function codePath(c) { return /databases/$(database)/documents/inviteCodes/$(c); }
     function isMember(hid) { return signedIn() && exists(memberPath(hid, me())); }
     function isOwner(hid) {
       return isMember(hid) && get(memberPath(hid, me())).data.role == 'owner';
     }
     function s(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi; }
+    // An optional string: absent or null, or lo to hi characters.
+    function optS(d, f, lo, hi) { return d.get(f, null) == null || s(d[f], lo, hi); }
+    // An optional number from 0 up to hi (also refuses Infinity and NaN).
+    function optNum(d, f, hi) { return d.get(f, null) == null || (d[f] is number && d[f] >= 0 && d[f] <= hi); }
+    function optInt(d, f, lo, hi) { return d.get(f, null) == null || (d[f] is int && d[f] >= lo && d[f] <= hi); }
+    function optBool(d, f) { return d.get(f, null) == null || d[f] is bool; }
+    // A list of strings or numbers: at most n elements and total characters together (join refuses maps).
+    function optStrList(d, f, n, total) {
+      return d.get(f, null) == null || (d[f] is list && d[f].size() <= n && d[f].join('').size() <= total);
+    }
+    function isDate(v) { return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
+    function optDate(d, f) { return d.get(f, null) == null || isDate(d[f]); }
+    // Recipe links and photos: http or https only, up to 2,000 characters (DESIGN 11.3).
+    function optWebUrl(d, f) {
+      return d.get(f, null) == null || (s(d[f], 8, 2000) && d[f].lower().matches('^https?://.+$'));
+    }
     function onlyChanges(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
@@ -32,6 +55,19 @@ service cloud.firestore {
         || (resource != null && 'deletedAt' in resource.data
             && request.resource.data.deletedAt == resource.data.deletedAt);
     }
+    // createdBy names the writer when a document is created (or brought back from a tombstone, which is what Undo
+    // does) and never changes after. A creator that was never written may be filled in by the writer.
+    function createdByOk() {
+      let c = request.resource.data.get('createdBy', null);
+      let was = resource == null ? null : resource.data.get('createdBy', null);
+      return resource == null
+        ? (c == null || c == me())
+        : (c == was || (c == me() && (was == null || 'deletedAt' in resource.data)));
+    }
+    // What every member-written document in a household needs: membership, the update stamp, a valid tombstone and
+    // the writer as creator.
+    function memberWriteOk(hid) { return isMember(hid) && stamped() && tombstoneOk() && createdByOk(); }
+    function auditFields() { return ['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'deletedAt']; }
 
     match /config/{doc} {
       allow read: if signedIn();
@@ -46,26 +82,44 @@ service cloud.firestore {
           || (request.resource.data.pendingJoin is map
               && request.resource.data.pendingJoin.keys().hasOnly(['householdId', 'householdName', 'code']));
       }
+      function prefsOk(p) {
+        return p is map
+          && p.keys().hasOnly(['enabled', 'digestMinutes', 'stages', 'expiredMode', 'cooking'])
+          && optBool(p, 'enabled') && optBool(p, 'cooking')
+          && optInt(p, 'digestMinutes', 0, 1439)
+          && optStrList(p, 'stages', 4, 20)
+          && (p.get('expiredMode', null) == null || p.expiredMode in ['once', 'daily', 'never']);
+      }
+      // The fields the apps write (the reminder job writes its own with the Admin SDK).
+      function profileOk() {
+        let d = request.resource.data;
+        return s(d.displayName, 1, 40)
+          && optS(d, 'timezone', 1, 100)
+          && optS(d, 'locale', 1, 20)
+          && (d.get('units', null) == null || d.units in ['metric', 'imperial'])
+          && (d.get('notificationPrefs', null) == null || prefsOk(d.notificationPrefs))
+          && pendingJoinOk();
+      }
       allow read, delete: if signedIn() && me() == uid;
       allow create: if signedIn() && me() == uid
         && request.resource.data.keys().hasOnly(['displayName', 'householdId', 'pendingJoin', 'timezone',
              'locale', 'units', 'notificationPrefs', 'createdAt', 'updatedAt'])
-        && s(request.resource.data.displayName, 1, 40)
-        && request.resource.data.householdId == null
-        && pendingJoinOk();
+        && profileOk()
+        && request.resource.data.householdId == null;
       allow update: if signedIn() && me() == uid
         && onlyChanges(['displayName', 'householdId', 'pendingJoin', 'timezone', 'locale', 'units',
              'notificationPrefs', 'updatedAt'])
-        && s(request.resource.data.displayName, 1, 40)
-        && pendingJoinOk()
+        && profileOk()
         && (request.resource.data.householdId == null
             || existsAfter(memberPath(request.resource.data.householdId, me())));
       match /devices/{id} {
         allow read, delete: if signedIn() && me() == uid;
         allow create, update: if signedIn() && me() == uid
+          && request.resource.data.keys().hasOnly(['token', 'platform', 'appVersion', 'updatedAt'])
           && s(request.resource.data.token, 20, 4096)
           // The web app for iPhone registers its FCM web token too (after v1, DESIGN 18.4).
-          && request.resource.data.platform in ['android', 'web'];
+          && request.resource.data.platform in ['android', 'web']
+          && optS(request.resource.data, 'appVersion', 0, 100);
       }
     }
 
@@ -76,11 +130,13 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['householdId', 'householdName', 'active', 'createdBy', 'createdAt'])
         && request.resource.data.createdBy == me()
         && request.resource.data.active is bool
+        && s(request.resource.data.householdName, 1, 60)
         && getAfter(hhPath(request.resource.data.householdId)).data.ownerUid == me()
         && getAfter(hhPath(request.resource.data.householdId)).data.inviteCode == code;
       allow update: if isOwner(resource.data.householdId)
         && onlyChanges(['active', 'householdName'])
-        && request.resource.data.active is bool;
+        && request.resource.data.active is bool
+        && s(request.resource.data.householdName, 1, 60);
       allow delete: if isOwner(resource.data.householdId);
     }
 
@@ -90,10 +146,13 @@ service cloud.firestore {
         && s(request.resource.data.name, 1, 60)
         && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'inviteCode', 'schemaVersion', 'createdAt', 'updatedAt'])
         && existsAfter(memberPath(hid, me()));
+      // An ownership transfer makes the new owner's role owner and the old owner's role member in the same batch, so
+      // there is always exactly one owner.
       allow update: if isOwner(hid) && s(request.resource.data.name, 1, 60) && (
            onlyChanges(['name', 'inviteCode', 'updatedAt'])
         || (onlyChanges(['ownerUid', 'updatedAt'])                       // ownership transfer
-            && getAfter(memberPath(hid, request.resource.data.ownerUid)).data.role == 'owner'));
+            && getAfter(memberPath(hid, request.resource.data.ownerUid)).data.role == 'owner'
+            && getAfter(memberPath(hid, me())).data.role == 'member'));
       allow delete: if isOwner(hid);
 
       match /members/{uid} {
@@ -140,53 +199,124 @@ service cloud.firestore {
         allow delete: if signedIn() && (me() == uid || isOwner(hid));
       }
 
+      // Products, batches, items, recipes and meals: members delete by writing a tombstone (DESIGN 9.8). Deleting for
+      // real is the owner's, when deleting the household; a list's items also go with their list (below).
       match /products/{id} {
-        allow read, delete: if isMember(hid);
-        allow create, update: if isMember(hid) && stamped() && tombstoneOk()
-          && s(request.resource.data.name, 1, 80)
-          && (request.resource.data.minQuantity == null || request.resource.data.minQuantity is number)
-          // After v1 (DESIGN 5.5): recipe names the household taught this product.
-          && (!('aliases' in request.resource.data)
-              || (request.resource.data.aliases is list && request.resource.data.aliases.size() <= 30))
-          // After v1 (DESIGN 5.2): days a product keeps once opened.
-          && (!('openedShelfLifeDays' in request.resource.data) || request.resource.data.openedShelfLifeDays == null
-              || (request.resource.data.openedShelfLifeDays is int && request.resource.data.openedShelfLifeDays >= 1
-                  && request.resource.data.openedShelfLifeDays <= 365));
+        function productOk() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['name', 'nameKey', 'category', 'defaultLocation', 'unit', 'minQuantity',
+                'autoAddToGrocery', 'buyQuantity', 'restockArmed', 'typicalShelfLifeDays', 'recentShelfLifeDays',
+                'lastAddedQuantity', 'openedShelfLifeDays', 'aliases'].concat(auditFields()))
+            && s(d.name, 1, 80)
+            && optS(d, 'nameKey', 0, 200)
+            && optS(d, 'category', 1, 40) && optS(d, 'unit', 1, 20)
+            && (d.get('defaultLocation', null) == null || d.defaultLocation in ['fridge', 'freezer', 'pantry', 'other'])
+            && optNum(d, 'minQuantity', 1000000000) && optNum(d, 'buyQuantity', 1000000000)
+            && optNum(d, 'lastAddedQuantity', 1000000000)
+            && optBool(d, 'autoAddToGrocery') && optBool(d, 'restockArmed')
+            && optInt(d, 'typicalShelfLifeDays', 0, 100000)
+            && optStrList(d, 'recentShelfLifeDays', 100, 1000)
+            // After v1 (DESIGN 5.5): recipe names the household taught this product, each a name.
+            && optStrList(d, 'aliases', 30, 30 * 80)
+            // After v1 (DESIGN 5.2): days a product keeps once opened.
+            && optInt(d, 'openedShelfLifeDays', 1, 365);
+        }
+        allow read: if isMember(hid);
+        allow create, update: if memberWriteOk(hid) && productOk();
+        allow delete: if isOwner(hid);
       }
       match /stock/{id} {
-        allow read, delete: if isMember(hid);
-        allow create, update: if isMember(hid) && stamped() && tombstoneOk()
-          && request.resource.data.quantity is number && request.resource.data.quantity >= 0
-          && (request.resource.data.expiryDate == null
-              || (request.resource.data.expiryDate is string
-                  && request.resource.data.expiryDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
-          && request.resource.data.location in ['fridge', 'freezer', 'pantry', 'other']
-          && request.resource.data.dateType in ['use_by', 'best_before']
-          // After v1 (DESIGN 5.2): when an opened batch was opened.
-          && (!('openedOn' in request.resource.data) || request.resource.data.openedOn == null
-              || (request.resource.data.openedOn is string
-                  && request.resource.data.openedOn.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
-      }
-      // Insights (after v1, DESIGN 5.7): one document per month of batch counts, written with increments.
-      match /stats/{month} {
-        function count(f) {
-          return !(f in request.resource.data)
-            || (request.resource.data[f] is int && request.resource.data[f] >= 0
-                && request.resource.data[f] <= 100000);
+        function batchOk() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['productId', 'productName', 'unit', 'category', 'quantity', 'expiryDate',
+                'dateType', 'location', 'note', 'openedOn'].concat(auditFields()))
+            && optS(d, 'productId', 1, 100)
+            && optS(d, 'productName', 1, 80)
+            && optS(d, 'unit', 1, 20) && optS(d, 'category', 1, 40)
+            && d.quantity is number && d.quantity >= 0 && d.quantity <= 1000000000
+            && optDate(d, 'expiryDate')
+            && d.location in ['fridge', 'freezer', 'pantry', 'other']
+            && d.dateType in ['use_by', 'best_before']
+            && optS(d, 'note', 0, 500)
+            // After v1 (DESIGN 5.2): when an opened batch was opened.
+            && optDate(d, 'openedOn');
         }
-        function byDayOk() {
-          return !('thrownByDay' in request.resource.data)
-            || (request.resource.data.thrownByDay is map
-                && request.resource.data.thrownByDay.keys().hasOnly(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31']));
+        allow read: if isMember(hid);
+        // expiryDate is read by the reminder job's query, so it is always written (null when there is none).
+        allow create, update: if memberWriteOk(hid) && batchOk()
+          && (request.resource.data.expiryDate == null || isDate(request.resource.data.expiryDate));
+        allow delete: if isOwner(hid);
+      }
+      // Insights (after v1, DESIGN 5.7): one document per month of batch counts, written with increments. Each count
+      // moves by at most one per write (an Undo takes one back), so nobody sets a month to any value.
+      match /stats/{month} {
+        function count(n, o, f) {
+          let v = n.get(f, 0);
+          let w = o.get(f, 0);
+          return v is int && v >= 0 && v <= 100000 && v - w <= 1 && w - v <= 1;
+        }
+        function day(nd, od, k) {
+          let v = nd.get(k, 0);
+          let w = od.get(k, 0);
+          return v is int && v >= 0 && v - w <= 1 && w - v <= 1;
+        }
+        // The one day that changed (a throw away counts one day; rules have no loops, so each day is named).
+        function oneDayOk(nd, od, c) {
+          return ('1' in c && day(nd, od, '1'))
+            || ('2' in c && day(nd, od, '2'))
+            || ('3' in c && day(nd, od, '3'))
+            || ('4' in c && day(nd, od, '4'))
+            || ('5' in c && day(nd, od, '5'))
+            || ('6' in c && day(nd, od, '6'))
+            || ('7' in c && day(nd, od, '7'))
+            || ('8' in c && day(nd, od, '8'))
+            || ('9' in c && day(nd, od, '9'))
+            || ('10' in c && day(nd, od, '10'))
+            || ('11' in c && day(nd, od, '11'))
+            || ('12' in c && day(nd, od, '12'))
+            || ('13' in c && day(nd, od, '13'))
+            || ('14' in c && day(nd, od, '14'))
+            || ('15' in c && day(nd, od, '15'))
+            || ('16' in c && day(nd, od, '16'))
+            || ('17' in c && day(nd, od, '17'))
+            || ('18' in c && day(nd, od, '18'))
+            || ('19' in c && day(nd, od, '19'))
+            || ('20' in c && day(nd, od, '20'))
+            || ('21' in c && day(nd, od, '21'))
+            || ('22' in c && day(nd, od, '22'))
+            || ('23' in c && day(nd, od, '23'))
+            || ('24' in c && day(nd, od, '24'))
+            || ('25' in c && day(nd, od, '25'))
+            || ('26' in c && day(nd, od, '26'))
+            || ('27' in c && day(nd, od, '27'))
+            || ('28' in c && day(nd, od, '28'))
+            || ('29' in c && day(nd, od, '29'))
+            || ('30' in c && day(nd, od, '30'))
+            || ('31' in c && day(nd, od, '31'));
+        }
+        function byDayOk(n, o) {
+          let nd = n.get('thrownByDay', {});
+          let od = o.get('thrownByDay', {});
+          return !('thrownByDay' in n)
+            || (nd is map
+                && nd.keys().hasOnly(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31'])
+                && (nd == od || (nd.diff(od).affectedKeys().size() == 1
+                    && oneDayOk(nd, od, nd.diff(od).affectedKeys()))));
+        }
+        function statsOk() {
+          let n = request.resource.data;
+          let o = resource == null ? {} : resource.data;
+          return n.keys().hasOnly(
+               ['used', 'expired', 'spoiled', 'didnt_like', 'other', 'thrownByDay', 'updatedAt', 'updatedBy'])
+            && count(n, o, 'used') && count(n, o, 'expired') && count(n, o, 'spoiled')
+            && count(n, o, 'didnt_like') && count(n, o, 'other')
+            && byDayOk(n, o);
         }
         allow read: if isMember(hid);
         allow create, update: if isMember(hid) && stamped()
           && month.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
-          && request.resource.data.keys().hasOnly(
-               ['used', 'expired', 'spoiled', 'didnt_like', 'other', 'thrownByDay', 'updatedAt', 'updatedBy'])
-          && count('used') && count('expired') && count('spoiled') && count('didnt_like') && count('other')
-          && byDayOk();
-        // Counts are deleted only with the household.
+          && statsOk();
+        // Counts are deleted only by the owner (Clear household data, deleting the household).
         allow delete: if isOwner(hid);
       }
       match /groceryLists/{listId} {
@@ -194,41 +324,84 @@ service cloud.firestore {
         // existsAfter (deviation): the default list is created in the same batch as the household; any later list
         // is not the default (invariant 5).
         allow create: if signedIn() && existsAfter(memberPath(hid, me()))
+          && request.resource.data.keys().hasOnly(['name', 'isDefault', 'aisleOrder', 'createdAt', 'updatedAt'])
           && s(request.resource.data.name, 1, 60)
-          && (request.resource.data.isDefault == false || !exists(hhPath(hid)));
+          && request.resource.data.isDefault is bool
+          && (request.resource.data.isDefault == false || !exists(hhPath(hid)))
+          && optStrList(request.resource.data, 'aisleOrder', 30, 30 * 40);
         // After v1 (DESIGN 5.3): the store's aisle order, learned from check-offs.
         allow update: if isMember(hid) && onlyChanges(['name', 'updatedAt', 'aisleOrder'])
           && s(request.resource.data.name, 1, 60)
-          && (!('aisleOrder' in request.resource.data)
-              || (request.resource.data.aisleOrder is list && request.resource.data.aisleOrder.size() <= 30));
+          && optStrList(request.resource.data, 'aisleOrder', 30, 30 * 40);
         // Only the owner removes the default list, when deleting the household.
         allow delete: if isMember(hid) && (resource.data.isDefault != true || isOwner(hid));
         match /items/{itemId} {
-          allow read, delete: if isMember(hid);
-          allow create, update: if isMember(hid) && stamped() && tombstoneOk() && s(request.resource.data.name, 1, 80)
-            // After v1 (DESIGN 5.5): the recipe name a renamed item came from, taught to its product later.
-            && (!('aliasOf' in request.resource.data) || request.resource.data.aliasOf == null
-                || s(request.resource.data.aliasOf, 1, 80));
+          function itemOk() {
+            let d = request.resource.data;
+            let was = resource == null ? null : resource.data.get('checkedBy', null);
+            return d.keys().hasOnly(['name', 'nameKey', 'quantity', 'unit', 'note', 'category', 'checked',
+                  'checkedBy', 'checkedAt', 'source', 'productId', 'recipeId', 'aliasOf'].concat(auditFields()))
+              && s(d.name, 1, 80)
+              && optS(d, 'nameKey', 0, 200)
+              && optNum(d, 'quantity', 1000000000)
+              && optS(d, 'unit', 1, 20) && optS(d, 'category', 1, 40)
+              && optS(d, 'note', 0, 500)
+              && optBool(d, 'checked')
+              // Whoever checks an item off is the writer; unchecking clears it.
+              && (d.get('checkedBy', null) == null || d.checkedBy == me() || d.checkedBy == was)
+              && (d.get('checkedAt', null) == null || d.checkedAt is timestamp)
+              && optS(d, 'source', 1, 40)
+              && optS(d, 'productId', 1, 100) && optS(d, 'recipeId', 1, 100)
+              // After v1 (DESIGN 5.5): the recipe name a renamed item came from, taught to its product later.
+              && optS(d, 'aliasOf', 1, 80);
+          }
+          allow read: if isMember(hid);
+          allow create, update: if memberWriteOk(hid) && itemOk();
+          // A member deletes items for real only together with their list (Delete list, Clear household data).
+          allow delete: if isOwner(hid) || (isMember(hid) && !existsAfter(listPath(hid, listId)));
         }
       }
       match /recipes/{id} {
-        allow read, delete: if isMember(hid);
-        allow create, update: if isMember(hid) && stamped() && tombstoneOk() && s(request.resource.data.title, 1, 200)
-          && request.resource.data.ingredients.size() <= 100
-          && request.resource.data.steps.size() <= 100;
+        function recipeOk() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['title', 'sourceUrl', 'sourceName', 'imageUrl', 'description', 'servings',
+                'servingsText', 'prepMinutes', 'cookMinutes', 'totalMinutes', 'ingredients', 'steps', 'notes', 'tags',
+                'favorite', 'rating', 'importMethod'].concat(auditFields()))
+            // Limits from DESIGN 11.6 (RecipeLimits in the apps).
+            && s(d.title, 1, 200)
+            && optWebUrl(d, 'sourceUrl') && optWebUrl(d, 'imageUrl')
+            && optS(d, 'sourceName', 0, 100)
+            && optS(d, 'description', 0, 2000)
+            && optInt(d, 'servings', 0, 10000) && optS(d, 'servingsText', 0, 100)
+            && optInt(d, 'prepMinutes', 0, 1000000) && optInt(d, 'cookMinutes', 0, 1000000)
+            && optInt(d, 'totalMinutes', 0, 1000000)
+            // Ingredients and steps are lists of maps, which the rules cannot walk: only their number is checked.
+            && d.get('ingredients', []) is list && d.get('ingredients', []).size() <= 100
+            && d.get('steps', []) is list && d.get('steps', []).size() <= 100
+            && optS(d, 'notes', 0, 5000)
+            && optStrList(d, 'tags', 8, 8 * 40)
+            && optBool(d, 'favorite')
+            && optInt(d, 'rating', 0, 100)
+            && (d.get('importMethod', null) == null || d.importMethod in ['manual', 'web']);
+        }
+        allow read: if isMember(hid);
+        allow create, update: if memberWriteOk(hid) && recipeOk();
+        allow delete: if isOwner(hid);
       }
       // After v1 (DESIGN 5.9): one planned meal per document. Any member plans; cooks are member uids (not
       // checked against the member list, which would cost a read per cook).
       match /meals/{id} {
         function mealOk() {
           let m = request.resource.data;
-          return m.date is string && m.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          return m.keys().hasOnly(['date', 'slot', 'position', 'recipeId', 'title', 'servings', 'cooks', 'note',
+                'cookedAt', 'cookedBy'].concat(auditFields()))
+            && m.date is string && m.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             && m.slot in ['breakfast', 'lunch', 'dinner']
             && m.position is int
             && s(m.title, 1, 120)
             && (m.recipeId == null || s(m.recipeId, 1, 100))
             && (m.servings == null || (m.servings is int && m.servings >= 1 && m.servings <= 100))
-            && m.cooks is list && m.cooks.size() <= 20
+            && m.cooks is list && m.cooks.size() <= 20 && m.cooks.join('').size() <= 20 * 128
             && (m.note == null || s(m.note, 1, 200))
             // Cooked (after v1): set by the writer at server time, cleared together, or left as it was.
             && ((m.get('cookedAt', null) == null && m.get('cookedBy', null) == null)
@@ -236,12 +409,33 @@ service cloud.firestore {
               || (resource != null && m.cookedAt == resource.data.get('cookedAt', null)
                 && m.cookedBy == resource.data.get('cookedBy', null)));
         }
-        allow read, delete: if isMember(hid);
-        allow create, update: if isMember(hid) && stamped() && tombstoneOk() && mealOk();
+        allow read: if isMember(hid);
+        allow create, update: if memberWriteOk(hid) && mealOk();
+        allow delete: if isOwner(hid);
       }
       match /activity/{id} {
+        function paramsOk(p) {
+          return p is map
+            && p.keys().hasOnly(['name', 'quantity', 'reason', 'listName', 'count'])
+            && optS(p, 'name', 0, 200)
+            && (p.get('quantity', null) == null || (p.quantity is number && p.quantity >= 0 && p.quantity <= 1000000000))
+            && (p.get('reason', null) == null || p.reason in ['expired', 'spoiled', 'didnt_like', 'other'])
+            && optS(p, 'listName', 0, 60)
+            && optInt(p, 'count', 0, 1000);
+        }
         allow read: if isMember(hid);
-        allow create: if isMember(hid) && request.resource.data.actorUid == me()
+        // The author is the writer; apps show names from the member list by actorUid (actorName is kept for people
+        // who have left).
+        allow create: if isMember(hid)
+          && request.resource.data.keys().hasOnly(['type', 'actorUid', 'actorName', 'productId', 'recipeId', 'params',
+               'createdAt'])
+          && request.resource.data.type in ['stock_added', 'grocery_added', 'grocery_checked', 'recipe_saved',
+               'member_joined', 'discarded', 'recipe_cooked', 'household_reset']
+          && request.resource.data.actorUid == me()
+          && s(request.resource.data.actorName, 1, 40)
+          && optS(request.resource.data, 'productId', 1, 100)
+          && optS(request.resource.data, 'recipeId', 1, 100)
+          && paramsOk(request.resource.data.get('params', {}))
           && request.resource.data.createdAt == request.time;
         // The owner deletes everything with the household; anyone may remove their own event (Undo of
         // Throw away, deviation). Routine pruning uses the Admin SDK.

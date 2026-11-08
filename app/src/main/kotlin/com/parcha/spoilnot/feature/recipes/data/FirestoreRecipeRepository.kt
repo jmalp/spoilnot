@@ -7,12 +7,15 @@ import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.write.ReadCaps
+import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
 import com.parcha.spoilnot.feature.recipes.domain.Ingredient
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeBoxData
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeRepository
+import com.parcha.spoilnot.feature.recipes.domain.SourceUrl
 import com.parcha.spoilnot.feature.recipes.domain.Step
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -56,14 +59,15 @@ class FirestoreRecipeRepository @Inject constructor(
             "importMethod" to c.importMethod.wire,
         )
 
-        // New fields are optional on read with defaults (DESIGN 8.1).
+        // New fields are optional on read with defaults (DESIGN 8.1). Links and photos other than http and https are
+        // dropped, as the app never writes them (DESIGN 11.3): another client's data is not trusted.
         fun DocumentSnapshot.toRecipe() = Recipe(
             id = id,
             content = RecipeContent(
-                title = getString("title").orEmpty(),
-                sourceUrl = getString("sourceUrl"),
+                title = getString("title").orEmpty().capTo(ReadCaps.RECIPE_TITLE),
+                sourceUrl = getString("sourceUrl")?.takeIf { SourceUrl.isWebUrl(it) },
                 sourceName = getString("sourceName"),
-                imageUrl = getString("imageUrl"),
+                imageUrl = getString("imageUrl")?.takeIf { SourceUrl.isWebUrl(it) },
                 description = getString("description"),
                 servings = getLong("servings")?.toInt(),
                 servingsText = getString("servingsText"),

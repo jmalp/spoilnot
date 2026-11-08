@@ -57,6 +57,16 @@ object ActivityFeed {
         val reset = events.indexOfFirst { it.type == ActivityType.HouseholdReset }
         return if (reset < 0) events else events.take(reset + 1)
     }
+
+    /**
+     * [events] with each author's name from the member list ([names], uid to display name), so a line always names
+     * who wrote it (the rules check `actorUid`, not the stored `actorName`). Someone who has left keeps the name
+     * stored with the event.
+     */
+    fun named(events: List<ActivityEvent>, names: Map<String, String>): List<ActivityEvent> = events.map { event ->
+        val name = names[event.actorUid]
+        if (name == null || name == event.actorName) event else event.copy(actorName = name)
+    }
 }
 
 interface ActivityRepository {

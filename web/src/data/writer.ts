@@ -2,7 +2,7 @@
 import { collection, doc, writeBatch, type Firestore, type WriteBatch } from 'firebase/firestore';
 import { Subject, type Observable } from 'rxjs';
 import type { AppError } from '../core/errors';
-import type { Actor, HouseholdChange, HouseholdWriter } from '../domain/write';
+import { planBatches, type Actor, type HouseholdChange, type HouseholdWriter } from '../domain/write';
 import type { FirebaseSdk } from './firebase';
 import { toAppError } from './firestore-rx';
 
@@ -10,9 +10,6 @@ import { toAppError } from './firestore-rx';
 export interface ChangeMapper {
   write(batch: WriteBatch, db: Firestore, householdId: string, actor: Actor, change: HouseholdChange): boolean;
 }
-
-/** DESIGN 8.5: chunk batched writes at 400 operations. */
-const BATCH_LIMIT = 400;
 
 export class FirestoreHouseholdWriter implements HouseholdWriter {
   private readonly errors = new Subject<AppError>();
@@ -30,9 +27,10 @@ export class FirestoreHouseholdWriter implements HouseholdWriter {
   /** Returns once the changes are in the local cache; a later rejection by the server arrives on errors$. */
   async apply(householdId: string, actor: Actor, changes: HouseholdChange[]): Promise<void> {
     const db = this.sdk.current;
-    for (let i = 0; i < changes.length; i += BATCH_LIMIT) {
+    // Counts go one step per write (DESIGN 8.5), so a plan may need more batches than its size alone.
+    for (const chunk of planBatches(changes)) {
       const batch = writeBatch(db);
-      for (const change of changes.slice(i, i + BATCH_LIMIT)) {
+      for (const change of chunk) {
         if (!this.mappers.some((m) => m.write(batch, db, householdId, actor, change))) {
           throw new Error(`No mapper for ${change.type}`);
         }

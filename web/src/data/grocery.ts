@@ -30,6 +30,7 @@ import type { FirebaseSdk } from './firebase';
 import { mapped, querySnapshots, retryAfterOwnWrites } from './firestore-rx';
 import { activity } from './pantry';
 import type { ChangeMapper } from './writer';
+import { capTo, ReadCaps } from '../domain/caps';
 
 export const lists = (hid: string) => `households/${hid}/groceryLists`;
 export const items = (hid: string, listId: string) => `households/${hid}/groceryLists/${listId}/items`;
@@ -37,11 +38,11 @@ export const items = (hid: string, listId: string) => `households/${hid}/grocery
 const num = (value: unknown): number | null => (typeof value === 'number' ? value : null);
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-function toList(s: DocumentSnapshot): GroceryList {
+export function toList(s: DocumentSnapshot): GroceryList {
   const order = (s.get('aisleOrder') as unknown[] | null) ?? [];
   return {
     id: s.id,
-    name: text(s.get('name')) ?? '',
+    name: capTo(text(s.get('name')) ?? '', ReadCaps.LIST_NAME),
     isDefault: s.get('isDefault') === true,
     aisleOrder: order.filter((c): c is Category => (CATEGORIES as readonly unknown[]).includes(c)),
   };
@@ -53,7 +54,7 @@ export function toItem(s: DocumentSnapshot): GroceryItem {
   const category = s.get('category');
   return {
     id: s.id,
-    name: text(s.get('name')) ?? '',
+    name: capTo(text(s.get('name')) ?? '', ReadCaps.NAME),
     nameKey: text(s.get('nameKey')) ?? '',
     quantity: num(s.get('quantity')),
     unit: typeof unit === 'string' ? unitOf(unit) : null,
