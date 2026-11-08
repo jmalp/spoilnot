@@ -181,7 +181,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     without a household on either phone: the gate's menu has Delete account; a wrong password says so in the
     dialog; the right one shows Welcome, and signing in with that account then fails. A test notification still
     opens the Pantry on Expiring soon (notification links stay on this site).
-39. Deleting offline (Android and the iPhone web app, after v1): with a few grocery items and a pantry item, turn on
+39. Rules of 2026-11-08 (both apps on spoilnot-dev after the rules are deployed there, RUNBOOK): with two expired
+    batches, throw both away at once: no "You don't have permission to do that.", Insights' month counts both, and
+    Undo puts both batches and the count back. I cooked this on a recipe that uses up two whole batches: both go,
+    Insights counts two used, Undo puts them back. As a member (not the owner), delete a list with items: it goes on
+    both phones, and Recent activity names each person as the member list does. On a spare household, transfer
+    ownership, then delete the household as the new owner. Repeat on the iPhone.
+40. Deleting offline (Android and the iPhone web app, after v1): with a few grocery items and a pantry item, turn on
     Airplane Mode. Delete a grocery item: it disappears at once; Undo brings it back. Check off two items and Add to
     pantry: the In cart section and the Add to pantry button disappear at once, and the items show in the Pantry with
     "Waiting to sync". Used up on a pantry item: it disappears. Turn Airplane Mode off: within a minute the icons go,
