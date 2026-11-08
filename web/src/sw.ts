@@ -23,12 +23,12 @@ self.addEventListener('push', (event) => {
   } catch {
     // Not JSON: the notification still shows, with the app's name.
   }
-  const { title, options } = notificationFor(payload);
+  const { title, options } = notificationFor(payload, self.location.origin);
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const route = safeRoute((event.notification.data as { route?: unknown } | null)?.route);
+  const route = safeRoute((event.notification.data as { route?: unknown } | null)?.route, self.location.origin);
   event.waitUntil(openRoute(self.clients, route, self.location.origin));
 });

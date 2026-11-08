@@ -7,15 +7,22 @@ type PushPayload = { notification?: Record<string, unknown>; data?: Record<strin
 
 const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined);
 
-/** Only a path on this site, so a push can never send the app elsewhere. */
-export function safeRoute(route: unknown): string {
-  return typeof route === 'string' && route.startsWith('/') && !route.startsWith('//') && !route.includes('\\')
-    ? route
-    : '/';
+/**
+ * Only a path on this site, so a push can never send the app elsewhere: [route] is read as a URL on [origin] (as
+ * the browser will open it), and only its path and query are kept when it stays there.
+ */
+export function safeRoute(route: unknown, origin: string): string {
+  if (typeof route !== 'string' || route === '') return '/';
+  try {
+    const url = new URL(route, origin);
+    return url.origin === origin ? `${url.pathname}${url.search}` : '/';
+  } catch {
+    return '/';
+  }
 }
 
 /** The notification for a push: the digest's title and body, its tag (a newer digest replaces the older one). */
-export function notificationFor(payload: unknown): { title: string; options: NotificationOptions } {
+export function notificationFor(payload: unknown, origin: string): { title: string; options: NotificationOptions } {
   const { notification = {}, data = {} } = (payload && typeof payload === 'object' ? payload : {}) as PushPayload;
   return {
     title: text(notification.title) ?? 'Spoil Not',
@@ -23,7 +30,7 @@ export function notificationFor(payload: unknown): { title: string; options: Not
       body: text(notification.body) ?? '',
       tag: text(notification.tag) ?? 'expiry_digest',
       icon: text(notification.icon) ?? '/icons/icon-192.png',
-      data: { route: safeRoute(data.route) },
+      data: { route: safeRoute(data.route, origin) },
     },
   };
 }

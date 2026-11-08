@@ -72,6 +72,8 @@ export class SessionManager {
   private lastHouseholdId: string | null = null;
   private current: Session = LOADING;
   private readonly subscription: Subscription;
+  /** See [deleteFailure]. */
+  private failedDeletion: unknown = null;
 
   readonly session$: Observable<Session>;
 
@@ -102,6 +104,20 @@ export class SessionManager {
 
   get session(): Session {
     return this.current;
+  }
+
+  /**
+   * Why the last Delete account failed after it had started deleting, or null. By then Loading has replaced the
+   * screen that asked, so the household gate shows this when the failed deletion leaves the user there (it had
+   * already left the household, or never had one). Cleared by the next attempt, [dismissDeleteFailure], or a session
+   * in a household or signed out, where no screen would show it.
+   */
+  get deleteFailure(): unknown {
+    return this.failedDeletion;
+  }
+
+  dismissDeleteFailure(): void {
+    this.failedDeletion = null;
   }
 
   dispose(): void {
@@ -139,6 +155,7 @@ export class SessionManager {
    * The sign-in is refreshed only at the very end if Firebase requires it, after all Firestore writes.
    */
   async deleteAccount(password: string): Promise<void> {
+    this.failedDeletion = null;
     const uid = this.auth.currentUser()?.uid;
     if (!uid) return;
     const current = await firstValueFrom(
@@ -165,6 +182,9 @@ export class SessionManager {
         await this.auth.reauthenticate(password);
         await this.auth.deleteAccount();
       }
+    } catch (error) {
+      this.failedDeletion = error ?? new AppError('unknown');
+      throw error;
     } finally {
       this.pendingDisplayName = null;
       this.lastHouseholdId = null;
@@ -242,6 +262,7 @@ export class SessionManager {
     switch (session.kind) {
       case 'inHousehold':
         this.lastHouseholdId = session.householdId;
+        this.failedDeletion = null;
         break;
       case 'noHousehold':
         if (this.lastHouseholdId !== null) {
@@ -251,6 +272,7 @@ export class SessionManager {
         break;
       case 'signedOut':
         this.lastHouseholdId = null;
+        this.failedDeletion = null;
         break;
       case 'loading':
         break;

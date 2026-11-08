@@ -8,8 +8,10 @@ import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.WriteBatch
+import com.parcha.spoilnot.core.cache.DeviceCaches
 import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.core.firebase.commitConfirmed
@@ -431,6 +433,21 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
     }
 }
 
-class FirestoreLocalData @Inject constructor(private val firestore: FirestoreProvider) : LocalData {
-    override suspend fun clear() = firestore.clearLocalData()
+/**
+ * The phone's copy of household data: Firestore's cache, the sync log that names its collections, and the browser
+ * data and photos kept from using the app ([DeviceCaches]).
+ */
+class FirestoreLocalData @Inject constructor(
+    private val firestore: FirestoreProvider,
+    private val syncLog: SyncLog,
+    private val caches: DeviceCaches,
+) : LocalData {
+    override suspend fun clear() {
+        try {
+            firestore.clearLocalData()
+        } finally {
+            syncLog.clear()
+            caches.clear()
+        }
+    }
 }

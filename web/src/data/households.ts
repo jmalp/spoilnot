@@ -27,7 +27,7 @@ import {
   type Role,
 } from '../domain/household';
 import type { Actor } from '../domain/write';
-import { Tombstones } from './delta-sync';
+import { Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import {
   commitConfirmed,
@@ -411,9 +411,17 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
   }
 }
 
+/** The household's copy in this browser: Firestore's cache, and the sync log that names its collections. */
 export class FirestoreLocalData implements LocalData {
-  constructor(private readonly sdk: FirebaseSdk) {}
-  clear(): Promise<void> {
-    return this.sdk.clearLocalData();
+  constructor(
+    private readonly sdk: FirebaseSdk,
+    private readonly log: SyncLog,
+  ) {}
+  async clear(): Promise<void> {
+    try {
+      await this.sdk.clearLocalData();
+    } finally {
+      this.log.clear();
+    }
   }
 }

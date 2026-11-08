@@ -1,6 +1,6 @@
 // Reminder settings and this phone's push registration (DESIGN 10.2, 18.4), ported from NotificationModels.kt and
 // DeviceSync.kt.
-import { distinctUntilChanged, filter, map, type Observable, type Subscription } from 'rxjs';
+import { concatMap, distinctUntilChanged, filter, map, type Observable, type Subscription } from 'rxjs';
 import type { DeviceRegistry } from './household';
 import type { Session } from './session';
 
@@ -65,9 +65,35 @@ export interface NotificationPrefsRepository {
 const signedInUid = (session: Session): string | null =>
   session.kind === 'inHousehold' || session.kind === 'noHousehold' ? session.user.uid : null;
 
+/** This browser's push identity (PushIdentity in the app); `FcmPushIdentity` in src/data, a fake in tests. */
+export interface PushIdentity {
+  /** The id that names this browser's device document. */
+  installId(): string;
+  /** The FCM token, or null where this browser cannot get one (no permission, Push API, service worker or key). */
+  token(): Promise<string | null>;
+  /** Deletes the token, if there is one, so FCM rejects sends to it. Rejects when that could not be done. */
+  deleteToken(): Promise<void>;
+}
+
+/** A yes or no kept in this browser's own storage, outside Firestore (whose copy sign-out wipes). */
+export interface StoredFlag {
+  get(): boolean;
+  set(on: boolean): void;
+}
+
+/** How long a token delete may take before it waits for the next start. */
+export const TOKEN_DELETE_TIMEOUT_MS = 5_000;
+
 /**
  * Registers this phone for digests once per signed-in user per app start, and again when the user allows
  * notifications (the app's onNewToken: on the web a token exists only after the permission).
+ *
+ * When a user leaves this phone (sign-out, account deletion, or Firebase signing them out) it deletes the push
+ * token (DESIGN 10.2, 18.4), so a device document the sign-out could not delete holds a token FCM rejects and the
+ * reminder job removes. [tokenToDelete] is set first and cleared only once the delete is confirmed; while it is set,
+ * every start deletes the token before anything else, so a phone signed out offline stops getting digests at its
+ * next start online. A start with nobody signed in and nothing to delete loads nothing. The steps run one at a time,
+ * so a sign-in right after a start registers only once the old token is gone.
  */
 export class DeviceSync {
   private subscription: Subscription | null = null;
@@ -76,20 +102,28 @@ export class DeviceSync {
   constructor(
     private readonly session$: Observable<Session>,
     private readonly registry: DeviceRegistry,
+    private readonly push: PushIdentity,
+    private readonly tokenToDelete: StoredFlag,
+    private readonly timeoutMs = TOKEN_DELETE_TIMEOUT_MS,
   ) {}
 
   start(): void {
     if (this.subscription) return;
+    let previous: string | null | undefined;
     this.subscription = this.session$
       .pipe(
+        // A Loading moment (listeners reconnecting, a sign-out in progress) is not a change of user.
+        filter((session) => session.kind !== 'loading'),
         map(signedInUid),
         distinctUntilChanged(),
-        filter((uid): uid is string => {
+        concatMap((uid) => {
+          const userLeft = previous != null;
+          previous = uid;
           this.uid = uid;
-          return uid !== null;
+          return this.step(uid, userLeft);
         }),
       )
-      .subscribe((uid) => void this.registry.sync(uid).catch(() => undefined));
+      .subscribe();
   }
 
   /** After the user allows notifications. */
@@ -100,5 +134,28 @@ export class DeviceSync {
   stop(): void {
     this.subscription?.unsubscribe();
     this.subscription = null;
+  }
+
+  private async step(uid: string | null, userLeft: boolean): Promise<void> {
+    if (userLeft) this.tokenToDelete.set(true);
+    if (this.tokenToDelete.get()) await this.deleteToken();
+    if (uid !== null) await this.registry.sync(uid).catch(() => undefined);
+  }
+
+  private async deleteToken(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        this.push.deleteToken(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timeout')), this.timeoutMs);
+        }),
+      ]);
+      this.tokenToDelete.set(false);
+    } catch {
+      // Offline, or FCM did not answer in time: the flag stays, and the next start tries again.
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

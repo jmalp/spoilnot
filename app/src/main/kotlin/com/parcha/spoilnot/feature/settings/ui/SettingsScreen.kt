@@ -46,6 +46,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.PasswordField
+import com.parcha.spoilnot.feature.household.ui.DeleteAccountDialog
 import com.parcha.spoilnot.feature.notifications.ui.formatHour
 
 @Composable
@@ -300,30 +301,6 @@ private fun PasswordConfirmDialog(
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.testTag("clear_household_confirm"),
             ) { Text(action) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
-}
-
-@Composable
-private fun DeleteAccountDialog(busy: Boolean, error: Int?, onDismiss: () -> Unit, onDelete: (String) -> Unit) {
-    var password by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.delete_account_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.delete_account_body))
-                PasswordField(value = password, onValueChange = { password = it }, onImeAction = { onDelete(password) })
-                ErrorText(error?.let { stringResource(it) })
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onDelete(password) },
-                enabled = !busy && password.isNotEmpty(),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) { Text(stringResource(R.string.action_delete)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )

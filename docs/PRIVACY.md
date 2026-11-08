@@ -19,14 +19,22 @@ requests after 7 days, and deleted items after 2 days (until then they wait as m
 It runs once each day, in the reminder job's first run of the UTC day; if it fails, the next run tries again.
 
 Firestore stores data in the `us-east1` region. The phone keeps an offline copy of the household's data, which is
-cleared when you sign out, leave a household or are removed from it. While nobody is signed in, the Android app also
-deletes its notification token, so the phone gets no reminders even if its device record could not be removed when
-you signed out (for example without a connection). Spoil Not for iPhone (the web app, after v1)
-does the same in the browser's storage on the phone (IndexedDB): the sign-in and the household's offline copy, cleared
-the same way. Its theme, colors, a random id for its device record and whether it explained notifications stay in
-the browser's storage on that phone; it sends no crash reports. Its notification token (from Firebase Cloud Messaging,
-delivered through Apple's web push service) is stored like the Android app's, and deleted when you sign out. Its
-Export saves the file on the phone; nothing is uploaded.
+cleared when you sign out, delete your account, leave a household or are removed from it. Cleared with it: the
+record of when each list was last read in full (it names the household's lists), and on Android the built-in
+browser's cookies, site storage, saved sign-ins and cache (so nobody stays signed in to a recipe site) and the cached
+recipe photos. While nobody is signed in, the Android app also deletes its notification token, so the phone gets no
+reminders even if its device record could not be removed when you signed out (for example without a connection).
+What stays on an Android phone after sign-out: the theme, colors, crash-report choice, whether you finished the app
+tour or saw the notification explanation, and its Firebase installation ID (Firebase's id for the app on that phone).
+
+Spoil Not for iPhone (the web app, after v1) does the same in the browser's storage on the phone (IndexedDB and
+localStorage): the sign-in, the household's offline copy and the record of full reads, cleared the same way. Its
+theme, colors, text size, a random id for its device record, whether it explained notifications or how to add it to
+the Home Screen, and, until its notification token is confirmed deleted, a "token to delete" mark stay in the
+browser's storage on that phone; it sends no crash reports. Its notification token (from Firebase Cloud Messaging,
+delivered through Apple's web push service) is stored like the Android app's, and deleted when you sign out or
+delete your account; without a connection it is deleted the next time the app opens online, before anyone signs in
+again. Its Export saves the file on the phone; nothing is uploaded.
 
 ## Who can see it
 

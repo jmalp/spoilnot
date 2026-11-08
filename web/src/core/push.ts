@@ -1,5 +1,5 @@
 // Whether this phone can show Spoil Not's notifications, and asking for them (DESIGN 5.4, 18.4). Browser APIs
-// only; the push token is the data layer's (FcmDeviceRegistry).
+// only; the push token is the data layer's (FcmPushIdentity).
 import { DeepLinks } from './deepLinks';
 import { str } from './i18n';
 import { isIos } from './install';

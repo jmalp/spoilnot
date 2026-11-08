@@ -83,6 +83,13 @@ fun HouseholdGateScreen(
                                 viewModel.signOut()
                             },
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_delete_account)) },
+                            onClick = {
+                                menuOpen = false
+                                viewModel.openDeleteAccount()
+                            },
+                        )
                     }
                 },
             )
@@ -113,6 +120,15 @@ fun HouseholdGateScreen(
                 }
             }
         }
+    }
+
+    if (state.deletingAccount) {
+        DeleteAccountDialog(
+            busy = state.busy,
+            error = state.deleteError,
+            onDismiss = viewModel::dismissDeleteAccount,
+            onDelete = viewModel::deleteAccount,
+        )
     }
 
     state.confirm?.let { invite ->
