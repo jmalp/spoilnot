@@ -153,6 +153,16 @@ To make older builds stop working until updated, raise `minSupportedBuild` in Fi
 `minSupportedBuild` to that release's `versionCode`. Older builds show deleted items again (tombstones) and delete
 without leaving one, so they must update.
 
+**The web app's counterpart is `minWebBuild`** in the same document (DESIGN 18.5). A change that older web builds
+must not keep running raises `WEB_BUILD` in `web/src/core/version.ts` by one (its PR says so). After that build is
+deployed to spoilnot-prod (`./scripts/deploy-web.sh prod`), set `minWebBuild` in `config/app` (spoilnot-prod) to that
+number, as a number (Firestore console > `config` > `app` > Add field, type number; the field may not exist yet).
+Do the same in spoilnot-dev after deploying there. Never set it before the deploy: phones would look for a version
+that is not there. Then check on an iPhone that still has the old build (QA flow 36): open Spoil Not from the Home
+Screen, signed in to a household, or bring it back to the front; within a few seconds "A new version of Spoil Not is
+ready" shows and stays past 10 seconds until Update; after Update, Settings > About shows the new build number. If
+the prompt never comes, check Hosting's release history for the deploy.
+
 **New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
 
 ```bash
@@ -335,8 +345,8 @@ daily writes spread between opens, each logging an activity event, 10 of them fi
 
 So the free plan holds **about 17 households** of this size under the 70% warning line (reads run out first).
 Other runs: `RUNS=72` (every scheduled run starts) 22,372 reads, about 15.6 households, since each run reads every
-user with reminders on; `RUNS=15` 20,035, about 17.5; `WEB=2` (two web phones per household, no update gate) 160
-fewer reads.
+user with reminders on; `RUNS=15` 20,035, about 17.5; `WEB=2` (two web phones per household) the same reads, since
+the web app also reads `config/app` (DESIGN 18.5).
 
 History: before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and 19,320 before
 Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner left it at 19,440; part 3

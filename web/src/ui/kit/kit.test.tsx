@@ -5,6 +5,7 @@ import {
   Dialog,
   FilterChip,
   IconButton,
+  INDEFINITE,
   Segmented,
   SnackbarProvider,
   TextField,
@@ -76,6 +77,40 @@ describe('kit', () => {
     expect(update).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status')).toBeNull();
     unmount();
+  });
+
+  it('a snackbar without a time limit stays until its action, and lets an Undo show first', () => {
+    const update = vi.fn();
+    const undo = vi.fn();
+    function Trigger() {
+      const snackbars = useSnackbars();
+      return (
+        <>
+          <button onClick={() => snackbars.showAction('A new version is ready', 'Update', update, INDEFINITE)}>
+            update
+          </button>
+          <button onClick={() => snackbars.showUndo('Removed Milk', undo)}>remove</button>
+        </>
+      );
+    }
+    render(
+      <SnackbarProvider>
+        <Trigger />
+      </SnackbarProvider>,
+    );
+    fireEvent.click(screen.getByText('update'));
+    act(() => vi.advanceTimersByTime(60 * 60 * 1000));
+    expect(screen.getByRole('status')).toHaveTextContent('A new version is ready');
+    // An Undo takes its place for its 8 seconds, then the prompt comes back.
+    fireEvent.click(screen.getByText('remove'));
+    expect(screen.getByRole('status')).toHaveTextContent('Removed Milk');
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS));
+    expect(screen.getByRole('status')).toHaveTextContent('A new version is ready');
+    act(() => vi.advanceTimersByTime(60_000));
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+    expect(update).toHaveBeenCalledOnce();
+    expect(undo).not.toHaveBeenCalled();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('a dialog dismisses on Escape', () => {

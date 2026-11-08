@@ -16,6 +16,7 @@ import type { HouseholdExporter } from '../domain/settings/export';
 import type { DeviceSync, NotificationPrefsRepository } from '../domain/notifications';
 import type { Session, SessionManager } from '../domain/session';
 import type { Clock } from '../domain/time';
+import type { AppConfigRepository } from '../domain/updates';
 import type { HouseholdWriter } from '../domain/write';
 import type { AppPreferences, Preferences } from './preferences';
 
@@ -45,6 +46,8 @@ export type Services = {
   deviceSync: DeviceSync;
   /** Settings > Data > Export (DESIGN 13.4). */
   exporter: HouseholdExporter;
+  /** config/app: the oldest web build the data still supports (DESIGN 18.5). */
+  appConfig: AppConfigRepository;
   /** Theme, colors and the notification explanation, kept on this phone. */
   preferences: AppPreferences;
   clock: Clock;

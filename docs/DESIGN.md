@@ -601,6 +601,7 @@ households/{hid}/stats/{yyyy-MM}:     # after v1: Insights counts for one month 
 
 config/app:                           # read-only for clients; edited in the console
   minSupportedBuild: int
+  minWebBuild: int                    # after v1: the oldest web build (WEB_BUILD) the data supports (18.5)
   message: string
 ```
 
@@ -1296,6 +1297,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-08 | Reminder job: three schedule entries an hour (minutes 7, 27, 47), still one digest a day per user; the daily prune runs in the first run of each UTC day, keyed on `jobs/state.lastPruneDate`, which the summary prints; a failed household or user is counted and the run carries on, then exits non-zero. The job reads devices first (at most the 10 newest), caps the stock query at 500, sends in chunks of 500, marks a user done for the day after 3 runs without a delivery, deletes a token only when FCM says it is unregistered or invalid, cuts names to 80 characters and the body to 1,000 bytes, and decides the title by distinct names. quota-sim counts events, housekeeping reads and deletes and has `RUNS` and `WEB` knobs: about 17 households. Plan B (Cloud Functions) closed | 9.7, 9.8, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-11-08 | Instrumented tests cancel each Hilt test's application scope after it (`TestCoroutinesModule`, `ReleaseAppScopes` added by `HiltTestRunner`), so no earlier test's `SessionManager` clears local data and terminates the shared Firestore under a later one; this made `SettingsAccountUiTest.deleteAccountRemovesProfileDevicesMembershipAndSignIn` time out in the full run. `AppScopeReleaseTest` guards it | 13.1, DECISIONS |
 | 2026-11-08 | What stays on a phone after sign-out: both apps clear the sync log with the local data, and Android also clears the built-in browser's cookies, site storage and cache and the cached recipe photos. The web app deletes its push token when a user leaves the phone, keeping a flag until FCM confirms so a phone signed out offline deletes it at its next start. Notification links stay on this site (`safeRoute` resolves the route on the app's origin). Both household gates offer Delete account, and a deletion that fails after the gate gave way to Loading shows its error when the gate comes back | 5.1, 6, 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
+| 2026-11-08 | Web updates: the web app asks for a new version whenever it becomes visible, at most once an hour, and reads `config/app.minWebBuild`; when its build number (`WEB_BUILD`, shown in About) is older, it looks at once and the Update snackbar stays until Update. The owner raises `minWebBuild` after a web deploy that older builds must not keep running. quota-sim counts the web's `config/app` listener | 8.2, 18.5, RUNBOOK, QA |
 
 ## 18. Web app for iPhone (after v1)
 
@@ -1402,7 +1404,16 @@ Web Push certificates) is a human step; its public key goes in the web build's c
 **18.5 Offline, install and updates.** A service worker caches the app shell so it opens offline; a web manifest
 gives the name, the launcher icon (rendered from the adaptive icon) and theme colors. A new version is fetched in the
 background and offered with a snackbar for 10 s (Update, which reloads; otherwise it starts with the next launch).
-`minSupportedBuild` (5.6) does not apply: the web app is always the latest version. In Safari on an iPhone, the
+The browser looks for one only when the app is loaded, and a Home Screen app can stay in memory for days, so the app
+also asks (`workbox.update()`) whenever it becomes visible, at most once an hour (`UpdateChecks` in
+`web/src/domain/updates.ts`). `minSupportedBuild` does not apply to the web app; its counterpart is
+`config/app.minWebBuild` (8.2), compared with the build number `WEB_BUILD` in `web/src/core/version.ts`, which a change
+raises by one when older web builds must not keep running (one that changes what the app writes or what stored data
+means). Settings > About shows it with the commit ("build 1 (3f09a54)"). While the app is open in a household it
+listens to `config/app`; when `WEB_BUILD` is older than `minWebBuild` it looks for the new version at once and at every
+visit until one waits, and the Update snackbar then stays until Update is tapped (another message, such as an Undo,
+shows first and the prompt comes back after it). A missing or unreadable document, or a field that is not a whole
+number, never asks for an update. The owner sets `minWebBuild` after the web deploy (docs/RUNBOOK.md). In Safari on an iPhone, the
 welcome screen says how to install (Share, then Add to Home Screen) and Home shows a card about it until Not now; the
 app opened from the Home Screen shows neither.
 
