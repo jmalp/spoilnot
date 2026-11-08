@@ -646,6 +646,13 @@ describe('config', () => {
   });
 });
 
+describe('the reminder job\'s state', () => {
+  it('jobs/state (the daily prune date, DESIGN 10.1) is neither readable nor writable by clients', async () => {
+    await assertFails(getDoc(doc(as('alice'), 'jobs/state')));
+    await assertFails(setDoc(doc(as('alice'), 'jobs/state'), { lastPruneDate: '2099-01-01' }));
+  });
+});
+
 describe('recipes', () => {
   it('enforce the import limits: title up to 200, at most 100 ingredients and 100 steps', async () => {
     const ref = doc(as('bob'), `households/${HID}/recipes/r1`);

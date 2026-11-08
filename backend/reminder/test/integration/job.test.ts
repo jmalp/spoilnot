@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { PLAN_ROUTE, runJob, ROUTE, WEB_ICON, type Message, type Sender } from '../../src/job.ts';
+import {
+  MAX_DEVICES, MAX_SEND_ATTEMPTS, MAX_STOCK, PLAN_ROUTE, runJob, ROUTE, STATE_DOC, WEB_ICON, type Message, type Sender,
+} from '../../src/job.ts';
 
 const PROJECT = 'demo-reminder-test';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -140,6 +142,10 @@ describe('reminder job against the emulator', () => {
     assert.equal((await db.doc('households/h1/stock/old-gone').get()).exists, false);
     assert.equal((await db.doc('households/h1/activity/new').get()).exists, true);
     assert.equal((await db.doc('households/h1/joinRequests/fresh').get()).exists, true);
+    assert.equal(summary.pruned, true);
+    assert.equal(summary.lastPruneDate, '2026-10-12');
+    assert.equal(summary.failures, 0);
+    assert.equal((await db.doc(STATE_DOC).get()).get('lastPruneDate'), '2026-10-12');
   });
 
   it('a second run on the same day sends nothing', async () => {
@@ -266,5 +272,183 @@ describe('reminder job against the emulator', () => {
     const sender = new RecordingSender();
     await runJob(db, sender, { now: NOW, prune: false });
     assert.equal(sender.sent.some((m) => m.token.startsWith('frank')), false);
+  });
+
+  it('three runs an hour: one digest per user a day, and one prune, in the day\'s first run', async () => {
+    await db.doc(STATE_DOC).set({ lastPruneDate: '2026-10-11' });
+    const sender = new RecordingSender();
+    const pruned: string[] = [];
+    // Every scheduled start from 00:07 to 23:47 UTC on 2026-10-12 (9:00 in New York is 13:00 UTC).
+    for (let h = 0; h < 24; h++) {
+      for (const m of [7, 27, 47]) {
+        const now = new Date(Date.UTC(2026, 9, 12, h, m));
+        const summary = await runJob(db, sender, { now });
+        assert.equal(summary.failures, 0);
+        if (summary.pruned) pruned.push(now.toISOString());
+      }
+    }
+    assert.deepEqual(pruned, ['2026-10-12T00:07:00.000Z']);
+    // Per device and local date: 00:07 UTC is still 11 October in New York, so alice also gets that day's digest.
+    const perDay = new Map<string, number>();
+    for (const m of sender.sent) perDay.set(`${m.token} ${m.data.date}`, (perDay.get(`${m.token} ${m.data.date}`) ?? 0) + 1);
+    assert.deepEqual(Object.fromEntries(perDay), {
+      'alice-token-1234567890 2026-10-11': 1,
+      'alice-web-token-1234567890 2026-10-11': 1,
+      'dead-token 2026-10-11': 1,
+      'erin-token-1234567890 2026-10-12': 1,
+      'alice-token-1234567890 2026-10-12': 1,
+      'alice-web-token-1234567890 2026-10-12': 1,
+    });
+  });
+
+  it('a send that throws costs only that user this run; the other households still get theirs', async () => {
+    // Appendix E of the reliability review: three households due, the first send throws.
+    const batch = db.batch();
+    for (const [uid, hid] of [['a-first', 'hh-a'], ['b-second', 'hh-b'], ['c-third', 'hh-c']] as const) {
+      batch.set(db.doc(`users/${uid}`), { householdId: hid, timezone: 'America/New_York', notificationPrefs: prefs });
+      batch.set(db.doc(`users/${uid}/devices/d1`), { token: `tok-${uid}-1234567890`, platform: 'android' });
+      batch.set(db.doc(`households/${hid}/members/${uid}`), { role: 'owner', displayName: uid });
+      batch.set(db.doc(`households/${hid}/stock/s1`), { productName: 'Milk', expiryDate: '2026-10-13', dateType: 'use_by', quantity: 1 });
+    }
+    await batch.commit();
+    let calls = 0;
+    const sent: Message[] = [];
+    const lines: string[] = [];
+    const throwing: Sender = {
+      async sendEach(messages) {
+        if (++calls === 1) throw Object.assign(new Error('fcm timeout for tok-a-first'), { code: 'app/network-timeout' });
+        sent.push(...messages);
+        return messages.map(() => ({ success: true, deadToken: false }));
+      },
+    };
+    const summary = await runJob(db, throwing, { now: NOW, prune: false, log: (l) => lines.push(l) });
+
+    assert.equal(summary.failures, 1);
+    assert.ok(sent.some((m) => m.token.startsWith('tok-b-second')) && sent.some((m) => m.token.startsWith('tok-c-third')));
+    assert.equal((await db.doc('users/a-first').get()).get('lastDigestDate'), undefined, 'retried next run');
+    assert.deepEqual((await db.doc('users/a-first').get()).get('digestAttempts'), { date: '2026-10-12', count: 1 });
+    assert.equal((await db.doc('users/b-second').get()).get('lastDigestDate'), '2026-10-12');
+    // The failure line has the code only: no ID, no message.
+    assert.deepEqual(lines.filter((l) => l.includes('failed')), ['a digest failed: app/network-timeout']);
+    assert.ok(lines.every((l) => !l.includes('a-first') && !l.includes('fcm timeout')));
+  });
+
+  it(`after ${MAX_SEND_ATTEMPTS} runs without a delivery the user is done for the day`, async () => {
+    let calls = 0;
+    const refusing: Sender = {
+      async sendEach(messages) {
+        calls++;
+        return messages.map(() => ({ success: false, deadToken: false }));
+      },
+    };
+    const runs = Array.from({ length: MAX_SEND_ATTEMPTS + 1 }, (_, i) => new Date(NOW.getTime() + i * 20 * 60_000));
+    const gaveUp = [];
+    for (const now of runs) gaveUp.push((await runJob(db, refusing, { now, prune: false })).gaveUp);
+    // Alice's digest reaches none of her devices; the last run no longer reads or sends for her.
+    assert.deepEqual(gaveUp, [0, 0, 1, 0]);
+    assert.equal(calls, MAX_SEND_ATTEMPTS);
+    const alice = (await db.doc('users/alice').get()).data()!;
+    assert.equal(alice.lastDigestDate, '2026-10-12');
+    assert.equal(alice.lastExpiredThrough, null, 'nothing was reported');
+    assert.equal(alice.digestAttempts, undefined);
+  });
+
+  it('a device a send refuses for another reason keeps its token', async () => {
+    const sender: Sender = { sendEach: async (messages) => messages.map(() => ({ success: false, deadToken: false })) };
+    const summary = await runJob(db, sender, { now: NOW, prune: false });
+    assert.equal(summary.deadTokens, 0);
+    assert.equal((await db.doc('users/alice/devices/old').get()).exists, true);
+  });
+
+  it(`a digest goes to at most the ${MAX_DEVICES} newest devices`, async () => {
+    const batch = db.batch();
+    for (let i = 0; i < MAX_DEVICES + 5; i++) {
+      batch.set(db.doc(`users/frank/devices/d${i}`), {
+        token: `frank-many-${String(i).padStart(2, '0')}-1234567890`, platform: 'android',
+        updatedAt: Timestamp.fromMillis(NOW.getTime() - (100 - i) * 60_000),
+      });
+    }
+    batch.set(db.doc('households/h1/meals/m-today'), {
+      date: '2026-10-12', slot: 'dinner', position: 0, title: 'Tacos', cooks: ['frank'], cookedAt: null,
+    });
+    await batch.commit();
+    const sender = new RecordingSender();
+    await runJob(db, sender, { now: NOW, prune: false });
+    const frank = sender.sent.filter((m) => m.token.startsWith('frank')).map((m) => m.token).sort();
+    assert.equal(frank.length, MAX_DEVICES);
+    assert.equal(frank[0], 'frank-many-05-1234567890', 'the oldest five are left out');
+  });
+
+  it('users without a device are skipped before the household\'s stock is read', async () => {
+    const queried: string[] = [];
+    const watching = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'collection') return typeof value === 'function' ? value.bind(target) : value;
+        return (path: string) => { queried.push(path); return target.collection(path); };
+      },
+    });
+    // Only bob (no devices) is due.
+    for (const uid of ['alice', 'frank']) await db.doc(`users/${uid}`).update({ lastDigestDate: '2026-10-12' });
+    const summary = await runJob(watching, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(summary.skippedNoDevices, 1);
+    assert.deepEqual(queried.filter((p) => p.startsWith('households/')), []);
+  });
+
+  it(`one household's stock query reads at most ${MAX_STOCK} batches, soonest first`, async () => {
+    for (let start = 0; start < MAX_STOCK + 20; start += 400) {
+      const batch = db.batch();
+      for (let i = start; i < Math.min(start + 400, MAX_STOCK + 20); i++) {
+        batch.set(db.doc(`households/h1/stock/many-${i}`), {
+          productName: `P${i}`, expiryDate: i < 10 ? '2026-10-12' : '2026-10-14', dateType: 'use_by', quantity: 1,
+        });
+      }
+      await batch.commit();
+    }
+    const sender = new RecordingSender();
+    await runJob(db, sender, { now: NOW, prune: false });
+    const alice = sender.sent.find((m) => m.token.startsWith('alice'))!;
+    // The cap keeps the soonest: Milk (expired), today's ten and the rest of the 500.
+    assert.equal(alice.notification.title, `${MAX_STOCK - 1} items need attention`);
+    assert.match(alice.notification.body, /^Throw away: Milk\. Today: P\d, P\d, P\d \+7 more\./);
+  });
+
+  it('a profile deleted during the run is skipped as a deleted account, not a failure', async () => {
+    const deleting = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'getAll') return typeof value === 'function' ? value.bind(target) : value;
+        return async (...refs: Parameters<Firestore['getAll']>) => {
+          const snapshots = await target.getAll(...refs);
+          await target.doc('users/frank').delete();
+          return snapshots;
+        };
+      },
+    });
+    const sender = new RecordingSender();
+    const summary = await runJob(deleting, sender, { now: NOW, prune: false });
+    assert.equal(summary.skippedDeleted, 1);
+    assert.equal(summary.failures, 0);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('alice')));
+  });
+
+  it('prunes once per UTC day, keyed on the job\'s own document', async () => {
+    const first = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T00:07:00Z') });
+    assert.equal(first.pruned, true);
+    assert.equal(first.lastPruneDate, '2026-10-12');
+    // Something old enough appears later that day: not pruned until the next UTC day.
+    await db.doc('households/h1/activity/later').set({ type: 'stock_added', createdAt: Timestamp.fromDate(new Date('2026-09-01T00:00:00Z')) });
+    const second = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T23:47:00Z') });
+    assert.equal(second.pruned, false);
+    assert.equal(second.lastPruneDate, '2026-10-12');
+    assert.equal((await db.doc('households/h1/activity/later').get()).exists, true);
+    const next = await runJob(db, new RecordingSender(), { now: new Date('2026-10-13T00:27:00Z') });
+    assert.equal(next.pruned, true);
+    assert.equal(next.lastPruneDate, '2026-10-13');
+    assert.equal((await db.doc('households/h1/activity/later').get()).exists, false);
+    // A dry run reports the date and changes nothing.
+    const dry = await runJob(db, new RecordingSender(), { now: new Date('2026-10-14T00:07:00Z'), dryRun: true });
+    assert.equal(dry.pruned, false);
+    assert.equal(dry.lastPruneDate, '2026-10-13');
   });
 });

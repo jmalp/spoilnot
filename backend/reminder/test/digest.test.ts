@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { afterSend, buildDigest, buildDigestWithMeals, cookingFor, DEFAULT_PREFS, type Meal, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
+import { afterSend, buildDigest, buildDigestWithMeals, capBytes, cookingFor, DEFAULT_PREFS, MAX_BODY_BYTES, shorten, type Meal, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
 
 const user = (over: Partial<UserDoc> = {}, prefs: Partial<UserDoc['prefs']> = {}): UserDoc => ({
   uid: 'u1',
@@ -142,6 +142,43 @@ describe('digest text', () => {
   it('two batches of one product count once', () => {
     const digest = buildDigest(selectItems(user(), today, [batch('Milk', '2026-10-13'), batch('Milk', '2026-10-13')]));
     assert.equal(digest?.title, 'Milk expires tomorrow');
+  });
+
+  it('one product with batches in different stages is still one sentence, for its most urgent batch', () => {
+    const twoDays = buildDigest(selectItems(user(), today, [batch('Milk', '2026-10-12'), batch('Milk', '2026-10-13')]));
+    assert.deepEqual(twoDays, { title: 'Milk expires today', body: 'Today: Milk. Tomorrow: Milk.' });
+    const expiredBoth = buildDigest(selectItems(user(), today, [
+      batch('Milk', '2026-10-11', 'best_before'), batch('Milk', '2026-10-10'),
+    ]));
+    assert.equal(expiredBoth?.title, 'Milk has expired. Throw it away');
+    const later = buildDigest(selectItems(user(), today, [batch('Milk', '2026-10-15'), batch('Milk', '2026-10-11', 'best_before')]));
+    assert.equal(later?.title, 'Milk is past its best before date');
+    // Two names are two items, whatever the number of batches.
+    const two = buildDigest(selectItems(user(), today, [batch('Milk', '2026-10-12'), batch('Milk', '2026-10-13'), batch('Eggs', '2026-10-13')]));
+    assert.equal(two?.title, '2 items need attention');
+  });
+
+  it('long names are cut to 80 characters and the body to 1,000 bytes', () => {
+    const long = 'Ä'.repeat(5000);
+    const one = buildDigest(selectItems(user(), today, [batch(long, '2026-10-13')]))!;
+    assert.equal(one.title, `${'Ä'.repeat(79)}… expires tomorrow`);
+    const many = buildDigest(selectItems(user(), today, Array.from({ length: 20 }, (_, i) =>
+      batch(`${i} ${'é'.repeat(200)}`, `2026-10-${String(10 + (i % 6)).padStart(2, '0')}`))))!;
+    assert.ok(new TextEncoder().encode(many.body).length <= MAX_BODY_BYTES);
+    assert.ok(many.body.endsWith('…'));
+    assert.equal(many.title, '20 items need attention');
+    const meals = buildDigestWithMeals([], [{ date: today, slot: 'dinner', position: 0, title: long, cooks: ['u1'], cooked: false }])!;
+    assert.equal(meals.title, `You're cooking ${'Ä'.repeat(79)}… for dinner`);
+    assert.ok(new TextEncoder().encode(meals.body).length <= MAX_BODY_BYTES);
+  });
+
+  it('cuts between characters', () => {
+    assert.equal(shorten('Milk'), 'Milk');
+    assert.equal(shorten('🥛'.repeat(81)), `${'🥛'.repeat(79)}…`);
+    assert.equal(capBytes('short'), 'short');
+    const cut = capBytes('🥛'.repeat(300));
+    assert.ok(new TextEncoder().encode(cut).length <= MAX_BODY_BYTES);
+    assert.equal(cut, `${'🥛'.repeat(249)}…`);
   });
 
   it('nothing to report means no digest', () => {

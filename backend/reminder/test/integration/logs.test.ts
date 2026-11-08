@@ -13,7 +13,7 @@ import { inspect } from 'node:util';
 import { cert, deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
 import { FORMAT, FORMAT_VERSION, shortId, type HouseholdExport } from '../../src/backup.ts';
-import { runJob, type Sender } from '../../src/job.ts';
+import { runJob, STATE_DOC, type Sender } from '../../src/job.ts';
 
 const PROJECT = 'demo-logs-test';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -121,6 +121,14 @@ it('a prune whose deletions fail counts them, goes on, and prints nothing of the
   assertClean(printed.join('\n'));
   assert.equal((await db.doc(`households/${HOUSEHOLD}/activity/a1`).get()).exists, true, 'failed, so still there');
   assert.equal((await db.doc('households/h2/activity/a1').get()).exists, false, 'the next household was pruned');
+
+  // A prune with failures doesn't count: the date stays unset, so the next run, the same day, prunes again.
+  assert.equal((await db.doc(STATE_DOC).get()).exists, false);
+  const next = await runJob(db, sender, { now: new Date(NOW.getTime() + 20 * 60_000) });
+  assert.equal(next.pruned, true);
+  assert.equal(next.pruneFailures, 0);
+  assert.equal(next.lastPruneDate, '2026-10-12');
+  assert.equal((await db.doc(`households/${HOUSEHOLD}/activity/a1`).get()).exists, false, 'pruned at the next run');
 });
 
 const restoreMain = fileURLToPath(new URL('../../src/restore-main.ts', import.meta.url));

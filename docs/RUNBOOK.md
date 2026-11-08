@@ -4,8 +4,9 @@ Operational tasks for Spoil Not. The design is in `DESIGN.md`; deviations are in
 
 ## Reminder job (DESIGN 10)
 
-The hourly job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml` at minute 7 of every
-hour, once per Firebase project:
+The job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml` at minutes 7, 27 and 47 of
+every hour (since 2026-11-08), once per Firebase project. GitHub starts many scheduled runs late or not at all; the
+job catches up and sends at most one digest a day per user, however many runs start:
 
 | Project | GitHub secret |
 | --- | --- |
@@ -66,14 +67,37 @@ gh workflow run reminders.yml -f dry_run=true
 - **Actions → expiry-reminders**: look for failed runs. Make sure Actions failure emails are on
   (github.com/settings/notifications → Actions).
 - Scheduled runs can be late or skipped at busy times; the job catches up until 22:00 in each user's time zone and
-  never sends twice a day.
+  never sends twice a day. To see how GitHub is starting them, count start times by UTC hour:
+  ```bash
+  gh run list --repo jmalp/spoilnot --workflow reminders.yml --event schedule --limit 500 --json startedAt --jq '.[].startedAt[11:13]' | sort | uniq -c
+  ```
+  Every hour should show runs. If whole hours are missing for a week, see DESIGN 10.4 and 10.6.
+- Each run prints one summary line, `project <id>: {…}`, with counts only:
+
+  | Field | Meaning |
+  | --- | --- |
+  | `due`, `sent`, `emptyDigests` | Users due this run, messages delivered, due users with nothing to report (done for the day) |
+  | `skippedNoDevices` | Due users with no registered phone; tried again next run |
+  | `skippedNotMember` | Due users whose household no longer lists them (below) |
+  | `skippedDeleted` | Due users whose profile was deleted during the run (an account deletion) |
+  | `gaveUp` | Users whose digest reached no device in 3 runs today; done for the day, tried again tomorrow |
+  | `deadTokens` | Device documents deleted because FCM said the token is unregistered or invalid |
+  | `failures` | Households or users whose step failed; the rest of the run went ahead, and the run fails at the end |
+  | `pruned`, `lastPruneDate` | Whether this run pruned, and the UTC date of the last prune without failures |
+  | `prunedActivity`, `prunedJoinRequests`, `prunedTombstones`, `prunedMeals`, `pruneFailures` | The prune's counts |
+
+- `failures` counts a household or user whose step failed this run. Each one also prints a line such as
+  `a digest failed: app/network-timeout` (the step and the code, never an ID). The run carries on, then fails so
+  GitHub emails you; the next run tries them again. Look the code up in the table below.
 - The log line `skippedNoDevices` counts users whose phones have not registered (they have not opened the app
   since installing, or notifications are blocked).
 - `skippedNotMember` counts due users whose household no longer lists them (removed, or the household was
   deleted) and whose app has not run since. They get nothing, and the job clears their household pointer as their
   app would, so they are not counted again.
-- `pruneFailures` (07:00 UTC run only) counts old documents the daily prune could not delete. The run then fails so
-  GitHub emails you; the next day's prune finds them again.
+- The daily prune runs in the first run of each UTC day (it keeps `lastPruneDate` in the job's own document
+  `jobs/state`, which clients can't read). `pruneFailures` counts old documents it could not delete. The run then
+  fails so GitHub emails you, the date is not recorded, and the next run prunes again. If `lastPruneDate` in the
+  summary is more than a day old, the prune is failing or no run has started today.
 - A failed run prints one line, `<job> failed: <code>.`, and never the error itself (logs are public):
 
   | Code | Meaning |
@@ -289,32 +313,43 @@ Firebase console → the project → **Usage and billing → Usage** (or Firesto
 deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 deletes). Look at it after adding a
 household or a new feature.
 
-`cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
-2026-11-01 with changes-only listeners, Use it up, changes-only Recent activity, the meal planner and the digest's membership check (30 products, 60 batches, 25 grocery items, 15 recipes, this
-month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 phones opening the app 8 times a
-day, the first open a full read, Home reading recipes and this week's meals on every open, the 40 daily writes spread between opens, each logging an activity event, 10 of
-them finishing a batch):
+`cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Knobs:
+`HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 24; 72 are scheduled) and `WEB` (how many of each
+household's 4 phones are the web app). Result on 2026-11-08 (30 products, 60 batches, 25 grocery items, 15 recipes,
+this month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 Android phones opening the
+app 8 times a day, the first open a full read, Home reading recipes and this week's meals on every open; the 40
+daily writes spread between opens, each logging an activity event, 10 of them finishing a batch; a prune every day):
 
 | Reads | Per day | Share of 50,000 |
 | --- | --- | --- |
 | App listeners | 13,000 | |
-| Security-rule lookups | 3,040 | |
-| Scheduled jobs (reminders, housekeeping, export) | 3,520 | |
-| **Total for 10 households** | **19,560** | **39.1%** |
-| Per household | about 1,960 | 3.9% |
+| Security-rule lookups | 3,440 | |
+| Scheduled jobs: runs 984, digests 200, housekeeping 680, export 2,100 | 3,964 | |
+| **Total for 10 households** | **20,404** | **40.8%** |
+| Per household | about 2,040 | 4.1% |
 
-Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and
-19,320 before Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner (week's
-grocery list, Cooked, Use it up while picking) left it at 19,440: those sheets listen to the pantry and lists only while
-open, which the cache already holds from Home and Pantry. Part 3 adds the digest's query for today's meals (about 2
-reads per user a day): 19,520. Checking that each due user is still a member (2026-11-01) adds one read per user a
-day: 19,560. So the free plan holds about 18
-households of this size under the 70% warning line. The largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
+| Writes and deletes | Per day | Share of 20,000 |
+| --- | --- | --- |
+| Writes (actions, month counts, activity events, the job's) | 941 | 4.7% |
+| Deletes (the daily prune: tombstones, activity after 30 days, meals after 28) | 570 | 2.9% |
+
+So the free plan holds **about 17 households** of this size under the 70% warning line (reads run out first).
+Other runs: `RUNS=72` (every scheduled run starts) 22,372 reads, about 15.6 households, since each run reads every
+user with reminders on; `RUNS=15` 20,035, about 17.5; `WEB=2` (two web phones per household, no update gate) 160
+fewer reads.
+
+History: before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and 19,320 before
+Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner left it at 19,440; part 3
+added the digest's query for today's meals: 19,520. Checking that each due user is still a member (2026-11-01) added
+one read per user a day: 19,560 (about 18 households). On 2026-11-08 the simulation began counting what it had left
+out: each activity event as a write (+400) with its rule lookup (+400 reads), the documents the prune reads before
+deleting them (+420), the prune's deletes, and the job's state document (one read per run): 20,404 at 24 runs. The
+largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 
 ## Scheduled workflows
 
-`expiry-reminders` (hourly), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub disables
+`expiry-reminders` (three times an hour), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub disables
 scheduled workflows in a public repository after 60 days without activity, and shows a banner on the Actions tab.
 `keepalive.yml` re-enables them (and itself) through the API on the 3rd of every month, which resets that clock. If
 one is disabled anyway: **Actions →** the workflow **→ Enable workflow** (or
