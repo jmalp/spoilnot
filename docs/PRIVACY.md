@@ -20,15 +20,16 @@ It runs once each day, in the reminder job's first run of the UTC day; if it fai
 
 Firestore stores data in the `us-east1` region. The phone keeps an offline copy of the household's data, which is
 cleared when you sign out, delete your account, leave a household or are removed from it. Cleared with it: the
-record of when each list was last read in full (it names the household's lists), and on Android the built-in
-browser's cookies, site storage, saved sign-ins and cache (so nobody stays signed in to a recipe site) and the cached
-recipe photos. While nobody is signed in, the Android app also deletes its notification token, so the phone gets no
-reminders even if its device record could not be removed when you signed out (for example without a connection).
+record of when each list was last read in full and of the newest change read from it (it names the household's
+lists), and on Android the built-in browser's cookies, site storage, saved sign-ins and cache (so nobody stays signed
+in to a recipe site) and the cached recipe photos. While nobody is signed in, the Android app also deletes its
+notification token, so the phone gets no reminders even if its device record could not be removed when you signed
+out (for example without a connection).
 What stays on an Android phone after sign-out: the theme, colors, crash-report choice, whether you finished the app
 tour or saw the notification explanation, and its Firebase installation ID (Firebase's id for the app on that phone).
 
 Spoil Not for iPhone (the web app, after v1) does the same in the browser's storage on the phone (IndexedDB and
-localStorage): the sign-in, the household's offline copy and the record of full reads, cleared the same way. Its
+localStorage): the sign-in, the household's offline copy and the record of full reads and newest changes read, cleared the same way. Its
 theme, colors, text size, a random id for its device record, whether it explained notifications or how to add it to
 the Home Screen, and, until its notification token is confirmed deleted, a "token to delete" mark stay in the
 browser's storage on that phone; it sends no crash reports. Its notification token (from Firebase Cloud Messaging,
