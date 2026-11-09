@@ -128,7 +128,8 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
   const hid = await householdId(household);
   const uid = await uidOf(email);
   await seedPantry(hid, uid, [{ id: 'oil', name: 'Olive oil', quantity: 0, min: 1, location: 'pantry' }]);
-  await expect(row(page, 'Olive oil')).toContainText('Low stock');
+  // Seeded as another phone would write it, so this page's engine waits 5 s before adding it (DESIGN 9.6).
+  await expect(row(page, 'Olive oil')).toContainText('Low stock', { timeout: 15_000 });
   // Stock coming back shows Back in stock with a one-tap remove.
   await seedPantry(hid, uid, [{ id: 'oil', name: 'Olive oil', quantity: 2, min: 1, location: 'pantry' }]);
   await expect(row(page, 'Olive oil')).toContainText('Back in stock');

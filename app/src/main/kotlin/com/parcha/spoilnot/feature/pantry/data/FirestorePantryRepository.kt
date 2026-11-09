@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.pantry.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.LiveDocuments
 import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -36,16 +38,29 @@ class FirestorePantryRepository @Inject constructor(
 ) : PantryRepository {
     // Changes-only listeners (DESIGN 9.8); each batch keeps its pending-sync flag from the cache.
     override fun observe(householdId: String): Flow<PantryData> = firestore.instance.flatMapLatest { db ->
-        val products = db.collection(products(householdId)).liveDocuments(db, syncLog)
-        val stock = db.collection(stock(householdId)).liveDocuments(db, syncLog)
-        combine(products, stock) { p, s ->
+        val products = db.collection(products(householdId)).let { it.liveDocuments(db, syncLog).serverRead(it.path) }
+        val stock = db.collection(stock(householdId)).let { it.liveDocuments(db, syncLog).serverRead(it.path) }
+        combine(products, stock) { (p, pRead), (s, sRead) ->
             PantryData(
                 products = p.documents.map { it.toProduct() },
                 batches = s.documents.map { it.toBatch() },
                 fromCache = p.fromCache || s.fromCache,
+                serverRead = pRead && sRead,
             )
         }
     }.distinctUntilChanged()
+
+    /**
+     * Pairs each snapshot with whether this collection has been read from the server: a full read on record (a warm
+     * cache, so offline still counts) or a server snapshot since this listener started (DESIGN 9.6).
+     */
+    private fun Flow<LiveDocuments>.serverRead(path: String): Flow<Pair<LiveDocuments, Boolean>> = flow {
+        var read = syncLog.lastFullSync(path) != null
+        collect { live ->
+            read = read || !live.fromCache
+            emit(live to read)
+        }
+    }
 
     override fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>> =
         firestore.instance.flatMapLatest { db ->

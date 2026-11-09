@@ -41,6 +41,8 @@ class FirestoreHouseholdWriter @Inject constructor(
 ) : HouseholdWriter {
     private val _errors = MutableSharedFlow<AppError>(extraBufferCapacity = 8)
     override val errors: SharedFlow<AppError> = _errors
+    private val _localPlans = MutableSharedFlow<List<HouseholdChange>>(extraBufferCapacity = 16)
+    override val localPlans: SharedFlow<List<HouseholdChange>> = _localPlans
 
     override fun newId(): String = firestore.current.collection("ids").document().id
 
@@ -61,6 +63,7 @@ class FirestoreHouseholdWriter @Inject constructor(
                 }
             }
         }
+        _localPlans.tryEmit(changes)
     }
 }
 

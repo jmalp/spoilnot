@@ -10,6 +10,12 @@ data class PantryData(
     val batches: List<StockBatch>,
     /** Served from the local cache only: offline or still connecting (DESIGN 9.5). */
     val fromCache: Boolean,
+    /**
+     * Both products and stock have been read from the server at least once: in this listener, or in a full read on
+     * record on this phone. Until then a missing batch may only be not loaded yet, so the restock engine waits
+     * (DESIGN 9.6).
+     */
+    val serverRead: Boolean = false,
 )
 
 /**

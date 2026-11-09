@@ -169,8 +169,8 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 | Location | Fridge, Freezer, Pantry, Other |
 | Category | Produce, Dairy and eggs, Meat and fish, Bakery, Frozen, Pantry staples, Drinks, Snacks, Other |
 | Notes | Optional, up to 200 characters |
-| Keep at least (advanced) | Optional number. Helper text: “Add to the grocery list when fewer than this remain” |
-| Add to grocery list automatically (advanced) | Toggle, enabled only when Keep at least is set. Optional buy quantity |
+| Keep at least (advanced) | Optional number. Helper text: “Add to the grocery list when fewer than this remain”. Since the beta it shows only with the switch below on (required, above 0) |
+| Add to grocery list automatically (advanced) | Toggle. Since the beta, turning it on shows Keep at least and an optional buy quantity, and turning it off clears both. After v1 (2026-11-09) a product from before the beta with Keep at least but the switch off (an *older staple*) keeps its Keep at least when edited with the switch left off, since the form never showed it |
 
 After v1 the form is laid out by how often each field changes: Name; a compact quantity stepper beside the Unit (stacked at large text sizes); the date button with its four quick chips as equal tiles in one row (two rows at large text sizes); Location as four equal tiles with an icon over the label (a 2 by 2 grid at large text sizes; the chosen one has a border, a fill and a bold label); then Category, which the product or the name usually fills in. Add to pantry uses the same date chips and location tiles.
 
@@ -212,9 +212,11 @@ Saving writes a batch. If a batch for the same product, date and location alread
 
 **Keep at least and automatic add.** Each product has *Keep at least N* and *Add to grocery list automatically*. When total stock drops below N, the product is added once to the default list as a Low stock item with quantity equal to the buy quantity (default: N minus current stock, minimum 1). The state machine is in section 9.6. Guarantees:
 
-- It is added exactly once per dip, even if two phones notice at the same moment.
+- It is added exactly once per dip, even if two phones notice at the same moment. After v1 (2026-11-09) usually only one phone writes it: the phone whose own change caused the dip at once, the others only after a few seconds and only if it still needs writing.
 - If someone deletes the auto-added item, it is not added again until stock has recovered to N or more and then dropped again.
-- When stock recovers while the item is still unchecked, the item stays but shows “Back in stock” with a one-tap remove.
+- When stock recovers while the item is still unchecked, the item stays but shows “Back in stock” with a one-tap remove. This includes Undo of Used up or Throw away on the last batch: the stock comes back and the item the dip added stays, with Back in stock (DECISIONS 2026-11-09).
+- After v1 (2026-11-09): an item that comes back after Add to pantry, Clear checked or a delete comes back **unchecked**, to buy, never in the In cart section; an item still on the list keeps its checked state.
+- After v1 (2026-11-09): a phone's first sync never adds staples. The engine waits until the phone has read both the products and the stock from the server (or read them in full before), so a staple whose stock has not arrived yet is not taken for empty.
 
 ### 5.4 Expiry reminders (behavior)
 
@@ -687,7 +689,11 @@ Register the stock and grocery listeners with `MetadataChanges.INCLUDE` to read 
 
 **9.6 Restock engine** (a client service that runs on every phone)
 
-Per-product state: `restockArmed` (true when the product is created). The engine runs on every change of the combined `products` and `stock` snapshots, debounced 300 ms, including snapshots served from cache so it works offline.
+Per-product state: `restockArmed` (true when the product is created). The engine runs on every change of the combined `products` and `stock` snapshots, debounced 300 ms, including snapshots served from cache so it works offline. After v1 (2026-11-09):
+
+- **Only after a server read.** It evaluates only once both products and stock have had a server snapshot in this listener, or a full read of each is on record on this phone (`SyncLog`, 9.8), so a warm cache still works offline (`PantryData.serverRead`). On a first sync the products can arrive before the stock, which made every staple look empty.
+- **Who writes.** The writer reports every plan this phone applies (`HouseholdWriter.localPlans`, `localPlans$` on the web). If this phone changed stock or a product (creating, editing, +1 or −1, Used up, Throw away, Undo, Add to pantry; not the engine's own writes) in the last 5 seconds, it writes at once. Otherwise it waits 5 seconds (`OTHER_PHONE_DELAY_MS`); a newer snapshot during the wait starts the evaluation over, so when the other phone's write arrives first the product is disarmed and nothing is left to write. Writing twice is still harmless, only wasteful.
+- **Retries.** A failed listener (quota, a refused read) listens again after 1, 2, 4 … 32 seconds instead of stopping the engine until the app restarts.
 
 ```
 for each product p with p.autoAddToGrocery and p.minQuantity != null:
@@ -700,12 +706,18 @@ for each product p with p.autoAddToGrocery and p.minQuantity != null:
             set groceryLists/{default}/items/low_{p.id} (merge) with
                 name, nameKey, unit, category, source = low_stock, productId = p.id,
                 quantity = p.buyQuantity ?? max(1, p.minQuantity - total),
-                updatedAt, updatedBy, and createdAt/createdBy only if the doc is not in the local cache
-                (never write checked: absent means false, and an existing checked item stays checked)
+                updatedAt, updatedBy, and removes deletedAt;
+                if the item is not live in the local cache (new, or a tombstone coming back):
+                    also createdAt, checked = false, checkedBy = null, checkedAt = null,
+                    note = null, recipeId = null, aliasOf = null
+                (a live item's checked is left alone: an item already in the cart stays checked;
+                 never createdBy, see below)
             update p.restockArmed = false
 ```
 
-Properties: idempotent (two phones doing it at once write identical data), respects deletion (it stays disarmed until stock recovers to the minimum), never un-checks an item, no nagging. Editing `minQuantity` upward sets `restockArmed = true`. Unit tests MUST cover: crossing down, recovery then dropping again, the user deleting the item, two concurrent evaluations, a product without a minimum, a minimum raised while already low, and batches with quantity 0.
+Before v1's tombstones (9.8) "never write checked" was enough; a tombstone left by Add to pantry keeps `checked: true`, so bringing it back must clear it. The writes pass the rules of 2026-11-08 (8.5) from any number of phones at once: the engine never writes `createdBy` (a create may leave it out and a merge keeps the stored one, while a second phone naming itself would be refused and show an error), and `checkedBy` is null. A Low stock item therefore has no creator (one brought back from a tombstone keeps its old one); its source badge says where it came from.
+
+Properties: idempotent (two phones doing it at once write identical data), respects deletion (it stays disarmed until stock recovers to the minimum), never un-checks an item that is on the list, no nagging. Editing `minQuantity` upward sets `restockArmed = true`. Unit tests MUST cover: crossing down, recovery then dropping again, the user deleting the item, two concurrent evaluations, a product without a minimum, a minimum raised while already low, batches with quantity 0, and after v1 a tombstone brought back, a first sync, which phone writes and a failed listener (`RestockEngineTest`, `RestockRunnerTest`, `GroceryChangeMapperTest`; `restock.test.ts` and `data/grocery.test.ts` on the web). `RestockFlowTest` runs two phones against the rules.
 
 **9.7 Quota budget.** Spark allows 50,000 reads, 20,000 writes and 20,000 deletes per day.
 
@@ -1312,6 +1324,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-08 | Web updates: the web app asks for a new version whenever it becomes visible, at most once an hour, and reads `config/app.minWebBuild`; when its build number (`WEB_BUILD`, shown in About) is older, it looks at once and the Update snackbar stays until Update. The owner raises `minWebBuild` after a web deploy that older builds must not keep running. quota-sim counts the web's `config/app` listener | 8.2, 18.5, 18.7, RUNBOOK, QA |
 | 2026-11-08 | The floating buttons have names for screen readers: Add item, Add N to pantry, Add recipe and Cook are `SpoilNotFab`, which TalkBack reads as "Add item, button" instead of "Button". A pantry row's spoken sentence now names the row TalkBack activates (Edit), as on Out rows. `AccessibilityChecksTest` covers the 13 main screens and their sheets, menus and dialogs, adds its own rule that every clickable or toggleable node has a name, and with its canary test is skipped below Android 14 | 6.8, QA, DECISIONS |
 | 2026-11-09 | Sync cursor from what the server sent: a changes-only listener starts from the newest change its server listener received for that collection (or meal window), kept in the sync log next to the full-read record, less 5 minutes, instead of the newest change in the cache. A phone that wrote to the list, the week or Recent activity while not showing them (the restock engine from the Pantry tab, Plan this recipe) no longer skips the other members' earlier changes until the next daily full read. Each collection is read in full once after the update. An instrumented test (`SyncCursorFlowTest`), a WebKit test (`sync.spec.ts`) and unit tests use a 2-second margin; QA flow 41 is the mixed-household check. Web build 2 (`minWebBuild`) | 9.8, 18.3, 18.7, QA, PRIVACY, RUNBOOK, DECISIONS |
+| 2026-11-09 | Restock engine, both apps: an item it adds, or brings back from a tombstone, starts unchecked (Add to pantry's tombstone kept `checked`, so the next dip put the staple in the cart) and is written without `createdBy`, so two phones writing it at once both pass the rules; it evaluates only after both products and stock have been read from the server (or in full before), so a first sync no longer adds every staple; the phone whose change caused a dip writes at once and other phones after 5 s if still needed; a failed listener retries with a backoff. Editing an older staple (Keep at least without automatic add) keeps its Keep at least, on the web too. Undo of Used up keeps the item with Back in stock (accepted) | 5.2, 5.3, 9.6, QA, DECISIONS |
 
 ## 18. Web app for iPhone (after v1)
 

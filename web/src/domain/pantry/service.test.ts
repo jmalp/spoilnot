@@ -402,6 +402,28 @@ describe('PantryService', () => {
     expect([p.minQuantity, p.autoAddToGrocery, p.buyQuantity]).toEqual([null, false, null]);
   });
 
+  it('an older staple (Keep at least without automatic add) keeps it when edited with the switch off', () => {
+    // LOGIC-05: products from before the beta can have Keep at least with automatic add off; the form never shows it.
+    const flour = { ...product('flour', { min: 2 }), autoAddToGrocery: false, buyQuantity: 3 };
+    const b1 = batch('b1', 'flour');
+    const kept = ofType(
+      service.planEdit(b1, itemEdit({ name: 'Flour', quantity: 1 }), data([flour], [b1])),
+      'pantry.updateProduct',
+    );
+    expect(kept).toEqual([]); // the product did not change at all
+    const renamed = ofType(
+      service.planEdit(b1, itemEdit({ name: 'Bread flour' }), data([flour], [b1])),
+      'pantry.updateProduct',
+    )[0]!.product;
+    expect([renamed.minQuantity, renamed.autoAddToGrocery, renamed.buyQuantity]).toEqual([2, false, 3]);
+    // Turning the switch on uses the form's values as for any product.
+    const on = ofType(
+      service.planEdit(b1, itemEdit({ name: 'Flour', autoAdd: true, min: 4 }), data([flour], [b1])),
+      'pantry.updateProduct',
+    )[0]!.product;
+    expect([on.minQuantity, on.autoAddToGrocery, on.buyQuantity]).toEqual([4, true, null]);
+  });
+
   it("the unit changes only when this is the product's only purchase", () => {
     const rice = product('rice');
     const only = data([rice], [batch('b1', 'rice')]);

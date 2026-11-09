@@ -97,7 +97,17 @@ export type StockBatch = {
 };
 
 /** The household's products and batches as the listeners see them (DESIGN 9.1). */
-export type PantryData = { products: Product[]; batches: StockBatch[]; fromCache: boolean };
+export type PantryData = {
+  products: Product[];
+  batches: StockBatch[];
+  fromCache: boolean;
+  /**
+   * Both products and stock have been read from the server at least once: in this listener, or in a full read on
+   * record on this phone. Until then a missing batch may only be not loaded yet, so the restock engine waits
+   * (DESIGN 9.6). Missing counts as false.
+   */
+  serverRead?: boolean;
+};
 
 /** Changes to one batch from the edit sheet or Move. */
 export type BatchEdit = {
