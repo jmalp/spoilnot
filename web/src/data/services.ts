@@ -29,7 +29,7 @@ import { FirestoreMealPlanRepository, mealPlanMapper } from './plan';
 import { FirestoreRecipeRepository, recipeMapper } from './recipes';
 import { FirestoreStatsRepository, statsMapper } from './stats';
 import { FirestoreUserRepository } from './users';
-import { SyncLog } from './delta-sync';
+import { cursorMarginMs, SyncLog } from './delta-sync';
 import { FirestoreHouseholdWriter } from './writer';
 
 /** The real services, on Firebase (the app's Hilt modules). */
@@ -40,7 +40,7 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
   const push = new FcmPushIdentity(sdk);
   const devices = new FcmDeviceRegistry(sdk, push, APP_VERSION);
   const clock = systemClock;
-  const log = new SyncLog(() => clock.now());
+  const log = new SyncLog(() => clock.now(), undefined, cursorMarginMs());
   const session = new SessionManager(auth, users, households, new FirestoreLocalData(sdk, log), devices);
   const writer = new FirestoreHouseholdWriter(sdk, [
     pantryMapper,

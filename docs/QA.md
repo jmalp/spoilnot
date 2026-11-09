@@ -195,7 +195,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     pantry: the In cart section and the Add to pantry button disappear at once, and the items show in the Pantry with
     "Waiting to sync". Used up on a pantry item: it disappears. Turn Airplane Mode off: within a minute the icons go,
     Phone A shows the same pantry, and each bought item is there once, not twice.
-41. Restock engine (Android and the iPhone web app, after v1, 2026-11-09): give Milk Keep at least 2 with Add to
+41. Sync cursor (Android and the iPhone web app, after v1, DESIGN 9.8): with Milk in the pantry and Keep at least 1
+    with Add to grocery list on, open Groceries on the iPhone, then go to its Pantry tab. On Phone A add two items to
+    the list, check one off and delete another. Wait 6 minutes. On the iPhone use up the Milk from Pantry (Low stock
+    Milk goes on the list), then open Groceries: Phone A's changes are all there, not only Milk. Repeat with the
+    phones swapped (Phone A uses up the Milk on its Pantry tab).
+42. Restock engine (Android and the iPhone web app, after v1, 2026-11-09): give Milk Keep at least 2 with Add to
     grocery list automatically, 3 in stock, both phones open on Groceries. On Android use 2: within a second Milk is on
     the list as Low stock on both phones, once. Check it off on the iPhone, then Add to pantry with 2. Use up that new
     purchase on Android: Milk comes back **unchecked**, in the list to buy, not in the In cart section, and Home counts

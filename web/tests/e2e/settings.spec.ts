@@ -107,7 +107,7 @@ test('About shows the build, the privacy summary and the open source licenses', 
   await createHousehold(page, `About ${Date.now()}`);
   await openSettings(page);
   await page.getByTestId('row_about').click();
-  await expect(page.getByTestId('about_version')).toHaveText('Spoil Not for iPhone, build 1 (dev)');
+  await expect(page.getByTestId('about_version')).toHaveText('Spoil Not for iPhone, build 2 (dev)');
   await expect(page.getByTestId('screen_about')).toContainText('no crash reports');
   const react = page.getByTestId('licenses').getByRole('button', { name: /^react 19/ });
   await expect(react).toContainText('MIT');
