@@ -11,9 +11,9 @@ const tab = (page: Page, name: string) => page.getByRole('navigation').getByRole
 /** Refuses every server listener with [code] until called with null (development builds only). */
 const refuseListens = (page: Page, code: string | null) =>
   page.evaluate((c) => {
-    (window as unknown as { spoilnotTest: { refuseListens: (code: string | null) => void } }).spoilnotTest.refuseListens(
-      c,
-    );
+    (
+      window as unknown as { spoilnotTest: { refuseListens: (code: string | null) => void } }
+    ).spoilnotTest.refuseListens(c);
   }, code);
 
 for (const dark of [false, true]) {

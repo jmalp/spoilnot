@@ -11,7 +11,23 @@ import {
   type QuerySnapshot,
   type WriteBatch,
 } from 'firebase/firestore';
-import { BehaviorSubject, filter, from, map, merge, Observable, race, retry, switchMap, timer } from 'rxjs';
+import {
+  BehaviorSubject,
+  defer,
+  filter,
+  from,
+  map,
+  merge,
+  Observable,
+  of,
+  race,
+  retry,
+  share,
+  switchMap,
+  take,
+  tap,
+  timer,
+} from 'rxjs';
 import { AppError, isAppError } from '../core/errors';
 import { quotaSignal } from '../domain/quota';
 
@@ -19,6 +35,8 @@ const QUEUED_WRITE_WAIT_MS = 3_000;
 const PENDING_WRITES_WAIT_MS = 5_000;
 const RETRY_DELAY_MS = 250;
 const CONFIRMED_WRITE_TIMEOUT_MS = 15_000;
+/** Browser tests: how long a refused listener with nothing cached waits before it fails. */
+const REFUSAL_WAIT_MS = 2_000;
 
 export function toAppError(error: unknown): AppError {
   if (error instanceof AppError) return error;
@@ -85,13 +103,21 @@ export function refuseListensForTests(code: string | null): void {
 
 function refusableForTests<T>(listener: Observable<T>): Observable<T> {
   if (!import.meta.env.DEV) return listener;
-  const refused = testRefusal.pipe(
-    filter((code): code is string => code !== null),
-    map((code): T => {
-      throw toAppError(new FirebaseError(code, 'Refused by a browser test.'));
-    }),
-  );
-  return merge(listener, refused);
+  return defer(() => {
+    // Like the SDK, a refused listener first shows what the cache has (its first snapshot, if any within a moment),
+    // then fails.
+    let shown = false;
+    const shared = listener.pipe(share());
+    const firstOrTimeout = race(shared.pipe(take(1)), timer(REFUSAL_WAIT_MS));
+    const refused = testRefusal.pipe(
+      filter((code): code is string => code !== null),
+      switchMap((code) => (shown ? of(code) : firstOrTimeout.pipe(map(() => code)))),
+      map((code): T => {
+        throw toAppError(new FirebaseError(code, 'Refused by a browser test.'));
+      }),
+    );
+    return merge(shared.pipe(tap(() => (shown = true))), refused);
+  });
 }
 
 /**
