@@ -31,7 +31,11 @@ export const Stamps = {
 export const Tombstones = {
   FIELD: 'deletedAt',
   fields: (actor: Actor) => ({ deletedAt: serverTimestamp(), ...Stamps.updated(actor) }),
-  is: (snapshot: DocumentSnapshot) => snapshot.get('deletedAt') != null,
+  /**
+   * Deleted means deletedAt holds a time, the phone's estimate included: until the server confirms an offline delete,
+   * the default read gives null and the document would stay on screen (DESIGN 9.8). Undo removes the field.
+   */
+  is: (snapshot: DocumentSnapshot) => snapshot.get('deletedAt', { serverTimestamps: 'estimate' }) != null,
 };
 
 const SYNC_KEY_PREFIX = 'spoilnot.sync.';
