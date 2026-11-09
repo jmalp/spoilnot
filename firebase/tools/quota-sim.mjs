@@ -6,7 +6,8 @@
 //
 // Knobs: HOUSEHOLDS; RUNS, the reminder job's runs that start in a day (72 are scheduled, three an hour, but GitHub
 // started about 5 of 24 a day in October 2026, DESIGN 10.4; 24 is the planning figure and RUNS=72 the worst case);
-// WEB, how many of each household's 4 phones are the web app for iPhone (no update-gate listener).
+// WEB, how many of each household's 4 phones are the web app for iPhone (the same listeners since its update gate,
+// DESIGN 18.5; only their device documents differ).
 //
 // Each household is DESIGN 9.7's typical one: 30 products, 60 batches, 2 grocery lists (25 items), 15 recipes,
 // 4 phones. Every phone "opens the app" 8 times a day, attaching the listeners the app attaches at start, and once
@@ -124,7 +125,7 @@ function once(ref) {
  * since the previous open (the app starts 5 minutes before its newest cached change; in reality a few documents
  * more). Each query costs at least one read.
  */
-async function open(db, uid, hid, isOwner, isWeb, since) {
+async function open(db, uid, hid, isOwner, since) {
   const h = `households/${hid}`;
   const synced = (path) => (since ? query(collection(db, path), where('updatedAt', '>', since)) : collection(db, path));
   const targets = [
@@ -140,8 +141,8 @@ async function open(db, uid, hid, isOwner, isWeb, since) {
       : query(collection(db, `${h}/activity`), orderBy('createdAt', 'desc'), limit(10)),
     query(collection(db, `${h}/stats`), where(documentId(), '>=', MONTH)), // Home > Your kitchen this month
   ];
-  // The Android app's update gate; the web app has none (DESIGN 18).
-  if (!isWeb) targets.push(doc(db, 'config/app'));
+  // The update gate: minSupportedBuild in the Android app, minWebBuild in the web app (DESIGN 13.3, 18.5).
+  targets.push(doc(db, 'config/app'));
   if (isOwner) targets.push(collection(db, `${h}/joinRequests`)); // owner's badge
   targets.push(synced(`${h}/recipes`)); // Home > Use it up reads the recipes on every open (after v1)
   // Plan tab and Home's Today card: this week's meals, changes-only (DESIGN 9.8); the full read is the week only.
@@ -150,7 +151,7 @@ async function open(db, uid, hid, isOwner, isWeb, since) {
     : query(collection(db, `${h}/meals`), where('date', '>=', WEEK_START), where('date', '<=', WEEK_END)));
   await Promise.all(targets.map(once));
   // Rules: every household-scoped query checks membership with one exists() (users and config need none).
-  reads.ruleLookups += targets.length - (isWeb ? 2 : 3);
+  reads.ruleLookups += targets.length - 3;
 }
 
 const started = Date.now();
@@ -177,7 +178,7 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
     for (let p = 0; p < PHONES; p++) {
       const since = lastOpen[p];
       lastOpen[p] = new Date();
-      await open(phones[p], `${hid}-u${p}`, hid, p === 0, p >= PHONES - WEB, since);
+      await open(phones[p], `${hid}-u${p}`, hid, p === 0, since);
     }
   }
   // The 40 actions, the 10 month counts and the 40 activity events; isMember on each action and each event.

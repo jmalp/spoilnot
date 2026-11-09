@@ -98,6 +98,17 @@ export async function patchFields(path: string, fields: Record<string, Value>) {
   if (!response.ok) throw new Error(`patch ${path}: ${response.status} ${await response.text()}`);
 }
 
+/** Deletes [fields] of a document, keeping the others. */
+export async function removeFields(path: string, fields: string[]) {
+  const mask = fields.map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join('&');
+  const response = await fetch(`${FIRESTORE}/${path}?${mask}`, {
+    method: 'PATCH',
+    headers: ADMIN,
+    body: JSON.stringify({ fields: {} }),
+  });
+  if (!response.ok) throw new Error(`remove ${path}: ${response.status} ${await response.text()}`);
+}
+
 type RestValue = {
   stringValue?: string;
   integerValue?: string;
