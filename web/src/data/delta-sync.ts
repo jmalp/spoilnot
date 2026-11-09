@@ -15,7 +15,7 @@ import {
   type QuerySnapshot,
 } from 'firebase/firestore';
 import { combineLatest, defer, map, Observable, switchMap, tap } from 'rxjs';
-import { cursor } from '../domain/sync';
+import { CURSOR_MARGIN_MS, cursor } from '../domain/sync';
 import type { Actor } from '../domain/write';
 import { querySnapshots, retryAfterOwnWrites, toAppError } from './firestore-rx';
 
@@ -39,10 +39,14 @@ export const Tombstones = {
 };
 
 const SYNC_KEY_PREFIX = 'spoilnot.sync.';
+/** Next to each full-read record: the newest change a server snapshot brought (the cursor, less the margin). */
+const SEEN_KEY_PREFIX = `${SYNC_KEY_PREFIX}seen:`;
 
 /**
- * When each collection was last read in full on this phone (local, not household data). Its keys name the
- * collections, so household and list ids, and it is cleared with the local data (DESIGN 12.2, control 6).
+ * Per collection (and meal window) on this phone: when it was last read in full, and the newest change its server
+ * listener received, where the next changes-only read starts (local, not household data). Its keys name the
+ * collections, so household and list ids, and it is cleared with the local data (DESIGN 12.2, control 6). [marginMs]
+ * is the cursor margin; tests shorten it.
  */
 export class SyncLog {
   constructor(
@@ -51,13 +55,25 @@ export class SyncLog {
       Storage,
       'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'
     > | null = safeStorage(),
+    private readonly marginMs: number = CURSOR_MARGIN_MS,
   ) {}
   lastFullSync(key: string): number | null {
-    const value = Number(this.storage?.getItem(`${SYNC_KEY_PREFIX}${key}`));
-    return value > 0 ? value : null;
+    return this.read(`${SYNC_KEY_PREFIX}${key}`);
   }
   markFullSync(key: string): void {
-    this.storage?.setItem(`${SYNC_KEY_PREFIX}${key}`, String(this.now()));
+    this.write(`${SYNC_KEY_PREFIX}${key}`, this.now());
+  }
+  /** The newest change time a server snapshot of [key] brought (DESIGN 9.8), or null before the first one. */
+  newestSeen(key: string): number | null {
+    return this.read(`${SEEN_KEY_PREFIX}${key}`);
+  }
+  /** Records [at] for [key] if it is newer than what is on record; it never moves back. */
+  markSeen(key: string, at: number): void {
+    if (at > (this.newestSeen(key) ?? 0)) this.write(`${SEEN_KEY_PREFIX}${key}`, at);
+  }
+  /** Where the server listener for [key] starts; null reads everything (domain/sync.ts). */
+  cursor(key: string): number | null {
+    return cursor(this.newestSeen(key), this.lastFullSync(key), this.now(), this.marginMs);
   }
   /** Forgets every collection; the next read of each is a full one. Other keys (display settings) stay. */
   clear(): void {
@@ -77,6 +93,30 @@ export class SyncLog {
   current(): number {
     return this.now();
   }
+  private read(key: string): number | null {
+    try {
+      const value = Number(this.storage?.getItem(key));
+      return value > 0 ? value : null;
+    } catch {
+      return null;
+    }
+  }
+  private write(key: string, value: number): void {
+    try {
+      this.storage?.setItem(key, String(value));
+    } catch {
+      // Storage full or refused: the next open reads in full, which is only slower.
+    }
+  }
+}
+
+/** The browser tests' shorter cursor margin, from localStorage; development builds only (Vite drops it otherwise). */
+export const TEST_CURSOR_MARGIN_KEY = 'spoilnot.test.cursorMarginMs';
+
+export function cursorMarginMs(): number {
+  if (!import.meta.env.DEV) return CURSOR_MARGIN_MS;
+  const forced = Number(safeStorage()?.getItem(TEST_CURSOR_MARGIN_KEY));
+  return forced > 0 ? forced : CURSOR_MARGIN_MS;
 }
 
 function safeStorage(): Storage | null {
@@ -89,6 +129,35 @@ function safeStorage(): Storage | null {
 
 /** The live documents of a collection (tombstones left out) and whether the server has confirmed them yet. */
 export type LiveDocuments = { documents: DocumentSnapshot[]; fromCache: boolean };
+
+/**
+ * The newest [field] time in a server listener's [snapshot], or null when there is nothing to learn from it: a
+ * snapshot from the cache isn't what the server sent, and a document with unsent writes shows the phone's copy.
+ */
+export function newestReceived(snapshot: QuerySnapshot, field: string): number | null {
+  if (snapshot.metadata.fromCache) return null;
+  let newest: number | null = null;
+  for (const d of snapshot.docs) {
+    if (d.metadata.hasPendingWrites) continue;
+    const at = (d.get(field) as Timestamp | null)?.toMillis?.() ?? null;
+    if (at !== null && (newest === null || at > newest)) newest = at;
+  }
+  return newest;
+}
+
+/** What a server listener's [snapshot] for [key] tells the log: a full read, and the newest change it brought. */
+function recordServerSnapshot(log: SyncLog, key: string, snapshot: QuerySnapshot, field: string, fullRead: boolean) {
+  if (snapshot.metadata.fromCache) return;
+  const newest = newestReceived(snapshot, field);
+  if (newest !== null) log.markSeen(key, newest);
+  if (fullRead) log.markFullSync(key);
+}
+
+/** Nothing in the cache for this query (or the cache can't be read): read it in full, whatever the log says. */
+async function cachedEmpty(scope: Query): Promise<boolean> {
+  const cached = await getDocsFromCache(scope).catch(() => null);
+  return cached === null || cached.empty;
+}
 
 /** A listener on the local cache only: free, and updated by local writes and by every other listener. */
 function cacheSnapshots(scope: Query): Observable<QuerySnapshot> {
@@ -103,8 +172,8 @@ function cacheSnapshots(scope: Query): Observable<QuerySnapshot> {
 }
 
 /**
- * DeltaSync for a collection, or part of one ([scope], with its own full-read record [key]): the documents [scope]
- * shows, with changes read for the whole collection.
+ * DeltaSync for a collection, or part of one ([scope], with its own full-read record and cursor [key]): the documents
+ * [scope] shows, with changes read for the whole collection.
  */
 export function liveDocuments(
   db: Firestore,
@@ -113,21 +182,12 @@ export function liveDocuments(
   scope: Query = collection,
   key: string = collection.path,
 ): Observable<LiveDocuments> {
-  return defer(async () => {
-    const cached = await getDocsFromCache(scope).catch(() => null);
-    const newest = cached?.docs.reduce<number | null>((max, d) => {
-      const at = (d.get(UPDATED_AT) as Timestamp | null)?.toMillis?.() ?? null;
-      return at !== null && (max === null || at > max) ? at : max;
-    }, null);
-    return cursor(newest ?? null, log.lastFullSync(key), log.current());
-  }).pipe(
+  return defer(async () => ((await cachedEmpty(scope)) ? null : log.cursor(key))).pipe(
     switchMap((since) => {
       const server = since === null ? scope : query(collection, where(UPDATED_AT, '>', Timestamp.fromMillis(since)));
       const remote = querySnapshots(server, true).pipe(
         retryAfterOwnWrites(db),
-        tap((s) => {
-          if (since === null && !s.metadata.fromCache) log.markFullSync(key);
-        }),
+        tap((s) => recordServerSnapshot(log, key, s, UPDATED_AT, since === null)),
       );
       return combineLatest([cacheSnapshots(scope), remote]).pipe(
         map(([local, server]) => ({
@@ -142,7 +202,7 @@ export function liveDocuments(
 /**
  * The newest [limit] documents of an append-only collection by [field] (liveNewest in the app), such as Recent
  * activity: the cache listener shows the newest ones the phone has, and the server listener reads only documents newer
- * than the newest cached one (less the cursor margin), or the newest [limit] on the daily full read. Removals that
+ * than the newest one it received before (less the cursor margin), or the newest [limit] on the daily full read. Removals that
  * happen while a document is in the server listener's result (Undo) show at once; others by the next full read.
  */
 export function liveNewest(
@@ -153,20 +213,13 @@ export function liveNewest(
   limit: number,
 ): Observable<LiveDocuments> {
   const newestQuery = query(collection, orderBy(field, 'desc'), limitTo(limit));
-  return defer(async () => {
-    const cached = await getDocsFromCache(newestQuery).catch(() => null);
-    const newest = cached?.docs
-      .map((d) => (d.get(field) as Timestamp | null)?.toMillis?.() ?? null)
-      .find((at) => at !== null);
-    return cursor(newest ?? null, log.lastFullSync(collection.path), log.current());
-  }).pipe(
+  const key = collection.path;
+  return defer(async () => ((await cachedEmpty(newestQuery)) ? null : log.cursor(key))).pipe(
     switchMap((since) => {
       const server = since === null ? newestQuery : query(collection, where(field, '>', Timestamp.fromMillis(since)));
       const remote = querySnapshots(server, true).pipe(
         retryAfterOwnWrites(db),
-        tap((s) => {
-          if (since === null && !s.metadata.fromCache) log.markFullSync(collection.path);
-        }),
+        tap((s) => recordServerSnapshot(log, key, s, field, since === null)),
       );
       return combineLatest([cacheSnapshots(newestQuery), remote]).pipe(
         map(([local, server]) => ({ documents: local.docs, fromCache: server.metadata.fromCache })),

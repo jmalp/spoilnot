@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.parcha.spoilnot.core.cache.DeviceCaches
 import com.parcha.spoilnot.core.firebase.ACCESS_LOCAL_NETWORK
+import com.parcha.spoilnot.core.firebase.DeltaSync
 import com.parcha.spoilnot.core.firebase.FirebaseEmulators
 import com.parcha.spoilnot.core.firebase.FirestoreHouseholdWriter
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
@@ -37,6 +38,7 @@ import com.parcha.spoilnot.feature.recipes.data.FirestoreRecipeRepository
 import com.parcha.spoilnot.feature.recipes.data.RecipeChangeMapper
 import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import java.time.Clock
+import java.time.Duration
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,8 +80,9 @@ object EmulatorSupport {
 /**
  * One simulated phone: its own FirebaseApp (so its own Auth user and Firestore cache) wired to the production
  * repositories and session manager, exactly as the app wires them. [close] releases its Firestore after each test.
+ * [cursorMargin] is the changes-only listeners' margin (DESIGN 9.8); tests shorten it instead of waiting 5 minutes.
  */
-class TestPhone(private val name: String) : AutoCloseable {
+class TestPhone(private val name: String, cursorMargin: Duration = DeltaSync.CURSOR_MARGIN) : AutoCloseable {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val app: FirebaseApp =
         FirebaseApp.initializeApp(context, FirebaseApp.getInstance().options, "$name-${UUID.randomUUID()}")
@@ -97,6 +100,7 @@ class TestPhone(private val name: String) : AutoCloseable {
     val syncLog = SyncLog(
         context.getSharedPreferences(syncLogPrefs, android.content.Context.MODE_PRIVATE),
         Clock.systemUTC(),
+        cursorMargin,
     )
     val sessionManager = SessionManager(
         authRepository,

@@ -122,8 +122,9 @@ function once(ref) {
 /**
  * One app start, with the listeners the app attaches (DESIGN 9.1). After v1 (DESIGN 9.8) products, stock, grocery
  * items and recipes are read in full only on a phone's first open of the day; later opens read only what changed
- * since the previous open (the app starts 5 minutes before its newest cached change; in reality a few documents
- * more). Each query costs at least one read.
+ * since the previous open (the app starts 5 minutes before the newest change its server listener received, after
+ * v1 2026-11-09, so it rereads its own writes and in reality a few documents more). Each query costs at least one
+ * read.
  */
 async function open(db, uid, hid, isOwner, since) {
   const h = `households/${hid}`;

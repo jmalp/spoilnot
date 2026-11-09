@@ -7,7 +7,7 @@ export const APP_BUILD = __APP_BUILD__;
  * (one that changes what the app writes or what stored data means); after that build is deployed the owner sets
  * `minWebBuild` to it (RUNBOOK).
  */
-export const WEB_BUILD = 1;
+export const WEB_BUILD = 2;
 
 /** The app version in exports and on this phone's device document, where the Android app writes "1.2.0 (12)". */
 export const APP_VERSION = `web ${APP_BUILD}`;

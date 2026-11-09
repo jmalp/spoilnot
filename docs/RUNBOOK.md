@@ -204,6 +204,12 @@ Screen, signed in to a household, or bring it back to the front; within a few se
 ready" shows and stays past 10 seconds until Update; after Update, Settings > About shows the new build number. If
 the prompt never comes, check Hosting's release history for the deploy.
 
+**The release with the sync cursor from the server (2026-11-09, DESIGN 9.8)** raised `WEB_BUILD` to 2: set
+`minWebBuild` to 2 after its web deploy, and raise `minSupportedBuild` to its Android `versionCode` after the testers
+have it. Older builds still take the cursor from the cache and can miss another member's changes to a list for up to
+20 hours. Updated phones read each collection in full once at their next open (their sync log has no cursor yet),
+about one day's full read more per phone, once.
+
 **New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
 
 ```bash
