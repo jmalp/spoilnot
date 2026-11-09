@@ -5,6 +5,7 @@ import {
   deleteField,
   doc,
   getDocFromCache,
+  getDocFromServer,
   getDocsFromServer,
   increment,
   serverTimestamp,
@@ -22,7 +23,8 @@ import {
   type GroceryList,
   type GroceryRepository,
 } from '../domain/grocery/models';
-import { CATEGORIES, categoryOf, unitOf, type Category } from '../domain/pantry/models';
+import { CATEGORIES, categoryOf, isPantryChange, unitOf, type Category } from '../domain/pantry/models';
+import { lostRace, type AppError } from '../core/errors';
 import { compareStrings } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
 import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
@@ -134,8 +136,36 @@ const itemFields = (item: GroceryItem) => ({
   aliasOf: item.aliasOf,
 });
 
+/** The items a refusal reads at most to find the one another phone removed first. */
+const MAX_ITEMS_READ = 10;
+
 /** Firestore writes for GroceryChange (GroceryChangeMapper). */
 export const groceryMapper: ChangeMapper = {
+  /**
+   * The rules refuse an item created under a deleted list, and a second tombstone on an item (DESIGN 8.5): Add to
+   * pantry or a removal on two phones, or an add as another member deletes the list. Reads the list, then up to
+   * MAX_ITEMS_READ of the removed items, from the server.
+   */
+  async whyRefused(db: Firestore, hid: string, chunk: HouseholdChange[]): Promise<AppError | null> {
+    const listExists = async (listId: string) => (await getDocFromServer(doc(db, lists(hid), listId))).exists();
+    const changes = chunk.filter(isGroceryChange);
+    const added = changes.find((c) => c.type === 'grocery.createItem' || c.type === 'grocery.restoreItem');
+    if (added && 'listId' in added && !(await listExists(added.listId))) return lostRace('listDeleted');
+    const removed = changes
+      .flatMap((c) => (c.type === 'grocery.deleteItem' && c.tombstone ? [c] : []))
+      .slice(0, MAX_ITEMS_READ);
+    for (const change of removed) {
+      const snapshot = await getDocFromServer(doc(db, items(hid, change.listId), change.itemId));
+      if (!snapshot.exists()) {
+        if (!(await listExists(change.listId))) return lostRace('listDeleted');
+        continue;
+      }
+      if (Tombstones.is(snapshot)) {
+        return lostRace(chunk.some(isPantryChange) ? 'addedToPantry' : 'removed', text(snapshot.get('updatedBy')));
+      }
+    }
+    return null;
+  },
   write(batch: WriteBatch, db: Firestore, hid: string, actor: Actor, change: HouseholdChange): boolean {
     if (!isGroceryChange(change)) return false;
     const list = (id: string) => doc(db, lists(hid), id);

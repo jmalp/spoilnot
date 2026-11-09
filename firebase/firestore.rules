@@ -8,6 +8,10 @@ rules_version = '2';
 // delete products, batches, items, recipes and meals by writing a tombstone, and only the owner (deleting the
 // household) or a list deleted in the same batch removes them for real; Insights counts move by at most one per
 // field per write; an ownership transfer demotes the old owner in the same batch.
+//
+// 2026-11-09 (DESIGN 8.5): when two phones finish the same thing, the rules pick the winner. A grocery item is
+// tombstoned once, a meal is marked cooked once, and items are created only under a list that exists; the later
+// phone's whole batch is refused and the app says why.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -336,6 +340,12 @@ service cloud.firestore {
         // Only the owner removes the default list, when deleting the household.
         allow delete: if isMember(hid) && (resource.data.isDefault != true || isOwner(hid));
         match /items/{itemId} {
+          // A stored tombstone may be kept or removed, never written again.
+          function removedOnce() {
+            return resource.data.get('deletedAt', null) == null
+              || request.resource.data.get('deletedAt', null) == null
+              || request.resource.data.deletedAt == resource.data.deletedAt;
+          }
           function itemOk() {
             let d = request.resource.data;
             let was = resource == null ? null : resource.data.get('checkedBy', null);
@@ -356,7 +366,12 @@ service cloud.firestore {
               && optS(d, 'aliasOf', 1, 80);
           }
           allow read: if isMember(hid);
-          allow create, update: if memberWriteOk(hid) && itemOk();
+          // After v1 (2026-11-09, DESIGN 8.5): an item is created only under a list that exists (also after this
+          // batch), so an item added as another member deletes the list is refused rather than lost unseen.
+          allow create: if memberWriteOk(hid) && itemOk() && existsAfter(listPath(hid, listId));
+          // An item is removed once: a second tombstone is refused, so when two phones press Add to pantry for the
+          // same items, the later batch (its purchases included) fails whole. Undo and restock bring it back.
+          allow update: if memberWriteOk(hid) && itemOk() && removedOnce();
           // A member deletes items for real only together with their list (Delete list, Clear household data).
           allow delete: if isOwner(hid) || (isMember(hid) && !existsAfter(listPath(hid, listId)));
         }
@@ -403,9 +418,12 @@ service cloud.firestore {
             && (m.servings == null || (m.servings is int && m.servings >= 1 && m.servings <= 100))
             && m.cooks is list && m.cooks.size() <= 20 && m.cooks.join('').size() <= 20 * 128
             && (m.note == null || s(m.note, 1, 200))
-            // Cooked (after v1): set by the writer at server time, cleared together, or left as it was.
+            // Cooked (after v1): set by the writer at server time, cleared together, or left as it was. A meal goes
+            // from not cooked to cooked only once (2026-11-09): when two phones press Cooked, the later batch (its
+            // pantry takes included) fails whole.
             && ((m.get('cookedAt', null) == null && m.get('cookedBy', null) == null)
-              || (m.cookedBy == me() && m.cookedAt == request.time)
+              || (m.cookedBy == me() && m.cookedAt == request.time
+                && (resource == null || resource.data.get('cookedAt', null) == null))
               || (resource != null && m.cookedAt == resource.data.get('cookedAt', null)
                 && m.cookedBy == resource.data.get('cookedBy', null)));
         }

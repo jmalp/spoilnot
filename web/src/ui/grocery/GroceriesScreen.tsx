@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { catchError, map, of } from 'rxjs';
-import { messageId } from '../../core/errors';
+import { errorText, messageId } from '../../core/errors';
 import { useObservable, useToday } from '../../core/hooks';
 import { plural, str } from '../../core/i18n';
 import { useRemoteChanges } from '../../core/remoteChanges';
@@ -112,9 +112,12 @@ export function GroceriesScreen({
 
   // A server rejection of a write arrives after it was applied locally.
   useEffect(() => {
-    const subscription = writer.errors$.subscribe((e) => snackbars.show(str(messageId(e))));
+    // One that lost to another phone names who won (DESIGN 8.5).
+    const subscription = writer.errors$.subscribe((e) =>
+      snackbars.show(errorText(e, (uid) => members.get(uid), me.user.uid)),
+    );
     return () => subscription.unsubscribe();
-  }, [writer, snackbars]);
+  }, [writer, snackbars, members, me.user.uid]);
 
   // "Sam added Eggs" when someone else adds to the list being viewed (DESIGN 9.2). Only items added in the last
   // minutes: a phone whose cache starts empty would otherwise announce every item already on the list.

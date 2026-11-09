@@ -39,6 +39,15 @@
     <string name="error_code_inactive">That code isn\'t active. Ask the household owner for a new one.</string>
     <string name="error_owner_must_transfer">Make someone else the owner or delete the household first.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
+    <!-- Another phone finished the same thing first; the rules refused this phone's whole write (DESIGN 8.5).
+         %1$s is that member's name. -->
+    <string name="race_pantry_by">%1$s already took these off the list. Nothing was added to the pantry.</string>
+    <string name="race_pantry">These were already taken off the list. Nothing was added to the pantry.</string>
+    <string name="race_removed_by">%1$s already took that off the list.</string>
+    <string name="race_removed">That was already taken off the list.</string>
+    <string name="race_cooked_by">%1$s already marked this meal cooked. Nothing was taken from the pantry.</string>
+    <string name="race_cooked">This meal was already marked cooked. Nothing was taken from the pantry.</string>
+    <string name="race_list_deleted">That list was deleted, so the change wasn\'t saved.</string>
     <string name="error_name_blank">Enter your name.</string>
     <string name="error_name_too_long">Use 40 characters or fewer.</string>
     <string name="error_password_short">Use at least 8 characters.</string>
