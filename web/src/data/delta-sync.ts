@@ -14,7 +14,8 @@ import {
   type Query,
   type QuerySnapshot,
 } from 'firebase/firestore';
-import { combineLatest, defer, map, Observable, switchMap, tap } from 'rxjs';
+import { catchError, combineLatest, concat, defer, map, Observable, of, switchMap, tap, throwError, timer } from 'rxjs';
+import { isAppError } from '../core/errors';
 import { CURSOR_MARGIN_MS, cursor } from '../domain/sync';
 import type { Actor } from '../domain/write';
 import { querySnapshots, retryAfterOwnWrites, toAppError } from './firestore-rx';
@@ -153,6 +154,28 @@ function recordServerSnapshot(log: SyncLog, key: string, snapshot: QuerySnapshot
   if (fullRead) log.markFullSync(key);
 }
 
+/** The pause before a refused server listener listens again: 1, 2, 4 … 32 s (as the session). */
+export const retryDelayMs = (attempt: number): number => 1_000 * 2 ** Math.min(Math.max(attempt, 0), 5);
+
+/**
+ * The server listener's "from the cache" flag, kept alive when the server refuses it for the quota or can't be
+ * reached (after v1, WEB-04): it then reports the cache (so the screen keeps its list and says "Offline") and listens
+ * again after 1, 2, 4 … 32 s. A refused listen reads nothing, so the retries cost no quota. Other errors (a permission
+ * refusal, a bad document) still end the stream.
+ */
+export function keepCacheWhileUnreachable() {
+  return (source: Observable<boolean>): Observable<boolean> => {
+    const attempt = (n: number): Observable<boolean> =>
+      source.pipe(
+        catchError((error: unknown) => {
+          if (!isAppError(error, 'quotaExceeded') && !isAppError(error, 'offline')) return throwError(() => error);
+          return concat(of(true), timer(retryDelayMs(n)).pipe(switchMap(() => attempt(n + 1))));
+        }),
+      );
+    return attempt(0);
+  };
+}
+
 /** Nothing in the cache for this query (or the cache can't be read): read it in full, whatever the log says. */
 async function cachedEmpty(scope: Query): Promise<boolean> {
   const cached = await getDocsFromCache(scope).catch(() => null);
@@ -188,12 +211,11 @@ export function liveDocuments(
       const remote = querySnapshots(server, true).pipe(
         retryAfterOwnWrites(db),
         tap((s) => recordServerSnapshot(log, key, s, UPDATED_AT, since === null)),
+        map((s) => s.metadata.fromCache),
+        keepCacheWhileUnreachable(),
       );
       return combineLatest([cacheSnapshots(scope), remote]).pipe(
-        map(([local, server]) => ({
-          documents: local.docs.filter((d) => !Tombstones.is(d)),
-          fromCache: server.metadata.fromCache,
-        })),
+        map(([local, fromCache]) => ({ documents: local.docs.filter((d) => !Tombstones.is(d)), fromCache })),
       );
     }),
   );
@@ -220,9 +242,11 @@ export function liveNewest(
       const remote = querySnapshots(server, true).pipe(
         retryAfterOwnWrites(db),
         tap((s) => recordServerSnapshot(log, key, s, field, since === null)),
+        map((s) => s.metadata.fromCache),
+        keepCacheWhileUnreachable(),
       );
       return combineLatest([cacheSnapshots(newestQuery), remote]).pipe(
-        map(([local, server]) => ({ documents: local.docs, fromCache: server.metadata.fromCache })),
+        map(([local, fromCache]) => ({ documents: local.docs, fromCache })),
       );
     }),
   );

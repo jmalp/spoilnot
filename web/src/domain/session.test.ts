@@ -1,6 +1,6 @@
 // Ported from SessionManagerTest.
-import { BehaviorSubject, filter, map, type Observable } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { BehaviorSubject, combineLatest, defer, filter, map, type Observable } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../core/errors';
 import type { AuthRepository, AuthUser, PendingJoin, UserProfile, UserRepository } from './account';
 import type {
@@ -12,7 +12,7 @@ import type {
   Membership,
 } from './household';
 import { DeviceSync, type PushIdentity, type StoredFlag } from './notifications';
-import { SessionManager, SIGNED_OUT } from './session';
+import { LOADING, SessionManager, SIGNED_OUT, type Session } from './session';
 
 const sam: AuthUser = { uid: 'sam', email: 'sam@example.com', displayName: 'Sam', emailVerified: false };
 const pending: PendingJoin = { householdId: 'h1', householdName: 'The Smiths', code: 'ABCDE23456' };
@@ -72,7 +72,20 @@ class FakeUsers implements UserRepository {
   }
   put = (p: UserProfile) => this.doc(p.uid).next(p);
   profile = (uid: string) => this.doc(uid).value;
-  observeProfile = (uid: string) => this.doc(uid).asObservable();
+  /** When set, the profile listener fails with it, as a refusal from the server would (again on each retry). */
+  readonly failure = new BehaviorSubject<unknown>(null);
+  /** How many times the profile listener was started. */
+  listens = 0;
+  observeProfile = (uid: string) =>
+    defer(() => {
+      this.listens++;
+      return combineLatest([this.doc(uid), this.failure]).pipe(
+        map(([p, error]) => {
+          if (error) throw error;
+          return p;
+        }),
+      );
+    });
   createProfileIfMissing = async (uid: string, displayName: string) => {
     if (this.doc(uid).value === null) {
       this.doc(uid).next({ uid, displayName, householdId: null, pendingJoin: null, units: 'imperial' });
@@ -102,8 +115,18 @@ class FakeHouseholds implements Partial<HouseholdRepository> {
     if (!this.memberships.has(key)) this.memberships.set(key, new BehaviorSubject<Membership | null>(null));
     return this.memberships.get(key)!;
   }
+  /** When set, the membership listener fails with it. */
+  readonly membershipFailure = new BehaviorSubject<unknown>(null);
   observeMembership = (hid: string, uid: string): Observable<Membership> =>
-    this.membership(hid, uid).pipe(filter((m): m is Membership => m !== null));
+    combineLatest([
+      this.membership(hid, uid).pipe(filter((m): m is Membership => m !== null)),
+      this.membershipFailure,
+    ]).pipe(
+      map(([m, error]) => {
+        if (error) throw error;
+        return m;
+      }),
+    );
   observeOwnJoinRequest = () => this.ownRequest.pipe(map((r) => r));
   completeJoin = async (uid: string, _name: string, p: PendingJoin) => {
     this.users.put({ ...this.users.profile(uid)!, householdId: p.householdId, pendingJoin: null });
@@ -257,6 +280,102 @@ describe('SessionManager', () => {
     expect(m.session).toMatchObject({ kind: 'inHousehold', householdId: 'h1', role: 'member' });
     expect(users.profile('sam')).toEqual(profile('h1'));
     expect(clears).toBe(0);
+  });
+
+  describe('when a listener fails', () => {
+    const inHousehold = (role: 'owner' | 'member'): Session => ({
+      kind: 'inHousehold',
+      user: sam,
+      displayName: 'Sam',
+      householdId: 'h1',
+      role,
+      units: 'imperial',
+    });
+    /** Every session the manager shows, in order. */
+    const record = (m: SessionManager) => {
+      const seen: Session[] = [];
+      const subscription = m.session$.subscribe((s) => seen.push(s));
+      return { seen, stop: () => subscription.unsubscribe() };
+    };
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('the quota running out keeps the household on screen while the session listens again', async () => {
+      users.put(profile('h1'));
+      households.membership('h1', 'sam').next({ kind: 'active', role: 'member' });
+      auth.user.next(sam);
+      const m = await manager();
+      const { seen, stop } = record(m);
+      vi.useFakeTimers();
+      const listens = users.listens;
+
+      users.failure.next(new AppError('quotaExceeded'));
+      // Retries after 1, 2, 4 … 32 s, without Loading in between.
+      await vi.advanceTimersByTimeAsync(70_000);
+      expect(users.listens - listens).toBeGreaterThanOrEqual(5);
+      expect(m.session).toEqual(inHousehold('member'));
+
+      users.failure.next(null);
+      await vi.advanceTimersByTimeAsync(40_000);
+      expect(seen).toEqual([inHousehold('member')]);
+      expect(clears).toBe(0);
+      expect(events).toEqual([]);
+      stop();
+    });
+
+    it('a failed membership listener keeps the household whatever the error, except a refusal', async () => {
+      users.put(profile('h1'));
+      households.membership('h1', 'sam').next({ kind: 'active', role: 'owner' });
+      auth.user.next(sam);
+      const m = await manager();
+      const { seen, stop } = record(m);
+      vi.useFakeTimers();
+
+      for (const error of [new AppError('quotaExceeded'), new AppError('offline'), new TypeError('bad field')]) {
+        households.membershipFailure.next(error);
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(m.session).toEqual(inHousehold('owner'));
+        households.membershipFailure.next(null);
+        await vi.advanceTimersByTimeAsync(40_000);
+      }
+      expect(seen).toEqual([inHousehold('owner')]);
+      expect(clears).toBe(0);
+      stop();
+    });
+
+    it('the gate and its join request stay on screen when the quota runs out', async () => {
+      users.put(profile(null, pending));
+      households.ownRequest.next(request('pending'));
+      auth.user.next(sam);
+      const m = await manager();
+      vi.useFakeTimers();
+
+      users.failure.next(new AppError('quotaExceeded'));
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(m.session).toEqual({
+        kind: 'noHousehold',
+        user: sam,
+        displayName: 'Sam',
+        join: { kind: 'waiting', pending },
+      });
+    });
+
+    it('a permission refusal shows Loading until the profile can be read again', async () => {
+      users.put(profile('h1'));
+      households.membership('h1', 'sam').next({ kind: 'active', role: 'member' });
+      auth.user.next(sam);
+      const m = await manager();
+      vi.useFakeTimers();
+
+      users.failure.next(new AppError('permissionDenied'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(m.session).toEqual(LOADING);
+
+      users.failure.next(null);
+      await vi.advanceTimersByTimeAsync(40_000);
+      expect(m.session).toEqual(inHousehold('member'));
+    });
   });
 
   it('sign-out clears local data before signing out', async () => {

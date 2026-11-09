@@ -26,6 +26,8 @@
   --sn-safe-bottom: env(safe-area-inset-bottom, 0px);
   --sn-safe-left: env(safe-area-inset-left, 0px);
   --sn-safe-right: env(safe-area-inset-right, 0px);
+  /* Where a screen's own content starts: below the status bar, or 0 under the quota banner, which takes it (App). */
+  --sn-screen-top: var(--sn-safe-top);
   --sn-elevation-1: 0 1px 2px rgb(0 0 0 / 30%), 0 1px 3px 1px rgb(0 0 0 / 15%);
   --sn-elevation-2: 0 1px 2px rgb(0 0 0 / 30%), 0 2px 6px 2px rgb(0 0 0 / 15%);
   --sn-elevation-3: 0 1px 3px rgb(0 0 0 / 30%), 0 4px 8px 3px rgb(0 0 0 / 15%);

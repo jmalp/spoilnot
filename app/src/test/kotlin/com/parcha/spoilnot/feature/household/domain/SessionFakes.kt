@@ -12,8 +12,10 @@ import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.yield
 
 /** Fakes for [SessionManager] and the classes that follow its session. Each logs its calls to a shared list, in order. */
@@ -69,7 +71,15 @@ internal class FakeUsers : UserRepository {
 
     fun profile(uid: String) = doc(uid).value
 
-    override fun observeProfile(uid: String): Flow<UserProfile?> = doc(uid)
+    /** When set, the profile listener fails with it, as a refusal from the server would (it can fail again on retry). */
+    val failure = MutableStateFlow<Throwable?>(null)
+
+    /** How many times the profile listener was started. */
+    var listens = 0
+
+    override fun observeProfile(uid: String): Flow<UserProfile?> =
+        combine(doc(uid), failure) { profile, error -> if (error != null) throw error else profile }
+            .onStart { listens++ }
 
     override suspend fun createProfileIfMissing(uid: String, displayName: String) {
         if (doc(uid).value == null) doc(uid).value = UserProfile(uid, displayName, null, null)
@@ -96,8 +106,13 @@ internal class FakeHouseholds(private val users: FakeUsers) : HouseholdRepositor
 
     fun membership(hid: String, uid: String) = memberships.getOrPut(hid to uid) { MutableStateFlow(null) }
 
+    /** When set, the membership listener fails with it. */
+    val membershipFailure = MutableStateFlow<Throwable?>(null)
+
     override fun observeMembership(householdId: String, uid: String): Flow<Membership> =
-        membership(householdId, uid).filterNotNull()
+        combine(membership(householdId, uid).filterNotNull(), membershipFailure) { membership, error ->
+            if (error != null) throw error else membership
+        }
 
     override fun observeOwnJoinRequest(householdId: String, uid: String): Flow<JoinRequest?> = ownRequest.map { it }
 

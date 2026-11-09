@@ -62,7 +62,7 @@
   padding: 32px;
 }
 .sn-full {
-  min-height: 100dvh;
+  min-height: 100%;
 }
 .sn-offline {
   display: flex;
@@ -70,5 +70,36 @@
   gap: 8px;
   padding: 6px 16px;
   background: var(--md-sys-color-surface-container-highest);
+  flex: none;
+}
+
+/* The root (SpoilNotRoot): the quota banner (DESIGN 6.7) above whichever top-level screen shows; the screen fills the
+   rest. The banner takes the status bar, so the screen below doesn't pad for it again. */
+.sn-root {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.sn-root__screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.sn-root__screen > * {
+  flex: 1 0 auto;
+}
+.sn-root--quota .sn-root__screen {
+  --sn-screen-top: 0px;
+}
+.sn-quota {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(8px + var(--sn-safe-top)) calc(16px + var(--sn-safe-right)) 8px calc(16px + var(--sn-safe-left));
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
   flex: none;
 }

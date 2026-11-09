@@ -1,6 +1,6 @@
 /* The household gate (HouseholdGateScreen) and Settings > Household. */
 .sn-gate {
-  min-height: 100dvh;
+  min-height: 100%;
 }
 .sn-gate__content {
   display: flex;

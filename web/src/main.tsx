@@ -6,6 +6,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ServicesProvider } from './core/services';
+import { refuseListensForTests } from './data/firestore-rx';
 import { createServices } from './data/services';
 import { registerUpdates } from './core/updates';
 import { followTheme } from './theme/follow';
@@ -19,6 +20,8 @@ services.restock.start();
 // This phone's time zone and push token, for the daily digest (DESIGN 10.2, 18.4).
 services.deviceSync.start();
 registerUpdates();
+// The browser tests' way to refuse listeners as a project out of quota does (development builds only).
+if (import.meta.env.DEV) Object.assign(window, { spoilnotTest: { refuseListens: refuseListensForTests } });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

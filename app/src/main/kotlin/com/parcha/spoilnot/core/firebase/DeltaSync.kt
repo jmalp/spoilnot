@@ -14,6 +14,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SnapshotListenOptions
 import com.google.firebase.firestore.Source
+import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.write.Actor
 import dagger.Module
 import dagger.Provides
@@ -25,12 +26,15 @@ import java.time.Duration
 import java.time.Instant
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -59,6 +63,9 @@ object DeltaSync {
      * the server has sent another member's slightly older one.
      */
     val CURSOR_MARGIN: Duration = Duration.ofMinutes(5)
+
+    /** The pause before a refused server listener listens again: 1, 2, 4 … 32 s (as `SessionManager`). */
+    fun retryDelay(attempt: Long): Duration = Duration.ofSeconds(1L shl attempt.coerceIn(0, 5).toInt())
 
     /**
      * Where the server listener starts: null means read everything (no change received yet, no full read on record,
@@ -180,10 +187,12 @@ fun CollectionReference.liveDocuments(
     val remote = server.snapshotFlow(MetadataChanges.INCLUDE)
         .retryAfterOwnWrites(db)
         .onEach { log.recordServerSnapshot(key, it, UPDATED_AT, fullRead = since == null) }
+        .map { it.metadata.isFromCache }
+        .keepCacheWhileUnreachable()
     val local = scope.cacheSnapshotFlow()
     emitAll(
-        combine(local, remote) { l, r ->
-            LiveDocuments(l.documents.filterNot { with(Tombstones) { it.isTombstone() } }, r.metadata.isFromCache)
+        combine(local, remote) { l, fromCache ->
+            LiveDocuments(l.documents.filterNot { with(Tombstones) { it.isTombstone() } }, fromCache)
         },
     )
 }
@@ -208,9 +217,24 @@ fun CollectionReference.liveNewest(
     val remote = server.snapshotFlow(MetadataChanges.INCLUDE)
         .retryAfterOwnWrites(db)
         .onEach { log.recordServerSnapshot(path, it, field, fullRead = since == null) }
+        .map { it.metadata.isFromCache }
+        .keepCacheWhileUnreachable()
     emitAll(
-        combine(newestQuery.cacheSnapshotFlow(), remote) { l, r -> LiveDocuments(l.documents, r.metadata.isFromCache) },
+        combine(newestQuery.cacheSnapshotFlow(), remote) { l, fromCache -> LiveDocuments(l.documents, fromCache) },
     )
+}
+
+/**
+ * The server listener's "from the cache" flag, kept alive when the server refuses it for the quota or can't be
+ * reached (after v1, REL-02): it then reports the cache (so the screen keeps its list and says "Offline") and listens
+ * again after 1, 2, 4 … 32 s. A refused listen reads nothing, so the retries cost no quota. Other errors (a
+ * permission refusal, a bad document) still end the flow.
+ */
+internal fun Flow<Boolean>.keepCacheWhileUnreachable(): Flow<Boolean> = retryWhen { cause, attempt ->
+    if (cause !is AppError.QuotaExceeded && cause !is AppError.Offline) return@retryWhen false
+    emit(true)
+    delay(DeltaSync.retryDelay(attempt).toMillis())
+    true
 }
 
 /** Nothing in the cache for this query (or the cache can't be read): read it in full, whatever the log says. */
