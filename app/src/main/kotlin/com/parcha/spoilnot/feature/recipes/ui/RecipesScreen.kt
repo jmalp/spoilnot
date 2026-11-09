@@ -36,7 +36,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,6 +69,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.ui.MessageEffect
@@ -109,11 +109,10 @@ fun RecipesScreen(
         actions = { if (!state.boxEmpty) SortMenu(state.query.sort, viewModel::setSort) },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            SpoilNotFab(
+                text = stringResource(R.string.recipe_add),
+                icon = Icons.Rounded.Add,
                 onClick = { choosing = true },
-                expanded = true, // never shrinks while scrolling (beta feedback)
-                icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.recipe_add)) },
                 modifier = Modifier.testTag("fab_add_recipe").coachMark(TourTarget.AddRecipe.key),
             )
         },

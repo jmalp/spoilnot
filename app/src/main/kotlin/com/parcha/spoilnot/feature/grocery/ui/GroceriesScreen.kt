@@ -44,7 +44,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,6 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.ui.MessageEffect
@@ -132,10 +132,10 @@ fun GroceriesScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (checkedCount > 0) {
-                ExtendedFloatingActionButton(
+                SpoilNotFab(
+                    text = pluralStringResource(R.plurals.grocery_add_to_pantry, checkedCount, checkedCount),
+                    icon = Icons.Rounded.Inventory2,
                     onClick = { shopping = true },
-                    icon = { Icon(Icons.Rounded.Inventory2, contentDescription = null) },
-                    text = { Text(pluralStringResource(R.plurals.grocery_add_to_pantry, checkedCount, checkedCount)) },
                     modifier = Modifier.testTag("fab_add_to_pantry"),
                 )
             }

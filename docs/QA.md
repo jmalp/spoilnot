@@ -208,7 +208,7 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 | A removed member's phone left closed | Close the app on the second phone (reminders on), then remove that member on the owner's phone; wait for the member's reminder hour | No reminder reaches the second phone; opening its app shows the gate |
 | 200% font | Settings > Display > Font size at maximum | Every screen readable, nothing cut off or overlapping |
 | Dark mode | Settings > Appearance > Dark, then System with the phone in dark mode | All screens readable; status colors still distinct |
-| TalkBack | Turn on TalkBack; go through Home, Pantry, a recipe and Groceries | Every control is announced with its name and state ("Milk, 2, expires tomorrow, fridge"); every swipe action is also in a menu |
+| TalkBack | Turn on TalkBack; go through Home, Pantry, a recipe and Groceries; on each, find the floating button (Add item, Add N to pantry after checking an item off, Add recipe, Cook) | Every control is announced with its name and state ("Milk, 2, expires tomorrow, fridge"); the floating buttons are read by their text ("Add item, button"), never just "Button"; every swipe action is also in a menu |
 | Small screen | The small-screen emulator | No horizontal cut-offs; sheets scroll; buttons reachable |
 | Rotation | Turn the phone sideways on each tab | Nothing breaks; content stays centered |
 

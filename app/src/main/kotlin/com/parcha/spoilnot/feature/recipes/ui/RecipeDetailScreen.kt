@@ -42,7 +42,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
@@ -115,10 +115,10 @@ fun RecipeDetailScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (recipe != null && recipe.content.steps.isNotEmpty()) {
-                ExtendedFloatingActionButton(
+                SpoilNotFab(
+                    text = stringResource(R.string.recipe_cook),
+                    icon = Icons.Rounded.PlayArrow,
                     onClick = { onCook(servings) },
-                    icon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
-                    text = { Text(stringResource(R.string.recipe_cook)) },
                     modifier = Modifier.testTag("recipe_cook"),
                 )
             }
