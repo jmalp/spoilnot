@@ -17,12 +17,19 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import java.time.LocalDate
+import java.util.Collections
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -31,7 +38,9 @@ import org.junit.runner.RunWith
 /**
  * M3 acceptance (DESIGN 14): dropping stock below the minimum on phone A creates exactly one item visible on
  * phone B; deleting it does not recreate it; recovering and dropping again does. Both phones run the restock
- * engine, as real phones do, so this also covers two concurrent evaluations.
+ * engine, as real phones do, so this also covers two concurrent evaluations: the phone that made the change writes
+ * the item (DESIGN 9.6). After v1 (B04): a staple bought and added to the pantry comes back unchecked on the next
+ * dip, and no engine write is refused by the rules.
  */
 @RunWith(AndroidJUnit4::class)
 class RestockFlowTest {
@@ -66,10 +75,19 @@ class RestockFlowTest {
                 .single { it.isDefault }.id
         alice.startRestock()
         bob.startRestock()
+        refused = CoroutineScope(Dispatchers.Default).launch {
+            launch { alice.writer.errors.collect { errors += "alice: $it" } }
+            launch { bob.writer.errors.collect { errors += "bob: $it" } }
+        }
     }
+
+    /** Writes the server refused on either phone; the engines' writes must pass the rules. */
+    private val errors: MutableList<String> = Collections.synchronizedList(mutableListOf())
+    private var refused: Job = Job()
 
     @After
     fun tearDown() {
+        refused.cancel()
         if (::alice.isInitialized) alice.close()
         if (::bob.isInitialized) bob.close()
     }
@@ -111,6 +129,7 @@ class RestockFlowTest {
         val added = bob.items { it.isNotEmpty() }
         assertEquals(1, added.size)
         val item = added.single()
+        assertEquals("the phone that made the change wrote it", alice.uid, item.createdBy)
         assertEquals(ItemSource.LowStock, item.source)
         assertEquals("Milk", item.name)
         assertEquals(1.0, item.quantity!!, 0.0)
@@ -131,6 +150,7 @@ class RestockFlowTest {
         val again = bob.items { it.isNotEmpty() }
         assertEquals(1, again.size)
         assertEquals(ItemSource.LowStock, again.single().source)
+        assertEquals(emptyList<String>(), errors.toList())
     }
 
     @Test
@@ -156,5 +176,17 @@ class RestockFlowTest {
         assertEquals("the same product, not a duplicate", 1, after.products.size)
         alice.pantryData { d -> d.products.single().restockArmed }
         assertTrue("restocked: nothing re-added", alice.settledItems(3_000).isEmpty())
+
+        // LOGIC-01: Add to pantry left the item as a tombstone that is still checked. Using up the new purchase on
+        // phone A dips below the minimum again: the item comes back to buy, not in the cart.
+        val bought = after.batches.single { it.quantity == 2.0 }
+        alice.pantry.usedUp(householdId, alice.actor, bought)
+        val back = bob.items { it.isNotEmpty() }.single()
+        assertFalse("back on the list to buy, not in the cart", back.checked)
+        assertNull(back.checkedBy)
+        assertEquals(alice.uid, back.createdBy)
+        assertEquals(1.0, back.quantity!!, 0.0)
+        assertFalse("still unchecked once both engines have seen it", bob.settledItems(3_000).single().checked)
+        assertEquals(emptyList<String>(), errors.toList())
     }
 }

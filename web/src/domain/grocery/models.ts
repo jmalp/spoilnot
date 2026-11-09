@@ -78,8 +78,9 @@ export type GroceryChange =
       count: number | null;
     }
   /**
-   * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). Never writes `checked`, so an item already in
-   * the cart stays there; [writeCreated] is false when the item is already in the local cache.
+   * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). [writeCreated] is true when the item is not
+   * live in the local cache (new, or a tombstone coming back): then it also writes the created fields and starts
+   * unchecked. Otherwise `checked` is left alone, so a live item already in the cart stays there.
    */
   | {
       type: 'grocery.upsertLowStock';

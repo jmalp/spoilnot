@@ -445,7 +445,11 @@ export class PantryService {
     if (data.products.some((p) => p.id !== batch.productId && p.nameKey === key)) throw new AppError('nameTaken');
     const others = data.batches.filter((b) => b.productId === batch.productId && b.id !== batch.id && b.quantity > 0);
     const unit = others.length === 0 ? edit.unit : (product?.unit ?? batch.unit);
-    const min = edit.autoAddToGrocery ? edit.minQuantity : null;
+    // An older staple (Keep at least without automatic add, from before the beta) keeps its Keep at least while
+    // the switch stays off: the form never showed it (DECISIONS 2026-11-09).
+    const keepOlder =
+      product !== null && !product.autoAddToGrocery && product.minQuantity !== null && !edit.autoAddToGrocery;
+    const min = keepOlder ? product.minQuantity : edit.autoAddToGrocery ? edit.minQuantity : null;
     const changes: PantryChange[] = [
       {
         type: 'pantry.updateBatch',
@@ -468,8 +472,8 @@ export class PantryService {
         category: edit.category,
         unit,
         minQuantity: min,
-        autoAddToGrocery: min !== null,
-        buyQuantity: min !== null ? edit.buyQuantity : null,
+        autoAddToGrocery: !keepOlder && min !== null,
+        buyQuantity: keepOlder ? product.buyQuantity : min !== null ? edit.buyQuantity : null,
         restockArmed: product.restockArmed || raised,
       };
       if (JSON.stringify(updated) !== JSON.stringify(product))

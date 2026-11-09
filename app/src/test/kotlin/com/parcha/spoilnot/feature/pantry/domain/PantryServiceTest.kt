@@ -417,6 +417,28 @@ class PantryServiceTest {
     }
 
     @Test
+    fun `an older staple keeps Keep at least when edited with the switch off`() {
+        // LOGIC-05: products from before the beta can have Keep at least with automatic add off; the form never
+        // shows it, so saving must not clear it.
+        val flour = product("flour", min = 2.0).copy(autoAddToGrocery = false, buyQuantity = 3.0)
+        val b1 = batch("b1", "flour")
+        val data = PantryData(listOf(flour), listOf(b1), false)
+        val kept = service.planEdit(b1, itemEdit(name = "Flour", quantity = 1.0), data)
+        assertTrue("the product did not change", kept.none { it is PantryChange.UpdateProduct })
+        val renamed = service.planEdit(b1, itemEdit(name = "Bread flour"), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertEquals(2.0, renamed.minQuantity!!, 0.0)
+        assertFalse(renamed.autoAddToGrocery)
+        assertEquals(3.0, renamed.buyQuantity!!, 0.0)
+        // Turning the switch on uses the form's values as for any product.
+        val on = service.planEdit(b1, itemEdit(name = "Flour", autoAdd = true, min = 4.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertEquals(4.0, on.minQuantity!!, 0.0)
+        assertTrue(on.autoAddToGrocery)
+        assertNull(on.buyQuantity)
+    }
+
+    @Test
     fun `the unit changes only when this is the product's only purchase`() {
         val rice = product("rice")
         val only = PantryData(listOf(rice), listOf(batch("b1", "rice")), false)

@@ -217,7 +217,8 @@ export const groceryMapper: ChangeMapper = {
         });
         break;
       case 'grocery.upsertLowStock': {
-        // Merge-write with no `checked` field: an item already in the cart stays checked (DESIGN 9.6).
+        // Merge-write. A live item keeps its `checked` (one already in the cart stays checked); a new item, or a
+        // tombstone coming back (one left by Add to pantry is still checked), starts unchecked (DESIGN 9.6).
         const fields = {
           name: change.name,
           nameKey: change.nameKey,
@@ -230,7 +231,17 @@ export const groceryMapper: ChangeMapper = {
           [Tombstones.FIELD]: deleteField(),
           ...stamp,
         };
-        const created = change.writeCreated ? { ...Stamps.created(actor), note: null, recipeId: null } : {};
+        const created = change.writeCreated
+          ? {
+              ...Stamps.created(actor),
+              note: null,
+              recipeId: null,
+              aliasOf: null,
+              checked: false,
+              checkedBy: null,
+              checkedAt: null,
+            }
+          : {};
         batch.set(
           item(change.listId, GroceryRules.lowStockItemId(change.productId)),
           { ...fields, ...created },

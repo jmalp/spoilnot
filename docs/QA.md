@@ -195,6 +195,14 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     pantry: the In cart section and the Add to pantry button disappear at once, and the items show in the Pantry with
     "Waiting to sync". Used up on a pantry item: it disappears. Turn Airplane Mode off: within a minute the icons go,
     Phone A shows the same pantry, and each bought item is there once, not twice.
+41. Restock engine (Android and the iPhone web app, after v1, 2026-11-09): give Milk Keep at least 2 with Add to
+    grocery list automatically, 3 in stock, both phones open on Groceries. On Android use 2: within a second Milk is on
+    the list as Low stock on both phones, once. Check it off on the iPhone, then Add to pantry with 2. Use up that new
+    purchase on Android: Milk comes back **unchecked**, in the list to buy, not in the In cart section, and Home counts
+    it. Repeat with the roles swapped. Sign out on the iPhone and sign in again (an empty cache): no staple that has
+    stock is added. Undo of Used up on the last Milk puts it back and leaves the item with Back in stock. On Android,
+    edit a product that has Keep at least but no automatic add (from before the beta, if a tester still has one): change
+    its location and save: it still shows as a staple.
 
 ## 3. Conditions
 

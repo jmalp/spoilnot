@@ -166,9 +166,9 @@ for (const dark of [false, true]) {
       await page.getByRole('navigation').getByRole('button', { name: 'Groceries' }).click();
       await expect(page.getByTestId('grocery_item_bread')).toBeVisible();
       await expect(page.getByTestId('grocery_item_low_p-rice')).toContainText('Back in stock');
-      // The restock engine adds the out-of-stock olive oil; rows from the server are highlighted for a moment as
-      // another phone's changes (DESIGN 6.4).
-      await expect(page.getByTestId('grocery_item_low_p-oil')).toContainText('Low stock');
+      // The restock engine adds the out-of-stock olive oil (seeded as another phone would, so after its 5 s wait,
+      // DESIGN 9.6); rows from the server are highlighted for a moment as another phone's changes (DESIGN 6.4).
+      await expect(page.getByTestId('grocery_item_low_p-oil')).toContainText('Low stock', { timeout: 15_000 });
       await expect(page.locator('[data-remote]')).toHaveCount(0);
       await shot(page, `groceries_${suffix}`);
       await page.getByTestId('fab_add_to_pantry').click();

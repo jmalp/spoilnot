@@ -14,6 +14,8 @@ export interface ChangeMapper {
 export class FirestoreHouseholdWriter implements HouseholdWriter {
   private readonly errors = new Subject<AppError>();
   readonly errors$: Observable<AppError> = this.errors.asObservable();
+  private readonly appliedPlans = new Subject<HouseholdChange[]>();
+  readonly localPlans$: Observable<HouseholdChange[]> = this.appliedPlans.asObservable();
 
   constructor(
     private readonly sdk: FirebaseSdk,
@@ -37,5 +39,6 @@ export class FirestoreHouseholdWriter implements HouseholdWriter {
       }
       batch.commit().catch((error: unknown) => this.errors.next(toAppError(error)));
     }
+    this.appliedPlans.next(changes);
   }
 }

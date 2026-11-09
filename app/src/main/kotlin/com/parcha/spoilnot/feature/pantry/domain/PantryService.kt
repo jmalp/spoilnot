@@ -347,7 +347,11 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         if (data.products.any { it.id != batch.productId && it.nameKey == key }) throw AppError.NameTaken()
         val others = data.batches.filter { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
         val unit = if (others.isEmpty()) edit.unit else product?.unit ?: batch.unit
-        val min = edit.minQuantity?.takeIf { edit.autoAddToGrocery }
+        // An older staple (Keep at least without automatic add, from before the beta) keeps its Keep at least while
+        // the switch stays off: the form never showed it (DECISIONS 2026-11-09).
+        val older = product != null && !product.autoAddToGrocery && product.minQuantity != null
+        val keepOlder = older && !edit.autoAddToGrocery
+        val min = if (keepOlder) product?.minQuantity else edit.minQuantity?.takeIf { edit.autoAddToGrocery }
         val changes = mutableListOf<HouseholdChange>(
             PantryChange.UpdateBatch(
                 batch.id,
@@ -362,8 +366,8 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
                 category = edit.category,
                 unit = unit,
                 minQuantity = min,
-                autoAddToGrocery = min != null,
-                buyQuantity = edit.buyQuantity?.takeIf { min != null },
+                autoAddToGrocery = !keepOlder && min != null,
+                buyQuantity = if (keepOlder) product.buyQuantity else edit.buyQuantity?.takeIf { min != null },
                 restockArmed = product.restockArmed || raised,
             )
             if (updated != product) changes += PantryChange.UpdateProduct(updated)

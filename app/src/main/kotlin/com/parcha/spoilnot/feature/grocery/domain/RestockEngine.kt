@@ -8,7 +8,8 @@ import kotlin.math.max
 
 /**
  * The restock engine (DESIGN 9.6), as a pure function from the current products and stock to the writes to make.
- * It runs on every phone; the plan is idempotent, so two phones evaluating at once write identical data.
+ * It runs on every phone; the plan is idempotent, so two phones evaluating at once write identical data. The phone
+ * whose own change caused it writes at once, the others only after [OTHER_PHONE_DELAY_MS] ([delayMillis]).
  *
  * - Below Keep at least while armed: add `low_{productId}` to the default list once and disarm.
  * - Back at Keep at least or more while disarmed: re-arm.
@@ -40,6 +41,34 @@ object RestockEngine {
         }
         return changes
     }
+
+    /** How long a phone that did not make the change waits before writing, so the phone that did writes first. */
+    const val OTHER_PHONE_DELAY_MS = 5_000L
+
+    /** A change made on this phone this recently counts as the cause of what the engine sees now. */
+    const val OWN_CHANGE_WINDOW_MS = 5_000L
+
+    /**
+     * Whether a plan applied on this phone can change what the engine decides: stock or a product's settings. The
+     * engine's own writes (the item and the armed flag) and history do not count.
+     */
+    fun movesStock(changes: List<HouseholdChange>): Boolean = changes.any {
+        it is PantryChange.CreateProduct ||
+            it is PantryChange.UpdateProduct ||
+            it is PantryChange.CreateBatch ||
+            it is PantryChange.AddToBatch ||
+            it is PantryChange.UpdateBatch ||
+            it is PantryChange.DeleteBatch ||
+            it is PantryChange.RestoreBatch
+    }
+
+    /**
+     * How long to wait before writing a plan: nothing when this phone changed stock or products within
+     * [OWN_CHANGE_WINDOW_MS] (its own change caused it), otherwise [OTHER_PHONE_DELAY_MS]. A newer snapshot during the
+     * wait starts over, so if the other phone's write arrives first, nothing is left to write (DESIGN 9.6).
+     */
+    fun delayMillis(lastOwnChangeAt: Long?, now: Long): Long =
+        if (lastOwnChangeAt != null && now - lastOwnChangeAt in 0..OWN_CHANGE_WINDOW_MS) 0 else OTHER_PHONE_DELAY_MS
 
     /** Buy quantity, or Keep at least minus what is left, at least 1 (DESIGN 5.3). */
     fun buyQuantity(product: Product, total: Double): Double =

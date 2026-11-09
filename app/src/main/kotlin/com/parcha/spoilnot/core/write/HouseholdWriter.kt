@@ -2,6 +2,7 @@ package com.parcha.spoilnot.core.write
 
 import com.parcha.spoilnot.core.error.AppError
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /** Who is making a change, for createdBy/updatedBy and the activity log. */
 data class Actor(val uid: String, val name: String)
@@ -27,4 +28,11 @@ interface HouseholdWriter {
     suspend fun apply(householdId: String, actor: Actor, changes: List<HouseholdChange>)
 
     val errors: Flow<AppError>
+
+    /**
+     * Every plan this phone applied, as soon as it is in the local cache. The restock engine uses it to tell a change
+     * made on this phone from one that came from another phone (DESIGN 9.6). Writers that never report it (test
+     * fakes) look like a phone that only receives changes.
+     */
+    val localPlans: Flow<List<HouseholdChange>> get() = emptyFlow()
 }

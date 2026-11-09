@@ -121,7 +121,8 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
             )
 
             is GroceryChange.UpsertLowStock -> {
-                // Merge-write with no `checked` field: an item already in the cart stays checked (DESIGN 9.6).
+                // Merge-write. A live item keeps its `checked` (one already in the cart stays checked); a new item, or
+                // a tombstone coming back (one left by Add to pantry is still checked), starts unchecked (DESIGN 9.6).
                 val fields = mutableMapOf<String, Any?>(
                     "name" to change.name,
                     "nameKey" to change.nameKey,
@@ -134,7 +135,14 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     Tombstones.FIELD to FieldValue.delete(),
                 ) + stamp
                 val all = if (change.writeCreated) {
-                    fields + Stamps.created(actor) + mapOf("note" to null, "recipeId" to null)
+                    fields + Stamps.created(actor) + mapOf(
+                        "note" to null,
+                        "recipeId" to null,
+                        "aliasOf" to null,
+                        "checked" to false,
+                        "checkedBy" to null,
+                        "checkedAt" to null,
+                    )
                 } else {
                     fields
                 }

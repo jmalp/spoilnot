@@ -23,6 +23,12 @@ export interface HouseholdWriter {
    */
   apply(householdId: string, actor: Actor, changes: HouseholdChange[]): Promise<void>;
   readonly errors$: Observable<AppError>;
+  /**
+   * Every plan this phone applied, once it is in the local cache. The restock engine uses it to tell a change made on
+   * this phone from one that came from another phone (DESIGN 9.6). Writers without it (test fakes) look like a phone
+   * that only receives changes.
+   */
+  readonly localPlans$?: Observable<HouseholdChange[]>;
 }
 
 /** DESIGN 8.5: chunk batched writes at 400 operations. */

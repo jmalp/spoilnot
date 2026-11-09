@@ -10,7 +10,7 @@ import {
   type Firestore,
   type WriteBatch,
 } from 'firebase/firestore';
-import { combineLatest, distinctUntilChanged, map, switchMap, type Observable } from 'rxjs';
+import { combineLatest, defer, distinctUntilChanged, map, switchMap, type Observable } from 'rxjs';
 import {
   categoryOf,
   dateTypeOf,
@@ -24,7 +24,7 @@ import {
 import type { PantryRepository } from '../domain/pantry/repository';
 import { isLocalDate } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
-import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
+import { liveDocuments, Stamps, Tombstones, type LiveDocuments, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
 import { capTo, ReadCaps } from '../domain/caps';
@@ -92,17 +92,34 @@ export class FirestorePantryRepository implements PantryRepository {
     return this.sdk.instance$.pipe(
       switchMap((db) =>
         combineLatest([
-          liveDocuments(db, collection(db, products(householdId)), this.log),
-          liveDocuments(db, collection(db, stock(householdId)), this.log),
+          this.serverRead(liveDocuments(db, collection(db, products(householdId)), this.log), products(householdId)),
+          this.serverRead(liveDocuments(db, collection(db, stock(householdId)), this.log), stock(householdId)),
         ]),
       ),
-      map(([p, s]) => ({
+      map(([[p, pRead], [s, sRead]]) => ({
         products: p.documents.map(toProduct),
         batches: s.documents.map(toBatch),
         fromCache: p.fromCache || s.fromCache,
+        serverRead: pRead && sRead,
       })),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     );
+  }
+
+  /**
+   * Pairs each snapshot with whether this collection has been read from the server: a full read on record (a warm
+   * cache, so offline still counts) or a server snapshot since this listener started (DESIGN 9.6).
+   */
+  private serverRead(live: Observable<LiveDocuments>, path: string): Observable<[LiveDocuments, boolean]> {
+    return defer(() => {
+      let read = this.log.lastFullSync(path) !== null;
+      return live.pipe(
+        map((l): [LiveDocuments, boolean] => {
+          read = read || !l.fromCache;
+          return [l, read];
+        }),
+      );
+    });
   }
 }
 
