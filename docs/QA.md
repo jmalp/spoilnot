@@ -187,6 +187,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Insights counts two used, Undo puts them back. As a member (not the owner), delete a list with items: it goes on
     both phones, and Recent activity names each person as the member list does. On a spare household, transfer
     ownership, then delete the household as the new owner. Repeat on the iPhone.
+40. Deleting offline (Android and the iPhone web app, after v1): with a few grocery items and a pantry item, turn on
+    Airplane Mode. Delete a grocery item: it disappears at once; Undo brings it back. Check off two items and Add to
+    pantry: the In cart section and the Add to pantry button disappear at once, and the items show in the Pantry with
+    "Waiting to sync". Used up on a pantry item: it disappears. Turn Airplane Mode off: within a minute the icons go,
+    Phone A shows the same pantry, and each bought item is there once, not twice.
 
 ## 3. Conditions
 
