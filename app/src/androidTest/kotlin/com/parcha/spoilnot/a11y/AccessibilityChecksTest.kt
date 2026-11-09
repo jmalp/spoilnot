@@ -260,7 +260,11 @@ class AccessibilityChecksTest {
         tab(R.string.tab_plan)
         awaitTag("screen_plan")
         check("Plan")
-        compose.onAllNodes(tagMatching(Regex("plan_add_\\d{4}-.*")))[0].performClick() // plan_add_<date>_<slot>
+        // Plan opens scrolled to today, so the week's first day can be laid out above the visible list, where a tap
+        // lands on nothing (every day but the first day of the week). Use today's button, scrolled into view.
+        compose.onNodeWithTag("plan_add_${LocalDate.now()}_${MealSlot.Breakfast.wire}")
+            .performScrollTo()
+            .performClick()
         awaitTag("sheet_add_meal")
         check("Add meal sheet")
         closeWindows()
