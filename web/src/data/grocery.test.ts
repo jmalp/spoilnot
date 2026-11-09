@@ -43,9 +43,11 @@ describe('upsertLowStock', () => {
       aliasOf: null,
       note: null,
       recipeId: null,
-      createdBy: 'u1',
       source: 'low_stock',
     });
+    expect(fields).toHaveProperty('createdAt');
+    // Never createdBy: a second phone's identical write must pass the rules too.
+    expect(fields).not.toHaveProperty('createdBy');
     expect(fields).toHaveProperty('deletedAt');
   });
 

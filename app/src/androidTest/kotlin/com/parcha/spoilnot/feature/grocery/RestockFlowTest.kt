@@ -38,9 +38,9 @@ import org.junit.runner.RunWith
 /**
  * M3 acceptance (DESIGN 14): dropping stock below the minimum on phone A creates exactly one item visible on
  * phone B; deleting it does not recreate it; recovering and dropping again does. Both phones run the restock
- * engine, as real phones do, so this also covers two concurrent evaluations: the phone that made the change writes
- * the item (DESIGN 9.6). After v1 (B04): a staple bought and added to the pantry comes back unchecked on the next
- * dip, and no engine write is refused by the rules.
+ * engine, as real phones do, so this also covers two concurrent evaluations (DESIGN 9.6). After v1 (B04): a staple
+ * bought and added to the pantry comes back unchecked on the next dip, and no engine write is refused by the rules,
+ * even when both phones write at once (Bob's Add to pantry a few seconds earlier can make both act at once).
  */
 @RunWith(AndroidJUnit4::class)
 class RestockFlowTest {
@@ -129,7 +129,6 @@ class RestockFlowTest {
         val added = bob.items { it.isNotEmpty() }
         assertEquals(1, added.size)
         val item = added.single()
-        assertEquals("the phone that made the change wrote it", alice.uid, item.createdBy)
         assertEquals(ItemSource.LowStock, item.source)
         assertEquals("Milk", item.name)
         assertEquals(1.0, item.quantity!!, 0.0)
@@ -184,7 +183,6 @@ class RestockFlowTest {
         val back = bob.items { it.isNotEmpty() }.single()
         assertFalse("back on the list to buy, not in the cart", back.checked)
         assertNull(back.checkedBy)
-        assertEquals(alice.uid, back.createdBy)
         assertEquals(1.0, back.quantity!!, 0.0)
         assertFalse("still unchecked once both engines have seen it", bob.settledItems(3_000).single().checked)
         assertEquals(emptyList<String>(), errors.toList())

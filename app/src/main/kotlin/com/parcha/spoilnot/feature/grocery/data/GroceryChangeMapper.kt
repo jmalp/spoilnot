@@ -123,6 +123,8 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
             is GroceryChange.UpsertLowStock -> {
                 // Merge-write. A live item keeps its `checked` (one already in the cart stays checked); a new item, or
                 // a tombstone coming back (one left by Add to pantry is still checked), starts unchecked (DESIGN 9.6).
+                // No createdBy: the rules would refuse a second phone's identical write naming another creator, so
+                // two phones writing the same item at once both succeed (a tombstone keeps its old creator).
                 val fields = mutableMapOf<String, Any?>(
                     "name" to change.name,
                     "nameKey" to change.nameKey,
@@ -135,7 +137,8 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     Tombstones.FIELD to FieldValue.delete(),
                 ) + stamp
                 val all = if (change.writeCreated) {
-                    fields + Stamps.created(actor) + mapOf(
+                    fields + mapOf(
+                        "createdAt" to FieldValue.serverTimestamp(),
                         "note" to null,
                         "recipeId" to null,
                         "aliasOf" to null,

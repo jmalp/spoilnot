@@ -110,8 +110,8 @@ sealed interface GroceryChange : HouseholdChange {
 
     /**
      * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). [writeCreated] is true when the item is not
-     * live in the local cache (new, or a tombstone coming back): then it also writes the created fields and starts
-     * unchecked. Otherwise `checked` is left alone, so a live item already in the cart stays there.
+     * live in the local cache (new, or a tombstone coming back): then it also writes `createdAt` (never `createdBy`) and
+     * starts unchecked. Otherwise `checked` is left alone, so a live item already in the cart stays there.
      */
     data class UpsertLowStock(
         val listId: String,

@@ -59,7 +59,9 @@ class GroceryChangeMapperTest {
             assertTrue("$field written", written.containsKey(field))
             assertNull(field, written[field])
         }
-        assertEquals("u1", written["createdBy"])
+        assertTrue(written.containsKey("createdAt"))
+        // Never createdBy: a second phone's identical write must pass the rules too.
+        assertFalse(written.containsKey("createdBy"))
         assertTrue("brought back from a tombstone", written.containsKey("deletedAt"))
     }
 
