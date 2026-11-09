@@ -8,6 +8,11 @@ export const UNDO_WINDOW_MS = 8_000;
 export const SHORT_MS = 4_000;
 /** SnackbarDuration.Long. */
 export const LONG_MS = 10_000;
+/**
+ * SnackbarDuration.Indefinite: until its action is tapped. Another message shows first and this one comes back after
+ * it, so an Undo is never hidden behind it.
+ */
+export const INDEFINITE = Number.POSITIVE_INFINITY;
 
 type Message = { id: number; text: string; action?: { label: string; run: () => void }; durationMs: number };
 
@@ -16,7 +21,7 @@ type Snackbars = {
   show: (text: string) => void;
   /** A message with Undo for 8 seconds (MessageEffect in the app). */
   showUndo: (text: string, undo: () => void) => void;
-  /** A message with another action, for [durationMs] (SnackbarDuration.Long by default). */
+  /** A message with another action, for [durationMs] (SnackbarDuration.Long by default, or INDEFINITE). */
   showAction: (text: string, label: string, run: () => void, durationMs?: number) => void;
   /** Room to leave below snackbars, such as a floating action button's (Scaffold puts snackbars above it). */
   setBottomInset: (px: number) => void;
@@ -41,7 +46,12 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
   const [bottomInset, setBottomInset] = useState(0);
   const next = useRef(0);
   const enqueue = useCallback((message: Omit<Message, 'id'>) => {
-    setQueue((current) => [...current, { ...message, id: next.current++ }]);
+    const added = { ...message, id: next.current++ };
+    // Messages without a time limit wait at the back, so one that is showing gives way and comes back after.
+    setQueue((current) => {
+      const at = added.durationMs === INDEFINITE ? -1 : current.findIndex((m) => m.durationMs === INDEFINITE);
+      return at < 0 ? [...current, added] : [...current.slice(0, at), added, ...current.slice(at)];
+    });
   }, []);
   const value = useMemo<Snackbars>(
     () => ({
@@ -56,7 +66,7 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
   const current = queue[0];
   const dismiss = useCallback((id: number) => setQueue((q) => q.filter((m) => m.id !== id)), []);
   useEffect(() => {
-    if (!current) return;
+    if (!current || current.durationMs === INDEFINITE) return;
     const timer = window.setTimeout(() => dismiss(current.id), current.durationMs);
     return () => window.clearTimeout(timer);
   }, [current, dismiss]);

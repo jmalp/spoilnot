@@ -11,6 +11,7 @@ import { DeviceSync } from '../domain/notifications';
 import { SessionManager } from '../domain/session';
 import { systemClock } from '../domain/time';
 import { FirestoreActivityRepository } from './activity';
+import { FirestoreAppConfigRepository } from './config';
 import { FirebaseAuthRepository } from './auth';
 import { FirestoreHouseholdExporter } from './export';
 import {
@@ -72,6 +73,7 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     exporter: new FirestoreHouseholdExporter(sdk, clock, APP_VERSION),
     notificationPrefs: new FirestoreNotificationPrefsRepository(sdk),
     deviceSync: new DeviceSync(session.session$, devices, push, storedFlag(TOKEN_TO_DELETE_KEY)),
+    appConfig: new FirestoreAppConfigRepository(sdk),
     preferences: new AppPreferences(),
     clock,
   };

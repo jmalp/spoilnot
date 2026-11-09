@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 // The service worker (DESIGN 18.5): caches the app shell so the app opens offline, and switches to a new version
-// when the app asks (Update). Firestore keeps its own offline copy of the data.
+// when the app asks (Update). The browser fetches this file again when the app is loaded and when the app asks for a
+// check (core/updates.ts: on becoming visible, at most hourly); a changed file installs and waits for Update.
+// Firestore keeps its own offline copy of the data.
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { notificationFor, openRoute, safeRoute } from './core/pushMessages';

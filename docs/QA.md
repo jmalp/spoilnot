@@ -163,8 +163,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Spoil Not to the Home Screen and Home shows the card; Not now hides it. Share > Add to Home Screen: the icon is
     the Spoil Not jar, the app opens full screen with no Safari bars and neither hint shows. Sign in, then turn on
     Airplane Mode and reopen the app: it opens and shows the pantry; an item added offline appears on the Android
-    phone once the iPhone is back online. Deploy a new build: within a day of opening the app, "A new version of Spoil
-    Not is ready" offers Update, which reloads into it. Run flows 28 to 35 on this install.
+    phone once the iPhone is back online. Deploy a new build: the next time the app comes to the front (at most an
+    hour after it last looked), "A new version of Spoil Not is ready" offers Update for 10 seconds, which reloads
+    into it. For a build that raised `WEB_BUILD` (after v1), set `minWebBuild` (RUNBOOK) with the app open on the
+    old build: the prompt shows within seconds and stays until Update, and About then shows the new build number.
+    Run flows 28 to 35 on this install.
 37. Sign out and Delete account in Settings (Android, after v1): on Phone B, with reminders on and an item expiring
     tomorrow, sign out from Settings (not from the gate): Welcome shows within a few seconds. Leave Phone B signed
     out past the digest hour: no digest reaches it, while Phone A gets its own. Sign in again, then sign out in

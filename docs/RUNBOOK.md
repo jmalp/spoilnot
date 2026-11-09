@@ -123,8 +123,8 @@ cd firebase && npx firebase deploy --only firestore:rules --project prod
 Both projects run the same rules; deploy to dev first. `spoilnot-prod` was opened for the beta on 2026-10-18.
 
 A rules change that refuses something an older build writes goes out **after** the builds that no longer write it:
-Android first (then raise `minSupportedBuild`), the web app next (it has no minimum build: an open web app keeps its
-version until it restarts), the rules last. If the rules refuse something they should not, Firebase console >
+Android first (then raise `minSupportedBuild`), the web app next (then raise `minWebBuild` if its build raised
+`WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
 Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
 
 ### The 2026-11-08 rules (allowed fields, authors, deletes and counts; DESIGN 8.1 and 8.5)
@@ -193,6 +193,16 @@ To make older builds stop working until updated, raise `minSupportedBuild` in Fi
 **Required for the release with changes-only listeners (DESIGN 9.8):** right after the release, raise
 `minSupportedBuild` to that release's `versionCode`. Older builds show deleted items again (tombstones) and delete
 without leaving one, so they must update.
+
+**The web app's counterpart is `minWebBuild`** in the same document (DESIGN 18.5). A change that older web builds
+must not keep running raises `WEB_BUILD` in `web/src/core/version.ts` by one (its PR says so). After that build is
+deployed to spoilnot-prod (`./scripts/deploy-web.sh prod`), set `minWebBuild` in `config/app` (spoilnot-prod) to that
+number, as a number (Firestore console > `config` > `app` > Add field, type number; the field may not exist yet).
+Do the same in spoilnot-dev after deploying there. Never set it before the deploy: phones would look for a version
+that is not there. Then check on an iPhone that still has the old build (QA flow 36): open Spoil Not from the Home
+Screen, signed in to a household, or bring it back to the front; within a few seconds "A new version of Spoil Not is
+ready" shows and stays past 10 seconds until Update; after Update, Settings > About shows the new build number. If
+the prompt never comes, check Hosting's release history for the deploy.
 
 **New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
 
@@ -376,8 +386,8 @@ daily writes spread between opens, each logging an activity event, 10 of them fi
 
 So the free plan holds **about 17 households** of this size under the 70% warning line (reads run out first).
 Other runs: `RUNS=72` (every scheduled run starts) 22,372 reads, about 15.6 households, since each run reads every
-user with reminders on; `RUNS=15` 20,035, about 17.5; `WEB=2` (two web phones per household, no update gate) 160
-fewer reads.
+user with reminders on; `RUNS=15` 20,035, about 17.5; `WEB=2` (two web phones per household) the same reads, since
+the web app also reads `config/app` (DESIGN 18.5).
 
 History: before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and 19,320 before
 Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner left it at 19,440; part 3

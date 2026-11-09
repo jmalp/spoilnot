@@ -602,6 +602,7 @@ households/{hid}/stats/{yyyy-MM}:     # after v1: Insights counts for one month 
 
 config/app:                           # read-only for clients; edited in the console
   minSupportedBuild: int
+  minWebBuild: int                    # after v1: the oldest web build (WEB_BUILD) the data supports (18.5)
   message: string
 ```
 
@@ -1308,6 +1309,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-08 | What stays on a phone after sign-out: both apps clear the sync log with the local data, and Android also clears the built-in browser's cookies, site storage and cache and the cached recipe photos. The web app deletes its push token when a user leaves the phone, keeping a flag until FCM confirms so a phone signed out offline deletes it at its next start. Notification links stay on this site (`safeRoute` resolves the route on the app's origin). Both household gates offer Delete account, and a deletion that fails after the gate gave way to Loading shows its error when the gate comes back | 5.1, 6, 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
 | 2026-11-08 | Firestore rules: each collection accepts only the fields the apps write, with DESIGN 8.1's sizes (names 80, people 40, notes 500, recipe text 11.6's, links http or https up to 2,000, lists bounded), finite numbers, a known event type and a 1 to 40 character author name; `createdBy` is the writer on create and fixed after, `checkedBy` the writer or nobody; members delete only by tombstone (outright: the owner, or a list's items with their list); Insights counts move by one per write; an ownership transfer demotes the old owner in the same batch. Both apps: counts go one step per write, Delete list deletes the list before its items, names are cut to 8.1's lengths on read, Home names authors from the member list, and Android drops non-web recipe links and photos on read. 116 rules tests. The rules deploy after the Android and web releases (RUNBOOK) | 4, 8.1, 8.5, 12.3, 12.4, 18.5, RUNBOOK, SECURITY_REVIEW |
 | 2026-11-08 | Deleted things disappear offline: a tombstone counts as deleted while its `deletedAt` is still the phone's estimate, so removed grocery items, Clear checked, Add to pantry, Used up, Throw away and deleted recipes and meals leave the screen at once without a signal, and Add to pantry can no longer be pressed twice. An instrumented test and a WebKit test (`offline.spec.ts`) delete and add to the pantry with the network off; QA flow 40 checks it on the phones | 8.1, 9.8, QA, DECISIONS |
+| 2026-11-08 | Web updates: the web app asks for a new version whenever it becomes visible, at most once an hour, and reads `config/app.minWebBuild`; when its build number (`WEB_BUILD`, shown in About) is older, it looks at once and the Update snackbar stays until Update. The owner raises `minWebBuild` after a web deploy that older builds must not keep running. quota-sim counts the web's `config/app` listener | 8.2, 18.5, 18.7, RUNBOOK, QA |
 
 ## 18. Web app for iPhone (after v1)
 
@@ -1414,7 +1416,19 @@ Web Push certificates) is a human step; its public key goes in the web build's c
 **18.5 Offline, install and updates.** A service worker caches the app shell so it opens offline; a web manifest
 gives the name, the launcher icon (rendered from the adaptive icon) and theme colors. A new version is fetched in the
 background and offered with a snackbar for 10 s (Update, which reloads; otherwise it starts with the next launch).
-`minSupportedBuild` (5.6) does not apply: the web app is always the latest version once it restarts. An app left open keeps running its version until then, so a rules change that refuses what an older web build writes is deployed only after the new web build has been out for a while (RUNBOOK). In Safari on an iPhone, the
+The browser looks for one only when the app is loaded, and a Home Screen app can stay in memory for days, so the app
+also asks (`workbox.update()`) whenever it becomes visible, at most once an hour (`UpdateChecks` in
+`web/src/domain/updates.ts`). `minSupportedBuild` does not apply to the web app; its counterpart is
+`config/app.minWebBuild` (8.2), compared with the build number `WEB_BUILD` in `web/src/core/version.ts`, which a change
+raises by one when older web builds must not keep running (one that changes what the app writes or what stored data
+means). Settings > About shows it with the commit ("build 1 (3f09a54)"). While the app is open in a household it
+listens to `config/app`; when `WEB_BUILD` is older than `minWebBuild` it looks for the new version at once and at every
+visit until one waits, and the Update snackbar then stays until Update is tapped (another message, such as an Undo,
+shows first and the prompt comes back after it). A missing or unreadable document, or a field that is not a whole
+number, never asks for an update. The owner sets `minWebBuild` after the web deploy (docs/RUNBOOK.md). Until then, or for
+a build that did not raise `WEB_BUILD`, an app left open keeps running its version until it restarts or its hourly
+check finds the new one, so a rules change that refuses what an older web build writes is deployed only after the
+new web build has been out for a while (RUNBOOK). In Safari on an iPhone, the
 welcome screen says how to install (Share, then Add to Home Screen) and Home shows a card about it until Not now; the
 app opened from the Home Screen shows neither.
 
@@ -1447,7 +1461,8 @@ Playwright with WebKit and an iPhone profile against the Firebase emulators, two
 flows (two phones in Pantry, recipes, the plan); the screenshots of 18.2. CI runs format, lint, type check, unit tests, the build, a check that the
 generated files are current, the Playwright tests, and the built app under the hosting headers
 (`playwright.preview.config.ts`: `vite preview` with the headers of `firebase.json`, the service worker installed,
-no policy violations, the pantry offline). The owner runs the web QA flows on a real iPhone before the first web
+no policy violations, the pantry offline; and after v1 a changed service worker with `minWebBuild` above the build,
+whose Update prompt must outlast 10 s and reload into it). The owner runs the web QA flows on a real iPhone before the first web
 release.
 
 **18.8 Milestones** (one PR each, merged when CI passes):
