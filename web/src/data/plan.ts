@@ -3,6 +3,7 @@
 import {
   collection,
   doc,
+  getDocFromServer,
   query,
   serverTimestamp,
   Timestamp,
@@ -24,6 +25,7 @@ import type { Actor, HouseholdChange } from '../domain/write';
 import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
+import { lostRace, type AppError } from '../core/errors';
 import { capTo, ReadCaps } from '../domain/caps';
 
 export const meals = (hid: string) => `households/${hid}/meals`;
@@ -94,6 +96,15 @@ const fields = (meal: PlannedMeal) => ({
 
 /** Firestore writes for MealPlanChange (MealPlanChangeMapper). */
 export const mealPlanMapper: ChangeMapper = {
+  /** The rules mark a meal cooked once (DESIGN 8.5): a refused Cooked lost to another phone's when it is cooked now. */
+  async whyRefused(db: Firestore, hid: string, chunk: HouseholdChange[]): Promise<AppError | null> {
+    const cooked = chunk.filter(isMealPlanChange).find((c) => c.type === 'meal.setCooked' && c.cooked);
+    if (!cooked || cooked.type !== 'meal.setCooked') return null;
+    const snapshot = await getDocFromServer(doc(db, meals(hid), cooked.mealId));
+    if (snapshot.get('cookedAt') == null) return null;
+    const by: unknown = snapshot.get('cookedBy');
+    return lostRace('cooked', typeof by === 'string' ? by : null);
+  },
   write(batch: WriteBatch, db: Firestore, hid: string, actor: Actor, change: HouseholdChange): boolean {
     if (!isMealPlanChange(change)) return false;
     const meal = (id: string) => doc(db, meals(hid), id);

@@ -15,6 +15,26 @@ sealed class AppError(message: String? = null, cause: Throwable? = null) : Excep
 
     class Conflict(cause: Throwable? = null) : AppError("Conflict", cause)
 
+    /**
+     * Another phone finished the same thing first, and the rules refused this phone's whole write (DESIGN 8.5).
+     * [byUid] is the member whose change won, when it is known.
+     */
+    class LostRace(val race: Race, val byUid: String? = null) : AppError("Lost race: $race") {
+        enum class Race {
+            /** Add to pantry: the items were already taken off the list. */
+            AddedToPantry,
+
+            /** Delete or Clear checked: the items were already taken off the list. */
+            Removed,
+
+            /** Cooked: the meal was already marked cooked. */
+            Cooked,
+
+            /** An item was added to (or put back on) a list that was deleted. */
+            ListDeleted,
+        }
+    }
+
     /** Another pantry product already has this name. */
     class NameTaken : AppError("Name taken")
 

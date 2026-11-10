@@ -9,6 +9,12 @@ import { toAppError } from './firestore-rx';
 /** Turns one feature's changes into Firestore writes; returns false for another feature's change. */
 export interface ChangeMapper {
   write(batch: WriteBatch, db: Firestore, householdId: string, actor: Actor, change: HouseholdChange): boolean;
+  /**
+   * Why the server refused [chunk], one batch this mapper helped write, when another phone finished the same thing
+   * first (DESIGN 8.5): read from the server after the refusal, so it costs reads only then. Null when the batch holds
+   * none of this feature's races, or nothing shows that one was lost.
+   */
+  whyRefused?(db: Firestore, householdId: string, chunk: HouseholdChange[]): Promise<AppError | null>;
 }
 
 export class FirestoreHouseholdWriter implements HouseholdWriter {
@@ -37,8 +43,25 @@ export class FirestoreHouseholdWriter implements HouseholdWriter {
           throw new Error(`No mapper for ${change.type}`);
         }
       }
-      batch.commit().catch((error: unknown) => this.errors.next(toAppError(error)));
+      batch.commit().catch(async (error: unknown) => {
+        const refused = toAppError(error);
+        const why = refused.kind === 'permissionDenied' ? await this.explain(db, householdId, chunk) : null;
+        this.errors.next(why ?? refused);
+      });
     }
     this.appliedPlans.next(changes);
+  }
+
+  /** The race a refused batch lost, if a feature can tell (DESIGN 8.5); a failed read leaves the plain refusal. */
+  private async explain(db: Firestore, householdId: string, chunk: HouseholdChange[]): Promise<AppError | null> {
+    try {
+      for (const mapper of this.mappers) {
+        const why = (await mapper.whyRefused?.(db, householdId, chunk)) ?? null;
+        if (why !== null) return why;
+      }
+    } catch {
+      // The plain refusal stands.
+    }
+    return null;
   }
 }

@@ -8,7 +8,7 @@ they are listed at the end with exact steps.
 
 | Threat | Mitigation | Checked |
 | --- | --- | --- |
-| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests at sign-off, 81 after v1, 116 since 2026-11-08 (`firebase/test/rules.test.js`; since 2026-11-08 one checks that clients can neither read nor write the reminder job's `jobs/state`), "non-members" and "signed out" groups |
+| Outsiders read or change household data | Rules require membership on every household path; deny by default | 61 rules tests at sign-off, 81 after v1, 116 since 2026-11-08, 122 since 2026-11-09 (`firebase/test/rules.test.js`; since 2026-11-08 one checks that clients can neither read nor write the reminder job's `jobs/state`), "non-members" and "signed out" groups |
 | A guessed or leaked invite code | 50-bit codes, readable only by exact `get`; a code only lets someone ask to join; the owner approves, can pause or rotate | Rules tests "join requests"; `InviteCodes` uses `SecureRandom` |
 | A removed member keeps access | Rules re-check membership on every request; the app's membership watcher returns them to the gate and clears the cache; after v1 the reminder job (Admin SDK, outside the rules) sends a digest only to members and clears a removed member's household pointer | `HouseholdFlowTest` (removed member back at the gate within 5 s), rules tests; `backend/reminder/test/integration/job.test.ts` (a removed member gets nothing, pointer cleared; 2026-11-01) |
 | A lost or shared phone | Sign-out and account deletion clear the local copy (`terminate()` then `clearPersistence()`) and remove the phone's device record; after v1 the phone also deletes its push token while nobody is signed in, and (2026-11-08) clearing local data also clears the sync log on both apps and the built-in browser's cookies, storage and cache and the photo caches on Android; the web app deletes its push token when a user leaves the phone, again at the next start if it could not; the owner can remove a lost phone's member | `FirestoreProvider.clearLocalData`, `SessionManager.signOut`; after v1 (2026-11-01) `SettingsAccountUiTest` and `DeviceSyncTest`; (2026-11-08) `SettingsAccountUiTest` (sync log, cookie and photo caches gone after sign-out), web `session.test.ts` with a fake push identity, `notifications.test.ts`, `delta-sync.test.ts`, `household.spec.ts` |
@@ -22,7 +22,7 @@ they are listed at the end with exact steps.
 
 | # | Control | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests (81 after v1, 116 since 2026-11-08) |
+| 1 | Rules enforce all authorization, deny by default | ✅ | No rule allows unconditionally; every `match` lists explicit conditions; 61 rules tests (81 after v1, 116 since 2026-11-08, 122 since 2026-11-09) |
 | 2 | Email and password, minimum 8 characters; email enumeration protection on | ✅ | `AccountValidation` requires 8; the server password policy (8, enforced) and email enumeration protection are on in both projects (owner, 2026-10-18) |
 | 3 | Membership on every household path; owner-only actions check the role | ✅ | `isMember` / `isOwner` in `firestore.rules`; rules tests for owner-only delete, transfer, approve; since 2026-11-08 a transfer must demote the old owner in the same batch, and outright deletes of shared data are the owner's; after v1, Clear household data is owner-only in the app, needs the owner's password again (`verifyPassword`), and its batch fails for a member (rules test "clear household data"); the web app (W6a) offers it to the owner only and checks the password the same way (`settings.spec.ts`) |
 | 4 | Invite codes: 10 characters (50 bits), secure generator, `get` only, pause and rotate | ✅ | `InviteCodes.kt` (`SecureRandom`); rules `allow list: if false`; Household settings pause and rotate |
@@ -73,6 +73,12 @@ registers (the reminder job reads only the 10 newest), and the text inside recip
 limit applies). 35 tests ("more of the matrix": the matrix pairs the earlier tests left out, membership and ownership,
 who wrote it, deletes and counts, allowed fields and sizes), 116 in total; 6 earlier tests now expect the tombstone
 or a step of one.
+
+**After v1:** one phone wins (2026-11-09, DESIGN 8.5 invariant 10). A grocery item's update may keep or remove a
+stored `deletedAt` but not write a new one, a meal's `cookedAt` is set only where it is null, and an item is created
+only under a list that exists after the batch (one `existsAfter`). These decide which of two phones' writes lands
+when both finish the same thing; the other phone's whole batch is refused. Re-reviewed against 12.1: no new data or
+access; the extra lookup is one read per batch that creates items. 6 tests ("one phone wins"), 122 in total.
 
 Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
 deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed). The

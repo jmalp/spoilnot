@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
+import com.parcha.spoilnot.core.ui.toUiMessage
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
@@ -220,7 +221,11 @@ class PlanViewModel @Inject constructor(
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     init {
-        writer.errors.onEach { _messages.send(UiMessage(it.messageRes())) }.launchIn(viewModelScope)
+        // A refused Cooked that lost to another phone names who cooked it (DESIGN 8.5).
+        writer.errors.onEach { error ->
+            val s = state.value
+            _messages.send(error.toUiMessage({ uid -> s.members.firstOrNull { it.uid == uid }?.displayName }, s.myUid))
+        }.launchIn(viewModelScope)
     }
 
     fun previousWeek() = weekOffset.update { it - 1 }

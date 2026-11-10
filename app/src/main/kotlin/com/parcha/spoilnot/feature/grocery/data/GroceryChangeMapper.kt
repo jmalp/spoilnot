@@ -4,10 +4,14 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.WriteBatch
+import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.error.AppError.LostRace.Race
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
 import com.parcha.spoilnot.core.firebase.Tombstones
+import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository.Companion.items
@@ -16,6 +20,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryChange
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
+import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import javax.inject.Inject
 
 /** Firestore writes for [GroceryChange]s. */
@@ -159,6 +164,42 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
         return true
     }
 
+    /**
+     * The rules refuse an item created under a deleted list, and a second tombstone on an item (DESIGN 8.5): Add to
+     * pantry or a removal on two phones, or an add as another member deletes the list. Reads the list, then up to
+     * [MAX_ITEMS_READ] of the removed items, from the server.
+     */
+    override suspend fun whyRefused(
+        db: FirebaseFirestore,
+        householdId: String,
+        chunk: List<HouseholdChange>,
+    ): AppError? {
+        val addedTo = chunk.firstNotNullOfOrNull {
+            when (it) {
+                is GroceryChange.CreateItem -> it.listId
+                is GroceryChange.RestoreItem -> it.listId
+                else -> null
+            }
+        }
+        if (addedTo != null && !listExists(db, householdId, addedTo)) return AppError.LostRace(Race.ListDeleted)
+        val removed = chunk.filterIsInstance<GroceryChange.DeleteItem>().filter { it.tombstone }.take(MAX_ITEMS_READ)
+        for (change in removed) {
+            val doc = item(db, householdId, change.listId, change.itemId).get(Source.SERVER).awaitMapped()
+            if (!doc.exists()) {
+                if (!listExists(db, householdId, change.listId)) return AppError.LostRace(Race.ListDeleted)
+                continue
+            }
+            if (with(Tombstones) { doc.isTombstone() }) {
+                val race = if (chunk.any { it is PantryChange }) Race.AddedToPantry else Race.Removed
+                return AppError.LostRace(race, doc.getString("updatedBy"))
+            }
+        }
+        return null
+    }
+
+    private suspend fun listExists(db: FirebaseFirestore, hid: String, listId: String): Boolean =
+        db.document("${lists(hid)}/$listId").get(Source.SERVER).awaitMapped().exists()
+
     private fun item(db: FirebaseFirestore, hid: String, listId: String, itemId: String) =
         db.document("${items(hid, listId)}/$itemId")
 
@@ -178,4 +219,9 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
         "recipeId" to item.recipeId,
         "aliasOf" to item.aliasOf,
     )
+
+    private companion object {
+        /** The items a refusal reads at most to find the one another phone removed first. */
+        const val MAX_ITEMS_READ = 10
+    }
 }

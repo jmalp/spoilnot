@@ -1362,3 +1362,148 @@ describe('more of the matrix', () => {
     });
   });
 });
+
+// After v1 (2026-11-09, DESIGN 8.5): when two phones finish the same thing, the rules pick the winner and refuse the
+// later phone's whole batch: Add to pantry on two phones, Cooked on two phones, an item added to a deleted list.
+describe('one phone wins', () => {
+  const t0 = new Date('2026-10-01T00:00:00Z');
+  const h = (path) => `households/${HID}/${path}`;
+  const tombstone = (uid) => ({ deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid });
+  const checked = (uid, name) => ({
+    ...groceryItem(uid, { name, nameKey: name.toLowerCase(), checked: true, checkedBy: uid, checkedAt: t0 }),
+    createdAt: t0, updatedAt: t0,
+  });
+  const meal = (uid, extra = {}) => ({
+    date: '2026-11-09', slot: 'dinner', position: 0, recipeId: 'r1', title: 'Risotto', servings: 2, cooks: [],
+    note: null, cookedAt: null, cookedBy: null, createdAt: t0, createdBy: uid, updatedAt: t0, updatedBy: uid, ...extra,
+  });
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, h('groceryLists/g1/items/milk')), checked('bob', 'Milk'));
+      await setDoc(doc(db, h('groceryLists/g1/items/rice')), checked('bob', 'Rice'));
+      await setDoc(doc(db, h('groceryLists/g2')), { name: 'Party', isDefault: false, createdAt: t0, updatedAt: t0 });
+      await setDoc(doc(db, h('stock/rice1')), { ...stock('alice', { productName: 'Rice', quantity: 5 }), createdAt: t0, updatedAt: t0 });
+      await setDoc(doc(db, h('meals/m1')), meal('alice'));
+    });
+  });
+
+  // What Add to pantry writes (GroceryService.addToPantry): a product and a purchase per item, the item's tombstone.
+  function addToPantry(uid, suffix) {
+    const db = as(uid);
+    const batch = writeBatch(db);
+    for (const name of ['Milk', 'Rice']) {
+      const key = name.toLowerCase();
+      batch.set(doc(db, h(`products/${key}-${suffix}`)), product(uid, { name, nameKey: key }));
+      batch.set(doc(db, h(`stock/${key}-${suffix}`)), stock(uid, { productId: `${key}-${suffix}`, productName: name }));
+      batch.set(doc(db, h(`groceryLists/g1/items/${key}`)), tombstone(uid), { merge: true });
+    }
+    return batch.commit();
+  }
+
+  async function live(path) {
+    let docs = [];
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      docs = (await getDocs(collection(ctx.firestore(), h(path)))).docs.filter((d) => d.data().deletedAt === undefined);
+    });
+    return docs.map((d) => d.id).sort();
+  }
+
+  it('Add to pantry on a second phone fails whole: no second purchases, no second products', async () => {
+    await assertSucceeds(addToPantry('alice', 'a'));
+    await assertFails(addToPantry('bob', 'b'));
+    if ((await live('products')).join() !== 'milk-a,rice-a') throw new Error(`products: ${await live('products')}`);
+    if ((await live('stock')).join() !== 'milk-a,rice-a,rice1') throw new Error(`stock: ${await live('stock')}`);
+  });
+
+  it('it fails when only one of its items was already removed', async () => {
+    await assertSucceeds(setDoc(doc(as('alice'), h('groceryLists/g1/items/rice')), tombstone('alice'), { merge: true }));
+    await assertFails(addToPantry('bob', 'b'));
+    if ((await live('stock')).join() !== 'rice1') throw new Error(`stock: ${await live('stock')}`);
+  });
+
+  it('an item is removed once; later merges keep the tombstone, Undo and restock bring it back', async () => {
+    const ref = (uid) => doc(as(uid), h('groceryLists/g1/items/milk'));
+    await assertSucceeds(setDoc(ref('alice'), tombstone('alice'), { merge: true }));
+    // Clear checked or delete on the other phone, for an item already gone.
+    await assertFails(setDoc(ref('bob'), tombstone('bob'), { merge: true }));
+    await assertFails(setDoc(ref('alice'), tombstone('alice'), { merge: true }));
+    // A late check-off on a stale copy merges into the tombstone and keeps it.
+    await assertSucceeds(updateDoc(ref('bob'), {
+      checked: false, checkedBy: null, checkedAt: null, updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }));
+    // Undo writes the item again without deletedAt; then it can be removed again.
+    await assertSucceeds(setDoc(ref('alice'), {
+      ...groceryItem('bob', { name: 'Milk', nameKey: 'milk' }), createdAt: t0, updatedBy: 'alice',
+    }));
+    await assertSucceeds(setDoc(ref('bob'), tombstone('bob'), { merge: true }));
+    // The restock engine brings a low-stock item back by removing deletedAt.
+    await assertSucceeds(setDoc(ref('alice'), {
+      name: 'Milk', source: 'low_stock', deletedAt: deleteField(), updatedAt: serverTimestamp(), updatedBy: 'alice',
+    }, { merge: true }));
+  });
+
+  it('Cooked on a second phone fails whole, its pantry take included; Undo and cooking again still work', async () => {
+    const cooked = (uid, left) => {
+      const db = as(uid);
+      const batch = writeBatch(db);
+      batch.update(doc(db, h('meals/m1')), {
+        cookedAt: serverTimestamp(), cookedBy: uid, updatedAt: serverTimestamp(), updatedBy: uid,
+      });
+      batch.update(doc(db, h('stock/rice1')), { quantity: left, updatedAt: serverTimestamp(), updatedBy: uid });
+      batch.set(doc(db, h(`activity/cooked-${uid}`)), {
+        type: 'recipe_cooked', actorUid: uid, actorName: uid, recipeId: 'r1', params: { name: 'Risotto' },
+        createdAt: serverTimestamp(),
+      });
+      return batch.commit();
+    };
+    await assertSucceeds(cooked('alice', 3));
+    await assertFails(cooked('bob', 3));
+    await assertFails(cooked('alice', 1));
+    let rice;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      rice = (await getDoc(doc(ctx.firestore(), h('stock/rice1')))).data().quantity;
+    });
+    if (rice !== 3) throw new Error(`rice left ${rice}`);
+    if ((await live('activity')).join() !== 'cooked-alice') throw new Error(`events: ${await live('activity')}`);
+    // Undo of Cooked (or "Not cooked yet") clears it; then either phone may cook it.
+    await assertSucceeds(updateDoc(doc(as('alice'), h('meals/m1')), {
+      cookedAt: null, cookedBy: null, updatedAt: serverTimestamp(), updatedBy: 'alice',
+    }));
+    await assertSucceeds(updateDoc(doc(as('bob'), h('meals/m1')), {
+      cookedAt: serverTimestamp(), cookedBy: 'bob', updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }));
+  });
+
+  it('items are created only under a list that exists, or is created in the same batch', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, h('groceryLists/g2/items/chips')), groceryItem('bob', { name: 'Chips' })));
+    await assertFails(setDoc(doc(db, h('groceryLists/gone/items/chips')), groceryItem('bob', { name: 'Chips' })));
+    // Undo of a delete puts an item back with a full write: refused once its list is gone.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), h('groceryLists/g2/items/chips')));
+      await deleteDoc(doc(ctx.firestore(), h('groceryLists/g2')));
+    });
+    await assertFails(setDoc(doc(db, h('groceryLists/g2/items/chips')), groceryItem('bob', { name: 'Chips' })));
+    // A tombstone or low-stock merge cannot make an item there either.
+    await assertFails(setDoc(doc(db, h('groceryLists/g2/items/milk')), {
+      name: 'Milk', source: 'low_stock', updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }, { merge: true }));
+    const batch = writeBatch(db);
+    batch.set(doc(db, h('groceryLists/g3')), {
+      name: 'BBQ', isDefault: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    batch.set(doc(db, h('groceryLists/g3/items/buns')), groceryItem('bob', { name: 'Buns' }));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('a list deleted while another phone adds to it: the delete wins and the add is refused', async () => {
+    const alice = as('alice');
+    const del = writeBatch(alice);
+    del.delete(doc(alice, h('groceryLists/g2')));
+    await assertSucceeds(del.commit());
+    await assertFails(setDoc(doc(as('bob'), h('groceryLists/g2/items/chips')), groceryItem('bob', { name: 'Chips' })));
+    if ((await live('groceryLists/g2/items')).length !== 0) throw new Error('an item was left under a deleted list');
+  });
+});

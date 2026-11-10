@@ -127,12 +127,19 @@ Android first (then raise `minSupportedBuild`), the web app next (then raise `mi
 `WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
 Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
 
-### The 2026-11-08 rules (allowed fields, authors, deletes and counts; DESIGN 8.1 and 8.5)
+### The 2026-11-08 and 2026-11-09 rules (DESIGN 8.1 and 8.5)
+
+Neither is deployed yet; they go out together, in one deploy, with the order below. 2026-11-08's: allowed fields,
+authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery item is tombstoned once, a
+meal is marked cooked once, and items are created only under a list that exists.
 
 What the released builds (Android 1.0.0-beta.9, versionCode 10, and web build 55edcc5) do that these rules refuse:
 
 - **Throwing several batches away at once**, and its Undo: the count moves by more than one in one write.
 - **I cooked this when it uses up two or more whole batches**, and its Undo: two counts of one month in one batch.
+- **Only when two phones race (2026-11-09):** the second Add to pantry, Clear checked or delete of the same items, the
+  second Cooked of the same meal, and an item added to a list another member just deleted. Old builds roll these back
+  with "You don't have permission to do that." instead of the new message; before, they did the work twice.
 
 Everything else they write passes (the instrumented tests and the web's browser tests ran against these rules). A
 refused write shows "You don't have permission to do that." and the phone rolls it back; nothing is lost. The order:
@@ -142,13 +149,17 @@ refused write shows "You don't have permission to do that." and the phone rolls 
    then spoilnot-prod?"**, answer **N**.
 3. Once the testers have it, raise `minSupportedBuild` in Firestore `config/app` (spoilnot-prod) to the new
    `versionCode` (11, unless another release came first).
+   Its builds name the winner of a race ("Sam already took these off the list. Nothing was added to the pantry.").
 4. Deploy the web app: `./scripts/deploy-web.sh dev`, check it, then `./scripts/deploy-web.sh prod`. When the script
    offers to deploy the rules, answer **no** for prod (yes for dev is fine).
-5. Wait until the iPhones run the new web build: ask the testers to close the Home Screen app and open it again
-   (or tap Update), or wait a day.
+5. Set `minWebBuild` in `config/app` (spoilnot-prod) to 3 (the web build with the 2026-11-09 messages; it covers
+   build 2's sync cursor too), then wait until the iPhones run it: ask the testers to close the Home Screen app and
+   open it again (or tap Update), or wait a day.
 6. Deploy the rules to dev and try on spoilnot-dev with both apps: throw two batches away at once and Undo, I cooked
    this using up two batches, delete a list with items as a member, Clear household data, and on a spare household
-   transfer ownership and delete the household:
+   transfer ownership and delete the household. For 2026-11-09's rules (QA flow 43): Add to pantry for the same
+   checked items on both phones (one in Airplane Mode), Cooked for the same meal on both, and an item added on one
+   phone to a list the other deletes; each time the second phone names the first and nothing is doubled:
 
    ```bash
    cd firebase && npx firebase deploy --only firestore:rules --project dev
@@ -376,18 +387,19 @@ When reads run out, both apps keep working from each phone's copy with the red q
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Knobs:
 `HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 24; 72 are scheduled) and `WEB` (how many of each
-household's 4 phones are the web app). Result on 2026-11-08 (30 products, 60 batches, 25 grocery items, 15 recipes,
+household's 4 phones are the web app). Result on 2026-11-09 (30 products, 60 batches, 25 grocery items, 15 recipes,
 this month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 Android phones opening the
 app 8 times a day, the first open a full read, Home reading recipes and this week's meals on every open; the 40
-daily writes spread between opens, each logging an activity event, 10 of them finishing a batch; a prune every day):
+daily writes spread between opens, each logging an activity event, 10 of them finishing a batch and 10 creating a
+grocery item; a prune every day):
 
 | Reads | Per day | Share of 50,000 |
 | --- | --- | --- |
-| App listeners | 13,000 | |
-| Security-rule lookups | 3,440 | |
+| App listeners | 12,720 | |
+| Security-rule lookups | 3,540 | |
 | Scheduled jobs: runs 984, digests 200, housekeeping 680, export 2,100 | 3,964 | |
-| **Total for 10 households** | **20,404** | **40.8%** |
-| Per household | about 2,040 | 4.1% |
+| **Total for 10 households** | **20,224** | **40.4%** |
+| Per household | about 2,020 | 4.0% |
 
 | Writes and deletes | Per day | Share of 20,000 |
 | --- | --- | --- |
@@ -395,8 +407,8 @@ daily writes spread between opens, each logging an activity event, 10 of them fi
 | Deletes (the daily prune: tombstones, activity after 30 days, meals after 28) | 570 | 2.9% |
 
 So the free plan holds **about 17 households** of this size under the 70% warning line (reads run out first).
-Other runs: `RUNS=72` (every scheduled run starts) 22,372 reads, about 15.6 households, since each run reads every
-user with reminders on; `RUNS=15` 20,035, about 17.5; `WEB=2` (two web phones per household) the same reads, since
+Other runs: `RUNS=72` (every scheduled run starts) 22,192 reads, about 15.8 households, since each run reads every
+user with reminders on; `RUNS=15` 19,855, about 17.6; `WEB=2` (two web phones per household) the same reads, since
 the web app also reads `config/app` (DESIGN 18.5).
 
 History: before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and 19,320 before
@@ -404,7 +416,9 @@ Recent activity read only new events, 17,920 before the meal planner. Part 2 of 
 added the digest's query for today's meals: 19,520. Checking that each due user is still a member (2026-11-01) added
 one read per user a day: 19,560 (about 18 households). On 2026-11-08 the simulation began counting what it had left
 out: each activity event as a write (+400) with its rule lookup (+400 reads), the documents the prune reads before
-deleting them (+420), the prune's deletes, and the job's state document (one read per run): 20,404 at 24 runs. The
+deleting them (+420), the prune's deletes, and the job's state document (one read per run): 20,404 at 24 runs. On
+2026-11-09 the rules began looking up a grocery item's list on create (+100 rule lookups); the simulation now makes 10
+of the 40 daily writes item creates instead of batch edits, which the listeners deliver differently (−280): 20,224. The
 largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 
