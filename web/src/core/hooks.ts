@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { retry, timer, type Observable } from 'rxjs';
+import { EMPTY, retry, switchMap, timer, type Observable } from 'rxjs';
 import { today as todayOf, type Clock, type LocalDate } from '../domain/time';
 import { messageId } from './errors';
 import type { StringId } from './i18n';
+import { pageVisible$ } from './visibility';
 
 /** How long a screen waits before listening again after its data failed to load. */
 export const RELISTEN_MS = 3_000;
@@ -13,11 +14,18 @@ export const RELISTEN_MS = 3_000;
  * [RELISTEN_MS] later: a listener refused right after creating or joining a household, while the server is slow to
  * confirm the membership, would otherwise leave the screen loading until it is reopened. Screens close when the
  * session changes, so a real refusal (removed from the household) does not retry for long.
+ *
+ * Like the app's lifecycle, it listens only while the page is on screen (after v1, DESIGN 9.1): when the page is
+ * hidden it lets go of [source], keeping the last value, and listens again when the page comes back. A Home Screen
+ * app that iOS suspended would otherwise resume every listener of the screen it was on, billed in full after 30
+ * minutes away (EFF-01).
  */
 export function useObservable<T>(source: Observable<T>, initial: T): T {
   const [value, setValue] = useState<T>(initial);
   useEffect(() => {
-    const subscription = source.pipe(retry({ delay: () => timer(RELISTEN_MS) })).subscribe({ next: setValue });
+    const subscription = pageVisible$
+      .pipe(switchMap((visible) => (visible ? source.pipe(retry({ delay: () => timer(RELISTEN_MS) })) : EMPTY)))
+      .subscribe({ next: setValue });
     return () => subscription.unsubscribe();
   }, [source]);
   return value;

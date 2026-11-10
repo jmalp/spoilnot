@@ -121,9 +121,14 @@ type Input = { hid: string; actor: Actor; data: PantryData; listId: string | nul
 
 /**
  * Runs the RestockEngine while the user is in a household: on every change of the products and stock, debounced by
- * 300 ms, once both have been read from the server (PantryData.serverRead; a warm cache counts, so it works
- * offline). A change made on this phone is acted on at once; one from another phone after OTHER_PHONE_DELAY_MS, so
+ * 300 ms, once both have been read from the server (PantryData.serverRead: a full read of each on record on this
+ * phone, so a warm cache works offline). A change made on this phone is acted on at once; one from another phone after OTHER_PHONE_DELAY_MS, so
  * usually only one phone writes. A failed listener listens again with a backoff.
+ *
+ * After v1 it reads the local cache only (PantryRepository.observeCached, GroceryRepository.observeCachedLists): it
+ * reacts to what the screens' server listeners and this phone's own writes put there, and holds no server listener
+ * of its own, so nothing is read again when the app comes back after a long time (EFF-01). The signed-in shell starts
+ * it and stops it ([start], [stop]), not the page load.
  */
 export class RestockRunner {
   private subscription: Subscription | null = null;
@@ -139,6 +144,7 @@ export class RestockRunner {
     private readonly clock: Clock,
   ) {}
 
+  /** Starts the engine once; later calls do nothing until [stop]. */
   start(): void {
     if (this.subscription) return;
     this.subscription = this.session.session$
@@ -151,14 +157,14 @@ export class RestockRunner {
         distinctUntilChanged((a, b) => a?.hid === b?.hid && a?.actor.uid === b?.actor.uid),
         switchMap((context) => {
           if (!context) return EMPTY;
-          const defaultList = this.grocery.observeLists(context.hid).pipe(
+          const defaultList = this.grocery.observeCachedLists(context.hid).pipe(
             map((lists) => lists.find((l) => l.isDefault)?.id ?? null),
             distinctUntilChanged(),
           );
-          return combineLatest([this.pantry.observe(context.hid), defaultList]).pipe(
+          return combineLatest([this.pantry.observeCached(context.hid), defaultList]).pipe(
             map(([data, listId]): Input => ({ ...context, data, listId })),
-            // A refused or failed listener (the quota, or right after creating a household, before the server has
-            // the membership) listens again later instead of stopping the engine for the session.
+            // A failed cache listener (a cache that can't be read) listens again later instead of stopping the
+            // engine for the session.
             retry({ delay: (_error, attempt) => timer(resubscribeDelay(attempt)) }),
           );
         }),

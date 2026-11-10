@@ -15,8 +15,6 @@ import { applyTextScale } from './theme/textScale';
 applyTextScale();
 const services = createServices();
 followTheme(services.preferences);
-// The restock engine runs on every phone while the user is in a household (DESIGN 9.6).
-services.restock.start();
 // This phone's time zone and push token, for the daily digest (DESIGN 10.2, 18.4).
 services.deviceSync.start();
 registerUpdates();

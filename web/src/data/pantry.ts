@@ -10,7 +10,7 @@ import {
   type Firestore,
   type WriteBatch,
 } from 'firebase/firestore';
-import { combineLatest, defer, distinctUntilChanged, map, switchMap, type Observable } from 'rxjs';
+import { combineLatest, defer, distinctUntilChanged, map, NEVER, switchMap, type Observable } from 'rxjs';
 import {
   categoryOf,
   dateTypeOf,
@@ -24,10 +24,11 @@ import {
 import type { PantryRepository } from '../domain/pantry/repository';
 import { isLocalDate } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
-import { liveDocuments, Stamps, Tombstones, type LiveDocuments, type SyncLog } from './delta-sync';
+import { cachedLiveDocuments, liveDocuments, Stamps, Tombstones, type LiveDocuments, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
 import { capTo, ReadCaps } from '../domain/caps';
+import { SharedByKey, STOP_TIMEOUT_MS } from '../domain/shared';
 
 export const products = (hid: string) => `households/${hid}/products`;
 export const stock = (hid: string) => `households/${hid}/stock`;
@@ -83,12 +84,51 @@ export function toBatch(s: DocumentSnapshot): StockBatch {
 }
 
 export class FirestorePantryRepository implements PantryRepository {
+  /** One pair of listeners per household and phone, shared by every screen (after v1, DESIGN 9.1). */
+  private readonly shared: SharedByKey<string, PantryData>;
+
   constructor(
     private readonly sdk: FirebaseSdk,
     private readonly log: SyncLog,
-  ) {}
+    stopTimeoutMs: number = STOP_TIMEOUT_MS,
+    /** Emits while the page is off screen: the listeners then stop without waiting (domain/shared). */
+    stopAtOnce$: Observable<unknown> = NEVER,
+  ) {
+    this.shared = new SharedByKey(stopTimeoutMs, stopAtOnce$);
+  }
 
   observe(householdId: string): Observable<PantryData> {
+    return this.shared.get(householdId, () => this.listen(householdId));
+  }
+
+  /**
+   * The local cache only, for the restock engine (after v1, DESIGN 9.6): free, and it holds no server listener, so it
+   * costs nothing when the app comes back after a long time. "Read from the server" here means a full read of each
+   * collection is on record on this phone.
+   */
+  observeCached(householdId: string): Observable<PantryData> {
+    return this.sdk.instance$.pipe(
+      switchMap((db) =>
+        combineLatest([
+          cachedLiveDocuments(collection(db, products(householdId))),
+          cachedLiveDocuments(collection(db, stock(householdId))),
+          this.log.fullSyncs$(products(householdId)),
+          this.log.fullSyncs$(stock(householdId)),
+        ]),
+      ),
+      map(([p, s, pRead, sRead]) => ({
+        products: p.map(toProduct),
+        batches: s.map(toBatch),
+        fromCache: true,
+        serverRead: pRead !== null && sRead !== null,
+      })),
+      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    );
+  }
+
+  // Changes-only listeners (DESIGN 9.8); each batch keeps its pending-sync flag from the cache. The mapping runs once
+  // per snapshot for every screen (after v1).
+  private listen(householdId: string): Observable<PantryData> {
     return this.sdk.instance$.pipe(
       switchMap((db) =>
         combineLatest([

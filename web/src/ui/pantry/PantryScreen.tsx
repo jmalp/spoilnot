@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { shareReplay } from 'rxjs';
 import { messageId } from '../../core/errors';
 import { pushStatus } from '../../core/push';
 import { useObservable, useToday } from '../../core/hooks';
@@ -54,11 +53,11 @@ export function PantryScreen({
   const { pantry, pantryService, writer, clock, preferences } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
-  const data$ = useMemo(
-    () => pantry.observe(me.householdId).pipe(shareReplay({ bufferSize: 1, refCount: true })),
-    [pantry, me.householdId],
+  // The household's shared pantry listeners (after v1, DESIGN 9.1).
+  const data = useObservable<PantryData | null>(
+    useMemo(() => pantry.observe(me.householdId), [pantry, me.householdId]),
+    null,
   );
-  const data = useObservable<PantryData | null>(data$, null);
   const [throwing, setThrowing] = useState<StockBatch | null>(null);
   const [moving, setMoving] = useState<StockBatch | null>(null);
   const [opening, setOpening] = useState<StockBatch | null>(null);

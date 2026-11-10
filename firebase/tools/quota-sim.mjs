@@ -10,9 +10,10 @@
 // DESIGN 18.5; only their device documents differ); WARM, of each phone's 7 later opens, how many find the app's
 // process still alive (review 09, EFF-01). Since 2026-11-09 (B09) nothing holds a household listener once its screens
 // are gone, so such an open resumes only the profile, membership and update-gate listeners, which every open counts
-// anyway: WARM alone changes nothing. HELD=1 models the Android app before that change, whose restock engine and
-// Pantry's and Groceries' screens kept their listeners while the process lived; each was resumed on the return and,
-// after more than 30 minutes away, billed like a new query.
+// anyway: WARM alone changes nothing. HELD=1 models the apps before that change: on Android the restock engine and
+// Pantry's and Groceries' screens kept their listeners while the process lived; on the web (WEB phones; WARM is then
+// how many later opens resume the suspended Home Screen app instead of reloading it) the restock engine kept its own
+// from page load. Each was resumed on the return and, after more than 30 minutes away, billed like a new query.
 //
 // Each household is DESIGN 9.7's typical one: 30 products, 60 batches, 2 grocery lists (25 items), 15 recipes,
 // 4 phones. Every phone "opens the app" 8 times a day, attaching the listeners the app attaches at start, and once
@@ -169,19 +170,24 @@ async function open(db, uid, hid, isOwner, since) {
  * HELD=1: a later open that finds the process alive, before B09. The listeners that never let go are resumed: the
  * restock engine's (usually the day's full read of products and stock), Pantry's (changes since its first visit,
  * for removing empty batches) and Groceries' (the list's items since its first visit and the members, for "Sam added
- * Eggs"). Android phones only: the web app reloads.
+ * Eggs"). On a web phone, WARM counts the opens where iOS resumes the suspended Home Screen app instead of reloading
+ * it: the web's restock engine kept its own listeners from page load (the day's full read of products and stock, and
+ * the lists). The screen the web app showed when it left also kept its listeners, which this leaves out, so the web's
+ * "before" is a lower bound.
  */
-async function heldResume(db, hid, dayStart) {
+async function heldResume(db, hid, dayStart, web) {
   const h = `households/${hid}`;
   const sinceDay = (path) => query(collection(db, path), where('updatedAt', '>', dayStart));
-  const targets = [
-    collection(db, `${h}/products`),
-    collection(db, `${h}/stock`),
-    sinceDay(`${h}/products`),
-    sinceDay(`${h}/stock`),
-    sinceDay(`${h}/groceryLists/default/items`),
-    collection(db, `${h}/members`),
-  ];
+  const targets = web
+    ? [collection(db, `${h}/products`), collection(db, `${h}/stock`), collection(db, `${h}/groceryLists`)]
+    : [
+        collection(db, `${h}/products`),
+        collection(db, `${h}/stock`),
+        sinceDay(`${h}/products`),
+        sinceDay(`${h}/stock`),
+        sinceDay(`${h}/groceryLists/default/items`),
+        collection(db, `${h}/members`),
+      ];
   const before = reads.listeners;
   await Promise.all(targets.map(once));
   reads.held += reads.listeners - before;
@@ -223,8 +229,8 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
       lastOpen[p] = new Date();
       if (o === 0) dayStart[p] = new Date(Date.now() - 1000);
       await open(phones[p], `${hid}-u${p}`, hid, p === 0, since);
-      const android = p < PHONES - WEB;
-      if (HELD && android && o > 0 && o <= WARM) await heldResume(phones[p], hid, dayStart[p]);
+      const web = p >= PHONES - WEB;
+      if (HELD && o > 0 && o <= WARM) await heldResume(phones[p], hid, dayStart[p], web);
     }
   }
   // The 40 actions, the 10 month counts and the 40 activity events; isMember on each action and each event, and the

@@ -56,6 +56,13 @@ export const TAB_ITEMS: NavigationItem<Tab>[] = (
 export function AppShell() {
   const nav = useNav();
   const route = top(nav.state);
+  const { restock } = useServices();
+  // The restock engine runs on every phone while the household is on screen (DESIGN 9.6): it starts with the
+  // session's shell, not at page load, and reads the cache only (after v1).
+  useEffect(() => {
+    restock.start();
+    return () => restock.stop();
+  }, [restock]);
   return (
     <div className="sn-shell">
       <div className="sn-shell__main">

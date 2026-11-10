@@ -14,7 +14,7 @@ import {
   type Firestore,
   type WriteBatch,
 } from 'firebase/firestore';
-import { distinctUntilChanged, map, switchMap, type Observable } from 'rxjs';
+import { distinctUntilChanged, map, NEVER, switchMap, type Observable } from 'rxjs';
 import {
   GroceryRules,
   isGroceryChange,
@@ -27,12 +27,13 @@ import { CATEGORIES, categoryOf, isPantryChange, unitOf, type Category } from '.
 import { lostRace, type AppError } from '../core/errors';
 import { compareStrings } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
-import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
+import { cachedLiveDocuments, liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import { mapped, querySnapshots, retryAfterOwnWrites } from './firestore-rx';
 import { activity } from './pantry';
 import type { ChangeMapper } from './writer';
 import { capTo, ReadCaps } from '../domain/caps';
+import { SharedByKey, STOP_TIMEOUT_MS } from '../domain/shared';
 
 export const lists = (hid: string) => `households/${hid}/groceryLists`;
 export const items = (hid: string, listId: string) => `households/${hid}/groceryLists/${listId}/items`;
@@ -49,6 +50,14 @@ export function toList(s: DocumentSnapshot): GroceryList {
     aisleOrder: order.filter((c): c is Category => (CATEGORIES as readonly unknown[]).includes(c)),
   };
 }
+
+/** The default list first, then by name. */
+const toLists = (docs: DocumentSnapshot[]): GroceryList[] =>
+  docs
+    .map(toList)
+    .sort(
+      (a, b) => Number(b.isDefault) - Number(a.isDefault) || compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
+    );
 
 // New fields are optional on read with defaults (DESIGN 8.1); `checked` absent means false (DESIGN 8.2).
 export function toItem(s: DocumentSnapshot): GroceryItem {
@@ -75,32 +84,43 @@ export function toItem(s: DocumentSnapshot): GroceryItem {
 }
 
 export class FirestoreGroceryRepository implements GroceryRepository {
+  /** One pair of item listeners per list and phone, shared by every screen (after v1, DESIGN 9.1). */
+  private readonly sharedItems: SharedByKey<string, GroceryItem[]>;
+
   constructor(
     private readonly sdk: FirebaseSdk,
     private readonly log: SyncLog,
-  ) {}
+    stopTimeoutMs: number = STOP_TIMEOUT_MS,
+    /** Emits while the page is off screen: the listeners then stop without waiting (domain/shared). */
+    stopAtOnce$: Observable<unknown> = NEVER,
+  ) {
+    this.sharedItems = new SharedByKey(stopTimeoutMs, stopAtOnce$);
+  }
 
   observeLists(householdId: string): Observable<GroceryList[]> {
     return this.sdk.instance$.pipe(
       switchMap((db) => querySnapshots(collection(db, lists(householdId))).pipe(retryAfterOwnWrites(db))),
-      map((snapshot) =>
-        snapshot.docs
-          .map(toList)
-          .sort(
-            (a, b) =>
-              Number(b.isDefault) - Number(a.isDefault) || compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
-          ),
-      ),
+      map((snapshot) => toLists(snapshot.docs)),
+      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    );
+  }
+
+  observeCachedLists(householdId: string): Observable<GroceryList[]> {
+    return this.sdk.instance$.pipe(
+      switchMap((db) => cachedLiveDocuments(collection(db, lists(householdId)))),
+      map(toLists),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     );
   }
 
   // Changes-only listeners (DESIGN 9.8); each item keeps its pending-sync flag from the cache.
   observeItems(householdId: string, listId: string): Observable<GroceryItem[]> {
-    return this.sdk.instance$.pipe(
-      switchMap((db) => liveDocuments(db, collection(db, items(householdId, listId)), this.log)),
-      map((live) => live.documents.map(toItem)),
-      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    return this.sharedItems.get(items(householdId, listId), () =>
+      this.sdk.instance$.pipe(
+        switchMap((db) => liveDocuments(db, collection(db, items(householdId, listId)), this.log)),
+        map((live) => live.documents.map(toItem)),
+        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+      ),
     );
   }
 

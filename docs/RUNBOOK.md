@@ -388,7 +388,9 @@ When reads run out, both apps keep working from each phone's copy with the red q
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Knobs:
 `HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 24; 72 are scheduled), `WEB` (how many of each
 household's 4 phones are the web app) and `WARM` (of each phone's 7 later opens, how many find the app's process
-still alive; `HELD=1` replays the Android app before 2026-11-09, which kept some listeners while the process lived). Result on 2026-11-09 (30 products, 60 batches, 25 grocery items, 15 recipes,
+still alive, or for web phones how many resume the suspended Home Screen app instead of reloading it; `HELD=1`
+replays the apps before 2026-11-09 (Android) and 2026-11-10 (web), which kept some listeners while the process or page
+lived). Result on 2026-11-09 (30 products, 60 batches, 25 grocery items, 15 recipes,
 this month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 Android phones opening the
 app 8 times a day, the first open a full read, Home reading recipes and this week's meals on every open; the 40
 daily writes spread between opens, each logging an activity event, 10 of them finishing a batch and 10 creating a
@@ -418,7 +420,15 @@ household listener once its screens are gone (DESIGN 9.1).
 | 0 | 20,224 | 20,224 | 17.3 → 17.3 |
 | 3 | 37,180 (16,236 from held listeners resumed after 30 minutes, 720 more rule lookups) | 20,224 | 9.4 → 17.3 |
 | 7 | 63,406 (41,502 held, 1,680 more rule lookups) | 20,224 | 5.5 → 17.3 |
-| 3, one web phone of four | 33,832 | 20,224 | 10.3 → 17.3 |
+| 3, one web phone of four | 37,582 (16,728 held) | 20,224 | 9.3 → 17.3 |
+| 3, four web phones | 35,224 (14,640 held) | 20,224 | 9.9 → 17.3 |
+| 7, four web phones | 55,224 (34,160 held) | 20,224 | 6.3 → 17.3 |
+
+The web rows are from 2026-11-10, when `HELD=1` began to cover web phones: before, only Android phones held
+listeners in the simulation, and one web phone of four gave 33,832. A web phone's "before" counts only the restock
+engine's listeners (the screen on display kept its own too), so it is a lower bound. Repeated `HELD=1` runs differ by
+about 1,000 reads (the Android-only row of 3 gave 38,368 on 2026-11-10), since the held listeners read what changed
+since the day's first open, which depends on timing.
 
 How often a phone keeps the process varies with its memory and maker: the console's usage page after a normal day,
 divided by the households, says which row the beta is on (review 09's phone check 2).

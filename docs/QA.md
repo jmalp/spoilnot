@@ -233,6 +233,15 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Requests page shows the session's reads (profile, membership, device) but no products, stock or grocery list. On
     a real phone, the console's
     usage page after a normal day (RUNBOOK, Check quota usage) should be near quota-sim's per-household figure.
+46. Listeners that let go on the iPhone web app (after v1, 2026-11-10, DESIGN 9.1, 9.6, 18.3): on the emulators with
+    `npm run dev`, open Home, then Pantry and Groceries on the iPhone (Home Screen app). The Emulator UI's Firestore
+    Requests show one products and one stock listen for the three tabs, not one per tab. Swipe the app away to the
+    Home Screen (don't close it) and wait 15 s, then bring it back: the screen shows what it showed at once, and the
+    Requests page shows changes-only listens (`updatedAt >`) for the screen on display, never a full read of products
+    or stock again. With the iPhone on Settings and the Android phone on Pantry, use up a staple on Android: one Low
+    stock item appears on both (written by the Android phone). Then open Pantry on the iPhone and use up another
+    staple there: the iPhone writes the Low stock item at once. Sign out: Welcome shows and no household listen stays
+    open.
 
 ## 3. Conditions
 

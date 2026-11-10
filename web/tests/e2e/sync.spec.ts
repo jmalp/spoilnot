@@ -21,6 +21,7 @@ import {
 test.setTimeout(60_000);
 
 const MARGIN_MS = 2_000;
+const STOP_TIMEOUT_MS = 5_000;
 const tab = (page: Page, name: string) => page.getByRole('navigation').getByRole('button', { name }).click();
 const list = (page: Page) => page.getByTestId('grocery_list');
 const row = (page: Page, name: string) =>
@@ -54,6 +55,8 @@ test('a write made while the list is not showing does not skip the other members
   // Alex leaves the list. Meanwhile Blake (another phone) adds eggs and checks the early item off.
   await tab(page, 'Pantry');
   await expect(page.getByTestId('pantry_item_milk')).toBeVisible();
+  // The list's listeners stay 5 s after the last screen leaves (after v1, DESIGN 9.1); then nothing listens to it.
+  await page.waitForTimeout(STOP_TIMEOUT_MS + 1_000);
   await seedGroceries(hid, 'u-blake', listId, [{ id: 'eggs', name: 'P01 eggs', createdBy: 'u-blake' }]);
   await patchFields(`${items}/early`, { checked: true, checkedBy: 'u-blake', updatedAt: new Date() });
   await page.waitForTimeout(3 * MARGIN_MS);
