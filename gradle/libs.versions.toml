@@ -28,6 +28,8 @@ splashscreen = "1.2.0"
 concurrentFutures = "1.2.0"
 fragment = "1.9.1"
 profileinstaller = "1.4.1"
+# Guava comes only through Firestore's gRPC; app/build.gradle.kts sets this as the lowest version allowed.
+guava = "33.8.0-android"
 
 junit = "4.13.2"
 mockk = "1.14.11"
@@ -105,6 +107,8 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
+
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
 
 [plugins]
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
