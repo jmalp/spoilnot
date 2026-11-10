@@ -40,7 +40,8 @@ import org.junit.runner.RunWith
  * phone B; deleting it does not recreate it; recovering and dropping again does. Both phones run the restock
  * engine, as real phones do, so this also covers two concurrent evaluations (DESIGN 9.6). After v1 (B04): a staple
  * bought and added to the pantry comes back unchecked on the next dip, and no engine write is refused by the rules,
- * even when both phones write at once (Bob's Add to pantry a few seconds earlier can make both act at once).
+ * even when both phones write at once (Bob's Add to pantry a few seconds earlier can make both act at once). After
+ * B09 each engine reads its phone's cache only, which the pantry on screen keeps up to date ([TestPhone.startRestock]).
  */
 @RunWith(AndroidJUnit4::class)
 class RestockFlowTest {
@@ -73,8 +74,8 @@ class RestockFlowTest {
                 bob.groceryRepository.observeLists(householdId).first { it.any { l -> l.isDefault } }
             }
                 .single { it.isDefault }.id
-        alice.startRestock()
-        bob.startRestock()
+        alice.startRestock(householdId)
+        bob.startRestock(householdId)
         refused = CoroutineScope(Dispatchers.Default).launch {
             launch { alice.writer.errors.collect { errors += "alice: $it" } }
             launch { bob.writer.errors.collect { errors += "bob: $it" } }

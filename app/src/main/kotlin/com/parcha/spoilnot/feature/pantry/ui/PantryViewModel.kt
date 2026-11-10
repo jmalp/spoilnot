@@ -35,7 +35,9 @@ import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +50,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -99,42 +102,41 @@ class PantryViewModel @Inject constructor(
 
     private val query = MutableStateFlow(PantryQuery())
 
+    @Volatile private var cleaning: Job? = null
+
+    // The household's shared pantry flow (DESIGN 9.1). Everything here runs only while the screen collects [state],
+    // so leaving the tab lets go of the listeners (after v1, EFF-01), and off the main thread (PERF-02). A StateFlow,
+    // so the state build below always takes the newest snapshot and skips any it had no time for.
     private val data: StateFlow<PantryData?> = me
         .map { it?.householdId }
         .distinctUntilChanged()
         .flatMapLatest { hid -> if (hid == null) flow { } else repository.observe(hid) }
+        .onEach(::deleteEmptyBatches)
         .catch { }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val state: StateFlow<UiState> = combine(data, query, todayFlow(clock)) { data, query, today ->
         if (data == null) {
             UiState(query = query, today = today)
         } else {
+            val all = PantryItems.all(data.products, data.batches, today)
             UiState(
                 loading = false,
-                groups = PantryItems.build(data.products, data.batches, query, today),
-                pantryEmpty = PantryItems.all(data.products, data.batches, today).isEmpty(),
+                groups = PantryItems.build(all, query),
+                pantryEmpty = all.isEmpty(),
                 offline = data.fromCache,
                 query = query,
                 today = today,
                 data = data,
             )
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     init {
-        // Invariant 1: delete batches that reached 0, whoever notices first.
-        data.onEach { d ->
-            if (d !=
-                null
-            ) {
-                context()?.let { (hid, actor) -> runCatching { service.deleteEmptyBatches(hid, actor, d) } }
-            }
-        }
-            .launchIn(viewModelScope)
         writer.errors.onEach { _messages.send(UiMessage(it.writeMessage())) }.launchIn(viewModelScope)
         // A tapped digest lands here filtered to Expiring soon (DESIGN 5.4); Home cards bring their own filter.
         deepLinks.pending.onEach { link ->
@@ -206,6 +208,13 @@ class PantryViewModel @Inject constructor(
     }
 
     fun undo(undo: Undo) = act { hid, actor -> service.undo(hid, actor, undo) }
+
+    /** Invariant 1: delete batches that reached 0, whoever notices first; one clean-up at a time. */
+    private fun deleteEmptyBatches(d: PantryData) {
+        if (cleaning?.isActive == true || d.batches.none { it.quantity <= 0 && !it.pendingSync }) return
+        val (hid, actor) = context() ?: return
+        cleaning = viewModelScope.launch { runCatching { service.deleteEmptyBatches(hid, actor, d) } }
+    }
 
     private fun currentData(): PantryData = data.value ?: throw AppError.Offline()
 

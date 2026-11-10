@@ -28,13 +28,16 @@ import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -125,9 +128,21 @@ class SyncLog(
     private val clock: Clock,
     private val margin: Duration = DeltaSync.CURSOR_MARGIN,
 ) {
+    /** Bumped whenever a full read is recorded or the log is cleared. */
+    private val changes = MutableStateFlow(0L)
+
     fun lastFullSync(path: String): Instant? = prefs.getLong(path, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
 
-    fun markFullSync(path: String) = prefs.edit().putLong(path, clock.millis()).apply()
+    fun markFullSync(path: String) {
+        prefs.edit().putLong(path, clock.millis()).apply()
+        changes.update { it + 1 }
+    }
+
+    /**
+     * [lastFullSync] for [path], now and whenever a full read is recorded or the log is cleared (after v1, for the
+     * restock engine's cache-only listener, DESIGN 9.6).
+     */
+    fun fullSyncs(path: String): Flow<Instant?> = changes.map { lastFullSync(path) }.distinctUntilChanged()
 
     /** The newest change time a server snapshot of [key] brought (DESIGN 9.8), or null before the first one. */
     fun newestSeen(key: String): Instant? =
@@ -144,7 +159,10 @@ class SyncLog(
     fun cursor(key: String): Instant? = DeltaSync.cursor(newestSeen(key), lastFullSync(key), now(), margin)
 
     /** Forgets every collection, so the next read of each is a full one. */
-    fun clear() = prefs.edit().clear().apply()
+    fun clear() {
+        prefs.edit().clear().apply()
+        changes.update { it + 1 }
+    }
 
     fun now(): Instant = clock.instant()
 
@@ -247,6 +265,13 @@ private fun SyncLog.recordServerSnapshot(key: String, snapshot: QuerySnapshot, f
     DeltaSync.newestReceived(snapshot, field)?.let { markSeen(key, it) }
     if (fullRead) markFullSync(key)
 }
+
+/**
+ * The live documents of this query in the local cache only, tombstones left out (after v1, DESIGN 9.6): free, with
+ * no server listener, so it reads nothing when the app comes back after a long time.
+ */
+fun Query.cachedLiveDocuments(): Flow<List<DocumentSnapshot>> =
+    cacheSnapshotFlow().map { snapshot -> snapshot.documents.filterNot { with(Tombstones) { it.isTombstone() } } }
 
 /** A listener on the local cache only: free, and updated by local writes and by every other listener. */
 private fun Query.cacheSnapshotFlow(): Flow<QuerySnapshot> = callbackFlow {

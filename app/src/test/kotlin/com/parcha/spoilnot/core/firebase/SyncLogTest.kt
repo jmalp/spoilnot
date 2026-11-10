@@ -5,6 +5,10 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -82,5 +86,23 @@ class SyncLogTest {
         assertNull(log.lastFullSync(path))
         assertNull(log.newestSeen(path))
         assertEquals(emptyMap<String, Any?>(), prefs.all)
+    }
+
+    @Test
+    fun `the restock engine hears of a full read when it is recorded and when the log is cleared`() = runTest {
+        // After v1 (B09) the engine reads the cache only and waits for a full read on record (DESIGN 9.6).
+        val log = log()
+        log.clear()
+        val seen = mutableListOf<Instant?>()
+        val job = log.fullSyncs(path).onEach { seen += it }.launchIn(backgroundScope)
+        runCurrent()
+        log.markFullSync(path)
+        runCurrent()
+        log.markFullSync("households/h1/stock")
+        runCurrent()
+        log.clear()
+        runCurrent()
+        job.cancel()
+        assertEquals(listOf(null, now, null), seen)
     }
 }

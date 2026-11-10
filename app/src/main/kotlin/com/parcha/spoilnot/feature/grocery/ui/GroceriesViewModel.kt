@@ -33,6 +33,7 @@ import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -41,14 +42,17 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -121,9 +125,11 @@ class GroceriesViewModel @Inject constructor(
         .map { list -> list.associate { it.uid to it.displayName } }
         .catch { emit(emptyMap()) }
 
+    // "Someone added" is announced from the state's own pipeline, so the listeners stop once the screen is left
+    // (after v1, EFF-01; it was a collector started in init that never let go). Built off the main thread (PERF-02).
     val state: StateFlow<UiState> = combine(
         combine(lists, currentList, items) { l, c, i -> Triple(l, c, i) },
-        pantryData,
+        pantryData.conflate(),
         members,
         todayFlow(clock),
     ) { (allLists, list, listItems), data, names, today ->
@@ -140,7 +146,10 @@ class GroceriesViewModel @Inject constructor(
             today = today,
             myUid = me.value?.user?.uid.orEmpty(),
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), UiState())
+    }.onStart { known = null }
+        .onEach(::announceOthersAdditions)
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), UiState())
 
     /** "Already on the list" waiting for an answer, and the text that was typed. */
     val duplicate = MutableStateFlow<QuickAddResult.AlreadyOnList?>(null)
@@ -155,7 +164,6 @@ class GroceriesViewModel @Inject constructor(
             val s = state.value
             _messages.send(error.toUiMessage({ s.memberNames[it] }, s.myUid))
         }.launchIn(viewModelScope)
-        announceOthersAdditions()
     }
 
     fun selectList(list: GroceryList) = selectedListId.update { list.id }
@@ -254,25 +262,25 @@ class GroceriesViewModel @Inject constructor(
 
     fun undo(undo: Undo) = act { hid, actor -> service.undo(hid, actor, undo) }
 
+    /** The items and list of the last state while the screen collects it, for [announceOthersAdditions]. */
+    private var known: Set<String>? = null
+    private var knownList: String? = null
+
     /** "Sam added Eggs" when someone else adds to the list being viewed (DESIGN 9.2). */
-    private fun announceOthersAdditions() {
-        var known: Set<String>? = null
-        var knownList: String? = null
-        state.onEach { s ->
-            if (s.loading) return@onEach
-            val ids = s.items.map { it.id }.toSet()
-            val previous = known
-            if (previous != null && knownList == s.list?.id) {
-                s.items.filter {
-                    it.id !in previous && it.createdBy != null && it.createdBy != s.myUid
-                }.forEach { item ->
-                    val who = s.memberNames[item.createdBy] ?: return@forEach
-                    _messages.send(UiMessage(R.string.grocery_someone_added, listOf(who, item.name)))
-                }
+    private fun announceOthersAdditions(s: UiState) {
+        if (s.loading) return
+        val ids = s.items.map { it.id }.toSet()
+        val previous = known
+        if (previous != null && knownList == s.list?.id) {
+            s.items.filter {
+                it.id !in previous && it.createdBy != null && it.createdBy != s.myUid
+            }.forEach { item ->
+                val who = s.memberNames[item.createdBy] ?: return@forEach
+                _messages.trySend(UiMessage(R.string.grocery_someone_added, listOf(who, item.name)))
             }
-            known = ids
-            knownList = s.list?.id
-        }.launchIn(viewModelScope)
+        }
+        known = ids
+        knownList = s.list?.id
     }
 
     private fun listId(): String = checkNotNull(state.value.list).id

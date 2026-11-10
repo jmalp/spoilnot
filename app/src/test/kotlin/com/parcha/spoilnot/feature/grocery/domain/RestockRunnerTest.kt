@@ -37,7 +37,8 @@ import org.junit.Test
 /**
  * When the restock engine runs and which phone writes (DESIGN 9.6): not on a first sync until both products and
  * stock have come from the server, at once for a change made on this phone, after a delay for one from another phone
- * (and not at all if that phone's write arrives first), and again after a failed listener.
+ * (and not at all if that phone's write arrives first), and again after a failed listener. After v1 (B09) it reads
+ * the local cache only and never opens a server listener of its own.
  */
 class RestockRunnerTest {
     private val list = GroceryList("g1", "Groceries", isDefault = true)
@@ -54,8 +55,16 @@ class RestockRunnerTest {
         )
     }
 
+    /** Server listeners the engine asked for; after v1 (B09) it reads the cache only, so none. */
+    private val serverListeners = mutableListOf<String>()
+
     private val grocery = object : GroceryRepository {
-        override fun observeLists(householdId: String) = flowOf(listOf(list))
+        override fun observeLists(householdId: String): Flow<List<GroceryList>> {
+            serverListeners += "lists"
+            return flowOf(listOf(list))
+        }
+
+        override fun observeCachedLists(householdId: String) = flowOf(listOf(list))
 
         override fun observeItems(householdId: String, listId: String): Flow<List<GroceryItem>> = emptyFlow()
 
@@ -76,8 +85,13 @@ class RestockRunnerTest {
         }
     }
 
-    private class Pantry(private val flows: () -> Flow<PantryData>) : PantryRepository {
-        override fun observe(householdId: String) = flows()
+    private inner class Pantry(private val flows: () -> Flow<PantryData>) : PantryRepository {
+        override fun observe(householdId: String): Flow<PantryData> {
+            serverListeners += "pantry"
+            return flows()
+        }
+
+        override fun observeCached(householdId: String) = flows()
 
         override fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>> =
             emptyFlow()
@@ -187,6 +201,32 @@ class RestockRunnerTest {
         advanceTimeBy(2_000) // then 2 s
         assertEquals(3, attempts)
         advanceTimeBy(300 + other + 100)
+        assertEquals(listOf(lowStockPlan), writer.types())
+    }
+
+    @Test
+    fun `reads the cache only and opens no server listener`() = runTest {
+        // EFF-01: the engine's own server listeners never stopped, so every return after 30 minutes re-read them.
+        val snapshots = MutableSharedFlow<PantryData>(replay = 1)
+        val writer = Writes()
+        runner(Pantry { snapshots }, writer)
+        snapshots.emit(data())
+        advanceTimeBy(400 + other)
+        assertEquals(listOf(lowStockPlan), writer.types())
+        assertEquals(emptyList<String>(), serverListeners)
+    }
+
+    @Test
+    fun `a cache with no full read on record waits, then acts once the full read is recorded`() = runTest {
+        // The cache-only flow says serverRead once a full read of both collections is on record (DESIGN 9.6).
+        val snapshots = MutableSharedFlow<PantryData>(replay = 1)
+        val writer = Writes()
+        runner(Pantry { snapshots }, writer)
+        snapshots.emit(data().copy(fromCache = true, serverRead = false))
+        advanceTimeBy(400 + other)
+        assertTrue(writer.plans.isEmpty())
+        snapshots.emit(data().copy(fromCache = true, serverRead = true))
+        advanceTimeBy(400 + other)
         assertEquals(listOf(lowStockPlan), writer.types())
     }
 }

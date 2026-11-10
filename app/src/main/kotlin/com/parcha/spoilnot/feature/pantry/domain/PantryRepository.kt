@@ -70,7 +70,18 @@ sealed interface PantryChange : HouseholdChange {
 
 /** Products, batches and their history. Writes go through the HouseholdWriter. */
 interface PantryRepository {
+    /**
+     * The products and stock as the server listeners bring them (DESIGN 9.8). One pair of listeners per household
+     * and phone, shared by every collector, which stops 5 s after the last one leaves (after v1, DESIGN 9.1).
+     */
     fun observe(householdId: String): Flow<PantryData>
+
+    /**
+     * The same from the local cache only, with no server listener (after v1, DESIGN 9.6): free, and it sees whatever
+     * the screens' listeners and this phone's own writes put in the cache. [PantryData.fromCache] is always true, and
+     * [PantryData.serverRead] means a full read of both collections is on record on this phone.
+     */
+    fun observeCached(householdId: String): Flow<PantryData>
 
     /** The most recent events for one product, newest first (DESIGN 5.2 product detail). */
     fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>>

@@ -2,9 +2,12 @@ package com.parcha.spoilnot.feature.pantry.data
 
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
+import com.parcha.spoilnot.core.coroutines.ApplicationScope
+import com.parcha.spoilnot.core.coroutines.SharedByKey
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.LiveDocuments
 import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.cachedLiveDocuments
 import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
@@ -23,6 +26,8 @@ import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -32,12 +37,25 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class FirestorePantryRepository @Inject constructor(
+@Singleton
+class FirestorePantryRepository(
     private val firestore: FirestoreProvider,
     private val syncLog: SyncLog,
+    scope: CoroutineScope,
+    /** How long the shared listeners stay after the last collector leaves; two-phone tests use 0 to "close the app". */
+    stopTimeoutMs: Long,
 ) : PantryRepository {
-    // Changes-only listeners (DESIGN 9.8); each batch keeps its pending-sync flag from the cache.
-    override fun observe(householdId: String): Flow<PantryData> = firestore.instance.flatMapLatest { db ->
+    @Inject constructor(firestore: FirestoreProvider, syncLog: SyncLog, @ApplicationScope scope: CoroutineScope) :
+        this(firestore, syncLog, scope, SharedByKey.STOP_TIMEOUT_MS)
+
+    /** One pair of listeners per household and phone, shared by every screen (after v1, DESIGN 9.1). */
+    private val shared = SharedByKey<String, PantryData>(scope, stopTimeoutMs)
+
+    override fun observe(householdId: String): Flow<PantryData> = shared.get(householdId) { listen(householdId) }
+
+    // Changes-only listeners (DESIGN 9.8); each batch keeps its pending-sync flag from the cache. The mapping runs
+    // once per snapshot in the shared flow's scope, off the main thread (after v1, PERF-02).
+    private fun listen(householdId: String): Flow<PantryData> = firestore.instance.flatMapLatest { db ->
         val products = db.collection(products(householdId)).let { it.liveDocuments(db, syncLog).serverRead(it.path) }
         val stock = db.collection(stock(householdId)).let { it.liveDocuments(db, syncLog).serverRead(it.path) }
         combine(products, stock) { (p, pRead), (s, sRead) ->
@@ -46,6 +64,27 @@ class FirestorePantryRepository @Inject constructor(
                 batches = s.documents.map { it.toBatch() },
                 fromCache = p.fromCache || s.fromCache,
                 serverRead = pRead && sRead,
+            )
+        }
+    }.distinctUntilChanged()
+
+    /**
+     * The local cache only, for the restock engine (after v1, DESIGN 9.6): free, and it holds no server listener, so
+     * it costs nothing when the app comes back after a long time. "Read from the server" here means a full read of
+     * each collection is on record on this phone.
+     */
+    override fun observeCached(householdId: String): Flow<PantryData> = firestore.instance.flatMapLatest { db ->
+        val products = db.collection(products(householdId)).cachedLiveDocuments()
+        val stock = db.collection(stock(householdId)).cachedLiveDocuments()
+        val read = combine(syncLog.fullSyncs(products(householdId)), syncLog.fullSyncs(stock(householdId))) { p, s ->
+            p != null && s != null
+        }
+        combine(products, stock, read) { p, s, serverRead ->
+            PantryData(
+                products = p.map { it.toProduct() },
+                batches = s.map { it.toBatch() },
+                fromCache = true,
+                serverRead = serverRead,
             )
         }
     }.distinctUntilChanged()

@@ -32,6 +32,11 @@ import kotlinx.coroutines.launch
  * warm cache counts, so it works offline). A change made on this phone is acted on at once; one from another phone
  * after [RestockEngine.OTHER_PHONE_DELAY_MS], so usually only one phone writes. A failed listener listens again with
  * a backoff.
+ *
+ * After v1 it reads the local cache only ([PantryRepository.observeCached], [GroceryRepository.observeCachedLists]):
+ * it reacts to what the screens' server listeners and this phone's own writes put there, and holds no server
+ * listener of its own, so nothing is read again when the app comes back after a long time (EFF-01). It is started
+ * when an activity starts, not when the process does ([start]).
  */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @Singleton
@@ -56,6 +61,7 @@ class RestockRunner @Inject constructor(
         val defaultListId: String?,
     )
 
+    /** Starts the engine once; later calls do nothing. */
     fun start() {
         if (job != null) return
         job = scope.launch {
@@ -74,10 +80,10 @@ class RestockRunner @Inject constructor(
                 emptyFlow()
             } else {
                 val (hid, actor) = context
-                val defaultList = grocery.observeLists(hid).map { lists ->
+                val defaultList = grocery.observeCachedLists(hid).map { lists ->
                     lists.firstOrNull { it.isDefault }?.id
                 }.distinctUntilChanged()
-                combine(pantry.observe(hid), defaultList) { data, listId -> Input(hid, actor, data, listId) }
+                combine(pantry.observeCached(hid), defaultList) { data, listId -> Input(hid, actor, data, listId) }
                     // A refused or failed listener (quota, a membership the server does not have yet) listens again
                     // later instead of stopping the engine until the app restarts.
                     .retryWhen { cause, attempt ->
