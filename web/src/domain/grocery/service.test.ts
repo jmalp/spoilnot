@@ -23,6 +23,7 @@ class RecordingWriter implements HouseholdWriter {
 
 const noRepository: GroceryRepository = {
   observeLists: () => of([]),
+  observeCachedLists: () => of([]),
   observeItems: () => of([]),
   isCached: async () => false,
   itemIds: async (_hid, listId) => (listId === 'g2' ? ['i1', 'i2'] : []),

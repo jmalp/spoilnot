@@ -2,7 +2,7 @@
 // dropping again, the user deleting the item, two concurrent evaluations, a product without a minimum, a minimum
 // raised while already low, batches with quantity 0, a tombstone brought back, and a first sync. The engine is
 // applied to a small simulated database so sequences can be checked.
-import { defer, EMPTY, of, Subject, throwError } from 'rxjs';
+import { defer, EMPTY, of, Subject, throwError, type Observable } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { batch, product } from '../pantry/fixtures';
 import type { PantryChange, PantryData, Product, StockBatch } from '../pantry/models';
@@ -252,12 +252,25 @@ describe('RestockRunner', () => {
       units: 'metric',
     }),
   } as unknown as SessionManager;
+  /** Server listeners the engine opened: none since it reads the cache only (after v1, EFF-01). */
+  let serverListens = 0;
+  const server = <T>(): Observable<T> =>
+    defer(() => {
+      serverListens++;
+      return EMPTY;
+    });
   const lists: GroceryRepository = {
-    observeLists: () => of([{ id: LIST, name: 'Groceries', isDefault: true, aisleOrder: [] }]),
-    observeItems: () => of([]),
+    observeLists: server,
+    observeCachedLists: () => of([{ id: LIST, name: 'Groceries', isDefault: true, aisleOrder: [] }]),
+    observeItems: server,
     isCached: async () => false,
     itemIds: async () => [],
   };
+  /** The pantry as the engine sees it: the local cache. */
+  const cached = (source: Observable<PantryData>): PantryRepository => ({
+    observe: server,
+    observeCached: () => source,
+  });
   const low = data([milk()], [batch('b1', 'milk', { quantity: 1 })]);
   const other = RestockEngine.OTHER_PHONE_DELAY_MS;
 
@@ -276,15 +289,19 @@ describe('RestockRunner', () => {
   const clock = { now: () => Date.now() };
   const types = (plan: HouseholdChange[] | undefined) => plan?.map((c) => c.type);
 
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    serverListens = 0;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    expect(serverListens).toBe(0);
+  });
 
-  it('listens again with a backoff after a refused listener instead of stopping for the session', async () => {
+  it('listens again with a backoff after a failed listener instead of stopping for the session', async () => {
     let attempts = 0;
-    // Each subscription starts its own listeners, as the Firestore repository's does.
-    const pantry: PantryRepository = {
-      observe: () => defer(() => (attempts++ < 2 ? throwError(() => new Error('permission denied')) : of(low))),
-    };
+    // Each subscription starts its own cache listeners, as the Firestore repository's does.
+    const pantry = cached(defer(() => (attempts++ < 2 ? throwError(() => new Error('cache refused')) : of(low))));
     const writer = new Writes();
     const runner = new RestockRunner(session, pantry, lists, writer, clock);
     runner.start();
@@ -303,7 +320,7 @@ describe('RestockRunner', () => {
   it('does not resend the same plan while the server is rejecting it', async () => {
     const snapshots = new Subject<PantryData>();
     const writer = new Writes();
-    const runner = new RestockRunner(session, { observe: () => snapshots }, lists, writer, clock);
+    const runner = new RestockRunner(session, cached(snapshots), lists, writer, clock);
     runner.start();
     snapshots.next(low);
     await vi.advanceTimersByTimeAsync(400 + other);
@@ -318,7 +335,7 @@ describe('RestockRunner', () => {
     // LOGIC-02: the products arrive before the stock, so every staple looks empty for a moment.
     const snapshots = new Subject<PantryData>();
     const writer = new Writes();
-    const runner = new RestockRunner(session, { observe: () => snapshots }, lists, writer, clock);
+    const runner = new RestockRunner(session, cached(snapshots), lists, writer, clock);
     runner.start();
     snapshots.next({ products: [milk()], batches: [], fromCache: true, serverRead: false });
     await vi.advanceTimersByTimeAsync(400 + other);
@@ -335,7 +352,7 @@ describe('RestockRunner', () => {
   it('acts at once on a change made on this phone', async () => {
     const snapshots = new Subject<PantryData>();
     const writer = new Writes();
-    const runner = new RestockRunner(session, { observe: () => snapshots }, lists, writer, clock);
+    const runner = new RestockRunner(session, cached(snapshots), lists, writer, clock);
     runner.start();
     // Used up on this phone: the writer reports the plan, then the cache shows it.
     writer.applied.next(plan({ type: 'pantry.deleteBatch', batchId: 'b2' }));
@@ -349,7 +366,7 @@ describe('RestockRunner', () => {
     // EFF-09: phone A used up the milk and wrote the item at once; phone B saw the same drop.
     const snapshots = new Subject<PantryData>();
     const phoneB = new Writes();
-    const runner = new RestockRunner(session, { observe: () => snapshots }, lists, phoneB, clock);
+    const runner = new RestockRunner(session, cached(snapshots), lists, phoneB, clock);
     runner.start();
     snapshots.next(low);
     await vi.advanceTimersByTimeAsync(400 + other / 2);
@@ -364,13 +381,46 @@ describe('RestockRunner', () => {
   it('the other phone writes after the delay when nobody else did', async () => {
     const snapshots = new Subject<PantryData>();
     const writer = new Writes();
-    const runner = new RestockRunner(session, { observe: () => snapshots }, lists, writer, clock);
+    const runner = new RestockRunner(session, cached(snapshots), lists, writer, clock);
     runner.start();
     snapshots.next(low);
     await vi.advanceTimersByTimeAsync(300 + other - 100);
     expect(writer.plans).toEqual([]);
     await vi.advanceTimersByTimeAsync(200);
     expect(types(writer.plans[0])).toEqual(['grocery.upsertLowStock', 'pantry.setRestockArmed']);
+    runner.stop();
+  });
+
+  it('reads the cache only and waits for a full read on record, also offline (after v1, DESIGN 9.6)', async () => {
+    // A cache-only pantry: serverRead turns true when SyncLog records the screens' full reads of products and stock.
+    const snapshots = new Subject<PantryData>();
+    const writer = new Writes();
+    const runner = new RestockRunner(session, cached(snapshots), lists, writer, clock);
+    runner.start();
+    snapshots.next({ ...low, fromCache: true, serverRead: false });
+    await vi.advanceTimersByTimeAsync(400 + other);
+    expect(writer.plans).toEqual([]);
+    snapshots.next({ ...low, fromCache: true, serverRead: true });
+    await vi.advanceTimersByTimeAsync(400 + other);
+    expect(types(writer.plans[0])).toEqual(['grocery.upsertLowStock', 'pantry.setRestockArmed']);
+    runner.stop();
+  });
+
+  it('stops with the shell and starts again', async () => {
+    let listening = 0;
+    const pantry = cached(
+      defer(() => {
+        listening++;
+        return new Subject<PantryData>();
+      }),
+    );
+    const runner = new RestockRunner(session, pantry, lists, new Writes(), clock);
+    runner.start();
+    runner.start();
+    expect(listening).toBe(1);
+    runner.stop();
+    runner.start();
+    expect(listening).toBe(2);
     runner.stop();
   });
 });

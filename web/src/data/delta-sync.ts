@@ -14,7 +14,21 @@ import {
   type Query,
   type QuerySnapshot,
 } from 'firebase/firestore';
-import { catchError, combineLatest, concat, defer, map, Observable, of, switchMap, tap, throwError, timer } from 'rxjs';
+import {
+  BehaviorSubject,
+  catchError,
+  combineLatest,
+  concat,
+  defer,
+  distinctUntilChanged,
+  map,
+  Observable,
+  of,
+  switchMap,
+  tap,
+  throwError,
+  timer,
+} from 'rxjs';
 import { isAppError } from '../core/errors';
 import { CURSOR_MARGIN_MS, cursor } from '../domain/sync';
 import type { Actor } from '../domain/write';
@@ -50,6 +64,9 @@ const SEEN_KEY_PREFIX = `${SYNC_KEY_PREFIX}seen:`;
  * is the cursor margin; tests shorten it.
  */
 export class SyncLog {
+  /** Bumped whenever a full read is recorded or the log is cleared. */
+  private readonly changes = new BehaviorSubject(0);
+
   constructor(
     private readonly now: () => number = Date.now,
     private readonly storage: Pick<
@@ -63,6 +80,17 @@ export class SyncLog {
   }
   markFullSync(key: string): void {
     this.write(`${SYNC_KEY_PREFIX}${key}`, this.now());
+    this.changes.next(this.changes.value + 1);
+  }
+  /**
+   * [lastFullSync] for [key], now and whenever a full read is recorded or the log is cleared (after v1, for the
+   * restock engine's cache-only listener, DESIGN 9.6).
+   */
+  fullSyncs$(key: string): Observable<number | null> {
+    return this.changes.pipe(
+      map(() => this.lastFullSync(key)),
+      distinctUntilChanged(),
+    );
   }
   /** The newest change time a server snapshot of [key] brought (DESIGN 9.8), or null before the first one. */
   newestSeen(key: string): number | null {
@@ -90,6 +118,7 @@ export class SyncLog {
     } catch {
       // Storage refused: nothing was kept either.
     }
+    this.changes.next(this.changes.value + 1);
   }
   current(): number {
     return this.now();
@@ -192,6 +221,14 @@ function cacheSnapshots(scope: Query): Observable<QuerySnapshot> {
       (error) => subscriber.error(toAppError(error)),
     ),
   );
+}
+
+/**
+ * The live documents of [scope] in the local cache only, tombstones left out (after v1, DESIGN 9.6): free, with no
+ * server listener, so it reads nothing when the app comes back after a long time.
+ */
+export function cachedLiveDocuments(scope: Query): Observable<DocumentSnapshot[]> {
+  return cacheSnapshots(scope).pipe(map((snapshot) => snapshot.docs.filter((d) => !Tombstones.is(d))));
 }
 
 /**

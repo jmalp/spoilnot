@@ -1,6 +1,7 @@
 import { AppPreferences } from '../core/preferences';
 import type { Services } from '../core/services';
 import { APP_VERSION } from '../core/version';
+import { pageHidden$ } from '../core/visibility';
 import { RestockRunner } from '../domain/grocery/restock';
 import { GroceryService } from '../domain/grocery/service';
 import { PantryService } from '../domain/pantry/service';
@@ -9,6 +10,7 @@ import { RecipeService } from '../domain/recipes/service';
 import { RecipeStore } from '../domain/recipes/store';
 import { DeviceSync } from '../domain/notifications';
 import { SessionManager } from '../domain/session';
+import { STOP_TIMEOUT_MS } from '../domain/shared';
 import { systemClock } from '../domain/time';
 import { FirestoreActivityRepository } from './activity';
 import { FirestoreAppConfigRepository } from './config';
@@ -49,9 +51,11 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     mealPlanMapper,
     statsMapper,
   ]);
-  const pantry = new FirestorePantryRepository(sdk, log);
+  // One pair of listeners per household (and per list) for every screen, let go 5 s after the last one leaves, or at
+  // once when the page leaves the screen (after v1, DESIGN 9.1).
+  const pantry = new FirestorePantryRepository(sdk, log, STOP_TIMEOUT_MS, pageHidden$);
   const pantryService = new PantryService(writer, clock);
-  const grocery = new FirestoreGroceryRepository(sdk, log);
+  const grocery = new FirestoreGroceryRepository(sdk, log, STOP_TIMEOUT_MS, pageHidden$);
   const recipeService = new RecipeService(writer);
   return {
     session,
@@ -64,7 +68,7 @@ export function createServices(sdk: FirebaseSdk = firebase()): Services {
     grocery,
     groceryService: new GroceryService(writer, grocery, pantryService),
     restock: new RestockRunner(session, pantry, grocery, writer, clock),
-    recipes: new RecipeStore(session, new FirestoreRecipeRepository(sdk, log)),
+    recipes: new RecipeStore(session, new FirestoreRecipeRepository(sdk, log), pageHidden$),
     recipeService,
     mealPlan: new FirestoreMealPlanRepository(sdk, log),
     mealPlanService: new MealPlanService(writer, pantryService, recipeService),

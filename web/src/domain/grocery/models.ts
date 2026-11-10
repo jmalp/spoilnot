@@ -108,7 +108,9 @@ export const GroceryRules = {
 export interface GroceryRepository {
   /** List names, always listened to (DESIGN 9.1). */
   observeLists(householdId: string): Observable<GroceryList[]>;
-  /** Items of one list, while it is visible (DESIGN 9.1). */
+  /** List names from the local cache only, with no server listener (the restock engine, DESIGN 9.6). */
+  observeCachedLists(householdId: string): Observable<GroceryList[]>;
+  /** Items of one list, while it is visible; one pair of listeners per list shared by every screen (DESIGN 9.1). */
   observeItems(householdId: string, listId: string): Observable<GroceryItem[]>;
   /** Whether an item is in the local cache, so the restock engine knows whether to write createdAt. */
   isCached(householdId: string, listId: string, itemId: string): Promise<boolean>;

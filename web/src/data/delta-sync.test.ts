@@ -33,6 +33,20 @@ describe('SyncLog', () => {
     expect(storage.keys()).toEqual(['spoilnot.sync.households/h1/products']);
   });
 
+  it('tells when a full read is recorded or the log is cleared (the restock engine, DESIGN 9.6)', () => {
+    let now = 1_000;
+    const log = new SyncLog(() => now, memoryStorage());
+    const seen: (number | null)[] = [];
+    const sub = log.fullSyncs$('households/h1/stock').subscribe((at) => seen.push(at));
+    log.markFullSync('households/h1/products'); // another collection: nothing new for stock
+    log.markFullSync('households/h1/stock');
+    now = 2_000;
+    log.markFullSync('households/h1/stock');
+    log.clear();
+    sub.unsubscribe();
+    expect(seen).toEqual([null, 1_000, 2_000, null]);
+  });
+
   it('clearing forgets every collection and keeps the other settings', () => {
     const storage = memoryStorage({
       'spoilnot.themeMode': 'dark',

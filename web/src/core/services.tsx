@@ -31,7 +31,7 @@ export type Services = {
   pantryService: PantryService;
   grocery: GroceryRepository;
   groceryService: GroceryService;
-  /** Adds low staples to the default list on every phone (DESIGN 9.6); started with the app. */
+  /** Adds low staples to the default list on every phone (DESIGN 9.6); started by the signed-in shell. */
   restock: RestockRunner;
   /** The recipe box, one listener shared by the recipe screens. */
   recipes: RecipeStore;
