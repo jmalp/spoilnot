@@ -269,20 +269,24 @@ export async function defaultListId(hid: string): Promise<string> {
 
 /** The id of a household's grocery list named [name]. */
 export async function listIdNamed(hid: string, name: string): Promise<string> {
-  const response = await fetch(`${FIRESTORE}/households/${hid}:runQuery`, {
-    method: 'POST',
-    headers: ADMIN,
-    body: JSON.stringify({
-      structuredQuery: {
-        from: [{ collectionId: 'groceryLists' }],
-        where: { fieldFilter: { field: { fieldPath: 'name' }, op: 'EQUAL', value: { stringValue: name } } },
-      },
-    }),
-  });
-  const rows = (await response.json()) as { document?: { name: string } }[];
-  const doc = rows.find((r) => r.document)?.document;
-  if (!doc) throw new Error(`No list ${name} in ${hid}`);
-  return doc.name.split('/').pop()!;
+  // The app shows its own write at once, before the emulator has it: wait for the list to arrive (up to 10 s).
+  for (const deadline = Date.now() + 10_000; ;) {
+    const response = await fetch(`${FIRESTORE}/households/${hid}:runQuery`, {
+      method: 'POST',
+      headers: ADMIN,
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'groceryLists' }],
+          where: { fieldFilter: { field: { fieldPath: 'name' }, op: 'EQUAL', value: { stringValue: name } } },
+        },
+      }),
+    });
+    const rows = (await response.json()) as { document?: { name: string } }[];
+    const doc = rows.find((r) => r.document)?.document;
+    if (doc) return doc.name.split('/').pop()!;
+    if (Date.now() > deadline) throw new Error(`No list ${name} in ${hid}`);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
 }
 
 /** The ids of the documents in a collection on the server, tombstones included. */
