@@ -14,6 +14,7 @@ import {
   concat,
   defer,
   distinctUntilChanged,
+  EMPTY,
   filter,
   firstValueFrom,
   from,
@@ -284,12 +285,22 @@ export class SessionManager {
   }
 }
 
-/** On an error: Loading, a growing pause, then listening again (retryWhen with backoff in the app). */
+/**
+ * The server refused the read (`permission-denied` or `unauthenticated`): the rules no longer let this user see the
+ * profile or membership, so the screen must not keep showing it.
+ */
+export const isPermissionRefusal = (error: unknown): boolean => isAppError(error, 'permissionDenied');
+
+/**
+ * On an error: a growing pause, then listening again (retryWhen with backoff in the app). Only a permission refusal
+ * shows Loading meanwhile; any other error (the quota running out, the network, a bad document) keeps the last
+ * session on screen, cached data included (DESIGN 6.7, 7.5; after v1, WEB-04).
+ */
 function withRetry(source: Observable<Session>, attempt = 0): Observable<Session> {
   return source.pipe(
-    catchError(() =>
+    catchError((error: unknown) =>
       concat(
-        of(LOADING),
+        isPermissionRefusal(error) ? of(LOADING) : EMPTY,
         timer(backoffMs(attempt)).pipe(ignoreElements()),
         defer(() => withRetry(source, attempt + 1)),
       ),

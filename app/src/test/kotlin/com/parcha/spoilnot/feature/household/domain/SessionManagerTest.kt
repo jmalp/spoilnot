@@ -1,6 +1,9 @@
 package com.parcha.spoilnot.feature.household.domain
 
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.error.QuotaSignal
+import com.parcha.spoilnot.core.firebase.toAppError
 import com.parcha.spoilnot.feature.auth.domain.AuthUser
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.auth.domain.UserProfile
@@ -13,8 +16,11 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -139,6 +145,96 @@ class SessionManagerTest {
         assertEquals(Session.InHousehold(sam, "Sam", "h1", Role.Member), manager.session.value)
         assertEquals(UserProfile("sam", "Sam", "h1", null), users.profile("sam"))
         assertEquals(0, localData.clears)
+    }
+
+    /** What the data layer throws when Firestore answers `RESOURCE_EXHAUSTED`. */
+    private fun quotaError(): Throwable =
+        FirebaseFirestoreException("Quota exceeded.", FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED).toAppError()
+
+    /** Every session the manager shows, in order. */
+    private fun TestScope.record(manager: SessionManager): List<Session> {
+        val seen = mutableListOf<Session>()
+        backgroundScope.launch { manager.session.collect { seen += it } }
+        return seen
+    }
+
+    @After
+    fun forgetQuota() = QuotaSignal.reset()
+
+    @Test
+    fun `the quota running out keeps the household on screen while the session listens again`() = runSession {
+        users.put(UserProfile("sam", "Sam", "h1", null))
+        households.membership("h1", "sam").value = Membership.Active(Role.Member)
+        auth.user.value = sam
+        val manager = manager()
+        val inHousehold = Session.InHousehold(sam, "Sam", "h1", Role.Member)
+        val seen = record(manager)
+        val listens = users.listens
+
+        users.failure.value = quotaError()
+        runCurrent()
+        assertTrue(QuotaSignal.isExhausted())
+        // Retries after 1, 2, 4 … 32 s, without Loading in between.
+        advanceTimeBy(70_000)
+        assertTrue(users.listens - listens >= 5)
+        assertEquals(inHousehold, manager.session.value)
+
+        users.failure.value = null
+        advanceTimeBy(40_000)
+        runCurrent()
+        assertEquals(listOf<Session>(inHousehold), seen)
+        assertEquals(0, localData.clears)
+        assertEquals(emptyList<String>(), events)
+    }
+
+    @Test
+    fun `a failed membership listener keeps the household whatever the error, except a refusal`() = runSession {
+        users.put(UserProfile("sam", "Sam", "h1", null))
+        households.membership("h1", "sam").value = Membership.Active(Role.Owner)
+        auth.user.value = sam
+        val manager = manager()
+        val inHousehold = Session.InHousehold(sam, "Sam", "h1", Role.Owner)
+        val seen = record(manager)
+
+        for (error in listOf(quotaError(), AppError.Offline(), AppError.Unknown(IllegalStateException("bad field")))) {
+            households.membershipFailure.value = error
+            advanceTimeBy(5_000)
+            assertEquals(inHousehold, manager.session.value)
+            households.membershipFailure.value = null
+            advanceTimeBy(40_000)
+        }
+        assertEquals(listOf<Session>(inHousehold), seen)
+        assertEquals(0, localData.clears)
+    }
+
+    @Test
+    fun `the gate and its join request stay on screen when the quota runs out`() = runSession {
+        users.put(UserProfile("sam", "Sam", null, pending))
+        households.ownRequest.value = request(JoinRequestStatus.Pending)
+        auth.user.value = sam
+        val manager = manager()
+
+        users.failure.value = quotaError()
+        advanceTimeBy(10_000)
+
+        assertEquals(Session.NoHousehold(sam, "Sam", JoinState.Waiting(pending)), manager.session.value)
+    }
+
+    @Test
+    fun `a permission refusal shows Loading until the profile can be read again`() = runSession {
+        users.put(UserProfile("sam", "Sam", "h1", null))
+        households.membership("h1", "sam").value = Membership.Active(Role.Member)
+        auth.user.value = sam
+        val manager = manager()
+
+        users.failure.value = AppError.PermissionDenied()
+        runCurrent()
+        assertEquals(Session.Loading, manager.session.value)
+
+        users.failure.value = null
+        advanceTimeBy(40_000)
+        runCurrent()
+        assertEquals(Session.InHousehold(sam, "Sam", "h1", Role.Member), manager.session.value)
     }
 
     @Test

@@ -381,6 +381,10 @@ Firebase console → the project → **Usage and billing → Usage** (or Firesto
 deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 deletes). Look at it after adding a
 household or a new feature.
 
+When reads run out, both apps keep working from each phone's copy with the red quota banner above every screen and
+"Offline" on the tabs, until midnight Pacific (DESIGN 6.7, 7.5); nobody is signed out. Listeners retry at most every
+32 s, which costs nothing while refused. Nothing needs doing; if it happens often, see quota-sim below.
+
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Knobs:
 `HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 24; 72 are scheduled) and `WEB` (how many of each
 household's 4 phones are the web app). Result on 2026-11-09 (30 products, 60 batches, 25 grocery items, 15 recipes,

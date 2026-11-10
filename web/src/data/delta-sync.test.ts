@@ -1,7 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { FirebaseError } from 'firebase/app';
 import type { QuerySnapshot } from 'firebase/firestore';
+import { concat, defer, lastValueFrom, of, throwError, type Observable } from 'rxjs';
+import { AppError, isAppError } from '../core/errors';
+import { quotaSignal } from '../domain/quota';
 import { CURSOR_MARGIN_MS, FULL_SYNC_EVERY_MS } from '../domain/sync';
-import { newestReceived, SyncLog } from './delta-sync';
+import { keepCacheWhileUnreachable, newestReceived, retryDelayMs, SyncLog } from './delta-sync';
+import { toAppError } from './firestore-rx';
 
 /** localStorage's shape, in memory. */
 function memoryStorage(entries: Record<string, string> = {}) {
@@ -101,5 +106,72 @@ describe('newestReceived', () => {
     expect(newestReceived(snapshot(true, [{ at: 7 }]), 'updatedAt')).toBeNull();
     expect(newestReceived(snapshot(false, [{ at: 3 }, { at: 9, pending: true }]), 'updatedAt')).toBe(3);
     expect(newestReceived(snapshot(false, []), 'updatedAt')).toBeNull();
+  });
+});
+
+/** A server listener that sends "from the server", then fails with [errors] one listen after another. */
+function fakeServer(errors: unknown[]): { listens: number; flow: Observable<boolean> } {
+  let listens = 0;
+  const flow = defer((): Observable<boolean> => {
+    const error = errors[listens++];
+    return error === undefined
+      ? of(false)
+      : concat(
+          of(false),
+          throwError(() => error),
+        );
+  });
+  return {
+    get listens() {
+      return listens;
+    },
+    flow,
+  };
+}
+
+describe('keepCacheWhileUnreachable', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('a quota or network refusal reports the cache and listens again with a backoff', async () => {
+    vi.useFakeTimers();
+    const server = fakeServer([new AppError('quotaExceeded'), new AppError('quotaExceeded'), new AppError('offline')]);
+    const seen: boolean[] = [];
+    const subscription = server.flow.pipe(keepCacheWhileUnreachable()).subscribe((v) => seen.push(v));
+    expect(seen).toEqual([false, true]);
+    expect(server.listens).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(server.listens).toBe(2);
+    await vi.advanceTimersByTimeAsync(2_001);
+    expect(server.listens).toBe(3);
+    await vi.advanceTimersByTimeAsync(4_001);
+    expect(server.listens).toBe(4);
+    // The fourth listen worked: the server's answer replaces the cache.
+    expect(seen).toEqual([false, true, false, true, false, true, false]);
+    subscription.unsubscribe();
+  });
+
+  it('a permission refusal or a bad document still ends the listener', async () => {
+    for (const error of [new AppError('permissionDenied'), new TypeError('bad field')]) {
+      await expect(lastValueFrom(fakeServer([error]).flow.pipe(keepCacheWhileUnreachable()))).rejects.toBe(error);
+    }
+  });
+
+  it('the backoff grows to 32 s', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 100].map(retryDelayMs)).toEqual([
+      1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 32_000, 32_000,
+    ]);
+  });
+});
+
+describe('resource-exhausted', () => {
+  it('maps to quotaExceeded and raises the banner', () => {
+    quotaSignal.reset();
+    const error = toAppError(new FirebaseError('resource-exhausted', 'Quota exceeded.'));
+    expect(isAppError(error, 'quotaExceeded')).toBe(true);
+    expect(quotaSignal.isExhausted()).toBe(true);
+    quotaSignal.reset();
   });
 });

@@ -80,7 +80,13 @@ class GroceriesViewModel @Inject constructor(
         val pantry: PantryData = PantryData(emptyList(), emptyList(), fromCache = true),
         val today: LocalDate = LocalDate.MIN,
         val myUid: String = "",
-    )
+    ) {
+        /**
+         * The household data comes from the phone only (DESIGN 6.7, 9.5; after v1, REL-10): the pantry listener, which
+         * this tab always has, hasn't heard from the server, as on the web.
+         */
+        val offline: Boolean get() = !loading && pantry.fromCache
+    }
 
     private val me = session.session.filterIsInstance<Session.InHousehold>()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)

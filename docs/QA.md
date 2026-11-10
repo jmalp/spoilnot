@@ -218,6 +218,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     from the pantry." and the amounts come off once. Create a list "Test party"; with Android in Airplane Mode add
     "Chips" to it, delete the list on the iPhone, turn Airplane Mode off: Android says "That list was deleted, so the
     change wasn't saved." Delete the test purchases afterwards.
+44. Quota reached (Android and the iPhone web app, after v1, 2026-11-09, DESIGN 6.7): on the emulators, run the web
+    e2e `quota.spec.ts` (it refuses every listener with `resource-exhausted`). On a real phone this happens only when
+    the project's free reads run out, so check it whenever it does (RUNBOOK, Check quota usage): both apps keep showing
+    the household from the phone with the red banner "Spoil Not has reached its free daily limit and will work again
+    tomorrow." above the screen, never a spinner or the sign-in; tabs say Offline, Groceries included; adding and
+    checking off still work. After midnight Pacific the banner goes by itself and Offline goes within a minute.
 
 ## 3. Conditions
 

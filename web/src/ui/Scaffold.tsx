@@ -135,6 +135,19 @@ export function EmptyState({ icon, message, children }: { icon: IconName; messag
   );
 }
 
+/**
+ * DESIGN 6.7: the free daily quota was reached; it resets at midnight Pacific time. Shown above every top-level screen
+ * (App, after v1 WEB-09), so it takes the status bar's space itself.
+ */
+export function QuotaBanner() {
+  return (
+    <div className="sn-quota" data-testid="quota_banner" role="status">
+      <Icon name="round/cloud_off" size={24} />
+      <span className="t-body-medium">{str('error_quota')}</span>
+    </div>
+  );
+}
+
 /** Shown while data comes from the phone only (OfflineBanner, DESIGN 9.5). */
 export function OfflineBanner() {
   return (

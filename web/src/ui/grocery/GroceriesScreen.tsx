@@ -58,8 +58,10 @@ export function GroceriesScreen({
   const hid = me.householdId;
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
 
+  // A failed listener keeps the lists it had and listens again (useObservable): an empty answer here left the tab
+  // loading when the quota ran out (after v1, WEB-04).
   const lists = useObservable<GroceryList[] | null>(
-    useMemo(() => grocery.observeLists(hid).pipe(catchError(() => of([]))), [grocery, hid]),
+    useMemo(() => grocery.observeLists(hid), [grocery, hid]),
     null,
   );
   const list = lists?.find((l) => l.id === listId) ?? lists?.find((l) => l.isDefault) ?? lists?.[0] ?? null;

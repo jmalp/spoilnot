@@ -1,10 +1,10 @@
 /* The welcome screen (WelcomeScreen): centered, the jar in a primaryContainer circle, the name in Fredoka. */
 .sn-welcome {
-  min-height: 100dvh;
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--sn-safe-top) var(--sn-safe-right) var(--sn-safe-bottom) var(--sn-safe-left);
+  padding: var(--sn-screen-top) var(--sn-safe-right) var(--sn-safe-bottom) var(--sn-safe-left);
 }
 .sn-welcome__column {
   width: 100%;

@@ -205,7 +205,10 @@ class SessionManager @Inject constructor(
         }
         .retryWhen { cause, attempt ->
             if (cause is CancellationException) return@retryWhen false
-            emit(Session.Loading)
+            // Only a permission refusal changes the screen. Any other error (the quota running out, the network, a
+            // bad document) keeps the last session on screen, cached data included, while it listens again
+            // (DESIGN 6.7, 7.5; after v1, REL-02).
+            if (cause.isPermissionRefusal()) emit(Session.Loading)
             delay(backoffMillis(attempt))
             true
         }
@@ -271,3 +274,9 @@ class SessionManager @Inject constructor(
         const val SETTLE_TIMEOUT_MS = 10_000L
     }
 }
+
+/**
+ * The server refused the read (`PERMISSION_DENIED` or `UNAUTHENTICATED`): the rules no longer let this user see the
+ * profile or membership, so the screen must not keep showing it.
+ */
+internal fun Throwable.isPermissionRefusal(): Boolean = this is AppError.PermissionDenied

@@ -217,8 +217,8 @@
   z-index: 2;
   display: flex;
   align-items: center;
-  min-height: calc(64px + var(--sn-safe-top));
-  padding: var(--sn-safe-top) calc(4px + var(--sn-safe-right)) 0 calc(4px + var(--sn-safe-left));
+  min-height: calc(64px + var(--sn-screen-top));
+  padding: var(--sn-screen-top) calc(4px + var(--sn-safe-right)) 0 calc(4px + var(--sn-safe-left));
   background: var(--md-sys-color-surface);
   color: var(--md-sys-color-on-surface);
   transition: background-color 200ms var(--sn-motion-standard);
