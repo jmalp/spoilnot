@@ -3,10 +3,13 @@ package com.parcha.spoilnot.feature.grocery.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Source
+import com.parcha.spoilnot.core.coroutines.ApplicationScope
+import com.parcha.spoilnot.core.coroutines.SharedByKey
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.Tombstones.isTombstone
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.cachedLiveDocuments
 import com.parcha.spoilnot.core.firebase.liveDocuments
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
@@ -19,6 +22,8 @@ import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,24 +31,38 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class FirestoreGroceryRepository @Inject constructor(
+@Singleton
+class FirestoreGroceryRepository(
     private val firestore: FirestoreProvider,
     private val syncLog: SyncLog,
+    scope: CoroutineScope,
+    /** How long the shared listeners stay after the last collector leaves; two-phone tests use 0 to "close the app". */
+    stopTimeoutMs: Long,
 ) : GroceryRepository {
+    @Inject constructor(firestore: FirestoreProvider, syncLog: SyncLog, @ApplicationScope scope: CoroutineScope) :
+        this(firestore, syncLog, scope, SharedByKey.STOP_TIMEOUT_MS)
+
+    /** One pair of item listeners per list and phone, shared by every screen (after v1, DESIGN 9.1). */
+    private val sharedItems = SharedByKey<String, List<GroceryItem>>(scope, stopTimeoutMs)
+
     override fun observeLists(householdId: String): Flow<List<GroceryList>> = firestore.instance
         .flatMapLatest { db -> db.collection(lists(householdId)).snapshotFlow().retryAfterOwnWrites(db) }
-        .map { snapshot ->
-            snapshot.documents
-                .map { it.toList() }
-                .sortedWith(compareByDescending<GroceryList> { it.isDefault }.thenBy { it.name.lowercase() })
-        }
+        .map { snapshot -> snapshot.documents.toLists() }
         .distinctUntilChanged()
 
-    override fun observeItems(householdId: String, listId: String): Flow<List<GroceryItem>> = firestore.instance
-        // Changes-only listeners (DESIGN 9.8); each item keeps its pending-sync flag from the cache.
-        .flatMapLatest { db -> db.collection(items(householdId, listId)).liveDocuments(db, syncLog) }
-        .map { live -> live.documents.map { it.toItem() } }
+    override fun observeCachedLists(householdId: String): Flow<List<GroceryList>> = firestore.instance
+        .flatMapLatest { db -> db.collection(lists(householdId)).cachedLiveDocuments() }
+        .map { it.toLists() }
         .distinctUntilChanged()
+
+    override fun observeItems(householdId: String, listId: String): Flow<List<GroceryItem>> =
+        sharedItems.get(items(householdId, listId)) {
+            firestore.instance
+                // Changes-only listeners (DESIGN 9.8); each item keeps its pending-sync flag from the cache.
+                .flatMapLatest { db -> db.collection(items(householdId, listId)).liveDocuments(db, syncLog) }
+                .map { live -> live.documents.map { it.toItem() } }
+                .distinctUntilChanged()
+        }
 
     override suspend fun isCached(householdId: String, listId: String, itemId: String): Boolean = try {
         firestore.current.document("${items(householdId, listId)}/$itemId").get(Source.CACHE).awaitMapped()
@@ -62,6 +81,9 @@ class FirestoreGroceryRepository @Inject constructor(
         fun lists(hid: String) = "households/$hid/groceryLists"
 
         fun items(hid: String, listId: String) = "households/$hid/groceryLists/$listId/items"
+
+        fun List<DocumentSnapshot>.toLists() = map { it.toList() }
+            .sortedWith(compareByDescending<GroceryList> { it.isDefault }.thenBy { it.name.lowercase() })
 
         fun DocumentSnapshot.toList() = GroceryList(
             id,

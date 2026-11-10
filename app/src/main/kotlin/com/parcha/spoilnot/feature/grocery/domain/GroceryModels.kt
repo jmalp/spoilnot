@@ -143,7 +143,10 @@ interface GroceryRepository {
     /** List names, always listened to (DESIGN 9.1). */
     fun observeLists(householdId: String): Flow<List<GroceryList>>
 
-    /** Items of one list, while it is visible (DESIGN 9.1). */
+    /** List names from the local cache only, for the restock engine (after v1, DESIGN 9.6). */
+    fun observeCachedLists(householdId: String): Flow<List<GroceryList>>
+
+    /** Items of one list, while it is visible (DESIGN 9.1); one shared pair of listeners per list and phone. */
     fun observeItems(householdId: String, listId: String): Flow<List<GroceryItem>>
 
     /** Whether an item is in the local cache, so the restock engine knows whether to write createdAt. */

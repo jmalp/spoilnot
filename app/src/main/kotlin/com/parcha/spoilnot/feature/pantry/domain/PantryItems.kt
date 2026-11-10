@@ -71,9 +71,12 @@ object PantryItems {
         batches: List<StockBatch>,
         query: PantryQuery,
         today: LocalDate,
-    ): List<PantryItemGroup> {
+    ): List<PantryItemGroup> = build(all(products, batches, today), query)
+
+    /** The groups for [query] from [all]'s result, so a caller that needs both builds the items once. */
+    fun build(all: List<PantryItem>, query: PantryQuery): List<PantryItemGroup> {
         val search = NameKey.of(query.search)
-        val items = all(products, batches, today)
+        val items = all
             .filter { search.isEmpty() || NameKey.of(it.name).contains(search) }
             .filter { matches(it, query.filter) }
         val sorted = sort(items, query.sort)

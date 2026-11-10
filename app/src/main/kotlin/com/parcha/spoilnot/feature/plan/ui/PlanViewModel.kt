@@ -45,6 +45,7 @@ import java.time.temporal.WeekFields
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -53,12 +54,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -138,9 +141,9 @@ class PlanViewModel @Inject constructor(
                 myUid = me.user.uid,
             ).let { it.copy(canShop = MealPlanGrocery.toShop(it.days, it.recipes).isNotEmpty()) }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
-    /** One pantry listener shared by the sheets that need it, running only while one of them is open. */
+    /** The household's shared pantry flow (DESIGN 9.1), for the sheets that need it while one of them is open. */
     private val pantryData: Flow<PantryData> = me
         .map { it?.householdId }
         .distinctUntilChanged()
@@ -153,9 +156,9 @@ class PlanViewModel @Inject constructor(
      * the pantry has loaded, so the sheet opens at its full height.
      */
     val useItUp: StateFlow<List<UseItUpSuggestion>?> =
-        combine(pantryData, recipes.box, todayFlow(clock)) { p, box, today ->
+        combine(pantryData.conflate(), recipes.box, todayFlow(clock)) { p, box, today ->
             UseItUp.suggestions(box?.recipes.orEmpty(), p, today)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The Cooked sheet for a recipe meal: the pantry products it uses, at the meal's servings. */
     data class CookState(val meal: PlannedMeal, val recipe: Recipe, val lines: List<CookLine>, val pantry: PantryData)

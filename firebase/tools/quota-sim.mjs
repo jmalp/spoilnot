@@ -2,12 +2,17 @@
 // and delete math against the free Spark plan (50,000 reads, 20,000 writes, 20,000 deletes per day).
 //
 //   cd firebase && npm run quota-sim
-//   HOUSEHOLDS=10 RUNS=24 WEB=0 npm run quota-sim
+//   HOUSEHOLDS=10 RUNS=24 WEB=0 WARM=0 HELD=0 npm run quota-sim
 //
 // Knobs: HOUSEHOLDS; RUNS, the reminder job's runs that start in a day (72 are scheduled, three an hour, but GitHub
 // started about 5 of 24 a day in October 2026, DESIGN 10.4; 24 is the planning figure and RUNS=72 the worst case);
 // WEB, how many of each household's 4 phones are the web app for iPhone (the same listeners since its update gate,
-// DESIGN 18.5; only their device documents differ).
+// DESIGN 18.5; only their device documents differ); WARM, of each phone's 7 later opens, how many find the app's
+// process still alive (review 09, EFF-01). Since 2026-11-09 (B09) nothing holds a household listener once its screens
+// are gone, so such an open resumes only the profile, membership and update-gate listeners, which every open counts
+// anyway: WARM alone changes nothing. HELD=1 models the Android app before that change, whose restock engine and
+// Pantry's and Groceries' screens kept their listeners while the process lived; each was resumed on the return and,
+// after more than 30 minutes away, billed like a new query.
 //
 // Each household is DESIGN 9.7's typical one: 30 products, 60 batches, 2 grocery lists (25 items), 15 recipes,
 // 4 phones. Every phone "opens the app" 8 times a day, attaching the listeners the app attaches at start, and once
@@ -28,6 +33,8 @@ const OPENS_PER_DAY = 8;
 const WRITES_PER_HOUSEHOLD = 40;
 const REMINDER_RUNS_PER_DAY = Number(process.env.RUNS ?? 24);
 const WEB = Math.min(PHONES, Number(process.env.WEB ?? 0));
+const WARM = Math.min(OPENS_PER_DAY - 1, Number(process.env.WARM ?? 0));
+const HELD = process.env.HELD === '1';
 // Of the day's writes, this many finish a batch (used up or thrown away) and also bump the month's Insights counts.
 const FINISHES_PER_HOUSEHOLD = 10;
 // Of the day's writes, this many create a grocery item (quick add, restock, a recipe's ingredients). Since 2026-11-09
@@ -107,7 +114,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 });
 
 // --- Counting ---
-const reads = { listeners: 0, ruleLookups: 0, jobs: 0 };
+const reads = { listeners: 0, held: 0, ruleLookups: 0, jobs: 0 };
 let writes = 0;
 let deletes = 0;
 
@@ -158,6 +165,30 @@ async function open(db, uid, hid, isOwner, since) {
   reads.ruleLookups += targets.length - 3;
 }
 
+/**
+ * HELD=1: a later open that finds the process alive, before B09. The listeners that never let go are resumed: the
+ * restock engine's (usually the day's full read of products and stock), Pantry's (changes since its first visit,
+ * for removing empty batches) and Groceries' (the list's items since its first visit and the members, for "Sam added
+ * Eggs"). Android phones only: the web app reloads.
+ */
+async function heldResume(db, hid, dayStart) {
+  const h = `households/${hid}`;
+  const sinceDay = (path) => query(collection(db, path), where('updatedAt', '>', dayStart));
+  const targets = [
+    collection(db, `${h}/products`),
+    collection(db, `${h}/stock`),
+    sinceDay(`${h}/products`),
+    sinceDay(`${h}/stock`),
+    sinceDay(`${h}/groceryLists/default/items`),
+    collection(db, `${h}/members`),
+  ];
+  const before = reads.listeners;
+  await Promise.all(targets.map(once));
+  reads.held += reads.listeners - before;
+  reads.listeners = before;
+  reads.ruleLookups += targets.length;
+}
+
 const started = Date.now();
 const WRITES_PER_ROUND = Math.ceil(WRITES_PER_HOUSEHOLD / OPENS_PER_DAY);
 for (let h = 0; h < HOUSEHOLDS; h++) {
@@ -165,6 +196,7 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
   const writer = env.authenticatedContext(`${hid}-u1`).firestore();
   const phones = Array.from({ length: PHONES }, (_, p) => env.authenticatedContext(`${hid}-u${p}`).firestore());
   const lastOpen = new Array(PHONES).fill(null);
+  const dayStart = new Array(PHONES).fill(null);
   let w = 0;
   for (let o = 0; o < OPENS_PER_DAY; o++) {
     // The day's writes (DESIGN 9.7: about 40) happen between opens, made by phone 1.
@@ -189,7 +221,10 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
     for (let p = 0; p < PHONES; p++) {
       const since = lastOpen[p];
       lastOpen[p] = new Date();
+      if (o === 0) dayStart[p] = new Date(Date.now() - 1000);
       await open(phones[p], `${hid}-u${p}`, hid, p === 0, since);
+      const android = p < PHONES - WEB;
+      if (HELD && android && o > 0 && o <= WARM) await heldResume(phones[p], hid, dayStart[p]);
     }
   }
   // The 40 actions, the 10 month counts and the 40 activity events; isMember on each action and each event, and the
@@ -221,14 +256,16 @@ reads.jobs = Object.values(jobs).reduce((a, b) => a + b, 0);
 writes += users + 1; // lastDigestDate once a day per user, lastPruneDate once a day
 deletes += HOUSEHOLDS * pruned;
 
-const total = reads.listeners + reads.ruleLookups + reads.jobs;
+const total = reads.listeners + reads.held + reads.ruleLookups + reads.jobs;
 const pct = (n, of) => `${((100 * n) / of).toFixed(1)}%`;
 const n = (v) => Math.round(v).toLocaleString('en-US');
 // Households of this size that fit under 70% of every daily limit.
 const fit = Math.min(...['reads', 'writes', 'deletes'].map((k) =>
   (0.7 * QUOTA[k]) / ({ reads: total, writes, deletes }[k] / HOUSEHOLDS)));
 console.log(`\nQuota simulation: ${HOUSEHOLDS} households x ${PHONES} phones (${WEB} web), ${OPENS_PER_DAY} opens a day, ${REMINDER_RUNS_PER_DAY} reminder runs a day`);
+console.log(`  warm returns        ${WARM} of ${OPENS_PER_DAY - 1} later opens find the process alive${HELD ? ' (listeners held as before B09)' : ''}`);
 console.log(`  app listeners       ${n(reads.listeners)} reads`);
+if (HELD) console.log(`  held listeners      ${n(reads.held)} reads (resumed after 30 minutes away)`);
 console.log(`  rule lookups        ${n(reads.ruleLookups)} reads`);
 console.log(`  scheduled jobs      ${n(reads.jobs)} reads (runs ${n(jobs.runs)}, digests ${n(jobs.digests)}, housekeeping ${n(jobs.housekeeping)}, export ${n(jobs.export)})`);
 console.log(`  total               ${n(total)} reads = ${pct(total, QUOTA.reads)} of ${n(QUOTA.reads)}`);

@@ -137,9 +137,9 @@ class TestPhone(private val name: String, cursorMargin: Duration = DeltaSync.CUR
         ),
     )
 
-    val pantryRepository = FirestorePantryRepository(firestore, syncLog)
+    val pantryRepository = FirestorePantryRepository(firestore, syncLog, scope, LISTENER_LINGER_MS)
     val pantry = PantryService(writer, Clock.systemDefaultZone())
-    val groceryRepository = FirestoreGroceryRepository(firestore, syncLog)
+    val groceryRepository = FirestoreGroceryRepository(firestore, syncLog, scope, LISTENER_LINGER_MS)
     val grocery = GroceryService(writer, groceryRepository, pantry)
     val recipeRepository = FirestoreRecipeRepository(firestore, syncLog)
     val recipes = RecipeService(writer)
@@ -152,7 +152,14 @@ class TestPhone(private val name: String, cursorMargin: Duration = DeltaSync.CUR
     private val restock =
         RestockRunner(sessionManager, pantryRepository, groceryRepository, writer, scope, Clock.systemDefaultZone())
 
-    fun startRestock() = restock.start()
+    /**
+     * Starts the restock engine with the pantry on screen, as a real phone has it while open: the engine reads the
+     * cache only (after v1, DESIGN 9.6), so it sees another phone's change only through a screen's listeners.
+     */
+    fun startRestock(householdId: String) {
+        scope.launch { pantryRepository.observe(householdId).collect { } }
+        restock.start()
+    }
 
     val uid: String get() = checkNotNull(authRepository.currentUser).uid
 
@@ -205,5 +212,11 @@ class TestPhone(private val name: String, cursorMargin: Duration = DeltaSync.CUR
 
     private companion object {
         const val CLOSE_TIMEOUT_MS = 10_000L
+
+        /**
+         * The shared pantry and item listeners stop as soon as nothing collects them, instead of 5 s later as in the
+         * app (DESIGN 9.1): a test that stops collecting means "the app is closed".
+         */
+        const val LISTENER_LINGER_MS = 0L
     }
 }

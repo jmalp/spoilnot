@@ -224,6 +224,15 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     the household from the phone with the red banner "Spoil Not has reached its free daily limit and will work again
     tomorrow." above the screen, never a spinner or the sign-in; tabs say Offline, Groceries included; adding and
     checking off still work. After midnight Pacific the banner goes by itself and Offline goes within a minute.
+45. Listeners that let go (Android, after v1, 2026-11-09, DESIGN 9.1, 9.6): on the emulators, open Home, Pantry and
+    Groceries, then press Home on the phone and wait 15 s. The Emulator UI's Firestore Requests show no new listen
+    requests while the app is in the background. Bring it back: Home's lists show again at once, and another phone's
+    +1 on a purchase shows within a second on Home and on Pantry, read once (one request per collection, not one per
+    tab). With Pantry open on phone B and phone A on Settings, use up a staple on phone A: one Low stock item appears
+    on both. Kill the app, then send it a digest (or start it from `adb shell am broadcast` as review 09 did): the
+    Requests page shows the session's reads (profile, membership, device) but no products, stock or grocery list. On
+    a real phone, the console's
+    usage page after a normal day (RUNBOOK, Check quota usage) should be near quota-sim's per-household figure.
 
 ## 3. Conditions
 

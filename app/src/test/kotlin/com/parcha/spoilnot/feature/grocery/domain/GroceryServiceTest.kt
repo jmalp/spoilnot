@@ -309,6 +309,8 @@ class GroceryServiceTest {
     private object NoRepository : GroceryRepository {
         override fun observeLists(householdId: String): Flow<List<GroceryList>> = emptyFlow()
 
+        override fun observeCachedLists(householdId: String): Flow<List<GroceryList>> = emptyFlow()
+
         override fun observeItems(householdId: String, listId: String): Flow<List<GroceryItem>> = emptyFlow()
 
         override suspend fun isCached(householdId: String, listId: String, itemId: String) = false

@@ -386,8 +386,9 @@ When reads run out, both apps keep working from each phone's copy with the red q
 32 s, which costs nothing while refused. Nothing needs doing; if it happens often, see quota-sim below.
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Knobs:
-`HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 24; 72 are scheduled) and `WEB` (how many of each
-household's 4 phones are the web app). Result on 2026-11-09 (30 products, 60 batches, 25 grocery items, 15 recipes,
+`HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 24; 72 are scheduled), `WEB` (how many of each
+household's 4 phones are the web app) and `WARM` (of each phone's 7 later opens, how many find the app's process
+still alive; `HELD=1` replays the Android app before 2026-11-09, which kept some listeners while the process lived). Result on 2026-11-09 (30 products, 60 batches, 25 grocery items, 15 recipes,
 this month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 Android phones opening the
 app 8 times a day, the first open a full read, Home reading recipes and this week's meals on every open; the 40
 daily writes spread between opens, each logging an activity event, 10 of them finishing a batch and 10 creating a
@@ -409,7 +410,18 @@ grocery item; a prune every day):
 So the free plan holds **about 17 households** of this size under the 70% warning line (reads run out first).
 Other runs: `RUNS=72` (every scheduled run starts) 22,192 reads, about 15.8 households, since each run reads every
 user with reminders on; `RUNS=15` 19,855, about 17.6; `WEB=2` (two web phones per household) the same reads, since
-the web app also reads `config/app` (DESIGN 18.5).
+the web app also reads `config/app` (DESIGN 18.5); `WARM=3` or `WARM=7` the same reads, since nothing holds a
+household listener once its screens are gone (DESIGN 9.1).
+
+| Later opens that find the process alive (of 7) | Before 2026-11-09 (`HELD=1`) | Now | Households under 70%, before → now |
+| --- | --- | --- | --- |
+| 0 | 20,224 | 20,224 | 17.3 → 17.3 |
+| 3 | 37,180 (16,236 from held listeners resumed after 30 minutes, 720 more rule lookups) | 20,224 | 9.4 → 17.3 |
+| 7 | 63,406 (41,502 held, 1,680 more rule lookups) | 20,224 | 5.5 → 17.3 |
+| 3, one web phone of four | 33,832 | 20,224 | 10.3 → 17.3 |
+
+How often a phone keeps the process varies with its memory and maker: the console's usage page after a normal day,
+divided by the households, says which row the beta is on (review 09's phone check 2).
 
 History: before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and 19,320 before
 Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner left it at 19,440; part 3
