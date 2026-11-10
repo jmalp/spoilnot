@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { catchError, filter, firstValueFrom, map, of, switchMap, take, timeout } from 'rxjs';
-import { messageId } from '../../core/errors';
+import { errorText, messageId } from '../../core/errors';
 import { useObservable, useToday } from '../../core/hooks';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
@@ -90,9 +90,12 @@ export function PlanScreen({
   const recipeOf = (meal: PlannedMeal) => recipeList.find((r) => r.id === meal.recipeId) ?? null;
 
   useEffect(() => {
-    const subscription = writer.errors$.subscribe((e) => snackbars.show(str(messageId(e))));
+    // A Cooked that lost to another phone names who cooked it (DESIGN 8.5).
+    const subscription = writer.errors$.subscribe((e) =>
+      snackbars.show(errorText(e, (uid) => members.find((m) => m.uid === uid)?.displayName, me.user.uid)),
+    );
     return () => subscription.unsubscribe();
-  }, [writer, snackbars]);
+  }, [writer, snackbars, members, me.user.uid]);
 
   const failed = (e: unknown) => snackbars.show(str(messageId(e)));
   const act = (work: () => Promise<unknown>) => void work().catch(failed);

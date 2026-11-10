@@ -16,6 +16,7 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.Multibinds
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,6 +32,13 @@ interface FirestoreChangeMapper {
         actor: Actor,
         change: HouseholdChange,
     ): Boolean
+
+    /**
+     * Why the server refused [chunk], one batch this mapper helped write, when another phone finished the same thing
+     * first (DESIGN 8.5): read from the server after the refusal, so it costs reads only then. Null when the batch
+     * holds none of this feature's races, or nothing shows that one was lost.
+     */
+    suspend fun whyRefused(db: FirebaseFirestore, householdId: String, chunk: List<HouseholdChange>): AppError? = null
 }
 
 @Singleton
@@ -59,12 +67,22 @@ class FirestoreHouseholdWriter @Inject constructor(
                 try {
                     task.awaitMapped()
                 } catch (e: AppError) {
-                    _errors.emit(e)
+                    _errors.emit(if (e is AppError.PermissionDenied) explain(db, householdId, chunk) ?: e else e)
                 }
             }
         }
         _localPlans.tryEmit(changes)
     }
+
+    /** The race a refused batch lost, if a feature can tell (DESIGN 8.5); a failed read leaves the plain refusal. */
+    private suspend fun explain(db: FirebaseFirestore, householdId: String, chunk: List<HouseholdChange>): AppError? =
+        try {
+            mappers.firstNotNullOfOrNull { it.whyRefused(db, householdId, chunk) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
 }
 
 /** The audit fields every mutable household document carries (DESIGN 8.1). */

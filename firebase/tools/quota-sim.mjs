@@ -30,6 +30,9 @@ const REMINDER_RUNS_PER_DAY = Number(process.env.RUNS ?? 24);
 const WEB = Math.min(PHONES, Number(process.env.WEB ?? 0));
 // Of the day's writes, this many finish a batch (used up or thrown away) and also bump the month's Insights counts.
 const FINISHES_PER_HOUSEHOLD = 10;
+// Of the day's writes, this many create a grocery item (quick add, restock, a recipe's ingredients). Since 2026-11-09
+// the rules check that the item's list exists (DESIGN 8.5): one more lookup per batch that creates items.
+const ITEM_CREATES_PER_HOUSEHOLD = 10;
 const MONTH = '2026-10';
 // Deleted documents wait as tombstones for 2 days (DESIGN 9.8): about this many per day, and twice that in place.
 const TOMBSTONES_PER_DAY = 15;
@@ -167,9 +170,16 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
     // The day's writes (DESIGN 9.7: about 40) happen between opens, made by phone 1.
     if (o > 0) {
       for (let i = 0; i < WRITES_PER_ROUND && w < WRITES_PER_HOUSEHOLD; i++, w++) {
-        await updateDoc(doc(writer, `households/${hid}/stock/s${w % 60}`), {
-          quantity: 2 + w, updatedAt: serverTimestamp(), updatedBy: `${hid}-u1`,
-        });
+        if (w % (WRITES_PER_HOUSEHOLD / ITEM_CREATES_PER_HOUSEHOLD) === 0) {
+          await setDoc(doc(writer, `households/${hid}/groceryLists/default/items/n${w}`), {
+            name: `New ${w}`, checked: false, createdAt: serverTimestamp(), createdBy: `${hid}-u1`,
+            updatedAt: serverTimestamp(), updatedBy: `${hid}-u1`,
+          });
+        } else {
+          await updateDoc(doc(writer, `households/${hid}/stock/s${w % 60}`), {
+            quantity: 2 + w, updatedAt: serverTimestamp(), updatedBy: `${hid}-u1`,
+          });
+        }
         // Every write is counted as logging an event too (in the app only some do), so Recent activity has news.
         await setDoc(doc(writer, `households/${hid}/activity/e${w}`), {
           type: 'stock_added', actorUid: `${hid}-u1`, actorName: 'User 1', params: {}, createdAt: serverTimestamp(),
@@ -182,9 +192,10 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
       await open(phones[p], `${hid}-u${p}`, hid, p === 0, since);
     }
   }
-  // The 40 actions, the 10 month counts and the 40 activity events; isMember on each action and each event.
+  // The 40 actions, the 10 month counts and the 40 activity events; isMember on each action and each event, and the
+  // list's existsAfter on each item create.
   writes += WRITES_PER_HOUSEHOLD + FINISHES_PER_HOUSEHOLD + EVENTS_PER_DAY;
-  reads.ruleLookups += WRITES_PER_HOUSEHOLD + EVENTS_PER_DAY;
+  reads.ruleLookups += WRITES_PER_HOUSEHOLD + EVENTS_PER_DAY + ITEM_CREATES_PER_HOUSEHOLD;
 }
 
 // Scheduled jobs (backend/reminder, DESIGN 10.1). Every run: the users query (every user with reminders on) and the

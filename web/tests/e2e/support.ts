@@ -109,6 +109,12 @@ export async function removeFields(path: string, fields: string[]) {
   if (!response.ok) throw new Error(`remove ${path}: ${response.status} ${await response.text()}`);
 }
 
+/** Deletes a document for real, as another member's Delete list does. */
+export async function deleteDocument(path: string) {
+  const response = await fetch(`${FIRESTORE}/${path}`, { method: 'DELETE', headers: ADMIN });
+  if (!response.ok) throw new Error(`delete ${path}: ${response.status} ${await response.text()}`);
+}
+
 type RestValue = {
   stringValue?: string;
   integerValue?: string;
@@ -259,6 +265,31 @@ export async function defaultListId(hid: string): Promise<string> {
   const doc = rows.find((r) => r.document)?.document;
   if (!doc) throw new Error(`No default list in ${hid}`);
   return doc.name.split('/').pop()!;
+}
+
+/** The id of a household's grocery list named [name]. */
+export async function listIdNamed(hid: string, name: string): Promise<string> {
+  const response = await fetch(`${FIRESTORE}/households/${hid}:runQuery`, {
+    method: 'POST',
+    headers: ADMIN,
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'groceryLists' }],
+        where: { fieldFilter: { field: { fieldPath: 'name' }, op: 'EQUAL', value: { stringValue: name } } },
+      },
+    }),
+  });
+  const rows = (await response.json()) as { document?: { name: string } }[];
+  const doc = rows.find((r) => r.document)?.document;
+  if (!doc) throw new Error(`No list ${name} in ${hid}`);
+  return doc.name.split('/').pop()!;
+}
+
+/** The ids of the documents in a collection on the server, tombstones included. */
+export async function documentIds(path: string): Promise<string[]> {
+  const response = await fetch(`${FIRESTORE}/${path}`, { headers: ADMIN });
+  const json = (await response.json()) as { documents?: { name: string }[] };
+  return (json.documents ?? []).map((d) => d.name.split('/').pop()!);
 }
 
 export type SeedGroceryItem = {

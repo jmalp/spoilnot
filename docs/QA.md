@@ -208,6 +208,16 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     stock is added. Undo of Used up on the last Milk puts it back and leaves the item with Back in stock. On Android,
     edit a product that has Keep at least but no automatic add (from before the beta, if a tester still has one): change
     its location and save: it still shows as a staple.
+43. One phone wins (Android and the iPhone web app, after v1, 2026-11-09, DESIGN 8.5): put two test items on the
+    list and check both off on both phones. Turn on Airplane Mode on the iPhone and press Add to pantry there ("Added
+    to the pantry"); press Add all on Android; turn Airplane Mode off. Within a minute the iPhone says "<Android
+    user's name> already took these off the list. Nothing was added to the pantry." and both Pantries show each item
+    once, with one product of each name. Repeat with the phones swapped, and once with both online pressing at the same
+    moment (count "3, 2, 1"). Plan a test dinner from a recipe that uses something in the pantry for today; press
+    Cooked on both phones at the same moment: one says "<name> already marked this meal cooked. Nothing was taken
+    from the pantry." and the amounts come off once. Create a list "Test party"; with Android in Airplane Mode add
+    "Chips" to it, delete the list on the iPhone, turn Airplane Mode off: Android says "That list was deleted, so the
+    change wasn't saved." Delete the test purchases afterwards.
 
 ## 3. Conditions
 
