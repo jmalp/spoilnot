@@ -1,5 +1,7 @@
 # Dependency automation (DESIGN 12.2 control 9, M7). Weekly and grouped, so updates arrive as a few pull requests
-# instead of one per library; CI must pass before merging. Security updates are not delayed by the schedule.
+# instead of one per library; CI must pass before merging. Security updates (a repository setting, docs/RUNBOOK.md)
+# are not delayed by the schedule. Actions are pinned to commit SHAs with the version in a comment; Dependabot
+# updates both.
 version: 2
 updates:
   - package-ecosystem: gradle
@@ -73,6 +75,23 @@ updates:
         update-types: ["version-update:semver-major"]
     groups:
       web-app:
+        patterns: ["*"]
+
+  # The theme generator (DESIGN 6.4) runs only when the themes change, but its lockfile gets updates too.
+  - package-ecosystem: npm
+    directory: /tools/themes
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 1
+    ignore:
+      # 0.4.0 has a broken ESM import (DECISIONS 2026-10-15); later versions are proposed again.
+      - dependency-name: "@material/material-color-utilities"
+        versions: ["0.4.0"]
+    groups:
+      theme-tools:
         patterns: ["*"]
 
   - package-ecosystem: github-actions
