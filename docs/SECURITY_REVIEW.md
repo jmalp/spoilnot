@@ -84,7 +84,7 @@ access; the extra lookup is one read per batch that creates items. 6 tests ("one
 `quantity` may be below 0 (down to −10⁹), because −1 and edited quantities are increments and two phones can take the
 last unit at once; every reader treats it as 0. Undo merges a field delete of `deletedAt` only. Re-reviewed against
 12.1: no new data or access; a member could already set any quantity from 0 up, and a negative one only hides the
-purchase, as 0 does. 5 tests ("edits and Undo keep what someone else changed"), 127 in total.
+purchase, as 0 does. 5 tests ("edits and Undo keep what someone else changed"), 129 in total with 2026-11-10's join request tests.
 
 Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
 deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed). The
