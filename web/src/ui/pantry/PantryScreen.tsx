@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { catchError, firstValueFrom, map, of, timeout } from 'rxjs';
 import { messageId } from '../../core/errors';
 import { pushStatus } from '../../core/push';
 import { useObservable, useToday } from '../../core/hooks';
@@ -14,6 +15,7 @@ import {
   type PantryQuery,
   type PantrySort,
 } from '../../domain/pantry/items';
+import { checkEdit, itemEditOf, type ItemEditBase } from '../../domain/pantry/edit-watch';
 import type { PantryData, Product, StockBatch } from '../../domain/pantry/models';
 import type { Undo } from '../../domain/write';
 import { NotificationRules } from '../../domain/notifications';
@@ -37,6 +39,9 @@ const FILTERS: [PantryFilter, StringId][] = [
 ];
 
 /** The Pantry tab (DESIGN 5.2): search, filters, one row per purchase, swipe and menu actions with Undo. */
+/** How long the Edit window waits for the member list to name who removed its item. */
+const MEMBER_NAME_WAIT_MS = 3_000;
+
 export function PantryScreen({
   onOpenSettings,
   joinRequests,
@@ -50,7 +55,7 @@ export function PantryScreen({
   onQueryChange: (query: PantryQuery) => void;
 }) {
   const me = useHouseholdSession();
-  const { pantry, pantryService, writer, clock, preferences } = useServices();
+  const { pantry, pantryService, writer, clock, preferences, households } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
   // The household's shared pantry listeners (after v1, DESIGN 9.1).
@@ -61,7 +66,8 @@ export function PantryScreen({
   const [throwing, setThrowing] = useState<StockBatch | null>(null);
   const [moving, setMoving] = useState<StockBatch | null>(null);
   const [opening, setOpening] = useState<StockBatch | null>(null);
-  const [editing, setEditing] = useState<StockBatch | null>(null);
+  // What the open Edit window compares with (after v1, DESIGN 9.2 and 9.4).
+  const [editing, setEditing] = useState<ItemEditBase | null>(null);
   // An Out staple opens Add item for that product.
   const [adding, setAdding] = useState<{ prefill: Product | null } | null>(null);
   const [explaining, setExplaining] = useState(false);
@@ -113,6 +119,49 @@ export function PantryScreen({
     onMove: setMoving,
     onOpened: setOpening,
   };
+
+  // Members' names, only while the Edit window is open (it names who changed its item).
+  const editOpen = editing !== null;
+  const members = useObservable<Map<string, string>>(
+    useMemo(
+      () =>
+        editOpen
+          ? households.observeMembers(hid).pipe(
+              map((all) => new Map(all.map((m) => [m.uid, m.displayName]))),
+              catchError(() => of(new Map<string, string>())),
+            )
+          : of(new Map<string, string>()),
+      [households, hid, editOpen],
+    ),
+    new Map(),
+  );
+  const watch = editing && data ? checkEdit(editing, data, me.user.uid) : null;
+  // The item is gone: close the window and say who removed it, unless it was this person. The sheet is hidden at
+  // once (below); the window closes once the remover is known, and only once.
+  const closing = useRef<ItemEditBase | null>(null);
+  const removed = editing !== null && watch?.kind === 'removed' ? watch : null;
+  useEffect(() => {
+    if (!editing || !removed || closing.current === editing) return;
+    closing.current = editing;
+    void (async () => {
+      const who = removed.byUid ?? (await pantry.removedBy(hid, editing.batch.id));
+      setEditing((open) => (open === editing ? null : open));
+      if (who === me.user.uid) return;
+      // The member list starts with the window, so a removal right after opening it may come first: wait a moment.
+      const name =
+        who === null
+          ? null
+          : (members.get(who) ??
+            (await firstValueFrom(
+              households.observeMembers(hid).pipe(
+                map((all) => all.find((m) => m.uid === who)?.displayName ?? null),
+                timeout(MEMBER_NAME_WAIT_MS),
+                catchError(() => of(null)),
+              ),
+            )));
+      snackbars.show(name !== null ? str('edit_removed_by', name) : str('edit_removed'));
+    })();
+  }, [editing, removed, pantry, households, hid, me.user.uid, members, snackbars]);
 
   const groups = data ? PantryItems.build(data.products, data.batches, query, today) : [];
   const empty = data !== null && PantryItems.all(data.products, data.batches, today).length === 0;
@@ -200,7 +249,12 @@ export function PantryScreen({
             today={today}
             actions={actions}
             onOpen={(item: PantryItem) =>
-              item.kind === 'purchase' ? setEditing(item.batch) : setAdding({ prefill: item.product })
+              item.kind === 'purchase'
+                ? setEditing({
+                    batch: item.batch,
+                    product: data?.products.find((p) => p.id === item.batch.productId) ?? null,
+                  })
+                : setAdding({ prefill: item.product })
             }
           />
         </>
@@ -234,25 +288,32 @@ export function PantryScreen({
           }}
         />
       )}
-      {editing && data && (
+      {editing && data && watch?.kind !== 'removed' && (
         <EditItemSheet
-          batch={editing}
-          product={data.products.find((p) => p.id === editing.productId) ?? null}
+          key={editing.batch.id}
+          batch={editing.batch}
+          product={editing.product}
+          base={itemEditOf(editing)}
+          changed={watch?.kind === 'changed' ? watch.live : null}
+          changedBy={watch?.kind === 'changed' && watch.byUid !== null ? (members.get(watch.byUid) ?? null) : null}
+          onReviewed={setEditing}
           canChangeUnit={
-            !data.batches.some((b) => b.productId === editing.productId && b.id !== editing.id && b.quantity > 0)
+            !data.batches.some(
+              (b) => b.productId === editing.batch.productId && b.id !== editing.batch.id && b.quantity > 0,
+            )
           }
           today={today}
           imperialFirst={me.units === 'imperial'}
           onDismiss={() => setEditing(null)}
           onSave={(edit) => {
-            const batch = editing;
+            const base = editing;
             act(
               async () => {
-                const undo = await pantryService.editItem(hid, actor, batch, edit, data);
+                const undo = await pantryService.editItem(hid, actor, base, edit, data);
                 setEditing(null);
                 return undo;
               },
-              () => str('undo_used_up', batch.productName),
+              () => str('undo_used_up', base.batch.productName),
             );
           }}
         />

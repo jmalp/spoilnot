@@ -25,8 +25,11 @@ data class PantryData(
 sealed interface PantryChange : HouseholdChange {
     data class CreateProduct(val product: Product) : PantryChange
 
-    /** Writes every editable field of [product]. */
-    data class UpdateProduct(val product: Product) : PantryChange
+    /**
+     * Writes the fields of [product] that differ from [before], and only those, so an edit never puts back what
+     * another member changed meanwhile (after v1, DESIGN 9.4). [before] is the product as this phone last read it.
+     */
+    data class UpdateProduct(val product: Product, val before: Product) : PantryChange
 
     /** The restock engine's own flag only, so it never overwrites someone's concurrent product edit (DESIGN 9.6). */
     data class SetRestockArmed(val productId: String, val armed: Boolean) : PantryChange
@@ -42,10 +45,14 @@ sealed interface PantryChange : HouseholdChange {
 
     data class CreateBatch(val batch: StockBatch) : PantryChange
 
-    /** Adds [delta] with an atomic increment, so +1 and -1 from two phones commute (DESIGN 9.3). */
-    data class AddToBatch(val batchId: String, val delta: Double) : PantryChange
+    /**
+     * Adds [delta] with an atomic increment, so +1 and -1 from two phones commute (DESIGN 9.3). [revive] also removes
+     * a tombstone: the Undo of a -1 that used the batch up, which a phone may already have removed (8.5 invariant 1).
+     */
+    data class AddToBatch(val batchId: String, val delta: Double, val revive: Boolean = false) : PantryChange
 
-    data class UpdateBatch(val batchId: String, val edit: BatchEdit) : PantryChange
+    /** Writes the fields of [after] that differ from [before], and only those (after v1, DESIGN 9.4). */
+    data class UpdateBatch(val batchId: String, val before: BatchEdit, val after: BatchEdit) : PantryChange
 
     /** Keeps a batch's copies of the product fields in line with the product (DESIGN 8.5, invariant 2). */
     data class SyncBatchProduct(val batchId: String, val name: String, val unit: QuantityUnit, val category: Category) :
@@ -53,7 +60,11 @@ sealed interface PantryChange : HouseholdChange {
 
     data class DeleteBatch(val batchId: String) : PantryChange
 
-    /** Puts a deleted batch back under its old id (Undo). */
+    /**
+     * Puts a deleted batch back (Undo): removes the tombstone and changes nothing else, so what the document holds
+     * stays, including another member's change and fields a newer app added (after v1, DESIGN 8.6). [batch] is this
+     * phone's copy, for planning.
+     */
     data class RestoreBatch(val batch: StockBatch) : PantryChange
 
     data class LogEvent(
@@ -82,6 +93,12 @@ interface PantryRepository {
      * [PantryData.serverRead] means a full read of both collections is on record on this phone.
      */
     fun observeCached(householdId: String): Flow<PantryData>
+
+    /**
+     * Who deleted [batchId], from the tombstone in the local cache (no read is billed); null when it isn't there
+     * (after v1, DESIGN 9.2: the Edit window says who removed its item).
+     */
+    suspend fun removedBy(householdId: String, batchId: String): String?
 
     /** The most recent events for one product, newest first (DESIGN 5.2 product detail). */
     fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>>

@@ -90,3 +90,4 @@ round/info
 
 # Install help (W7)
 round/ios_share
+round/sync

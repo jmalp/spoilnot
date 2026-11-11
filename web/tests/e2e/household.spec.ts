@@ -1,6 +1,20 @@
 // Accounts and households on two iPhones (DESIGN 5.1, 18.8 W1), against the emulators, like HouseholdFlowTest.
 import { expect, test, type Page } from '@playwright/test';
-import { createHousehold, deleteDocument, householdId, openApp, PASSWORD, signUp, uidOf, uniqueEmail } from './support';
+import {
+  closeOtherPhones,
+  createHousehold,
+  deleteDocument,
+  householdId,
+  newPhone,
+  openApp,
+  PASSWORD,
+  readFields,
+  signUp,
+  uidOf,
+  uniqueEmail,
+} from './support';
+
+test.afterEach(closeOtherPhones);
 
 async function openHouseholdSettings(page: Page) {
   await page.getByRole('button', { name: /Open settings/ }).click();
@@ -11,7 +25,7 @@ async function openHouseholdSettings(page: Page) {
 test('a second phone joins with the code after the owner approves; removing them returns them to the gate', async ({
   browser,
 }) => {
-  const alice = await (await browser.newContext()).newPage();
+  const alice = await (await newPhone(browser)).newPage();
   await openApp(alice);
   await signUp(alice, 'Alice');
   await createHousehold(alice, 'Test home');
@@ -19,7 +33,7 @@ test('a second phone joins with the code after the owner approves; removing them
   const code = (await alice.getByTestId('invite_code').textContent())!.trim();
   expect(code).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
 
-  const bob = await (await browser.newContext()).newPage();
+  const bob = await (await newPhone(browser)).newPage();
   await openApp(bob);
   await signUp(bob, 'Bob');
   // Typed in lowercase without the hyphen: the field formats it.
@@ -53,7 +67,7 @@ test('a second phone joins with the code after the owner approves; removing them
 test('an approved request deleted before the joiner opens the app still lets them in (after v1)', async ({
   browser,
 }) => {
-  const alice = await (await browser.newContext()).newPage();
+  const alice = await (await newPhone(browser)).newPage();
   await openApp(alice);
   await signUp(alice, 'Alice');
   const name = `Pruned home ${Date.now()}`;
@@ -61,7 +75,7 @@ test('an approved request deleted before the joiner opens the app still lets the
   await openHouseholdSettings(alice);
   const code = (await alice.getByTestId('invite_code').textContent())!.trim();
 
-  const carolContext = await browser.newContext();
+  const carolContext = await newPhone(browser);
   const carol = await carolContext.newPage();
   await openApp(carol);
   const email = await signUp(carol, 'Carol');
@@ -69,13 +83,21 @@ test('an approved request deleted before the joiner opens the app still lets the
   await carol.getByRole('button', { name: 'Continue' }).click();
   await carol.getByTestId('send_request').click();
   await expect(carol.getByTestId('card_join_status')).toBeVisible();
+  // The waiting card shows as soon as the request is queued; close the app only once it has reached the server
+  // (the owner sees it), or a busy emulator leaves it queued until the app opens again.
+  const approve = alice.getByTestId('card_join_requests').getByRole('button', { name: 'Approve' });
+  await expect(approve).toBeVisible({ timeout: 15_000 });
   await carol.close();
 
   // Approved while Carol's app is closed; then the job prunes the request, as it did before it kept approved ones.
-  await alice.getByTestId('card_join_requests').getByRole('button', { name: 'Approve' }).click();
+  await approve.click();
   await expect(alice.getByTestId('card_members')).toContainText('Carol');
+  // Alice's screen shows Carol from its own cache at once; the job prunes only what the server has, so wait for the
+  // membership to be there before the request goes.
   const hid = await householdId(name);
-  await deleteDocument(`households/${hid}/joinRequests/${await uidOf(email)}`);
+  const carolUid = await uidOf(email);
+  await expect.poll(() => readFields(`households/${hid}/members/${carolUid}`), { timeout: 15_000 }).not.toBeNull();
+  await deleteDocument(`households/${hid}/joinRequests/${carolUid}`);
 
   const again = await carolContext.newPage();
   await again.goto('/');
@@ -123,7 +145,7 @@ test('the reset screen confirms without saying whether the account exists', asyn
 });
 
 test('a member deletes their account; an owner must hand over first', async ({ browser }) => {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newPhone(browser)).newPage();
   await openApp(page);
   await signUp(page, 'Owner');
   await createHousehold(page, 'Owner home');

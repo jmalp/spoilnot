@@ -113,13 +113,9 @@ export const mealPlanMapper: ChangeMapper = {
       case 'meal.create':
         batch.set(meal(change.meal.id), { ...fields(change.meal), ...Stamps.created(actor), ...stamp });
         break;
+      // Undo removes the tombstone and nothing else (DESIGN 8.6).
       case 'meal.restore':
-        batch.set(meal(change.meal.id), {
-          ...fields(change.meal),
-          ...stamp,
-          createdAt: change.meal.createdAt !== null ? Timestamp.fromMillis(change.meal.createdAt) : serverTimestamp(),
-          createdBy: change.meal.createdBy ?? actor.uid,
-        });
+        batch.set(meal(change.meal.id), Tombstones.restore(actor), { merge: true });
         break;
       case 'meal.update':
         batch.update(meal(change.mealId), {

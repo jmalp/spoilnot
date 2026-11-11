@@ -36,13 +36,8 @@ class MealPlanChangeMapper @Inject constructor() : FirestoreChangeMapper {
                 fields(change.meal) + Stamps.created(actor) + stamp,
             )
 
-            is MealPlanChange.Restore -> batch.set(
-                doc(change.meal.id),
-                fields(change.meal) + stamp + mapOf(
-                    "createdAt" to (change.meal.createdAt?.let { Timestamp(it) } ?: FieldValue.serverTimestamp()),
-                    "createdBy" to (change.meal.createdBy ?: actor.uid),
-                ),
-            )
+            // Undo removes the tombstone and nothing else (DESIGN 8.6).
+            is MealPlanChange.Restore -> batch.set(doc(change.meal.id), Tombstones.restore(actor), SetOptions.merge())
 
             is MealPlanChange.Update -> batch.update(
                 doc(change.mealId),

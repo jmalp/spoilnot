@@ -34,15 +34,9 @@ class RecipeChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     Stamps.created(actor) + stamp,
             )
 
-            is RecipeChange.Restore -> batch.set(
-                doc(change.recipe.id),
-                contentFields(change.recipe.content) + stamp + mapOf(
-                    "favorite" to change.recipe.favorite,
-                    "rating" to change.recipe.rating,
-                    "createdAt" to (change.recipe.createdAt?.let { Timestamp(it) } ?: FieldValue.serverTimestamp()),
-                    "createdBy" to (change.recipe.createdBy ?: actor.uid),
-                ),
-            )
+            // Undo removes the tombstone and nothing else (DESIGN 8.6).
+            is RecipeChange.Restore ->
+                batch.set(doc(change.recipe.id), Tombstones.restore(actor), SetOptions.merge())
 
             is RecipeChange.Update -> batch.update(doc(change.recipeId), contentFields(change.content) + stamp)
 

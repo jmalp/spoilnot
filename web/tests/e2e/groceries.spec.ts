@@ -1,6 +1,19 @@
 // The Groceries tab on an iPhone (DESIGN 5.3, 9.6, 18.8 W3), against the emulators.
 import { expect, test, type Page } from '@playwright/test';
-import { createHousehold, householdId, openApp, PASSWORD, seedPantry, signUp, uidOf, uniqueEmail } from './support';
+import {
+  closeOtherPhones,
+  createHousehold,
+  householdId,
+  newPhone,
+  openApp,
+  PASSWORD,
+  seedPantry,
+  signUp,
+  uidOf,
+  uniqueEmail,
+} from './support';
+
+test.afterEach(closeOtherPhones);
 
 const tab = (page: Page, name: string) => page.getByRole('navigation').getByRole('button', { name }).click();
 const list = (page: Page) => page.getByTestId('grocery_list');
@@ -58,6 +71,8 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
 
   // Add to pantry: one line each; skip the batteries.
   await row(page, 'batteries').getByRole('checkbox').click();
+  // The sheet lists what is in the cart when it opens: open it once the cart shows the batteries too.
+  await expect(page.getByTestId('cart_header')).toContainText('In cart (3)');
   await page.getByTestId('fab_add_to_pantry').click();
   const sheet = page.getByTestId('sheet_add_to_pantry');
   await expect(sheet.locator('[data-testid^="entry_"]').filter({ hasText: 'bananas' })).toContainText(
@@ -137,7 +152,7 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
   await expect(row(page, 'Olive oil')).toHaveCount(0);
 
   // Another phone on the account adds an item: it shows here with a short highlight.
-  const other = await (await browser.newContext()).newPage();
+  const other = await (await newPhone(browser)).newPage();
   await openApp(other);
   await other.getByRole('button', { name: 'Sign in' }).click();
   await other.getByLabel('Email').fill(email);

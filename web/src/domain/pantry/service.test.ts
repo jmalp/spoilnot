@@ -5,7 +5,15 @@ import type { StatsChange } from '../insights/stats';
 import { addDays } from '../time';
 import type { HouseholdChange, HouseholdWriter } from '../write';
 import { batch, FIXED_CLOCK, product, TODAY } from './fixtures';
-import type { PantryChange, PantryData, Product, QuantityUnit, StockBatch } from './models';
+import { itemEditOf } from './edit-watch';
+import {
+  batchEditOf,
+  type PantryChange,
+  type PantryData,
+  type Product,
+  type QuantityUnit,
+  type StockBatch,
+} from './models';
 import { PantryService, type ItemEdit, type ProductEdit, type StockDraft } from './service';
 
 class RecordingWriter implements HouseholdWriter {
@@ -194,18 +202,26 @@ describe('PantryService', () => {
     expect(ofType(repo.last, 'pantry.createBatch')[0]!.batch.unit).toBe('l');
   });
 
-  it('minus one at one uses the batch up, counts it, and undo takes both back', async () => {
+  it('minus one at one is an increment that counts the purchase used, and undo takes both back', async () => {
+    // SYNC-04: never a tombstone, so another member's addition meanwhile is kept; a phone that sees 0 on the server
+    // removes the batch (invariant 1), and Undo also brings it back from there.
     const b = batch('m1', 'milk');
     const undo = await service.adjust('h', actor, b, -1);
     expect(repo.last).toEqual([
-      { type: 'pantry.deleteBatch', batchId: 'm1' },
+      { type: 'pantry.addToBatch', batchId: 'm1', delta: -1 },
       { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: 1 },
     ]);
     await service.undo('h', actor, undo!);
     expect(repo.last).toEqual([
-      { type: 'pantry.restoreBatch', batch: b },
+      { type: 'pantry.addToBatch', batchId: 'm1', delta: 1, revive: true },
       { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: -1 },
     ]);
+  });
+
+  it('minus one on less than one takes what is left, so the copy reaches 0 and not below', async () => {
+    const undo = await service.adjust('h', actor, batch('r1', 'rice', { quantity: 0.25 }), -1);
+    expect(repo.last[0]).toEqual({ type: 'pantry.addToBatch', batchId: 'r1', delta: -0.25 });
+    expect(undo!.changes[0]).toEqual({ type: 'pantry.addToBatch', batchId: 'r1', delta: 0.25, revive: true });
   });
 
   it('plus and minus one use increments', async () => {
@@ -258,31 +274,64 @@ describe('PantryService', () => {
     expect(await service.throwAwayAll('h', actor, [], 'expired')).toBeNull();
   });
 
-  it('editing to zero uses the batch up, moving keeps everything else', async () => {
+  it('editing to zero takes what the window opened with, moving sets the location only', async () => {
     const b = batch('m1', 'milk', { quantity: 2 });
-    const undo = await service.edit('h', actor, b, {
-      quantity: 0,
-      expiryDate: null,
-      dateType: 'use_by',
-      location: 'fridge',
-      note: null,
-    });
+    const base = { batch: b, product: null };
+    const undo = await service.editItem('h', actor, base, { ...itemEditOf(base), quantity: 0 }, data([], [b]));
     expect(repo.last).toEqual([
-      { type: 'pantry.deleteBatch', batchId: 'm1' },
+      { type: 'pantry.addToBatch', batchId: 'm1', delta: -2 },
       { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: 1 },
     ]);
     expect(undo!.changes).toEqual([
-      { type: 'pantry.restoreBatch', batch: b },
+      { type: 'pantry.addToBatch', batchId: 'm1', delta: 2, revive: true },
       { type: 'stats.countUsedUp', month: MONTH, counter: MONTH, delta: -1 },
     ]);
     await service.move('h', actor, b, 'freezer');
-    expect(ofType(repo.last, 'pantry.updateBatch')[0]!.edit).toEqual({
-      quantity: 2,
-      expiryDate: b.expiryDate,
-      dateType: b.dateType,
-      location: 'freezer',
-      note: null,
-    });
+    const move = ofType(repo.last, 'pantry.updateBatch')[0]!;
+    expect(move.before).toEqual(batchEditOf(b));
+    expect(move.after).toEqual({ ...batchEditOf(b), location: 'freezer' });
+    repo.last = [];
+    await service.move('h', actor, b, b.location);
+    expect(repo.last).toEqual([]);
+  });
+
+  it("the edit window writes only what changed, so another member's use stays (SYNC-03)", async () => {
+    // Review 04's p05: Alice opens Milk x3; Bob uses 2; Alice changes only the date and saves.
+    const milk = product('milk');
+    const opened = batch('m1', 'milk', { quantity: 3 });
+    const base = { batch: opened, product: milk };
+    const now = data([milk], [{ ...opened, quantity: 1, updatedBy: 'bob' }]);
+    expect(
+      await service.editItem('h', actor, base, { ...itemEditOf(base), expiryDate: addDays(TODAY, 9) }, now),
+    ).toBeNull();
+    expect(repo.last).toEqual([
+      {
+        type: 'pantry.updateBatch',
+        batchId: 'm1',
+        before: batchEditOf(opened),
+        after: { ...batchEditOf(opened), expiryDate: addDays(TODAY, 9) },
+      },
+    ]);
+    // A changed quantity is the difference: "3 to 2" takes 1 off whatever the server has.
+    await service.editItem('h', actor, base, { ...itemEditOf(base), quantity: 2 }, now);
+    expect(repo.last).toEqual([{ type: 'pantry.addToBatch', batchId: 'm1', delta: -1 }]);
+    // Nothing changed: nothing is written.
+    repo.last = [];
+    await service.editItem('h', actor, base, itemEditOf(base), now);
+    expect(repo.last).toEqual([]);
+  });
+
+  it("the edit window leaves product fields it didn't change as the phone has them now", () => {
+    // Opened with Keep at least 2 and armed; meanwhile Bob raised it to 5 and the engine disarmed it. Alice renames.
+    const opened = product('milk', { min: 2 });
+    const now: Product = { ...opened, minQuantity: 5, restockArmed: false, updatedBy: 'bob' };
+    const b1 = batch('m1', 'milk');
+    const base = { batch: b1, product: opened };
+    const changes = service.planEdit(base, { ...itemEditOf(base), name: 'Whole milk' }, data([now], [b1]));
+    expect(ofType(changes, 'pantry.updateProduct')).toEqual([
+      { type: 'pantry.updateProduct', product: { ...now, name: 'Whole milk', nameKey: 'whole milk' }, before: now },
+    ]);
+    expect(ofType(changes, 'pantry.syncBatchProduct').map((c) => c.batchId)).toEqual(['m1']);
   });
 
   const productEdit = (p: Product, { name = p.name, unit = p.unit, min = p.minQuantity } = {}): ProductEdit => ({
@@ -348,6 +397,10 @@ describe('PantryService', () => {
     expect(repo.last).toEqual([{ type: 'pantry.deleteBatch', batchId: 'a' }]);
   });
 
+  /** The Edit window opened on `b` with the product as `d` has it. */
+  const planEdit = (b: StockBatch, edit: ItemEdit, d: PantryData) =>
+    service.planEdit({ batch: b, product: d.products.find((p) => p.id === b.productId) ?? null }, edit, d);
+
   const itemEdit = ({
     name = 'Milk',
     quantity = 2,
@@ -369,18 +422,18 @@ describe('PantryService', () => {
 
   it('the edit window changes the purchase and its product in one write, keeping date type and note', () => {
     const b1 = { ...batch('b1', 'milk'), dateType: 'best_before' as const, note: 'Lactose free' };
-    const changes = service.planEdit(
+    const changes = planEdit(
       b1,
       itemEdit({ name: 'Oat milk', autoAdd: true, min: 2, buy: 4 }),
       data([product('milk')], [b1]),
     );
-    expect(ofType(changes, 'pantry.updateBatch')[0]!.edit).toEqual({
-      quantity: 2,
+    expect(ofType(changes, 'pantry.updateBatch')[0]!.after).toEqual({
       expiryDate: addDays(TODAY, 4),
       dateType: 'best_before',
       location: 'freezer',
       note: 'Lactose free',
     });
+    expect(ofType(changes, 'pantry.addToBatch')).toEqual([{ type: 'pantry.addToBatch', batchId: 'b1', delta: 1 }]);
     const p = ofType(changes, 'pantry.updateProduct')[0]!.product;
     expect([p.name, p.minQuantity, p.autoAddToGrocery, p.buyQuantity, p.restockArmed]).toEqual([
       'Oat milk',
@@ -396,7 +449,7 @@ describe('PantryService', () => {
     const rice = { ...product('rice', { min: 5 }), buyQuantity: 10 };
     const b1 = batch('b1', 'rice');
     const p = ofType(
-      service.planEdit(b1, itemEdit({ name: 'Rice', min: 5, buy: 10 }), data([rice], [b1])),
+      planEdit(b1, itemEdit({ name: 'Rice', min: 5, buy: 10 }), data([rice], [b1])),
       'pantry.updateProduct',
     )[0]!.product;
     expect([p.minQuantity, p.autoAddToGrocery, p.buyQuantity]).toEqual([null, false, null]);
@@ -407,18 +460,18 @@ describe('PantryService', () => {
     const flour = { ...product('flour', { min: 2 }), autoAddToGrocery: false, buyQuantity: 3 };
     const b1 = batch('b1', 'flour');
     const kept = ofType(
-      service.planEdit(b1, itemEdit({ name: 'Flour', quantity: 1 }), data([flour], [b1])),
+      planEdit(b1, itemEdit({ name: 'Flour', quantity: 1 }), data([flour], [b1])),
       'pantry.updateProduct',
     );
     expect(kept).toEqual([]); // the product did not change at all
     const renamed = ofType(
-      service.planEdit(b1, itemEdit({ name: 'Bread flour' }), data([flour], [b1])),
+      planEdit(b1, itemEdit({ name: 'Bread flour' }), data([flour], [b1])),
       'pantry.updateProduct',
     )[0]!.product;
     expect([renamed.minQuantity, renamed.autoAddToGrocery, renamed.buyQuantity]).toEqual([2, false, 3]);
     // Turning the switch on uses the form's values as for any product.
     const on = ofType(
-      service.planEdit(b1, itemEdit({ name: 'Flour', autoAdd: true, min: 4 }), data([flour], [b1])),
+      planEdit(b1, itemEdit({ name: 'Flour', autoAdd: true, min: 4 }), data([flour], [b1])),
       'pantry.updateProduct',
     )[0]!.product;
     expect([on.minQuantity, on.autoAddToGrocery, on.buyQuantity]).toEqual([4, true, null]);
@@ -429,15 +482,15 @@ describe('PantryService', () => {
     const only = data([rice], [batch('b1', 'rice')]);
     const two = data([rice], [batch('b1', 'rice'), batch('b2', 'rice')]);
     const kg = itemEdit({ name: 'Rice', unit: 'kg' });
-    expect(ofType(service.planEdit(only.batches[0]!, kg, only), 'pantry.updateProduct')[0]!.product.unit).toBe('kg');
+    expect(ofType(planEdit(only.batches[0]!, kg, only), 'pantry.updateProduct')[0]!.product.unit).toBe('kg');
     expect(
-      ofType(service.planEdit(two.batches[0]!, kg, two), 'pantry.updateProduct').every((c) => c.product.unit === 'pcs'),
+      ofType(planEdit(two.batches[0]!, kg, two), 'pantry.updateProduct').every((c) => c.product.unit === 'pcs'),
     ).toBe(true);
   });
 
   it("a rename onto another product's name is refused", () => {
     const d = data([product('milk'), product('eggs')], [batch('b1', 'milk')]);
-    expect(() => service.planEdit(d.batches[0]!, itemEdit({ name: 'eggs' }), d)).toThrow(
+    expect(() => planEdit(d.batches[0]!, itemEdit({ name: 'eggs' }), d)).toThrow(
       expect.objectContaining({ kind: 'nameTaken' }),
     );
   });

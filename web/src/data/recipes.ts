@@ -112,16 +112,9 @@ export const recipeMapper: ChangeMapper = {
     const recipe = (id: string) => doc(db, recipes(hid), id);
     const stamp = Stamps.updated(actor);
     switch (change.type) {
+      // Undo removes the tombstone and nothing else (DESIGN 8.6).
       case 'recipe.restore':
-        batch.set(recipe(change.recipe.id), {
-          ...contentFields(change.recipe.content),
-          ...stamp,
-          favorite: change.recipe.favorite,
-          rating: change.recipe.rating,
-          createdAt:
-            change.recipe.createdAt !== null ? Timestamp.fromMillis(change.recipe.createdAt) : serverTimestamp(),
-          createdBy: change.recipe.createdBy ?? actor.uid,
-        });
+        batch.set(recipe(change.recipe.id), Tombstones.restore(actor), { merge: true });
         break;
       case 'recipe.update':
         batch.update(recipe(change.recipeId), { ...contentFields(change.content), ...stamp });

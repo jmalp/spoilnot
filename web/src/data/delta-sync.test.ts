@@ -5,7 +5,14 @@ import { concat, defer, lastValueFrom, of, throwError, type Observable } from 'r
 import { AppError, isAppError } from '../core/errors';
 import { quotaSignal } from '../domain/quota';
 import { CURSOR_MARGIN_MS, FULL_SYNC_EVERY_MS } from '../domain/sync';
-import { keepCacheWhileUnreachable, newestReceived, retryDelayMs, SyncLog } from './delta-sync';
+import {
+  CACHE_RETRIES,
+  keepCacheWhileUnreachable,
+  newestReceived,
+  retryCacheRefusals,
+  retryDelayMs,
+  SyncLog,
+} from './delta-sync';
 import { toAppError } from './firestore-rx';
 
 /** localStorage's shape, in memory. */
@@ -187,5 +194,42 @@ describe('resource-exhausted', () => {
     expect(isAppError(error, 'quotaExceeded')).toBe(true);
     expect(quotaSignal.isExhausted()).toBe(true);
     quotaSignal.reset();
+  });
+});
+
+describe('retryCacheRefusals', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("a cache listener sharing a refused server query listens again, so a new household's pantry loads", async () => {
+    // B11's CI: right after creating a household the server refused the first products listen; the SDK passed the
+    // refusal to the cache listener of the same query too, which had no retry, and Groceries stayed offline for good.
+    vi.useFakeTimers();
+    const cache = fakeServer([new AppError('permissionDenied'), new AppError('permissionDenied')]);
+    const seen: boolean[] = [];
+    let failed: unknown = null;
+    cache.flow.pipe(retryCacheRefusals()).subscribe({ next: (v) => seen.push(v), error: (e) => (failed = e) });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(cache.listens).toBe(3);
+    expect(seen).toEqual([false, false, false]);
+    expect(failed).toBeNull();
+  });
+
+  it('other errors pass at once, and a refusal that lasts passes after the retries', async () => {
+    vi.useFakeTimers();
+    let failed: unknown = null;
+    fakeServer([new AppError('unknown')])
+      .flow.pipe(retryCacheRefusals())
+      .subscribe({ error: (e) => (failed = e) });
+    expect(isAppError(failed, 'unknown')).toBe(true);
+
+    failed = null;
+    const refusals = Array.from({ length: CACHE_RETRIES + 1 }, () => new AppError('permissionDenied'));
+    const lasting = fakeServer(refusals);
+    lasting.flow.pipe(retryCacheRefusals()).subscribe({ error: (e) => (failed = e) });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(lasting.listens).toBe(CACHE_RETRIES + 1);
+    expect(isAppError(failed, 'permissionDenied')).toBe(true);
   });
 });

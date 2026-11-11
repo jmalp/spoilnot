@@ -8,11 +8,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.pantry.domain.DateType
@@ -108,5 +110,14 @@ class PantryScreenshotTest(private val dark: Boolean, private val fontScale: Flo
     fun addItemFormForAStaple() = snap("add_item_form_staple") {
         val eggs = product("eggs", min = 6.0, unit = QuantityUnit.Pieces).copy(buyQuantity = 12.0)
         AddItemForm(listOf(eggs), emptySet(), TODAY, prefill = eggs) {}
+    }
+
+    /** The Edit window's notice when someone else changed its item (after v1, DESIGN 9.2). */
+    @Test
+    fun editChangedNotice() = snap("edit_changed_notice") {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ChangedNotice(stringResource(R.string.edit_changed_by, "Sam"), onReview = {})
+            ChangedNotice(stringResource(R.string.edit_changed), onReview = {})
+        }
     }
 }

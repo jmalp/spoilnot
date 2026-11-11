@@ -115,3 +115,20 @@
   min-height: 48px;
   cursor: pointer;
 }
+
+/* "Sam changed this item. Review" in the Edit window (after v1, DESIGN 9.2). */
+.sn-form__notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 4px 4px 4px 16px;
+  border-radius: 12px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.sn-form__notice-text {
+  flex: 1;
+  font: var(--md-sys-typescale-body-medium);
+}

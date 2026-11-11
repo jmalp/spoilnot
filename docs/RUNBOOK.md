@@ -136,7 +136,9 @@ Firestore Database > Rules lists earlier versions; publish the previous one, the
 None is deployed yet; they go out together, in one deploy, with the order below. 2026-11-08's: allowed fields,
 authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery item is tombstoned once, a
 meal is marked cooked once, and items are created only under a list that exists. 2026-11-10's: a join request may
-carry `emailMasked`, the sender's sign-in email masked as the rules compute it (`ro***@example.com`).
+carry `emailMasked`, the sender's sign-in email masked as the rules compute it (`ro***@example.com`), and a batch's
+quantity may be below 0 (8.5 invariant 1), which refuses nothing any build writes; until it is deployed, builds from
+2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once.
 
 What the released builds (Android 1.0.0-beta.9, versionCode 10, and web build 55edcc5) do that these rules refuse:
 

@@ -125,16 +125,23 @@ class GroceryServiceTest {
         service.edit("h", actor, "g1", item, 2.0, null, " note ", null, "black  BEANS ", listOf(beans))
         assertEquals(
             listOf(
-                GroceryChange.UpdateItem("g1", "i1", 2.0, null, "note", null),
+                GroceryChange.UpdateItem(
+                    "g1",
+                    "i1",
+                    GroceryItemFields(null, null, null, null),
+                    GroceryItemFields(2.0, null, "note", null),
+                ),
                 GroceryChange.RenameItem("g1", "i1", "Black beans", "black beans", "beans"),
             ),
             writer.last,
         )
-        // A name no product has keeps the typed spelling and unlinks; the same name writes no rename.
+        // A name no product has keeps the typed spelling and unlinks; the fields that didn't change aren't written.
         service.edit("h", actor, "g1", item, null, null, null, null, "Pinto beans", listOf(beans))
-        assertEquals(GroceryChange.RenameItem("g1", "i1", "Pinto beans", "pinto beans", null), writer.last[1])
+        assertEquals(listOf(GroceryChange.RenameItem("g1", "i1", "Pinto beans", "pinto beans", null)), writer.last)
+        // Nothing changed: nothing is written.
+        writer.last = emptyList()
         service.edit("h", actor, "g1", item, null, null, null, null, "Beans", listOf(beans))
-        assertEquals(1, writer.last.size)
+        assertTrue(writer.last.isEmpty())
     }
 
     @Test
@@ -142,7 +149,7 @@ class GroceryServiceTest {
         service.increase("h", actor, "g1", item("i1", "Eggs").copy(quantity = 6.0), QuickAdd("eggs", 6.0, null))
         assertEquals(GroceryChange.AddToItem("g1", "i1", 6.0), writer.last.single())
         service.increase("h", actor, "g1", item("i1", "Eggs"), QuickAdd("eggs", null, null))
-        assertEquals(2.0, (writer.last.single() as GroceryChange.UpdateItem).quantity!!, 0.0)
+        assertEquals(2.0, (writer.last.single() as GroceryChange.UpdateItem).after.quantity!!, 0.0)
     }
 
     @Test

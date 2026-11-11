@@ -27,7 +27,7 @@ import { CATEGORIES, categoryOf, isPantryChange, unitOf, type Category } from '.
 import { lostRace, type AppError } from '../core/errors';
 import { compareStrings } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
-import { cachedLiveDocuments, liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
+import { cachedLiveDocuments, changedFields, liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import { mapped, querySnapshots, retryAfterOwnWrites } from './firestore-rx';
 import { activity } from './pantry';
@@ -216,23 +216,16 @@ export const groceryMapper: ChangeMapper = {
           ...stamp,
         });
         break;
+      // Undo removes the tombstone and nothing else (DESIGN 8.6): checked, who checked it, its creator and fields a
+      // newer app added stay as the server has them.
       case 'grocery.restoreItem':
-        batch.set(item(change.listId, change.item.id), {
-          ...itemFields(change.item),
-          ...stamp,
-          createdAt: change.item.createdAt !== null ? Timestamp.fromMillis(change.item.createdAt) : serverTimestamp(),
-          createdBy: change.item.createdBy ?? actor.uid,
-        });
+        batch.set(item(change.listId, change.item.id), Tombstones.restore(actor), { merge: true });
         break;
-      case 'grocery.updateItem':
-        batch.update(item(change.listId, change.itemId), {
-          quantity: change.quantity,
-          unit: change.unit,
-          note: change.note,
-          category: change.category,
-          ...stamp,
-        });
+      case 'grocery.updateItem': {
+        const changed = changedFields(change.before, change.after);
+        if (Object.keys(changed).length > 0) batch.update(item(change.listId, change.itemId), { ...changed, ...stamp });
         break;
+      }
       case 'grocery.renameItem':
         batch.update(item(change.listId, change.itemId), {
           name: change.name,

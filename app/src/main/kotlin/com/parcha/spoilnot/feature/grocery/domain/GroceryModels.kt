@@ -31,6 +31,18 @@ enum class ItemSource(val wire: String) {
     }
 }
 
+/** What the grocery Edit sheet sets on an item (besides its name). */
+data class GroceryItemFields(
+    val quantity: Double?,
+    val unit: QuantityUnit?,
+    val note: String?,
+    val category: Category?,
+) {
+    companion object {
+        fun of(item: GroceryItem) = GroceryItemFields(item.quantity, item.unit, item.note, item.category)
+    }
+}
+
 /** households/{hid}/groceryLists/{listId}/items/{itemId} (DESIGN 8.2). */
 data class GroceryItem(
     val id: String,
@@ -71,13 +83,12 @@ sealed interface GroceryChange : HouseholdChange {
     /** Puts a deleted item back under its old id (Undo). */
     data class RestoreItem(val listId: String, val item: GroceryItem) : GroceryChange
 
+    /** Writes the fields of [after] that differ from [before], and only those (after v1, DESIGN 9.4). */
     data class UpdateItem(
         val listId: String,
         val itemId: String,
-        val quantity: Double?,
-        val unit: QuantityUnit?,
-        val note: String?,
-        val category: Category?,
+        val before: GroceryItemFields,
+        val after: GroceryItemFields,
     ) : GroceryChange
 
     /** A new name (after v1), relinked to the household's product of that name, if any. */

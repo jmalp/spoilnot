@@ -12,6 +12,7 @@ import {
   type StockBatch,
 } from '../../domain/pantry/models';
 import { NameKey, ShelfLife } from '../../domain/pantry/rules';
+import { itemEditOf, rebaseEdit, type ItemEditBase } from '../../domain/pantry/edit-watch';
 import type { ItemEdit, StockDraft } from '../../domain/pantry/service';
 import { addDays, addMonths, type LocalDate } from '../../domain/time';
 import {
@@ -169,6 +170,11 @@ export function AddItemSheet({
  * The Edit window, the same form as Add: the purchase's quantity, date and location, and its product's name, unit,
  * category and grocery settings. The unit can change only when this is the product's only purchase.
  */
+/**
+ * The Edit window on `batch` and its `product`, as it compares with them (`base`, DESIGN 9.4). When someone else
+ * changed the item (`changed`, the item as it is now), it keeps the draft and says so (9.2); Review shows the item as
+ * it is now with this person's changes kept, and hands `changed` to `onReviewed`.
+ */
 export function EditItemSheet({
   batch,
   product,
@@ -177,6 +183,10 @@ export function EditItemSheet({
   imperialFirst,
   onSave,
   onDismiss,
+  base = itemEditOf({ batch, product }),
+  changed = null,
+  changedBy = null,
+  onReviewed = () => undefined,
 }: {
   batch: StockBatch;
   product: Product | null;
@@ -185,6 +195,10 @@ export function EditItemSheet({
   imperialFirst: boolean;
   onSave: (edit: ItemEdit) => void;
   onDismiss: () => void;
+  base?: ItemEdit;
+  changed?: ItemEditBase | null;
+  changedBy?: string | null;
+  onReviewed?: (live: ItemEditBase) => void;
 }) {
   const [form, setForm] = useState<FormState>({
     name: product?.name ?? batch.productName,
@@ -224,6 +238,15 @@ export function EditItemSheet({
           </Button>
         }
       >
+        {changed && (
+          <ChangedNotice
+            text={changedBy !== null ? str('edit_changed_by', changedBy) : str('edit_changed')}
+            onReview={() => {
+              setForm(review(form, base, changed));
+              onReviewed(changed);
+            }}
+          />
+        )}
         <ItemFields
           form={form}
           setForm={setForm}
@@ -237,6 +260,60 @@ export function EditItemSheet({
       </FormSheetColumn>
     </BottomSheet>
   );
+}
+
+/** "Sam changed this item." with Review (DESIGN 9.2); the words say it, not a color (6.8). */
+function ChangedNotice({ text, onReview }: { text: string; onReview: () => void }) {
+  return (
+    <div className="sn-form__notice" role="status" data-testid="notice_item_changed">
+      <Icon name="round/sync" size={20} />
+      <span className="sn-form__notice-text">{text}</span>
+      <Button variant="text" onClick={onReview} data-testid="button_review_changes">
+        {str('action_review')}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Review: the fields the person didn't touch take the item's values as they are now (`live`); the ones they changed
+ * keep theirs, and a changed quantity keeps its difference (rebaseEdit).
+ */
+function review(form: FormState, base: ItemEdit, live: ItemEditBase): FormState {
+  const now = itemEditOf(live);
+  const qty = parseQuantity(form.quantity);
+  const draft: ItemEdit = {
+    name: form.name,
+    quantity: qty ?? base.quantity,
+    unit: form.unit,
+    category: form.category,
+    expiryDate: form.expiry,
+    location: form.location,
+    autoAddToGrocery: form.autoAdd,
+    minQuantity: form.autoAdd ? optional(form.keepAtLeast) : null,
+    buyQuantity: form.autoAdd ? optional(form.buyQuantity) : null,
+  };
+  const rebased = rebaseEdit(draft, base, now);
+  const keepUntouched =
+    draft.autoAddToGrocery === base.autoAddToGrocery &&
+    draft.minQuantity === base.minQuantity &&
+    draft.buyQuantity === base.buyQuantity;
+  return {
+    ...form,
+    name: rebased.name,
+    quantity: qty !== null ? formatQuantity(rebased.quantity) : form.quantity,
+    unit: rebased.unit,
+    category: rebased.category,
+    expiry: rebased.expiryDate,
+    location: rebased.location,
+    ...(keepUntouched
+      ? {
+          autoAdd: now.autoAddToGrocery,
+          keepAtLeast: live.product?.minQuantity != null ? formatQuantity(live.product.minQuantity) : '',
+          buyQuantity: live.product?.buyQuantity != null ? formatQuantity(live.product.buyQuantity) : '',
+        }
+      : {}),
+  };
 }
 
 /** Scrollable fields with the save button pinned below them, so saving never needs a scroll. */

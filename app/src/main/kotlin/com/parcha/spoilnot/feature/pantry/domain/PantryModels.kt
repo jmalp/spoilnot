@@ -97,6 +97,8 @@ data class Product(
     val aliases: List<String> = emptyList(),
     /** How many days it keeps once opened, as last chosen in Mark opened (after v1, DESIGN 5.2). */
     val openedShelfLifeDays: Int? = null,
+    /** Who wrote it last (DESIGN 8.1); the Edit window names them (after v1, 9.2). */
+    val updatedBy: String? = null,
 ) {
     val isStaple: Boolean get() = minQuantity != null
 }
@@ -118,6 +120,8 @@ data class StockBatch(
     val pendingSync: Boolean = false,
     /** When it was opened (after v1, DESIGN 5.2); null while sealed. */
     val openedOn: LocalDate? = null,
+    /** Who wrote it last (DESIGN 8.1); the Edit window names them (after v1, 9.2). */
+    val updatedBy: String? = null,
 )
 
 /** What a person enters in the Add item sheet. */
@@ -135,14 +139,15 @@ data class StockDraft(
     val buyQuantity: Double?,
 )
 
-/** Changes to one batch from the edit sheet or the Move action. */
-data class BatchEdit(
-    val quantity: Double,
-    val expiryDate: LocalDate?,
-    val dateType: DateType,
-    val location: Location,
-    val note: String?,
-)
+/**
+ * A batch's own fields that an edit or the Move action sets. The quantity is not one of them: it only ever changes
+ * by an increment (after v1, DESIGN 9.3).
+ */
+data class BatchEdit(val expiryDate: LocalDate?, val dateType: DateType, val location: Location, val note: String?) {
+    companion object {
+        fun of(batch: StockBatch) = BatchEdit(batch.expiryDate, batch.dateType, batch.location, batch.note)
+    }
+}
 
 /**
  * The Edit window (beta feedback): one purchase and its product together. Keep at least and Buy quantity only exist
@@ -158,7 +163,25 @@ data class ItemEdit(
     val autoAddToGrocery: Boolean,
     val minQuantity: Double?,
     val buyQuantity: Double?,
-)
+) {
+    companion object {
+        /** What the Edit window shows for [batch] and its [product], as the form would hand it back unchanged. */
+        fun of(batch: StockBatch, product: Product?): ItemEdit {
+            val autoAdd = product?.autoAddToGrocery == true
+            return ItemEdit(
+                name = product?.name ?: batch.productName,
+                quantity = batch.quantity,
+                unit = product?.unit ?: batch.unit,
+                category = product?.category ?: batch.category,
+                expiryDate = batch.expiryDate,
+                location = batch.location,
+                autoAddToGrocery = autoAdd,
+                minQuantity = product?.minQuantity?.takeIf { autoAdd },
+                buyQuantity = product?.buyQuantity?.takeIf { autoAdd },
+            )
+        }
+    }
+}
 
 /** Changes to a product from its detail screen. */
 data class ProductEdit(

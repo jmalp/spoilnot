@@ -93,6 +93,8 @@ class RestockRunnerTest {
 
         override fun observeCached(householdId: String) = flows()
 
+        override suspend fun removedBy(householdId: String, batchId: String): String? = null
+
         override fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>> =
             emptyFlow()
     }

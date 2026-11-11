@@ -110,9 +110,16 @@ object Tombstones {
     fun fields(actor: Actor): Map<String, Any> = mapOf(FIELD to FieldValue.serverTimestamp()) + Stamps.updated(actor)
 
     /**
+     * Undo of a deletion, merged into the tombstone: removes `deletedAt` and stamps the write, and changes nothing
+     * else (after v1, DESIGN 8.6). The tombstone kept every field, so the document comes back as it is on the server,
+     * with fields this app doesn't know, its `createdBy` and any change another member made meanwhile.
+     */
+    fun restore(actor: Actor): Map<String, Any> = mapOf(FIELD to FieldValue.delete()) + Stamps.updated(actor)
+
+    /**
      * Deleted means `deletedAt` holds a time, the phone's estimate included: until the server confirms an offline
      * delete, the default read gives null, and the document would stay on screen (DESIGN 9.8). The rules never allow
-     * `deletedAt: null`, so Undo removes the field with a full write.
+     * `deletedAt: null`, so Undo removes the field ([restore]).
      */
     fun DocumentSnapshot.isTombstone(): Boolean = get(FIELD, ServerTimestampBehavior.ESTIMATE) != null
 }

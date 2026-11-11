@@ -6,7 +6,15 @@ import type { AddPlan, PantryService } from '../pantry/service';
 import { nullsLast, sortedWith, type LocalDate } from '../time';
 import type { Actor, HouseholdChange, HouseholdWriter, Undo } from '../write';
 import { guessAisle } from './aisles';
-import { GroceryRules, type GroceryChange, type GroceryItem, type GroceryList, type GroceryRepository } from './models';
+import {
+  GroceryRules,
+  groceryItemFieldsOf,
+  type GroceryChange,
+  type GroceryItem,
+  type GroceryItemFields,
+  type GroceryList,
+  type GroceryRepository,
+} from './models';
 
 /** "2 kg rice" in the quick-add field: an optional leading quantity and unit, then the name. */
 export type QuickAdd = { name: string; quantity: number | null; unit: QuantityUnit | null };
@@ -162,10 +170,8 @@ export class GroceryService {
             type: 'grocery.updateItem',
             listId,
             itemId: existing.id,
-            quantity: 1 + delta,
-            unit: existing.unit ?? request.unit,
-            note: existing.note,
-            category: existing.category,
+            before: groceryItemFieldsOf(existing),
+            after: { ...groceryItemFieldsOf(existing), quantity: 1 + delta, unit: existing.unit ?? request.unit },
           }
         : { type: 'grocery.addToItem', listId, itemId: existing.id, delta };
     return this.write(householdId, actor, [change]);
@@ -214,17 +220,18 @@ export class GroceryService {
     },
     products: Product[] = [],
   ) {
-    const changes: Change[] = [
-      {
-        type: 'grocery.updateItem',
-        listId,
-        itemId: item.id,
-        quantity: edit.quantity,
-        unit: edit.unit,
-        note: edit.note?.trim() || null,
-        category: edit.category,
-      },
-    ];
+    // Only what the person changed from `item`, the copy the sheet opened with, so another member's change to the
+    // item meanwhile stays (after v1, DESIGN 9.4).
+    const changes: Change[] = [];
+    const before = groceryItemFieldsOf(item);
+    const after: GroceryItemFields = {
+      quantity: edit.quantity,
+      unit: edit.unit,
+      note: edit.note?.trim() || null,
+      category: edit.category,
+    };
+    if (JSON.stringify(after) !== JSON.stringify(before))
+      changes.push({ type: 'grocery.updateItem', listId, itemId: item.id, before, after });
     const clean = edit.name == null ? null : NameKey.clean(edit.name).slice(0, GroceryRules.MAX_NAME_LENGTH).trim();
     if (clean && clean !== item.name) {
       const key = NameKey.of(clean);
@@ -238,6 +245,7 @@ export class GroceryService {
         productId: product?.id ?? null,
       });
     }
+    if (changes.length === 0) return Promise.resolve();
     return this.write(householdId, actor, changes);
   }
 

@@ -270,6 +270,7 @@ describe('RestockRunner', () => {
   const cached = (source: Observable<PantryData>): PantryRepository => ({
     observe: server,
     observeCached: () => source,
+    removedBy: async () => null,
   });
   const low = data([milk()], [batch('b1', 'milk', { quantity: 1 })]);
   const other = RestockEngine.OTHER_PHONE_DELAY_MS;

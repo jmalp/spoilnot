@@ -629,6 +629,11 @@
 
     <!-- Pantry edit window (beta feedback) -->
     <string name="edit_item_title">Edit item</string>
+    <!-- After v1 (DESIGN 9.2): the Edit window while someone else changes or removes its item. -->
+    <string name="edit_changed_by">%1$s changed this item.</string>
+    <string name="edit_changed">Someone else changed this item.</string>
+    <string name="edit_removed_by">%1$s removed this item</string>
+    <string name="edit_removed">This item was removed</string>
     <string name="action_use_one">Use 1</string>
     <string name="action_add_one">Add 1</string>
     <string name="action_add_stock">Add stock</string>
