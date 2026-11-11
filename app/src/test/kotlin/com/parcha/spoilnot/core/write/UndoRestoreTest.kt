@@ -41,7 +41,8 @@ class UndoRestoreTest {
         fun write(server: FakeServer, actor: Actor, change: HouseholdChange): Boolean
     }
 
-    private val grocery = FirestoreChangeMapperLike { s, a, c -> GroceryChangeMapper().write(s.batch, s.db, "h1", a, c) }
+    private val grocery =
+        FirestoreChangeMapperLike { s, a, c -> GroceryChangeMapper().write(s.batch, s.db, "h1", a, c) }
     private val recipes = FirestoreChangeMapperLike { s, a, c -> RecipeChangeMapper().write(s.batch, s.db, "h1", a, c) }
     private val meals = FirestoreChangeMapperLike { s, a, c -> MealPlanChangeMapper().write(s.batch, s.db, "h1", a, c) }
 

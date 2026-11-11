@@ -55,8 +55,12 @@ class FakeServer {
 
     private fun write(path: String, kind: String, fields: Map<String, Any?>) {
         writes += Triple(path, kind, fields)
-        val doc = if (kind == "set") mutableMapOf<String, Any?>().also { docs[path] = it } else docs.getOrPut(path) {
-            mutableMapOf()
+        val doc = if (kind == "set") {
+            mutableMapOf<String, Any?>().also { docs[path] = it }
+        } else {
+            docs.getOrPut(path) {
+                mutableMapOf()
+            }
         }
         for ((key, value) in fields) {
             when {

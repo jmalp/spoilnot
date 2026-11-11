@@ -31,14 +31,19 @@ enum class ItemSource(val wire: String) {
     }
 }
 
-/** households/{hid}/groceryLists/{listId}/items/{itemId} (DESIGN 8.2). */
 /** What the grocery Edit sheet sets on an item (besides its name). */
-data class GroceryItemFields(val quantity: Double?, val unit: QuantityUnit?, val note: String?, val category: Category?) {
+data class GroceryItemFields(
+    val quantity: Double?,
+    val unit: QuantityUnit?,
+    val note: String?,
+    val category: Category?,
+) {
     companion object {
         fun of(item: GroceryItem) = GroceryItemFields(item.quantity, item.unit, item.note, item.category)
     }
 }
 
+/** households/{hid}/groceryLists/{listId}/items/{itemId} (DESIGN 8.2). */
 data class GroceryItem(
     val id: String,
     val name: String,

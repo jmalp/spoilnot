@@ -127,9 +127,11 @@ Android first (then raise `minSupportedBuild`), the web app next (then raise `mi
 `WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
 Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
 
-### The 2026-11-08 and 2026-11-09 rules (DESIGN 8.1 and 8.5)
+### The 2026-11-08, 2026-11-09 and 2026-11-10 rules (DESIGN 8.1 and 8.5)
 
-Neither is deployed yet; they go out together, in one deploy, with the order below. 2026-11-08's: allowed fields,
+None is deployed yet; they go out together, in one deploy, with the order below. 2026-11-10's only relaxes one rule
+(a batch's quantity may be below 0, 8.5 invariant 1), so it refuses nothing any build writes; until it is deployed,
+builds from 2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once. 2026-11-08's: allowed fields,
 authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery item is tombstoned once, a
 meal is marked cooked once, and items are created only under a list that exists.
 

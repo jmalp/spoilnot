@@ -6,8 +6,8 @@ import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
-import com.parcha.spoilnot.core.firebase.changedFields
 import com.parcha.spoilnot.core.firebase.Tombstones
+import com.parcha.spoilnot.core.firebase.changedFields
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository.Companion.TYPE_ADDED
@@ -81,7 +81,11 @@ class PantryChangeMapper @Inject constructor() : FirestoreChangeMapper {
             // Undo removes the tombstone and nothing else: the document keeps every field, another member's change
             // and fields a newer app added included, and its creator (DESIGN 8.6).
             is PantryChange.RestoreBatch ->
-                batch.set(db.document("${stock(hid)}/${change.batch.id}"), Tombstones.restore(actor), SetOptions.merge())
+                batch.set(
+                    db.document("${stock(hid)}/${change.batch.id}"),
+                    Tombstones.restore(actor),
+                    SetOptions.merge(),
+                )
 
             is PantryChange.AddToBatch -> batch.update(
                 db.document("${stock(hid)}/${change.batchId}"),

@@ -80,6 +80,12 @@ only under a list that exists after the batch (one `existsAfter`). These decide 
 when both finish the same thing; the other phone's whole batch is refused. Re-reviewed against 12.1: no new data or
 access; the extra lookup is one read per batch that creates items. 6 tests ("one phone wins"), 122 in total.
 
+**After v1:** edits and Undo keep someone else's change (2026-11-10, DESIGN 8.5 invariant 1, 8.6, 9.4). A batch's
+`quantity` may be below 0 (down to −10⁹), because −1 and edited quantities are increments and two phones can take the
+last unit at once; every reader treats it as 0. Undo merges a field delete of `deletedAt` only. Re-reviewed against
+12.1: no new data or access; a member could already set any quantity from 0 up, and a negative one only hides the
+purchase, as 0 does. 5 tests ("edits and Undo keep what someone else changed"), 127 in total.
+
 Rules are deployed to both projects (spoilnot-dev since M3, spoilnot-prod on 2026-10-18). Rule changes after v1 are
 deployed with the release that needs them (`scripts/release-beta.sh` asks when `firestore.rules` changed). The
 2026-11-08 rules refuse two things the released builds (Android 1.0.0-beta.9, web 55edcc5) do, so they are deployed

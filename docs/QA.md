@@ -242,6 +242,14 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     stock item appears on both (written by the Android phone). Then open Pantry on the iPhone and use up another
     staple there: the iPhone writes the Low stock item at once. Sign out: Welcome shows and no household listen stays
     open.
+47. Edits don't undo someone else's change (Android and the iPhone web app, after v1, 2026-11-10, DESIGN 9.2, 9.4):
+    with Milk ×3 on both phones, open its Edit window on phone A. On phone B press −1 twice: phone A shows "Bob changed
+    this item." with Review and keeps the form at 3. Change only the date on phone A and save: both phones show Milk
+    ×1 with the new date. Open it again on A, and on B throw it away: A's window closes with "Bob removed this item".
+    Put Yogurt ×1 on both, turn on Airplane Mode on A, press +1 twice on B, press −1 on A ("Yogurt used up" with
+    Undo), turn Airplane Mode off: both show Yogurt ×2. Press −1 on Yogurt until it is used up on A and Undo within a
+    few seconds: Yogurt ×1 is back on both. Throw a purchase away on B and Undo: it comes back, and in the Emulator UI
+    (or the console on spoilnot-dev) its `createdBy` is still A's.
 
 ## 3. Conditions
 

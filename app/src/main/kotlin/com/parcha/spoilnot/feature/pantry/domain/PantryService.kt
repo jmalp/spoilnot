@@ -283,7 +283,11 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
     suspend fun move(householdId: String, actor: Actor, batch: StockBatch, location: Location) {
         val before = BatchEdit.of(batch)
         if (before.location == location) return
-        writer.apply(householdId, actor, listOf(PantryChange.UpdateBatch(batch.id, before, before.copy(location = location))))
+        writer.apply(
+            householdId,
+            actor,
+            listOf(PantryChange.UpdateBatch(batch.id, before, before.copy(location = location))),
+        )
     }
 
     /**

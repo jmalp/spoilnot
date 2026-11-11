@@ -252,13 +252,12 @@ fun AddItemForm(
 /**
  * The Edit window, the same form as Add: the purchase's quantity, date and location, and its product's name, unit,
  * category and grocery settings. The unit can change only when this is the product's only purchase.
+ *
+ * It compares with [base] (what it opened with, DESIGN 9.4). When someone else changed the item ([changed], the item
+ * as it is now), it keeps the draft and says so (9.2); Review shows the item as it is now with this person's changes
+ * kept, and hands [changed] to [onReviewed].
  */
 @OptIn(ExperimentalMaterial3Api::class)
-/**
- * The Edit window on [batch] and its [product], as it compares with them ([base], DESIGN 9.4). When someone else
- * changed the item ([changed], the item as it is now), it keeps the draft and says so (9.2); Review shows the item as
- * it is now with this person's changes kept, and hands [changed] to [onReviewed].
- */
 @Composable
 fun EditItemSheet(
     batch: StockBatch,
@@ -344,7 +343,7 @@ fun EditItemSheet(
 
 /** "Sam changed this item." with Review (DESIGN 9.2); the words say it, not a color (6.8). */
 @Composable
-private fun ChangedNotice(text: String, onReview: () -> Unit) {
+internal fun ChangedNotice(text: String, onReview: () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
         shape = MaterialTheme.shapes.medium,
