@@ -69,10 +69,14 @@ test('an approved request deleted before the joiner opens the app still lets the
   await carol.getByRole('button', { name: 'Continue' }).click();
   await carol.getByTestId('send_request').click();
   await expect(carol.getByTestId('card_join_status')).toBeVisible();
+  // The waiting card shows as soon as the request is queued; close the app only once it has reached the server
+  // (the owner sees it), or a busy emulator leaves it queued until the app opens again.
+  const approve = alice.getByTestId('card_join_requests').getByRole('button', { name: 'Approve' });
+  await expect(approve).toBeVisible({ timeout: 15_000 });
   await carol.close();
 
   // Approved while Carol's app is closed; then the job prunes the request, as it did before it kept approved ones.
-  await alice.getByTestId('card_join_requests').getByRole('button', { name: 'Approve' }).click();
+  await approve.click();
   await expect(alice.getByTestId('card_members')).toContainText('Carol');
   const hid = await householdId(name);
   await deleteDocument(`households/${hid}/joinRequests/${await uidOf(email)}`);
