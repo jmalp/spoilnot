@@ -2,9 +2,11 @@
 // menu actions with Undo, Mark opened, and a second phone seeing the changes (changes-only listeners).
 import { expect, test, type Page } from '@playwright/test';
 import {
+  closeOtherPhones,
   createHousehold,
   householdId,
   inDays,
+  newPhone,
   openApp,
   PASSWORD,
   seedPantry,
@@ -12,6 +14,8 @@ import {
   uidOf,
   uniqueEmail,
 } from './support';
+
+test.afterEach(closeOtherPhones);
 
 // Long flows with two phones: room for slow machines.
 test.setTimeout(60_000);
@@ -111,7 +115,7 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   await expect(rows(page).filter({ hasText: 'Opened' })).toHaveCount(1);
 
   // The same household on another phone sees all of it.
-  const other = await (await browser.newContext()).newPage();
+  const other = await (await newPhone(browser)).newPage();
   await openApp(other);
   await other.getByRole('button', { name: 'Sign in' }).click();
   await other.getByLabel('Email').fill(email);

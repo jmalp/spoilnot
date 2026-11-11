@@ -1,6 +1,6 @@
 // Helpers for the browser tests: accounts on the Auth emulator and households made through the app, like
 // EmulatorSupport and TestPhone in the Android tests. Needs ./scripts/emulators.sh.
-import { expect, type Browser, type Page } from '@playwright/test';
+import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 export const PASSWORD = 'password1';
 
@@ -44,9 +44,27 @@ export async function createHousehold(page: Page, name: string) {
   await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 }
 
+const phones: BrowserContext[] = [];
+
+/**
+ * Another phone: a browser context of its own. Playwright closes the contexts it makes for a test, but not ones a test
+ * opens itself; those kept their pages, listeners and timers running in the worker's browser through every later test,
+ * which slowed WebKit until unrelated tests timed out. Specs that use this close them after each test
+ * (`test.afterEach(closeOtherPhones)`).
+ */
+export async function newPhone(browser: Browser): Promise<BrowserContext> {
+  const context = await browser.newContext();
+  phones.push(context);
+  return context;
+}
+
+export async function closeOtherPhones(): Promise<void> {
+  await Promise.all(phones.splice(0).map((context) => context.close().catch(() => undefined)));
+}
+
 /** A new phone (browser context) signed up with its own household, on Home. */
 export async function memberWithHousehold(browser: Browser, name: string, options = {}): Promise<Page> {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newPhone(browser)).newPage();
   await openApp(page, options);
   await signUp(page, name);
   await createHousehold(page, `${name}'s home`);

@@ -1,9 +1,11 @@
 // Accounts and households on two iPhones (DESIGN 5.1, 18.8 W1), against the emulators, like HouseholdFlowTest.
 import { expect, test, type Page } from '@playwright/test';
 import {
+  closeOtherPhones,
   createHousehold,
   deleteDocument,
   householdId,
+  newPhone,
   openApp,
   PASSWORD,
   readFields,
@@ -11,6 +13,8 @@ import {
   uidOf,
   uniqueEmail,
 } from './support';
+
+test.afterEach(closeOtherPhones);
 
 async function openHouseholdSettings(page: Page) {
   await page.getByRole('button', { name: /Open settings/ }).click();
@@ -21,7 +25,7 @@ async function openHouseholdSettings(page: Page) {
 test('a second phone joins with the code after the owner approves; removing them returns them to the gate', async ({
   browser,
 }) => {
-  const alice = await (await browser.newContext()).newPage();
+  const alice = await (await newPhone(browser)).newPage();
   await openApp(alice);
   await signUp(alice, 'Alice');
   await createHousehold(alice, 'Test home');
@@ -29,7 +33,7 @@ test('a second phone joins with the code after the owner approves; removing them
   const code = (await alice.getByTestId('invite_code').textContent())!.trim();
   expect(code).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
 
-  const bob = await (await browser.newContext()).newPage();
+  const bob = await (await newPhone(browser)).newPage();
   await openApp(bob);
   await signUp(bob, 'Bob');
   // Typed in lowercase without the hyphen: the field formats it.
@@ -63,7 +67,7 @@ test('a second phone joins with the code after the owner approves; removing them
 test('an approved request deleted before the joiner opens the app still lets them in (after v1)', async ({
   browser,
 }) => {
-  const alice = await (await browser.newContext()).newPage();
+  const alice = await (await newPhone(browser)).newPage();
   await openApp(alice);
   await signUp(alice, 'Alice');
   const name = `Pruned home ${Date.now()}`;
@@ -71,7 +75,7 @@ test('an approved request deleted before the joiner opens the app still lets the
   await openHouseholdSettings(alice);
   const code = (await alice.getByTestId('invite_code').textContent())!.trim();
 
-  const carolContext = await browser.newContext();
+  const carolContext = await newPhone(browser);
   const carol = await carolContext.newPage();
   await openApp(carol);
   const email = await signUp(carol, 'Carol');
@@ -141,7 +145,7 @@ test('the reset screen confirms without saying whether the account exists', asyn
 });
 
 test('a member deletes their account; an owner must hand over first', async ({ browser }) => {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newPhone(browser)).newPage();
   await openApp(page);
   await signUp(page, 'Owner');
   await createHousehold(page, 'Owner home');
