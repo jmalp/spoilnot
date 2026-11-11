@@ -8,7 +8,7 @@ The job lives in `backend/reminder` and runs from `.github/workflows/reminders.y
 every hour (since 2026-11-08), once per Firebase project. GitHub starts many scheduled runs late or not at all; the
 job catches up and sends at most one digest a day per user, however many runs start:
 
-| Project | GitHub secret |
+| Project | Secret (in the `production` environment, "How the jobs get their keys") |
 | --- | --- |
 | `spoilnot-prod` (testers) | `FIREBASE_SERVICE_ACCOUNT_JSON` |
 | `spoilnot-dev` (development, optional) | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
@@ -24,12 +24,12 @@ run with `expiry-reminders failed: wrong-project`, and every run logs the projec
    - **Cloud Datastore User** (read and write Firestore),
    - **Firebase Cloud Messaging API Admin** (send notifications).
 4. Open the account → **Keys → Add key → Create new key → JSON → Create**. A `.json` file downloads.
-5. Store it as the repository secret, then delete the downloaded file:
+5. Store it as a secret of the `production` environment, then delete the downloaded file:
    ```bash
    # spoilnot-prod
-   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --env production --repo jmalp/spoilnot < ~/Downloads/<file>.json
    # spoilnot-dev
-   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --env production --repo jmalp/spoilnot < ~/Downloads/<file>.json
    ```
 6. In the Firebase console → Project settings → Cloud Messaging, check that **Firebase Cloud Messaging API (V1)**
    is enabled.
@@ -325,7 +325,7 @@ PBKDF2) and fails rather than upload anything unencrypted.
 **Set up the key once** (and again only to rotate it; older exports then need the old key):
 
 ```bash
-openssl rand -base64 32 | tee /dev/tty | gh secret set EXPORT_ENCRYPTION_KEY --repo jmalp/spoilnot
+openssl rand -base64 32 | tee /dev/tty | gh secret set EXPORT_ENCRYPTION_KEY --env production --repo jmalp/spoilnot
 ```
 
 Save the printed key in your password manager: it is the only way to open an export outside GitHub. To open one on a
@@ -361,8 +361,8 @@ exported version.
 From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<first characters> -f apply=false`.
 
 A file saved from Settings > Export can be restored the same way from a computer that has the service account key
-in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci && npm run build && node dist/restore-main.js
-<file> <householdId>`), but the workflow is preferred because the key never leaves GitHub.
+in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci --ignore-scripts && npm run build && node
+dist/restore-main.js <file> <householdId>`), but the workflow is preferred because the key never leaves GitHub.
 
 ## Regenerate an invite code by hand
 
@@ -444,13 +444,45 @@ of the 40 daily writes item creates instead of batch edits, which the listeners 
 largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 
+## How the jobs get their keys
+
+The reminder job, the nightly export and the restore declare `environment: production`, and their secrets are
+secrets of that environment: `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` and
+`EXPORT_ENCRYPTION_KEY`. The environment allows only the `main` branch, so a workflow run from any other branch
+cannot use it and gets none of them. It has no required reviewers and no wait timer, so scheduled runs start on their
+own. CI, `secret-scan` and `keepalive` use no secrets besides GitHub's own token.
+
+Inside each job, `npm ci --ignore-scripts && npm run build` runs in a step that has no secret, and no package's
+install script runs at all. Only the step that
+runs `node dist/…` gets the service account key; the export's Encrypt step and the restore's Decrypt step get
+`EXPORT_ENCRYPTION_KEY`. CI installs with `--ignore-scripts` too, and the job's tests pass that way, so a dependency
+that needs its install script fails CI before it reaches a job.
+
+**Set up the environment** (once, and again if it is ever deleted):
+
+1. GitHub → the repository → **Settings → Environments**. Open `production` (GitHub creates it, without rules, the
+   first time a workflow names it) or **New environment** with that name.
+2. **Deployment branches and tags → Selected branches and tags → Add deployment branch or tag rule**: branch `main`.
+3. Leave **Required reviewers** and **Wait timer** off: either would hold every scheduled run until someone acts.
+4. **Environment secrets → Add environment secret** for each of the three, or from a terminal with `--env
+   production` (the commands in "Create the service account" and "Nightly export and restore").
+5. Keep these secrets only in the environment: only there are they limited to `main`. When a repository secret
+   (**Settings → Secrets and variables → Actions → Repository secrets**) has the same name, the job uses the
+   environment's. After
+   a manual run of `expiry-reminders` (dry run) and `nightly-export` succeeds, delete any repository secret with one
+   of these names.
+
+The environment's page lists each run of the three jobs as a deployment; that is expected.
+
 ## Scheduled workflows
 
 `expiry-reminders` (three times an hour), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub disables
 scheduled workflows in a public repository after 60 days without activity, and shows a banner on the Actions tab.
 `keepalive.yml` re-enables them (and itself) through the API on the 3rd of every month, which resets that clock. If
 one is disabled anyway: **Actions →** the workflow **→ Enable workflow** (or
-`gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check.
+`gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check. If a run of the reminder
+job, export or restore waits for approval or fails before its first step, check the `production` environment ("How
+the jobs get their keys"): `main` allowed, no reviewers, no wait timer.
 
 **Logs are public.** Workflow logs show counts, dates and the first characters of household IDs only: the reminder
 job logs neither user IDs nor what is in a digest (a dry run shows how many items and meals, never names or titles), and
@@ -458,13 +490,25 @@ the export and restore print counts. Keep it that way when changing the jobs.
 
 ## Dependency updates
 
-Dependabot (`.github/dependabot.yml`) opens grouped pull requests on Mondays for Gradle, the two npm projects and
-GitHub Actions. Merge one when CI is green; for an app library update, also install a build on a phone before the
-next beta. Security updates arrive as soon as they are published.
+Dependabot (`.github/dependabot.yml`) opens grouped pull requests on Mondays for Gradle, the four npm projects
+(`firebase`, `backend/reminder`, `web`, `tools/themes`) and GitHub Actions. Merge one when CI is green; for an app
+library update, also install a build on a phone before the next beta. With Dependabot security updates on
+(**Settings → Advanced Security**), security updates arrive as soon as they are published.
+
+- **Actions** are pinned to a full commit SHA with the version in a comment (`uses: actions/checkout@<sha> #
+  v7.0.1`), and Dependabot updates both. Pin a new action the same way: `gh api
+  repos/<owner>/<action>/commits/<tag> --jq .sha`, and check that the tag is the release you meant.
+- **npm** installs in CI and the jobs use `--ignore-scripts`. A dependency that needs its install script fails CI;
+  don't add one to `backend/reminder` (its jobs hold the keys).
+- **Guava** comes only through Firestore's gRPC; the catalog's `guava` is the lowest version allowed (a constraint in
+  `app/build.gradle.kts`). Dependabot raises it. Remove both when Firebase brings that version or a newer one.
+- Gradle dependency verification is not used (DECISIONS 2026-11-10); the Gradle wrapper is checked by its
+  `distributionSha256Sum` and by `setup-gradle` in CI.
 
 ## Secret scanning
 
-`secret-scan.yml` runs gitleaks on every push and pull request and over the whole history weekly. If it finds
-something: treat the secret as leaked even after deleting it from the repository. Rotate it first (for the
+GitHub's secret scanning with push protection (**Settings → Advanced Security**) refuses a push that holds a known
+kind of key, before it is public. `secret-scan.yml` also runs gitleaks on every push and pull request and over the
+whole history weekly. If either finds something: treat the secret as leaked even after deleting it from the repository. Rotate it first (for the
 service account, see "Rotate the key"), then remove it from the code. The Firebase configuration files are allowed
 on purpose (`.gitleaks.toml`).

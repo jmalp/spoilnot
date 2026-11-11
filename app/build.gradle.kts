@@ -123,6 +123,12 @@ androidComponents {
 }
 
 dependencies {
+    constraints {
+        // Guava comes only through Firestore's gRPC, which asks for an older release; this raises it to the
+        // catalog's version, so Dependabot keeps it current (DECISIONS 2026-11-10).
+        implementation(libs.guava) { because("Firestore's gRPC asks for an older Guava") }
+    }
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
