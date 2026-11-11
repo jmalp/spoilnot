@@ -212,8 +212,9 @@ class PantryFlowTest {
             )
         alice.pantry.updateProduct(householdId, alice.actor, product, edit, data)
 
+        // Bob's first server snapshot may come before Alice's writes reach the server: wait, don't fail on it.
         val renamed = bob.data { d ->
-            d.products.single().name == "Cheese" &&
+            d.products.singleOrNull()?.name == "Cheese" &&
                 d.batches.all { it.productName == "Cheese" }
         }
         assertEquals(2, renamed.batches.size)
