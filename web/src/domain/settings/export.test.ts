@@ -39,6 +39,39 @@ describe('ExportFormat', () => {
     expect(text).toContain('\n    "format": "spoilnot-export"');
   });
 
+  it("the person's profile and the activity log, when read (after v1)", () => {
+    const empty: ExportData = {
+      household: null,
+      members: [],
+      products: [],
+      stock: [],
+      groceryLists: [],
+      recipes: [],
+      stats: [],
+      meals: [],
+    };
+    const none = JSON.parse(ExportFormat.write(empty, created, 'web 3'));
+    expect(none.profile).toBeNull();
+    expect(none.activity).toEqual([]);
+
+    const json = JSON.parse(
+      ExportFormat.write(
+        {
+          ...empty,
+          profile: { id: 'u1', fields: { displayName: 'Sam', units: 'metric', createdAt: created } },
+          activity: [{ id: 'a1', fields: { type: 'stock_added', params: { name: 'Milk' }, createdAt: created } }],
+        },
+        created,
+        'web 3',
+      ),
+    );
+    expect(json.profile).toEqual({ id: 'u1', createdAt: '2026-10-17T12:00:00Z', displayName: 'Sam', units: 'metric' });
+    expect(json.activity[0].type).toBe('stock_added');
+    expect(json.activity[0].params.name).toBe('Milk');
+    // After the meals, in the Android app's order.
+    expect(Object.keys(json).slice(-3)).toEqual(['meals', 'profile', 'activity']);
+  });
+
   it('file name carries the date', () => {
     expect(ExportFormat.fileName('2026-10-17')).toBe('spoilnot-export-2026-10-17.json');
   });

@@ -9,6 +9,7 @@ import {
   inDays,
   openApp,
   PASSWORD,
+  seedActivity,
   seedGroceries,
   seedPantry,
   signUp,
@@ -64,6 +65,7 @@ test('export downloads the household as JSON, then the owner clears its data wit
   const uid = await uidOf(email);
   await seedPantry(hid, uid, [{ id: 'milk', name: 'Milk', expiry: inDays(3) }]);
   await seedGroceries(hid, uid, await defaultListId(hid), [{ id: 'bread', name: 'Bread' }]);
+  await seedActivity(hid, uid, 'Sam', { type: 'stock_added', name: 'Milk' });
   await tab(page, 'Pantry');
   await expect(page.getByTestId('pantry_list')).toContainText('Milk');
 
@@ -77,7 +79,19 @@ test('export downloads the household as JSON, then the owner clears its data wit
   expect(json.household.name).toBe(household);
   expect(json.products.map((p: { name: string }) => p.name)).toEqual(['Milk']);
   expect(json.groceryLists[0].items.map((i: { name: string }) => i.name)).toEqual(['Bread']);
+  // After v1 (2026-11-11): the person's own profile and the activity log.
+  expect(json.profile).toMatchObject({ id: uid, displayName: 'Sam' });
+  expect(json.activity.map((a: { type: string }) => a.type)).toContain('stock_added');
   await expect(status(page, 'Export saved')).toBeVisible();
+
+  // Offline it reads nothing from the phone's copy: "You're offline", and no file.
+  let downloads = 0;
+  page.on('download', () => downloads++);
+  await page.context().setOffline(true);
+  await page.getByTestId('button_export').click();
+  await expect(status(page, "You're offline")).toBeVisible();
+  await page.context().setOffline(false);
+  expect(downloads).toBe(0);
 
   // Are you sure, then the password: a wrong one is refused.
   await page.getByTestId('button_clear_household').click();

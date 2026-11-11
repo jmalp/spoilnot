@@ -67,6 +67,36 @@ class ExportFormatTest {
     }
 
     @Test
+    fun `the person's profile and the activity log, when read`() {
+        val empty = ExportData(null, emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+        val none = Json.parseToJsonElement(ExportFormat.write(empty, created, "1.0.0 (5)")).jsonObject
+        assertEquals("null", none["profile"].toString())
+        assertEquals(0, none["activity"]!!.jsonArray.size)
+
+        val data = empty.copy(
+            profile = ExportDoc("u1", mapOf("displayName" to "Sam", "units" to "metric", "createdAt" to created)),
+            activity = listOf(
+                ExportDoc(
+                    "a1",
+                    mapOf(
+                        "type" to "stock_added",
+                        "params" to mapOf("name" to "Milk"),
+                        "createdAt" to created,
+                    ),
+                ),
+            ),
+        )
+        val json = Json.parseToJsonElement(ExportFormat.write(data, created, "1.0.0 (5)")).jsonObject
+        val profile = json["profile"]!!.jsonObject
+        assertEquals("u1", profile["id"]!!.jsonPrimitive.content)
+        assertEquals("metric", profile["units"]!!.jsonPrimitive.content)
+        assertEquals("2026-10-17T12:00:00Z", profile["createdAt"]!!.jsonPrimitive.content)
+        val event = json["activity"]!!.jsonArray[0].jsonObject
+        assertEquals("stock_added", event["type"]!!.jsonPrimitive.content)
+        assertEquals("Milk", event["params"]!!.jsonObject["name"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun `file name carries the date`() {
         assertEquals("spoilnot-export-2026-10-17.json", ExportFormat.fileName(LocalDate.of(2026, 10, 17)))
     }
