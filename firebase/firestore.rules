@@ -187,10 +187,26 @@ service cloud.firestore {
       }
 
       match /joinRequests/{uid} {
+        // After v1: the requester's sign-in address as the owner sees it, "ro***@example.com": the first two
+        // characters of the name part (one when it has two or fewer), three stars and the domain. Computed here from
+        // the sign-in's own address, so a request can't show someone else's. Optional: builds before it don't write
+        // it, and the apps leave it out for an address the two might count differently.
+        function maskedEmail(e) {
+          let parts = e.split('@');
+          let keep = parts[0].size() > 2 ? 2 : 1;
+          return parts[0][0:keep] + '***@' + parts[1];
+        }
+        function emailMaskedOk(d) {
+          return !('emailMasked' in d)
+            || (request.auth.token.get('email', null) is string
+                && request.auth.token.email.split('@').size() == 2
+                && d.emailMasked == maskedEmail(request.auth.token.email));
+        }
         allow read: if signedIn() && (me() == uid || isOwner(hid));
         allow create: if signedIn() && me() == uid
           && !exists(memberPath(hid, me()))
-          && request.resource.data.keys().hasOnly(['displayName', 'joinCode', 'status', 'requestedAt'])
+          && request.resource.data.keys().hasOnly(['displayName', 'joinCode', 'status', 'requestedAt', 'emailMasked'])
+          && emailMaskedOk(request.resource.data)
           && s(request.resource.data.displayName, 1, 40)
           && request.resource.data.status == 'pending'
           && request.resource.data.requestedAt == request.time

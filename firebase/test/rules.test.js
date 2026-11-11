@@ -193,6 +193,29 @@ describe('non-members', () => {
     await assertFails(setDoc(ref, joinRequest('bad')));
   });
 
+  it('a join request may carry the masked email of the sign-in that sends it, and no other', async () => {
+    const as2 = (uid, email) => env.authenticatedContext(uid, email === undefined ? {} : { email }).firestore();
+    const ref = (db) => doc(db, `households/${HID}/joinRequests/carol`);
+    const withEmail = (emailMasked) => ({ ...joinRequest(), emailMasked });
+    await assertFails(setDoc(ref(as2('carol', 'carol.lee@example.com')), withEmail('da***@example.com')));
+    await assertFails(setDoc(ref(as2('carol', 'carol.lee@example.com')), withEmail('carol.lee@example.com')));
+    await assertFails(setDoc(ref(as2('carol', 'carol.lee@example.com')), withEmail('ca***@other.com')));
+    await assertFails(setDoc(ref(as2('carol', 'carol.lee@example.com')), withEmail(42)));
+    // No address in the sign-in: no email on the request.
+    await assertFails(setDoc(ref(as2('carol')), withEmail('ca***@example.com')));
+    await assertSucceeds(setDoc(ref(as2('carol', 'carol.lee@example.com')), withEmail('ca***@example.com')));
+    // Short names keep one character.
+    const db = as2('dave', 'dj@example.org');
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/joinRequests/dave`), {
+      ...joinRequest(CODE, 'Dave'), emailMasked: 'd***@example.org',
+    }));
+  });
+
+  it('a join request without the masked email is still accepted, as older builds send it', async () => {
+    const db = env.authenticatedContext('carol', { email: 'carol.lee@example.com' }).firestore();
+    await assertSucceeds(setDoc(doc(db, `households/${HID}/joinRequests/carol`), joinRequest()));
+  });
+
   it("cannot create a join request for someone else's uid", async () => {
     await assertFails(setDoc(doc(as('carol'), `households/${HID}/joinRequests/dave`), joinRequest(CODE, 'Dave')));
   });

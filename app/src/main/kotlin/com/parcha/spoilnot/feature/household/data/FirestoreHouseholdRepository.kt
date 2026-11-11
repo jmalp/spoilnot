@@ -24,6 +24,7 @@ import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.auth.data.UserFields
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.home.domain.ActivityType
+import com.parcha.spoilnot.feature.household.domain.EmailMask
 import com.parcha.spoilnot.feature.household.domain.Household
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.HouseholdRules
@@ -33,6 +34,7 @@ import com.parcha.spoilnot.feature.household.domain.JoinRequestStatus
 import com.parcha.spoilnot.feature.household.domain.LocalData
 import com.parcha.spoilnot.feature.household.domain.Member
 import com.parcha.spoilnot.feature.household.domain.Membership
+import com.parcha.spoilnot.feature.household.domain.ResetOutcome
 import com.parcha.spoilnot.feature.household.domain.Role
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -140,28 +142,39 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         return if (snapshot.exists()) snapshot.toInviteCode() else null
     }
 
-    override suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode) {
+    override suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode, email: String?) {
         val db = firestore.current
         val pending = PendingJoin(invite.householdId, invite.householdName, invite.code)
-        // Must reach the server: the rules check the code there, and a rejection must be shown now.
-        db.batch()
-            .set(
-                db.document(requestPath(invite.householdId, uid)),
-                mapOf(
-                    "displayName" to displayName,
-                    "joinCode" to invite.code,
-                    "status" to STATUS_PENDING,
-                    "requestedAt" to FieldValue.serverTimestamp(),
-                ),
-            )
-            .update(
-                db.document(UserFields.path(uid)),
-                mapOf(
-                    UserFields.PENDING_JOIN to UserFields.pendingJoin(pending),
-                    UserFields.UPDATED_AT to FieldValue.serverTimestamp(),
-                ),
-            )
-            .commitConfirmed()
+        // After v1: the owner sees who is asking, not only the name they typed. The rules check it.
+        val masked = EmailMask.mask(email)
+        suspend fun send(emailMasked: String?) {
+            val request = buildMap {
+                put("displayName", displayName)
+                put("joinCode", invite.code)
+                put("status", STATUS_PENDING)
+                put("requestedAt", FieldValue.serverTimestamp())
+                emailMasked?.let { put(EMAIL_MASKED, it) }
+            }
+            // Must reach the server: the rules check the code there, and a rejection must be shown now.
+            db.batch()
+                .set(db.document(requestPath(invite.householdId, uid)), request)
+                .update(
+                    db.document(UserFields.path(uid)),
+                    mapOf(
+                        UserFields.PENDING_JOIN to UserFields.pendingJoin(pending),
+                        UserFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
+                .commitConfirmed()
+        }
+        try {
+            send(masked)
+        } catch (e: AppError.PermissionDenied) {
+            // Rules from before the field refuse it: send the request without it (the same refusal for any other
+            // reason, such as a paused code, comes back again).
+            if (masked == null) throw e
+            send(null)
+        }
     }
 
     override suspend fun completeJoin(uid: String, displayName: String, pending: PendingJoin) {
@@ -285,7 +298,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             .commitConfirmed()
     }
 
-    override suspend fun resetData(householdId: String, actor: Actor) {
+    override suspend fun resetData(householdId: String, actor: Actor): ResetOutcome {
         val db = firestore.current
         val base = householdPath(householdId)
         suspend fun live(path: String) = db.collection(path).get(Source.SERVER).awaitMapped().documents
@@ -335,11 +348,22 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
                 ),
             )
         }
+        // A chunk that times out is still queued: queue the rest after it rather than stop half done (SYNC-08).
+        var queued = false
         ops.chunked(BATCH_LIMIT).forEach { chunk ->
             val batch = db.batch()
             chunk.forEach { op -> op(batch) }
-            batch.commitConfirmed()
+            if (queued) {
+                batch.commit()
+            } else {
+                try {
+                    batch.commitConfirmed()
+                } catch (e: AppError.Offline) {
+                    queued = true
+                }
+            }
         }
+        return if (queued) ResetOutcome.FinishesWhenOnline else ResetOutcome.Cleared
     }
 
     /** Every document under the household, deepest first, read from the server so nothing is missed. */
@@ -378,6 +402,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         const val STATUS_PENDING = "pending"
         const val STATUS_APPROVED = "approved"
         const val STATUS_DECLINED = "declined"
+        const val EMAIL_MASKED = "emailMasked"
 
         /** DESIGN 8.5: chunk batched writes at 400 operations. */
         const val BATCH_LIMIT = 400
@@ -430,6 +455,8 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
                 code = getString("joinCode").orEmpty(),
                 status = status,
                 requestedAt = getTimestamp("requestedAt")?.toInstant(),
+                // Older builds don't write it; another type is ignored rather than failing the list.
+                emailMasked = (get(EMAIL_MASKED) as? String)?.capTo(ReadCaps.PERSON * 3),
             )
         }
     }
@@ -452,4 +479,6 @@ class FirestoreLocalData @Inject constructor(
             caches.clear()
         }
     }
+
+    override suspend fun flushPendingWrites(): Boolean = firestore.flushPendingWrites()
 }

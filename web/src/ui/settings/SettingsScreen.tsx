@@ -12,6 +12,7 @@ import { DetailScaffold } from '../Scaffold';
 import { formatHour, useNotificationPrefs } from '../notifications/NotificationSettingsScreen';
 import { AboutCard, AppearanceCard, DataCard } from './SettingsSections';
 import { useDeleteAccount } from './DeleteAccount';
+import { UnsyncedSignOutDialog } from '../household/UnsyncedSignOut';
 import '../household/household.css';
 
 /** The steps of Clear household data: an "are you sure" step, then the owner's password. */
@@ -53,6 +54,13 @@ export function SettingsScreen({
   const [verificationSent, setVerificationSent] = useState(false);
   const deleteAccount = useDeleteAccount();
   const [clearStep, setClearStep] = useState<ClearStep>('none');
+  // Sign out asks first when changes haven't synced yet (after v1).
+  const [askUnsynced, setAskUnsynced] = useState(false);
+  const signOut = (evenIfUnsynced = false) =>
+    void action.run(async () => {
+      setAskUnsynced(false);
+      if (!(await session.signOut(evenIfUnsynced))) setAskUnsynced(true);
+    });
   const notifications = useNotificationPrefs();
   const household = useObservable(
     useMemo(
@@ -151,13 +159,7 @@ export function SettingsScreen({
           }
         />
         <AboutCard onOpenAbout={onOpenAbout} />
-        <Button
-          variant="outlined"
-          full
-          large
-          disabled={action.busy}
-          onClick={() => void action.run(() => session.signOut())}
-        >
+        <Button variant="outlined" full large disabled={action.busy} onClick={() => signOut()}>
           {str('action_sign_out')}
         </Button>
         <Button
@@ -220,19 +222,16 @@ export function SettingsScreen({
             setClearStep('none');
           }}
           onConfirm={(password) =>
-            void action
-              .run(async () => {
-                await auth.verifyPassword(password);
-                await households.resetData(me.householdId, { uid: me.user.uid, name: me.displayName });
-              })
-              .then((done) => {
-                if (!done) return;
-                setClearStep('none');
-                snackbars.show(str('clear_household_done'));
-              })
+            void action.run(async () => {
+              await auth.verifyPassword(password);
+              const outcome = await households.resetData(me.householdId, { uid: me.user.uid, name: me.displayName });
+              setClearStep('none');
+              snackbars.show(str(outcome === 'cleared' ? 'clear_household_done' : 'clear_household_when_online'));
+            })
           }
         />
       )}
+      {askUnsynced && <UnsyncedSignOutDialog onSignOut={() => signOut(true)} onDismiss={() => setAskUnsynced(false)} />}
       {deleteAccount.dialog}
     </DetailScaffold>
   );

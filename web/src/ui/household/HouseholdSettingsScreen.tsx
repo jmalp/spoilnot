@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { combineLatest, distinctUntilChanged, map, of, switchMap } from 'rxjs';
-import { useAction, useObservable } from '../../core/hooks';
+import { useAction, useNow, useObservable } from '../../core/hooks';
 import { str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import { HouseholdRules, InviteCodes, type Household, type JoinRequest, type Member } from '../../domain/household';
@@ -18,6 +18,7 @@ import {
   useSnackbars,
 } from '../kit';
 import { DetailScaffold } from '../Scaffold';
+import { relativeTime } from '../home/labels';
 import './household.css';
 
 type Content = {
@@ -184,11 +185,24 @@ function JoinRequestsCard({
   onApprove: (r: JoinRequest) => void;
   onDecline: (r: JoinRequest) => void;
 }) {
+  const { clock } = useServices();
+  const now = useNow(clock);
   return (
     <SectionCard title={str('join_requests_title')} testId="card_join_requests">
+      {/* After v1: who is asking (their masked sign-in address) and when, not only the name they typed. Requests
+          from builds before this have neither field. */}
+      <p className="sn-section__body t-body-medium c-on-surface-variant">{str('join_requests_hint')}</p>
       {requests.map((request) => (
-        <div key={request.uid} className="sn-section__body">
-          <p className="t-title-medium">{request.displayName}</p>
+        <div key={request.uid} className="sn-section__body" data-testid={`join_request_${request.uid}`}>
+          <div>
+            <p className="t-title-medium">{request.displayName}</p>
+            {request.emailMasked && <p className="t-body-medium c-on-surface-variant">{request.emailMasked}</p>}
+            {request.requestedAt && (
+              <p className="t-body-medium c-on-surface-variant">
+                {str('join_request_sent', relativeTime(request.requestedAt.getTime(), now))}
+              </p>
+            )}
+          </div>
           <div className="sn-row">
             <Button variant="tonal" large disabled={busy} onClick={() => onApprove(request)}>
               {str('action_approve')}

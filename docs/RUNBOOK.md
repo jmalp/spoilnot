@@ -95,7 +95,11 @@ gh workflow run reminders.yml -f dry_run=true
   deleted) and whose app has not run since. They get nothing, and the job clears their household pointer as their
   app would, so they are not counted again.
 - The daily prune runs in the first run of each UTC day (it keeps `lastPruneDate` in the job's own document
-  `jobs/state`, which clients can't read). `pruneFailures` counts old documents it could not delete. The run then
+  `jobs/state`, which clients can't read). Since 2026-11-10 it deletes join requests older than 7 days only when
+  they are pending or declined, or approved and finished: an approved request whose sender's profile still waits on
+  that household stays until their app opens and finishes the join (each costs one read of that profile a day). The
+  apps people have (Android 1.0.0-beta.9, web 55edcc5) need the approved request to get in, so this takes effect
+  safely with the merge, before any release. `pruneFailures` counts old documents it could not delete. The run then
   fails so GitHub emails you, the date is not recorded, and the next run prunes again. If `lastPruneDate` in the
   summary is more than a day old, the prune is failing or no run has started today.
 - A failed run prints one line, `<job> failed: <code>.`, and never the error itself (logs are public):
@@ -127,18 +131,23 @@ Android first (then raise `minSupportedBuild`), the web app next (then raise `mi
 `WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
 Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
 
-### The 2026-11-08, 2026-11-09 and 2026-11-10 rules (DESIGN 8.1 and 8.5)
+### The 2026-11-08, 2026-11-09 and 2026-11-10 rules (DESIGN 8.1, 8.5 and 5.1)
 
-None is deployed yet; they go out together, in one deploy, with the order below. 2026-11-10's only relaxes one rule
-(a batch's quantity may be below 0, 8.5 invariant 1), so it refuses nothing any build writes; until it is deployed,
-builds from 2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once. 2026-11-08's: allowed fields,
+None is deployed yet; they go out together, in one deploy, with the order below. 2026-11-08's: allowed fields,
 authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery item is tombstoned once, a
-meal is marked cooked once, and items are created only under a list that exists.
+meal is marked cooked once, and items are created only under a list that exists. 2026-11-10's: a join request may
+carry `emailMasked`, the sender's sign-in email masked as the rules compute it (`ro***@example.com`), and a batch's
+quantity may be below 0 (8.5 invariant 1), which refuses nothing any build writes; until it is deployed, builds from
+2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once.
 
 What the released builds (Android 1.0.0-beta.9, versionCode 10, and web build 55edcc5) do that these rules refuse:
 
 - **Throwing several batches away at once**, and its Undo: the count moves by more than one in one write.
 - **I cooked this when it uses up two or more whole batches**, and its Undo: two counts of one month in one batch.
+- **Nothing of 2026-11-10's:** released builds send join requests without `emailMasked`, which stays allowed (the
+  owner then sees the name and time only). The other way round, the new builds released in steps 2 and 4 send it,
+  and the rules deployed until step 7 refuse it; they then send the request again without it, so joining works in
+  between, without the email.
 - **Only when two phones race (2026-11-09):** the second Add to pantry, Clear checked or delete of the same items, the
   second Cooked of the same meal, and an item added to a list another member just deleted. Old builds roll these back
   with "You don't have permission to do that." instead of the new message; before, they did the work twice.
@@ -161,7 +170,8 @@ refused write shows "You don't have permission to do that." and the phone rolls 
    this using up two batches, delete a list with items as a member, Clear household data, and on a spare household
    transfer ownership and delete the household. For 2026-11-09's rules (QA flow 43): Add to pantry for the same
    checked items on both phones (one in Airplane Mode), Cooked for the same meal on both, and an item added on one
-   phone to a list the other deletes; each time the second phone names the first and nothing is doubled:
+   phone to a list the other deletes; each time the second phone names the first and nothing is doubled. For
+   2026-11-10's (QA flow 47): a new phone asks to join and the owner sees its masked email:
 
    ```bash
    cd firebase && npx firebase deploy --only firestore:rules --project dev
@@ -442,7 +452,9 @@ one read per user a day: 19,560 (about 18 households). On 2026-11-08 the simulat
 out: each activity event as a write (+400) with its rule lookup (+400 reads), the documents the prune reads before
 deleting them (+420), the prune's deletes, and the job's state document (one read per run): 20,404 at 24 runs. On
 2026-11-09 the rules began looking up a grocery item's list on create (+100 rule lookups); the simulation now makes 10
-of the 40 daily writes item creates instead of batch edits, which the listeners deliver differently (−280): 20,224. The
+of the 40 daily writes item creates instead of batch edits, which the listeners deliver differently (−280): 20,224.
+On 2026-11-10 the prune began reading the sender's profile for each old approved join request (rare; the simulation
+has none, so 20,224 stays). The
 largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 

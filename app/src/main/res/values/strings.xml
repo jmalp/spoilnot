@@ -21,6 +21,9 @@
     <string name="action_ok">OK</string>
     <string name="action_continue">Continue</string>
     <string name="action_sign_out">Sign out</string>
+    <string name="action_sign_out_anyway">Sign out anyway</string>
+    <string name="sign_out_unsynced_title">Sign out anyway?</string>
+    <string name="sign_out_unsynced_body">Some changes haven\'t synced yet. They\'re only on this phone, and signing out deletes them.</string>
     <string name="more_options">More options</string>
 
     <!-- Errors (DESIGN 6.9: what happened and what to do) -->
@@ -80,18 +83,18 @@
     <string name="field_household_name">Household name</string>
     <string name="action_create">Create</string>
     <string name="gate_join_title">Join with a code</string>
-    <string name="gate_join_body">Ask the household owner for the 10-character code.</string>
+    <string name="gate_join_body">Ask someone in the household for its 10-character code.</string>
     <string name="field_invite_code">Invite code</string>
     <string name="join_confirm_title">Join %1$s?</string>
-    <string name="join_confirm_body">Send a request to join %1$s? The owner needs to approve it.</string>
+    <string name="join_confirm_body">The owner needs to approve your request before you can see the household.</string>
     <string name="action_send_request">Send request</string>
     <string name="waiting_title">Waiting for the owner to approve</string>
-    <string name="waiting_body">Your request to join %1$s was sent. This screen updates by itself when the owner decides.</string>
+    <string name="waiting_body">Your request to join %1$s was sent. The owner doesn\'t get a notification, so let them know you asked. This screen updates by itself when they decide.</string>
     <string name="action_cancel_request">Cancel request</string>
     <string name="declined_title">Request declined</string>
     <string name="declined_body">The owner declined your request to join %1$s.</string>
     <string name="expired_title">Request expired</string>
-    <string name="expired_body">Your request to join %1$s expired before the owner answered. Ask for a new code and try again.</string>
+    <string name="expired_body">Your request to join %1$s expired before the owner answered. You can send a new request with the same code.</string>
 
     <!-- Settings -->
     <string name="settings_account">Account</string>
@@ -129,6 +132,8 @@
     <string name="regenerate_title">Create a new code?</string>
     <string name="regenerate_body">The current code stops working right away. Requests already sent are not affected.</string>
     <string name="join_requests_title">Join requests</string>
+    <string name="join_requests_hint">Only approve people you invited.</string>
+    <string name="join_request_sent">Sent: %1$s</string>
     <string name="action_approve">Approve</string>
     <string name="action_decline">Decline</string>
     <string name="action_rename">Rename</string>
@@ -663,6 +668,7 @@
     <string name="clear_household_password_body">Enter your password to clear the household\'s data.</string>
     <string name="clear_household_confirm">Clear data</string>
     <string name="clear_household_done">Household data cleared</string>
+    <string name="clear_household_when_online">Clearing will finish when you\'re online</string>
     <!-- Meal planner (after v1, DESIGN 5.9) -->
     <string name="tab_plan">Plan</string>
     <string name="plan_week_range">%1$s – %2$s</string>

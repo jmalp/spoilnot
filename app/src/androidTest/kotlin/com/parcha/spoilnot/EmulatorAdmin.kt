@@ -31,6 +31,12 @@ object EmulatorAdmin {
         return (0 until docs.length()).map { docs.getJSONObject(it).getString("name").substringAfterLast('/') }
     }
 
+    /** Deletes a document as the reminder job's prune would. */
+    fun deleteDocument(path: String) {
+        val (code, _) = request("$documents/$path", method = "DELETE")
+        check(code == HttpURLConnection.HTTP_OK) { "DELETE $path: HTTP $code" }
+    }
+
     fun authUserExists(uid: String): Boolean {
         val url = "http://$host:${FirebaseEmulators.AUTH_PORT}/identitytoolkit.googleapis.com/v1/projects/$project" +
             "/accounts:lookup"
@@ -39,10 +45,11 @@ object EmulatorAdmin {
         return (JSONObject(body).optJSONArray("users")?.length() ?: 0) > 0
     }
 
-    private fun request(url: String, postBody: String? = null): Pair<Int, String> {
+    private fun request(url: String, postBody: String? = null, method: String? = null): Pair<Int, String> {
         val connection = URL(url).openConnection() as HttpURLConnection
         return try {
             connection.setRequestProperty("Authorization", "Bearer owner")
+            if (method != null) connection.requestMethod = method
             if (postBody != null) {
                 connection.requestMethod = "POST"
                 connection.doOutput = true
