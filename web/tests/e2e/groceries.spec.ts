@@ -58,6 +58,8 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
 
   // Add to pantry: one line each; skip the batteries.
   await row(page, 'batteries').getByRole('checkbox').click();
+  // The sheet lists what is in the cart when it opens: open it once the cart shows the batteries too.
+  await expect(page.getByTestId('cart_header')).toContainText('In cart (3)');
   await page.getByTestId('fab_add_to_pantry').click();
   const sheet = page.getByTestId('sheet_add_to_pantry');
   await expect(sheet.locator('[data-testid^="entry_"]').filter({ hasText: 'bananas' })).toContainText(

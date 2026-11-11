@@ -1,6 +1,16 @@
 // Accounts and households on two iPhones (DESIGN 5.1, 18.8 W1), against the emulators, like HouseholdFlowTest.
 import { expect, test, type Page } from '@playwright/test';
-import { createHousehold, deleteDocument, householdId, openApp, PASSWORD, signUp, uidOf, uniqueEmail } from './support';
+import {
+  createHousehold,
+  deleteDocument,
+  householdId,
+  openApp,
+  PASSWORD,
+  readFields,
+  signUp,
+  uidOf,
+  uniqueEmail,
+} from './support';
 
 async function openHouseholdSettings(page: Page) {
   await page.getByRole('button', { name: /Open settings/ }).click();
@@ -78,8 +88,12 @@ test('an approved request deleted before the joiner opens the app still lets the
   // Approved while Carol's app is closed; then the job prunes the request, as it did before it kept approved ones.
   await approve.click();
   await expect(alice.getByTestId('card_members')).toContainText('Carol');
+  // Alice's screen shows Carol from its own cache at once; the job prunes only what the server has, so wait for the
+  // membership to be there before the request goes.
   const hid = await householdId(name);
-  await deleteDocument(`households/${hid}/joinRequests/${await uidOf(email)}`);
+  const carolUid = await uidOf(email);
+  await expect.poll(() => readFields(`households/${hid}/members/${carolUid}`), { timeout: 15_000 }).not.toBeNull();
+  await deleteDocument(`households/${hid}/joinRequests/${carolUid}`);
 
   const again = await carolContext.newPage();
   await again.goto('/');

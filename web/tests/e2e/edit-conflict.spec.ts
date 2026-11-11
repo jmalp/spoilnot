@@ -80,8 +80,9 @@ test('the Edit window closes when Blake removes the item, and Undo of a delete k
   await expect(eggsRow(page)).toHaveCount(0);
 
   // Blake's Undo, as the apps now write it: the tombstone goes, nothing else changes. Then Alex uses it up and
-  // undoes: a field from a newer app and the creator stay.
-  await patchFields(path, { updatedAt: new Date(), updatedBy: BLAKE, futureField: 'newer app' });
+  // undoes: the creator stays. (A field from a newer app is covered by the mapper round trips: the rules allow only
+  // known fields, so this browser can't write to a document that has one.)
+  await patchFields(path, { updatedAt: new Date(), updatedBy: BLAKE });
   await removeFields(path, ['deletedAt']);
   await expect(eggsRow(page)).toContainText('× 8');
   await page.getByTestId('menu_eggs').click();
@@ -91,6 +92,6 @@ test('the Edit window closes when Blake removes the item, and Undo of a delete k
   await expect(eggsRow(page)).toContainText('× 8');
   await expect.poll(async () => (await readFields(path))?.deletedAt).toBeUndefined();
   const back = await readFields(path);
-  expect(back?.futureField).toBe('newer app');
   expect(back?.createdBy).toBe(uid);
+  expect(back?.updatedBy).toBe(uid);
 });
