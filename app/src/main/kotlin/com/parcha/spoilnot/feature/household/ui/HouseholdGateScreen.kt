@@ -122,6 +122,13 @@ fun HouseholdGateScreen(
         }
     }
 
+    if (state.askSignOutUnsynced) {
+        UnsyncedSignOutDialog(
+            onSignOut = { viewModel.signOut(evenIfUnsynced = true) },
+            onDismiss = viewModel::dismissSignOutUnsynced,
+        )
+    }
+
     if (state.deletingAccount) {
         DeleteAccountDialog(
             busy = state.busy,
@@ -135,7 +142,7 @@ fun HouseholdGateScreen(
         AlertDialog(
             onDismissRequest = viewModel::dismissConfirm,
             title = { Text(stringResource(R.string.join_confirm_title, invite.householdName)) },
-            text = { Text(stringResource(R.string.join_confirm_body, invite.householdName)) },
+            text = { Text(stringResource(R.string.join_confirm_body)) },
             confirmButton = {
                 TextButton(onClick = viewModel::sendRequest, enabled = !state.busy) {
                     Text(stringResource(R.string.action_send_request))

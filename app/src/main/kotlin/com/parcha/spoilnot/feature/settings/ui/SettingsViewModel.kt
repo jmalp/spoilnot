@@ -15,6 +15,7 @@ import com.parcha.spoilnot.feature.auth.domain.ProfileDefaults
 import com.parcha.spoilnot.feature.auth.domain.Units
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
+import com.parcha.spoilnot.feature.household.domain.ResetOutcome
 import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
@@ -124,8 +125,10 @@ class SettingsViewModel @Inject constructor(
         val emailVerified: Boolean = true,
         val verificationSent: Boolean = false,
         val exported: Boolean = false,
-        /** Clear household data finished; the screen says so and closes its dialogs. */
-        val householdCleared: Boolean = false,
+        /** Clear household data finished, or finishes once online; the screen says which and closes its dialogs. */
+        val householdCleared: ResetOutcome? = null,
+        /** Sign out found changes that haven't synced yet and asks before throwing them away (after v1). */
+        val askSignOutUnsynced: Boolean = false,
     )
 
     val content: StateFlow<Content?> = session.session
@@ -155,7 +158,13 @@ class SettingsViewModel @Inject constructor(
         _state.update { it.copy(verificationSent = true) }
     }
 
-    fun signOut() = run { session.signOut() }
+    /** Asks first when changes haven't synced yet; [evenIfUnsynced] is the answer "Sign out anyway". */
+    fun signOut(evenIfUnsynced: Boolean = false) = run {
+        _state.update { it.copy(askSignOutUnsynced = false) }
+        if (!session.signOut(evenIfUnsynced)) _state.update { it.copy(askSignOutUnsynced = true) }
+    }
+
+    fun dismissSignOutUnsynced() = _state.update { it.copy(askSignOutUnsynced = false) }
 
     fun deleteAccount(password: String) = run { session.deleteAccount(password) }
 
@@ -167,11 +176,11 @@ class SettingsViewModel @Inject constructor(
         val me = session.session.value as? Session.InHousehold ?: return@run
         if (me.role != Role.Owner) return@run
         auth.verifyPassword(password)
-        households.resetData(me.householdId, Actor(me.user.uid, me.displayName))
-        _state.update { it.copy(householdCleared = true) }
+        val outcome = households.resetData(me.householdId, Actor(me.user.uid, me.displayName))
+        _state.update { it.copy(householdCleared = outcome) }
     }
 
-    fun dismissHouseholdCleared() = _state.update { it.copy(householdCleared = false) }
+    fun dismissHouseholdCleared() = _state.update { it.copy(householdCleared = null) }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 

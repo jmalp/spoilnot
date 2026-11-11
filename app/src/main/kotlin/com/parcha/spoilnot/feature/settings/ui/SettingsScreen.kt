@@ -46,7 +46,9 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.PasswordField
+import com.parcha.spoilnot.feature.household.domain.ResetOutcome
 import com.parcha.spoilnot.feature.household.ui.DeleteAccountDialog
+import com.parcha.spoilnot.feature.household.ui.UnsyncedSignOutDialog
 import com.parcha.spoilnot.feature.notifications.ui.formatHour
 
 @Composable
@@ -80,12 +82,12 @@ fun SettingsScreen(
     // Clear household data (owner, after v1): an "are you sure" step, then the owner's password.
     var clearStep by rememberSaveable { mutableStateOf(ClearStep.None) }
     val clearedText = stringResource(R.string.clear_household_done)
+    val clearQueuedText = stringResource(R.string.clear_household_when_online)
     LaunchedEffect(state.householdCleared) {
-        if (state.householdCleared) {
-            clearStep = ClearStep.None
-            snackbar.showSnackbar(clearedText)
-            viewModel.dismissHouseholdCleared()
-        }
+        val outcome = state.householdCleared ?: return@LaunchedEffect
+        clearStep = ClearStep.None
+        snackbar.showSnackbar(if (outcome == ResetOutcome.Cleared) clearedText else clearQueuedText)
+        viewModel.dismissHouseholdCleared()
     }
     val transparent = ListItemDefaults.colors(containerColor = Color.Transparent)
 
@@ -195,7 +197,7 @@ fun SettingsScreen(
                 onTakeTour = viewModel::takeTour,
             )
             OutlinedButton(
-                onClick = viewModel::signOut,
+                onClick = { viewModel.signOut() },
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) { Text(stringResource(R.string.action_sign_out)) }
@@ -254,6 +256,13 @@ fun SettingsScreen(
                 clearStep = ClearStep.None
             },
             onConfirm = viewModel::clearHouseholdData,
+        )
+    }
+
+    if (state.askSignOutUnsynced) {
+        UnsyncedSignOutDialog(
+            onSignOut = { viewModel.signOut(evenIfUnsynced = true) },
+            onDismiss = viewModel::dismissSignOutUnsynced,
         )
     }
 

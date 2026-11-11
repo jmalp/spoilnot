@@ -1,7 +1,7 @@
 // Ported from AccountValidationTest and InviteCodesTest.
 import { describe, expect, it } from 'vitest';
 import { AccountValidation } from './account';
-import { HouseholdRules, InviteCodes } from './household';
+import { HouseholdRules, InviteCodes, maskEmail } from './household';
 
 describe('AccountValidation', () => {
   it('display names are 1 to 40 characters after trimming', () => {
@@ -69,5 +69,25 @@ describe('InviteCodes', () => {
   it('format adds a hyphen after five characters', () => {
     expect(InviteCodes.format('ABCDE23456')).toBe('ABCDE-23456');
     expect(InviteCodes.format('ABC')).toBe('ABC');
+  });
+});
+
+describe('maskEmail (after v1)', () => {
+  it('keeps two characters of the name part, or one when it is short, and the domain', () => {
+    expect(maskEmail('robin.lee@example.com')).toBe('ro***@example.com');
+    expect(maskEmail('abc@example.com')).toBe('ab***@example.com');
+    expect(maskEmail('ab@example.com')).toBe('a***@example.com');
+    expect(maskEmail('a@example.com')).toBe('a***@example.com');
+  });
+
+  it('gives nothing for an address the rules might count differently, or none', () => {
+    expect(maskEmail(null)).toBeNull();
+    expect(maskEmail('')).toBeNull();
+    expect(maskEmail('no-at-sign')).toBeNull();
+    expect(maskEmail('a@b@example.com')).toBeNull();
+    expect(maskEmail('@example.com')).toBeNull();
+    expect(maskEmail('sam@')).toBeNull();
+    expect(maskEmail('éva@example.com')).toBeNull();
+    expect(maskEmail('😀x@example.com')).toBeNull();
   });
 });

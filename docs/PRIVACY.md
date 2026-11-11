@@ -12,10 +12,11 @@ This page lists exactly what is collected (DESIGN 12.2, control 11).
 | Household data: products, stock with dates and places, grocery lists, recipes, the meal plan (what is planned for which day, who is cooking and who marked it cooked; past weeks are deleted after 4 weeks), the activity log (who did what, kept 30 days), monthly counts of items used up and thrown away (Insights; no names or items, only numbers) | Firestore, under the household | The app's purpose; shared with the household's members |
 | Device notification token, time zone and reminder settings | Firestore (`users/{you}`) | Sending the daily reminder at your local time (expiring food and, after v1, the meals you cook that day; the meal names go to your devices through Firebase Cloud Messaging) |
 | Preferred units | Firestore (`users/{you}`) | The order of the unit menu |
+| When you ask to join a household: your display name, the code, the time you asked and your email address masked (the first two characters, three stars and the domain, such as `ro***@example.com`; your full address is never stored there) | Firestore, under that household (`joinRequests`), readable only by you and its owner | So the owner can tell who is asking before approving; removed when you join, cancel or are declined, or by the daily cleanup |
 | Theme, colors, crash-report choice and whether you finished the app tour | On the phone only | Settings |
 
 A daily cleanup deletes what has passed its time: activity after 30 days, past meal-plan weeks after 4 weeks, join
-requests after 7 days, and deleted items after 2 days (until then they wait as markers so every phone removes them).
+requests after 7 days (an approved one once your app has finished joining), and deleted items after 2 days (until then they wait as markers so every phone removes them).
 It runs once each day, in the reminder job's first run of the UTC day; if it fails, the next run tries again.
 
 Firestore stores data in the `us-east1` region. The phone keeps an offline copy of the household's data, which is
@@ -25,6 +26,10 @@ lists), and on Android the built-in browser's cookies, site storage, saved sign-
 in to a recipe site) and the cached recipe photos. While nobody is signed in, the Android app also deletes its
 notification token, so the phone gets no reminders even if its device record could not be removed when you signed
 out (for example without a connection).
+If you sign out while some changes haven't reached the server yet, the app asks first, because signing out deletes
+them with the phone's copy.
+If you delete your account on one phone while another is still signed in, the other phone signs out and does not
+recreate your profile.
 What stays on an Android phone after sign-out: the theme, colors, crash-report choice, whether you finished the app
 tour or saw the notification explanation, and its Firebase installation ID (Firebase's id for the app on that phone).
 

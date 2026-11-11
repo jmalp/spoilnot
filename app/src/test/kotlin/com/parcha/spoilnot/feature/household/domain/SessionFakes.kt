@@ -29,13 +29,18 @@ internal class FakeAuth(private val log: MutableList<String>) : AuthRepository {
         user.value = signUpResult
     }
 
-    override suspend fun signIn(email: String, password: String) = Unit
+    override suspend fun signIn(email: String, password: String) {
+        signInResult?.let { user.value = it }
+    }
 
     override suspend fun sendPasswordReset(email: String) = Unit
 
     override suspend fun sendEmailVerification() = Unit
 
     override suspend fun reload(): AuthUser? = user.value
+
+    /** Who signs in: the account [signIn] signs in to (null keeps the current user). */
+    var signInResult: AuthUser? = null
 
     /** When set, the password check waits for it, like a request to the server. */
     var verifyGate: CompletableDeferred<Unit>? = null
@@ -145,7 +150,8 @@ internal class FakeHouseholds(private val users: FakeUsers) : HouseholdRepositor
 
     override suspend fun findInviteCode(code: String): InviteCode? = error("unused")
 
-    override suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode) = error("unused")
+    override suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode, email: String?) =
+        error("unused")
 
     override suspend fun approve(householdId: String, request: JoinRequest) = error("unused")
 
@@ -164,7 +170,7 @@ internal class FakeHouseholds(private val users: FakeUsers) : HouseholdRepositor
 
     override suspend fun deleteHousehold(household: Household, uid: String) = error("unused")
 
-    override suspend fun resetData(householdId: String, actor: Actor) = error("unused")
+    override suspend fun resetData(householdId: String, actor: Actor): ResetOutcome = error("unused")
 }
 
 internal class FakeDevices(private val log: MutableList<String>) : DeviceRegistry {
@@ -191,6 +197,14 @@ internal class FakeDevices(private val log: MutableList<String>) : DeviceRegistr
 
 internal class FakeLocalData(private val log: MutableList<String>) : LocalData {
     var clears = 0
+
+    /** False while this phone has changes the server hasn't received. */
+    var synced = true
+
+    override suspend fun flushPendingWrites(): Boolean {
+        yield()
+        return synced
+    }
 
     override suspend fun clear() {
         // The real one suspends before it wipes anything (it first waits for pending writes).

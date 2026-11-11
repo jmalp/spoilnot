@@ -23,7 +23,9 @@ import {
   type JoinRequest,
   type LocalData,
   type Member,
+  maskEmail,
   type Membership,
+  type ResetOutcome,
   type Role,
 } from '../domain/household';
 import type { Actor } from '../domain/write';
@@ -98,6 +100,8 @@ export function toJoinRequest(s: DocumentSnapshot): JoinRequest | null {
     code: text(s, 'joinCode'),
     status,
     requestedAt: dateOf(s.get('requestedAt')),
+    // Older builds don't write it; another type is ignored rather than failing the list.
+    emailMasked: typeof s.get('emailMasked') === 'string' ? capTo(text(s, 'emailMasked'), ReadCaps.PERSON * 3) : null,
   };
 }
 
@@ -218,26 +222,39 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     return snapshot.exists() ? toInviteCode(snapshot) : null;
   }
 
-  async requestToJoin(uid: string, displayName: string, invite: InviteCode): Promise<void> {
+  async requestToJoin(uid: string, displayName: string, invite: InviteCode, email?: string | null): Promise<void> {
     const db = this.sdk.current;
     const pending: PendingJoin = {
       householdId: invite.householdId,
       householdName: invite.householdName,
       code: invite.code,
     };
-    // Must reach the server: the rules check the code there, and a rejection must be shown now.
-    const batch = writeBatch(db);
-    batch.set(doc(db, requestPath(invite.householdId, uid)), {
-      displayName,
-      joinCode: invite.code,
-      status: 'pending',
-      requestedAt: serverTimestamp(),
-    });
-    batch.update(doc(db, UserFields.path(uid)), {
-      [UserFields.PENDING_JOIN]: UserFields.pendingJoin(pending),
-      [UserFields.UPDATED_AT]: serverTimestamp(),
-    });
-    await commitConfirmed(batch);
+    // After v1: the owner sees who is asking, not only the name they typed. The rules check it.
+    const masked = maskEmail(email);
+    const send = async (emailMasked: string | null) => {
+      // Must reach the server: the rules check the code there, and a rejection must be shown now.
+      const batch = writeBatch(db);
+      batch.set(doc(db, requestPath(invite.householdId, uid)), {
+        displayName,
+        joinCode: invite.code,
+        status: 'pending',
+        requestedAt: serverTimestamp(),
+        ...(emailMasked === null ? {} : { emailMasked }),
+      });
+      batch.update(doc(db, UserFields.path(uid)), {
+        [UserFields.PENDING_JOIN]: UserFields.pendingJoin(pending),
+        [UserFields.UPDATED_AT]: serverTimestamp(),
+      });
+      await commitConfirmed(batch);
+    };
+    try {
+      await send(masked);
+    } catch (error) {
+      // Rules from before the field refuse it: send the request without it (the same refusal for any other reason,
+      // such as a paused code, comes back again).
+      if (masked === null || !isAppError(error, 'permissionDenied')) throw error;
+      await send(null);
+    }
   }
 
   async completeJoin(uid: string, displayName: string, pending: PendingJoin): Promise<void> {
@@ -353,7 +370,7 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     await commitConfirmed(batch);
   }
 
-  async resetData(householdId: string, actor: Actor): Promise<void> {
+  async resetData(householdId: string, actor: Actor): Promise<ResetOutcome> {
     const db = this.sdk.current;
     const base = householdPath(householdId);
     const read = async (path: string) => (await mapped(getDocsFromServer(collection(db, path)))).docs;
@@ -396,11 +413,23 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
         createdAt: serverTimestamp(),
       }),
     );
+    // A chunk that times out is still queued: queue the rest after it rather than stop half done (SYNC-08).
+    let queued = false;
     for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
       const batch = writeBatch(db);
       ops.slice(i, i + BATCH_LIMIT).forEach((op) => op(batch));
-      await commitConfirmed(batch);
+      if (queued) {
+        batch.commit().catch(() => undefined);
+        continue;
+      }
+      try {
+        await commitConfirmed(batch);
+      } catch (error) {
+        if (!isAppError(error, 'offline')) throw error;
+        queued = true;
+      }
     }
+    return queued ? 'finishesWhenOnline' : 'cleared';
   }
 
   /** Every document under the household, deepest first, read from the server so nothing is missed. */
@@ -433,5 +462,9 @@ export class FirestoreLocalData implements LocalData {
     } finally {
       this.log.clear();
     }
+  }
+
+  flushPendingWrites(): Promise<boolean> {
+    return this.sdk.flushPendingWrites();
   }
 }

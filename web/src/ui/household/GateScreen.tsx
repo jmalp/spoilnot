@@ -7,6 +7,7 @@ import { HouseholdRules, InviteCodes, type InviteCode } from '../../domain/house
 import type { JoinState, Session } from '../../domain/session';
 import { useDeleteAccount } from '../settings/DeleteAccount';
 import { Button, Card, Dialog, ErrorText, IconButton, Menu, MenuItem, Progress, TextField, TopAppBar } from '../kit';
+import { UnsyncedSignOutDialog } from './UnsyncedSignOut';
 import './household.css';
 
 type NoHousehold = Extract<Session, { kind: 'noHousehold' }>;
@@ -23,6 +24,12 @@ export function GateScreen({ session }: { session: NoHousehold }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const deleteAccount = useDeleteAccount();
   const [confirm, setConfirm] = useState<InviteCode | null>(null);
+  const [askUnsynced, setAskUnsynced] = useState(false);
+  const signOut = (evenIfUnsynced = false) =>
+    void create.run(async () => {
+      setAskUnsynced(false);
+      if (!(await manager.signOut(evenIfUnsynced))) setAskUnsynced(true);
+    });
   const busy = create.busy || join.busy || request.busy;
   const uid = session.user.uid;
 
@@ -47,7 +54,7 @@ export function GateScreen({ session }: { session: NoHousehold }) {
                 label={str('action_sign_out')}
                 onClick={() => {
                   setMenuOpen(false);
-                  void create.run(() => manager.signOut());
+                  signOut();
                 }}
               />
               <MenuItem
@@ -101,7 +108,7 @@ export function GateScreen({ session }: { session: NoHousehold }) {
                 onClick={() =>
                   void join.run(async () => {
                     try {
-                      await households.requestToJoin(uid, session.displayName, confirm);
+                      await households.requestToJoin(uid, session.displayName, confirm, session.user.email);
                     } finally {
                       setConfirm(null);
                     }
@@ -113,9 +120,10 @@ export function GateScreen({ session }: { session: NoHousehold }) {
             </>
           }
         >
-          {str('join_confirm_body', confirm.householdName)}
+          {str('join_confirm_body')}
         </Dialog>
       )}
+      {askUnsynced && <UnsyncedSignOutDialog onSignOut={() => signOut(true)} onDismiss={() => setAskUnsynced(false)} />}
       {deleteAccount.dialog}
     </div>
   );

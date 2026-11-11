@@ -16,6 +16,8 @@ data class JoinRequest(
     val code: String,
     val status: JoinRequestStatus,
     val requestedAt: Instant?,
+    /** The requester's sign-in address, masked ("ro***@example.com"); null from builds before it was written. */
+    val emailMasked: String? = null,
 )
 
 /** inviteCodes/{code}: what a person sees after typing a code. */
@@ -36,4 +38,22 @@ object HouseholdRules {
     const val DEFAULT_GROCERY_LIST_NAME = "Groceries"
 
     fun isNameValid(name: String): Boolean = name.isNotBlank() && name.trim().length <= MAX_NAME_LENGTH
+}
+
+/**
+ * The requester's email as the owner sees it on a join request (after v1): the first two characters of the name
+ * part (one when it has two or fewer), three stars, and the domain, as in "ro***@example.com". The rules compute the
+ * same from the sign-in's address, so a request can't show someone else's. Null for an address the rules might count
+ * differently (not one @, or a name starting with characters outside ASCII): the request is then sent without it.
+ */
+object EmailMask {
+    fun mask(email: String?): String? {
+        if (email == null) return null
+        val at = email.indexOf('@')
+        if (at <= 0 || at != email.lastIndexOf('@') || at == email.length - 1) return null
+        val local = email.substring(0, at)
+        val kept = local.take(if (local.length > 2) 2 else 1)
+        if (kept.any { it.code !in 0x21..0x7E }) return null
+        return kept + "***" + email.substring(at)
+    }
 }

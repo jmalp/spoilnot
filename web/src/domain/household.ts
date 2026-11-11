@@ -17,7 +17,28 @@ export type JoinRequest = {
   code: string;
   status: JoinRequestStatus;
   requestedAt: Date | null;
+  /** The requester's sign-in address, masked ("ro***@example.com"); null from builds before it was written. */
+  emailMasked: string | null;
 };
+
+/**
+ * The requester's email as the owner sees it on a join request (after v1): the first two characters of the name part
+ * (one when it has two or fewer), three stars and the domain, as in "ro***@example.com". The rules compute the same
+ * from the sign-in's address. Null for an address the rules might count differently (not one @, or a name starting
+ * with characters outside ASCII): the request is then sent without it. EmailMask in the app.
+ */
+export function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const at = email.indexOf('@');
+  if (at <= 0 || at !== email.lastIndexOf('@') || at === email.length - 1) return null;
+  const local = email.slice(0, at);
+  const kept = local.slice(0, local.length > 2 ? 2 : 1);
+  if (!/^[\x21-\x7e]+$/.test(kept)) return null;
+  return `${kept}***${email.slice(at)}`;
+}
+
+/** How Clear household data ended: all on the server, or part of it queued until this phone is online. */
+export type ResetOutcome = 'cleared' | 'finishesWhenOnline';
 
 /** inviteCodes/{code}: what a person sees after typing a code. */
 export type InviteCode = { code: string; householdId: string; householdName: string; active: boolean };
@@ -86,7 +107,8 @@ export interface HouseholdRepository {
   createHousehold(uid: string, displayName: string, name: string, inviteCode: string): Promise<string>;
   /** Null when no household uses this code; the code must be well-formed. */
   findInviteCode(code: string): Promise<InviteCode | null>;
-  requestToJoin(uid: string, displayName: string, invite: InviteCode): Promise<void>;
+  /** [email] is the requester's sign-in address; the owner sees it masked ([maskEmail]). */
+  requestToJoin(uid: string, displayName: string, invite: InviteCode, email?: string | null): Promise<void>;
   /** After approval: points the profile at the household and removes the request. */
   completeJoin(uid: string, displayName: string, pending: PendingJoin): Promise<void>;
   /** Cancels a waiting request, or dismisses a declined or expired one. */
@@ -104,15 +126,22 @@ export interface HouseholdRepository {
   deleteHousehold(household: Household, uid: string): Promise<void>;
   /**
    * Clear household data (owner, DESIGN 5.1): the pantry, grocery lists, recipes, meals, Recent activity and
-   * Insights go for every member; the household, its members and invite code stay. Requires a connection.
+   * Insights go for every member; the household, its members and invite code stay. Refuses to start offline (it
+   * reads from the server first). A chunk that times out is still queued, so the rest queue after it instead of
+   * stopping half done, and the outcome says the clear finishes once online (after v1, SYNC-08).
    */
-  resetData(householdId: string, actor: Actor): Promise<void>;
+  resetData(householdId: string, actor: Actor): Promise<ResetOutcome>;
 }
 
 /** The phone's copy of household data. */
 export interface LocalData {
   /** Sends pending writes if possible, then wipes the cache (DESIGN 12.2, control 6). */
   clear(): Promise<void>;
+  /**
+   * Waits a few seconds for this phone's unsent changes to reach the server; false when some are still waiting.
+   * Clearing now would throw them away (after v1, SYNC-09).
+   */
+  flushPendingWrites(): Promise<boolean>;
 }
 
 /** This phone's device document for digests (DESIGN 10.2, 18.4); the push token itself is DeviceSync's. */

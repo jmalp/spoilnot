@@ -115,6 +115,29 @@ export function utcDate(now: Date): string {
   return now.toISOString().slice(0, 10);
 }
 
+/** Where a join request's sender stands, from users/{uid}: null when the profile doesn't exist (account deleted). */
+export interface Requester {
+  /** pendingJoin.householdId: the household their app is still waiting on, or null. */
+  waitingOn: string | null;
+}
+
+/**
+ * Whether the daily prune deletes a join request older than 7 days (after v1, SYNC-06). Pending and declined requests
+ * go. An approved one goes only once the join is completed: the sender's profile no longer waits on this household
+ * (their app finished the join, they dismissed it, or the account is gone). Until then their app still needs it:
+ * the builds people have (beta 1.0.0-beta.9, web 55edcc5) would say "expired" to someone who is already a member.
+ */
+export function joinRequestPrunable(status: unknown, householdId: string, requester: Requester | null): boolean {
+  if (status !== 'approved') return true;
+  return requester === null || requester.waitingOn !== householdId;
+}
+
+/** users/{uid}.pendingJoin.householdId, or null. */
+export function waitingOn(profile: { get(field: string): unknown } | null): string | null {
+  const pending = profile?.get('pendingJoin') as { householdId?: unknown } | null | undefined;
+  return typeof pending?.householdId === 'string' ? pending.householdId : null;
+}
+
 /** The prune runs in the first run of each UTC day: when the last prune without failures was before today. */
 export function pruneDue(lastPruneDate: string | null, now: Date): boolean {
   return lastPruneDate === null || lastPruneDate < utcDate(now);
@@ -427,8 +450,10 @@ async function clearHousehold(profile: Profile): Promise<void> {
 }
 
 /**
- * Deletes activity older than 30 days, join requests older than 7 days, tombstones older than 2 days and planned
- * meals more than 28 days past (after v1). Each query costs at least one read, even when empty (quota simulation).
+ * Deletes activity older than 30 days, join requests older than 7 days (approved ones only once completed,
+ * [joinRequestPrunable]), tombstones older than 2 days and planned meals more than 28 days past (after v1). Each query
+ * costs at least one read, even when empty (quota simulation); an old approved request costs one more, its sender's
+ * profile.
  * A deletion that fails is counted, never thrown (bulk.ts), and so is a household whose queries fail.
  */
 async function prune(
@@ -450,7 +475,15 @@ async function prune(
     // One household whose queries fail is counted; the others are still pruned.
     try {
       const old = await household.ref.collection('activity').where('createdAt', '<', activityCutoff).get();
-      const stale = await household.ref.collection('joinRequests').where('requestedAt', '<', requestCutoff).get();
+      const oldRequests = await household.ref.collection('joinRequests').where('requestedAt', '<', requestCutoff).get();
+      const approved = oldRequests.docs.filter((d) => d.get('status') === 'approved');
+      const senders = approved.length === 0 ? [] : await db.getAll(...approved.map((d) => db.doc(`users/${d.id}`)));
+      const requesters = new Map(
+        senders.map((p) => [p.id, p.exists ? { waitingOn: waitingOn(p) } : null] as const),
+      );
+      const stale = oldRequests.docs.filter((d) =>
+        joinRequestPrunable(d.get('status'), household.id, requesters.get(d.id) ?? null),
+      );
       const pastMeals = await household.ref.collection('meals').where('date', '<', mealCutoff).get();
       // deletedAt exists only on tombstones, so a range on it reads nothing else.
       const lists = await household.ref.collection('groceryLists').select().get();
@@ -461,7 +494,7 @@ async function prune(
       const deleted = (await Promise.all(tombstoneQueries)).flatMap((snapshot) => snapshot.docs);
       const writes = bulkWrites(db);
       old.docs.forEach((d) => writes.delete(d.ref));
-      stale.docs.forEach((d) => writes.delete(d.ref));
+      stale.forEach((d) => writes.delete(d.ref));
       deleted.forEach((d) => writes.delete(d.ref));
       // A past meal that is also an old tombstone is already being deleted.
       const deletedPaths = new Set(deleted.map((d) => d.ref.path));
@@ -470,7 +503,7 @@ async function prune(
       failures += await writes.close();
       meals += oldMeals.length;
       activity += old.size;
-      joinRequests += stale.size;
+      joinRequests += stale.length;
       tombstones += deleted.length;
     } catch {
       failures++;
