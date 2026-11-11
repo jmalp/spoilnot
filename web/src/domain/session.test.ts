@@ -29,6 +29,7 @@ const request = (status: JoinRequestStatus): JoinRequest => ({
   code: pending.code,
   status,
   requestedAt: null,
+  emailMasked: null,
 });
 
 /** Lets promises and subscriptions settle (advanceUntilIdle). */
@@ -44,10 +45,14 @@ class FakeAuth implements AuthRepository {
   constructor(private readonly log: string[]) {}
   currentUser = () => this.user.value;
   signUp = async () => this.user.next(this.signUpResult);
-  signIn = async () => undefined;
+  signIn = async () => {
+    if (this.signInResult) this.user.next(this.signInResult);
+  };
   sendPasswordReset = async () => undefined;
   sendEmailVerification = async () => undefined;
   reload = async () => this.user.value;
+  /** The account signIn signs in to (null keeps the current user). */
+  signInResult: AuthUser | null = null;
   verifyPassword = async (password: string) => {
     if (password !== 'password1') throw new AppError('invalidCredentials');
   };
@@ -150,6 +155,7 @@ describe('SessionManager', () => {
   let users: FakeUsers;
   let households: FakeHouseholds;
   let clears: number;
+  let synced: boolean;
   let localData: LocalData;
 
   beforeEach(() => {
@@ -158,11 +164,13 @@ describe('SessionManager', () => {
     users = new FakeUsers();
     households = new FakeHouseholds(users);
     clears = 0;
+    synced = true;
     localData = {
       clear: async () => {
         clears++;
         events.push('clear');
       },
+      flushPendingWrites: async () => synced,
     };
   });
 
@@ -264,9 +272,87 @@ describe('SessionManager', () => {
     households.ownRequest.next(request('declined'));
     await settle();
     expect(join()).toEqual({ kind: 'declined', pending });
+    // Not a member: the server refuses the membership read, which the repository reports as gone.
+    households.membership('h1', 'sam').next({ kind: 'gone' });
     households.ownRequest.next(null);
     await settle();
     expect(join()).toEqual({ kind: 'expired', pending });
+  });
+
+  it('an approved request pruned before this phone opened still completes the join', async () => {
+    // The owner approved (the membership exists) and the job deleted the request before Sam opened the app.
+    users.put(profile(null, pending));
+    households.membership('h1', 'sam').next({ kind: 'active', role: 'member' });
+    households.ownRequest.next(null);
+    auth.user.next(sam);
+    const m = await manager();
+    await settle();
+    expect(m.session).toMatchObject({ kind: 'inHousehold', householdId: 'h1', role: 'member' });
+    expect(users.profile('sam')).toEqual(profile('h1'));
+  });
+
+  it('sign-out with unsynced changes asks first, and signs out when told to', async () => {
+    users.put(profile('h1'));
+    households.membership('h1', 'sam').next({ kind: 'active', role: 'member' });
+    auth.user.next(sam);
+    const m = await manager();
+    synced = false;
+    expect(await m.signOut()).toBe(false);
+    await settle();
+    expect(m.session.kind).toBe('inHousehold');
+    expect(events).toEqual([]);
+    expect(await m.signOut(true)).toBe(true);
+    await settle();
+    expect(m.session).toEqual(SIGNED_OUT);
+    expect(events).toEqual(['clear', 'signOut']);
+  });
+
+  it('a profile deleted on another phone is not recreated, and this phone signs out', async () => {
+    users.put(profile('h1'));
+    households.membership('h1', 'sam').next({ kind: 'active', role: 'member' });
+    auth.user.next(sam);
+    const m = await manager();
+    // Delete account on the other phone: the profile goes first, then the account; this phone's sign-in works.
+    users.doc('sam').next(null);
+    await settlePointer();
+    expect(users.profile('sam')).toBeNull();
+    expect(m.session).toEqual(SIGNED_OUT);
+    expect(events).toEqual(['clear', 'signOut']);
+  });
+
+  it('after an interrupted sign-up the next start signs out, and signing in creates the profile', async () => {
+    // Signed in, no profile, and no sign-up or sign-in on this page: as after a deletion elsewhere.
+    auth.user.next(sam);
+    const m = await manager();
+    await settle();
+    expect(users.profile('sam')).toBeNull();
+    expect(m.session).toEqual(SIGNED_OUT);
+    auth.signInResult = sam;
+    await m.signIn('sam@example.com', 'password1');
+    await settle();
+    expect(users.profile('sam')?.displayName).toBe('Sam');
+    expect(m.session).toEqual({ kind: 'noHousehold', user: sam, displayName: 'Sam', join: null });
+  });
+
+  it('after sign-in a profile deleted later is not recreated', async () => {
+    users.put(profile(null));
+    const m = await manager();
+    auth.signInResult = sam;
+    await m.signIn('sam@example.com', 'password1');
+    await settle();
+    expect(m.session.kind).toBe('noHousehold');
+    users.doc('sam').next(null);
+    await settle();
+    expect(users.profile('sam')).toBeNull();
+    expect(m.session).toEqual(SIGNED_OUT);
+  });
+
+  it('sign-up creates the profile', async () => {
+    const m = await manager();
+    auth.signUpResult = sam;
+    await m.signUp('Sam', 'sam@example.com', 'password1');
+    await settle();
+    expect(users.profile('sam')?.displayName).toBe('Sam');
   });
 
   it('an approved request completes on its own and enters the household', async () => {
@@ -446,7 +532,7 @@ describe('DeviceSync with the session', () => {
     sync: async (uid) => void events.push(`sync ${uid}`),
     unregister: async (uid) => void events.push(`unregister ${uid}`),
   };
-  const localData: LocalData = { clear: async () => void events.push('clear') };
+  const localData: LocalData = { clear: async () => void events.push('clear'), flushPendingWrites: async () => true };
 
   beforeEach(() => {
     events = [];

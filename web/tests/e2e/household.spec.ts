@@ -1,6 +1,6 @@
 // Accounts and households on two iPhones (DESIGN 5.1, 18.8 W1), against the emulators, like HouseholdFlowTest.
 import { expect, test, type Page } from '@playwright/test';
-import { createHousehold, openApp, PASSWORD, signUp, uniqueEmail } from './support';
+import { createHousehold, deleteDocument, householdId, openApp, PASSWORD, signUp, uidOf, uniqueEmail } from './support';
 
 async function openHouseholdSettings(page: Page) {
   await page.getByRole('button', { name: /Open settings/ }).click();
@@ -29,10 +29,15 @@ test('a second phone joins with the code after the owner approves; removing them
   await expect(bob.getByRole('dialog')).toContainText('Test home');
   await bob.getByTestId('send_request').click();
   await expect(bob.getByTestId('card_join_status')).toBeVisible();
+  // The owner gets no notification, and the waiting screen says so (after v1).
+  await expect(bob.getByTestId('card_join_status')).toContainText("The owner doesn't get a notification");
 
-  // The owner sees the request (and a badge on the avatar) and approves it.
+  // The owner sees the request (and a badge on the avatar), with who is asking and when, and approves it.
   const requests = alice.getByTestId('card_join_requests');
   await expect(requests).toContainText('Bob');
+  await expect(requests).toContainText('bo***@example.com');
+  await expect(requests).toContainText('Sent: Just now');
+  await expect(requests).toContainText('Only approve people you invited.');
   await requests.getByRole('button', { name: 'Approve' }).click();
   await expect(bob.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
   await expect(alice.getByTestId('card_members')).toContainText('Bob');
@@ -43,6 +48,39 @@ test('a second phone joins with the code after the owner approves; removing them
   await alice.getByTestId('confirm').click();
   await expect(bob.getByRole('heading', { name: 'Welcome, Bob' })).toBeVisible();
   await expect(alice.getByTestId('card_members')).not.toContainText('Bob');
+});
+
+test('an approved request deleted before the joiner opens the app still lets them in (after v1)', async ({
+  browser,
+}) => {
+  const alice = await (await browser.newContext()).newPage();
+  await openApp(alice);
+  await signUp(alice, 'Alice');
+  const name = `Pruned home ${Date.now()}`;
+  await createHousehold(alice, name);
+  await openHouseholdSettings(alice);
+  const code = (await alice.getByTestId('invite_code').textContent())!.trim();
+
+  const carolContext = await browser.newContext();
+  const carol = await carolContext.newPage();
+  await openApp(carol);
+  const email = await signUp(carol, 'Carol');
+  await carol.getByLabel('Invite code').fill(code);
+  await carol.getByRole('button', { name: 'Continue' }).click();
+  await carol.getByTestId('send_request').click();
+  await expect(carol.getByTestId('card_join_status')).toBeVisible();
+  await carol.close();
+
+  // Approved while Carol's app is closed; then the job prunes the request, as it did before it kept approved ones.
+  await alice.getByTestId('card_join_requests').getByRole('button', { name: 'Approve' }).click();
+  await expect(alice.getByTestId('card_members')).toContainText('Carol');
+  const hid = await householdId(name);
+  await deleteDocument(`households/${hid}/joinRequests/${await uidOf(email)}`);
+
+  const again = await carolContext.newPage();
+  await again.goto('/');
+  await expect(again.getByRole('heading', { name: 'Home', exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(again.getByText('Request expired')).toHaveCount(0);
 });
 
 test('sign out, a wrong password, sign in again, and the reset link message', async ({ page }) => {

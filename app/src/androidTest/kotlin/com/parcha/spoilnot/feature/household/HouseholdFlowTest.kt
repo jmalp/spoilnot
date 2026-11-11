@@ -1,12 +1,14 @@
 package com.parcha.spoilnot.feature.household
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.parcha.spoilnot.EmulatorAdmin
 import com.parcha.spoilnot.EmulatorSupport
 import com.parcha.spoilnot.EmulatorSupport.PASSWORD
 import com.parcha.spoilnot.EmulatorSupport.uniqueEmail
 import com.parcha.spoilnot.TestPhone
 import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.feature.home.domain.ActivityType
+import com.parcha.spoilnot.feature.household.domain.EmailMask
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.JoinRequestStatus
 import com.parcha.spoilnot.feature.household.domain.JoinState
@@ -19,10 +21,14 @@ import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
+import java.time.Instant
 import java.time.LocalDate
 import kotlin.time.measureTime
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -43,6 +49,10 @@ import org.junit.runner.RunWith
 class HouseholdFlowTest {
     private lateinit var alice: TestPhone
     private lateinit var bob: TestPhone
+    private val bobEmail = uniqueEmail("bob")
+
+    /** Bob's second phone, or his phone opened again, signed in to the same account. */
+    private var bobAgain: TestPhone? = null
 
     @Before
     fun setUp() = runBlocking {
@@ -50,7 +60,7 @@ class HouseholdFlowTest {
         alice = TestPhone("alice")
         bob = TestPhone("bob")
         alice.sessionManager.signUp("Alice", uniqueEmail("alice"), PASSWORD)
-        bob.sessionManager.signUp("Bob", uniqueEmail("bob"), PASSWORD)
+        bob.sessionManager.signUp("Bob", bobEmail, PASSWORD)
         alice.awaitSession { it is Session.NoHousehold }
         bob.awaitSession { it is Session.NoHousehold }
         Unit
@@ -60,6 +70,57 @@ class HouseholdFlowTest {
     fun tearDown() {
         if (::alice.isInitialized) alice.close()
         if (::bob.isInitialized) bob.close()
+        bobAgain?.close()
+    }
+
+    @Test
+    fun joinRequestShowsTheMaskedEmailAndTimeSent() = runBlocking {
+        val (householdId, code) = aliceCreatesHousehold()
+        bobRequestsToJoin(code)
+
+        val request = awaitRequestFromBob(householdId)
+        assertEquals(EmailMask.mask(bobEmail), request.emailMasked)
+        assertTrue(checkNotNull(request.emailMasked).startsWith("bo***@"))
+        assertTrue(checkNotNull(request.requestedAt).isAfter(Instant.now().minusSeconds(60)))
+    }
+
+    /** SYNC-06: the job pruned an approved request before Bob opened the app again. */
+    @Test
+    fun approvedRequestPrunedBeforeTheJoinerOpensTheApp_theyStillJoin() = runBlocking {
+        val (householdId, code) = aliceCreatesHousehold()
+        bobRequestsToJoin(code)
+        val request = awaitRequestFromBob(householdId)
+        val uid = bob.uid
+        bob.close()
+
+        alice.households.approve(householdId, request)
+        alice.households.observeMembers(householdId).first { members -> members.any { it.uid == uid } }
+        withContext(Dispatchers.IO) { EmulatorAdmin.deleteDocument("households/$householdId/joinRequests/$uid") }
+
+        val again = TestPhone("bob-again").also { bobAgain = it }
+        again.sessionManager.signIn(bobEmail, PASSWORD)
+        val joined = again.awaitSession { it is Session.InHousehold } as Session.InHousehold
+        assertEquals(householdId, joined.householdId)
+        assertFalse(again.history.any { (it as? Session.NoHousehold)?.join is JoinState.Expired })
+    }
+
+    /** A deleted account's profile is not brought back by another phone still signed in to it. */
+    @Test
+    fun accountDeletedOnAnotherPhone_profileStaysDeletedAndThatPhoneSignsOut() = runBlocking {
+        val second = TestPhone("bob-second").also { bobAgain = it }
+        second.sessionManager.signIn(bobEmail, PASSWORD)
+        second.awaitSession { it is Session.NoHousehold }
+        val uid = bob.uid
+
+        bob.sessionManager.deleteAccount(PASSWORD)
+
+        second.awaitSession(timeoutMs = 20_000) { it == Session.SignedOut }
+        // Long enough for a recreated profile to reach the server.
+        delay(3_000)
+        withContext(Dispatchers.IO) {
+            assertFalse("Profile recreated", EmulatorAdmin.documentExists("users/$uid"))
+            assertFalse(EmulatorAdmin.authUserExists(uid))
+        }
     }
 
     @Test
@@ -240,7 +301,7 @@ class HouseholdFlowTest {
         val invite = checkNotNull(bob.households.findInviteCode(code))
         assertTrue(invite.active)
         assertEquals("Test home", invite.householdName)
-        bob.households.requestToJoin(bob.uid, "Bob", invite)
+        bob.households.requestToJoin(bob.uid, "Bob", invite, bobEmail)
         val waiting = bob.awaitSession { (it as? Session.NoHousehold)?.join is JoinState.Waiting }
         return checkNotNull((waiting as Session.NoHousehold).join)
     }

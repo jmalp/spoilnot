@@ -85,6 +85,13 @@ beforeEach(async () => {
   batch.set(db.doc('households/h1/activity/new'), { type: 'stock_added', createdAt: recent });
   batch.set(db.doc('households/h1/joinRequests/stale'), { status: 'pending', requestedAt: old });
   batch.set(db.doc('households/h1/joinRequests/fresh'), { status: 'pending', requestedAt: recent });
+  // After v1 (SYNC-06): an approved request stays until the sender's app finishes the join.
+  batch.set(db.doc('households/h1/joinRequests/declined'), { status: 'declined', requestedAt: old });
+  batch.set(db.doc('households/h1/joinRequests/gina'), { status: 'approved', requestedAt: old });
+  batch.set(db.doc('users/gina'), {
+    displayName: 'Gina', householdId: null, pendingJoin: { householdId: 'h1', householdName: 'Home', code: 'ABCDE23456' },
+  });
+  batch.set(db.doc('households/h1/joinRequests/gone'), { status: 'approved', requestedAt: old });
   await batch.commit();
 });
 
@@ -131,7 +138,9 @@ describe('reminder job against the emulator', () => {
     assert.equal(summary.deadTokens, 1);
 
     assert.equal(summary.prunedActivity, 1);
-    assert.equal(summary.prunedJoinRequests, 1);
+    assert.equal(summary.prunedJoinRequests, 3, 'stale, declined, and approved for an account that is gone');
+    assert.equal((await db.doc('households/h1/joinRequests/gina').get()).exists, true, 'approved, not joined yet');
+    assert.equal((await db.doc('households/h1/joinRequests/gone').get()).exists, false);
     assert.equal(summary.prunedTombstones, 4);
     assert.equal(summary.prunedMeals, 1);
     assert.equal((await db.doc('households/h1/meals/m-past').get()).exists, false, 'more than 28 days past');

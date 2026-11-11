@@ -36,6 +36,8 @@ class GateViewModel @Inject constructor(
         /** Delete account's password dialog is open. */
         val deletingAccount: Boolean = false,
         @StringRes val deleteError: Int? = null,
+        /** Sign out found changes that haven't synced yet and asks first (after v1). */
+        val askSignOutUnsynced: Boolean = false,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -60,7 +62,7 @@ class GateViewModel @Inject constructor(
         val invite = _state.value.confirm ?: return
         launch(onError = { e -> copy(joinError = e.messageRes(), confirm = null) }) {
             val me = signedIn()
-            households.requestToJoin(me.user.uid, me.displayName, invite)
+            households.requestToJoin(me.user.uid, me.displayName, invite, me.user.email)
             _state.update { it.copy(confirm = null) }
         }
     }
@@ -70,7 +72,13 @@ class GateViewModel @Inject constructor(
         households.abandonJoin(signedIn().user.uid, pending)
     }
 
-    fun signOut() = launch(onError = { e -> copy(createError = e.messageRes()) }) { session.signOut() }
+    /** Asks first when changes haven't synced yet; [evenIfUnsynced] is the answer "Sign out anyway". */
+    fun signOut(evenIfUnsynced: Boolean = false) = launch(onError = { e -> copy(createError = e.messageRes()) }) {
+        _state.update { it.copy(askSignOutUnsynced = false) }
+        if (!session.signOut(evenIfUnsynced)) _state.update { it.copy(askSignOutUnsynced = true) }
+    }
+
+    fun dismissSignOutUnsynced() = _state.update { it.copy(askSignOutUnsynced = false) }
 
     fun openDeleteAccount() = _state.update { it.copy(deletingAccount = true, deleteError = null) }
 

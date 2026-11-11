@@ -2,6 +2,7 @@ package com.parcha.spoilnot.feature.household.ui
 
 import android.content.ClipData
 import android.content.Intent
+import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -212,12 +213,35 @@ private fun JoinRequestsCard(
     onDecline: (JoinRequest) -> Unit,
 ) {
     SectionCard(stringResource(R.string.join_requests_title), Modifier.testTag("card_join_requests")) {
+        // After v1: who is asking (their masked sign-in address) and when, not only the name they typed. Requests
+        // from builds before this have neither field.
+        Text(
+            stringResource(R.string.join_requests_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
         requests.forEach { request ->
             Column(
-                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("join_request_${request.uid}"),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(request.displayName, style = MaterialTheme.typography.titleMedium)
+                Column {
+                    Text(request.displayName, style = MaterialTheme.typography.titleMedium)
+                    val detail = MaterialTheme.typography.bodyMedium
+                    val detailColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    request.emailMasked?.let { Text(it, style = detail, color = detailColor) }
+                    request.requestedAt?.let {
+                        val now = System.currentTimeMillis()
+                        val sent = if (now - it.toEpochMilli() < DateUtils.MINUTE_IN_MILLIS) {
+                            stringResource(R.string.activity_just_now)
+                        } else {
+                            DateUtils.getRelativeTimeSpanString(it.toEpochMilli(), now, DateUtils.MINUTE_IN_MILLIS)
+                                .toString()
+                        }
+                        Text(stringResource(R.string.join_request_sent, sent), style = detail, color = detailColor)
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = {
                         onApprove(request)

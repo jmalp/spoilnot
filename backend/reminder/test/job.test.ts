@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { afterSend, DEFAULT_PREFS, dueAt, type UserDoc } from '../src/digest.ts';
-import { chunks, DEAD_TOKEN_CODES, isDeadToken, pruneDue, SEND_CHUNK, utcDate } from '../src/job.ts';
+import {
+  chunks, DEAD_TOKEN_CODES, isDeadToken, joinRequestPrunable, pruneDue, SEND_CHUNK, utcDate, waitingOn,
+} from '../src/job.ts';
 
 /** The minutes of the workflow's schedule entries ('7 * * * *' and so on). */
 function scheduledMinutes(): number[] {
@@ -113,5 +115,32 @@ describe('sending', () => {
     assert.deepEqual(chunks([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
     assert.deepEqual(chunks(Array.from({ length: 1001 }, (_, i) => i), SEND_CHUNK).map((c) => c.length), [500, 500, 1]);
     assert.deepEqual(chunks([], 500), []);
+  });
+});
+
+describe('old join requests (after v1, SYNC-06)', () => {
+  it('prunes pending and declined requests', () => {
+    assert.equal(joinRequestPrunable('pending', 'h1', { waitingOn: 'h1' }), true);
+    assert.equal(joinRequestPrunable('declined', 'h1', { waitingOn: 'h1' }), true);
+    assert.equal(joinRequestPrunable(undefined, 'h1', null), true, 'a request without a status');
+  });
+
+  it('keeps an approved request while its sender\'s app still has to finish the join', () => {
+    // The member hasn't opened the app since the owner approved: released builds need the request to get in.
+    assert.equal(joinRequestPrunable('approved', 'h1', { waitingOn: 'h1' }), false);
+  });
+
+  it('prunes an approved request once the join is completed, dismissed or the account is gone', () => {
+    assert.equal(joinRequestPrunable('approved', 'h1', { waitingOn: null }), true, 'joined, or dismissed');
+    assert.equal(joinRequestPrunable('approved', 'h1', { waitingOn: 'h2' }), true, 'now waiting on another');
+    assert.equal(joinRequestPrunable('approved', 'h1', null), true, 'account deleted');
+  });
+
+  it('reads the household a profile waits on', () => {
+    const profile = (pendingJoin: unknown) => ({ get: (f: string) => (f === 'pendingJoin' ? pendingJoin : undefined) });
+    assert.equal(waitingOn(profile({ householdId: 'h1', householdName: 'The Smiths', code: 'ABCDE23456' })), 'h1');
+    assert.equal(waitingOn(profile(null)), null);
+    assert.equal(waitingOn(profile({ householdId: 7 })), null);
+    assert.equal(waitingOn(null), null);
   });
 });

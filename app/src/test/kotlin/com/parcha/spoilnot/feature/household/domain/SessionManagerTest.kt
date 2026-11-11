@@ -126,9 +126,28 @@ class SessionManagerTest {
         advanceUntilIdle()
         assertEquals(JoinState.Declined(pending), (manager.session.value as Session.NoHousehold).join)
 
+        // Not a member: the server refuses the membership read, which the repository reports as Gone.
+        households.membership("h1", "sam").value = Membership.Gone
         households.ownRequest.value = null
         advanceUntilIdle()
         assertEquals(JoinState.Expired(pending), (manager.session.value as Session.NoHousehold).join)
+    }
+
+    @Test
+    fun `an approved request pruned before this phone opened still completes the join`() = runSession {
+        // The owner approved (the membership exists) and the job deleted the request before Sam opened the app.
+        users.put(UserProfile("sam", "Sam", null, pending))
+        households.membership("h1", "sam").value = Membership.Active(Role.Member)
+        households.ownRequest.value = null
+        auth.user.value = sam
+        val seen = mutableListOf<Session>()
+        val manager = manager()
+        backgroundScope.launch { manager.session.collect { seen += it } }
+        advanceUntilIdle()
+
+        assertEquals(Session.InHousehold(sam, "Sam", "h1", Role.Member), manager.session.value)
+        assertEquals(UserProfile("sam", "Sam", "h1", null), users.profile("sam"))
+        assertTrue(seen.none { (it as? Session.NoHousehold)?.join is JoinState.Expired })
     }
 
     @Test
@@ -235,6 +254,71 @@ class SessionManagerTest {
         advanceTimeBy(40_000)
         runCurrent()
         assertEquals(Session.InHousehold(sam, "Sam", "h1", Role.Member), manager.session.value)
+    }
+
+    @Test
+    fun `sign-out with unsynced changes asks first, and signs out when told to`() = runSession {
+        users.put(UserProfile("sam", "Sam", "h1", null))
+        households.membership("h1", "sam").value = Membership.Active(Role.Member)
+        auth.user.value = sam
+        val manager = manager()
+        localData.synced = false
+
+        assertEquals(false, manager.signOut())
+        advanceUntilIdle()
+        assertEquals(Session.InHousehold(sam, "Sam", "h1", Role.Member), manager.session.value)
+        assertEquals(emptyList<String>(), events)
+
+        assertEquals(true, manager.signOut(evenIfUnsynced = true))
+        advanceUntilIdle()
+        assertEquals(Session.SignedOut, manager.session.value)
+        assertEquals(listOf("unregister sam", "clear", "signOut"), events)
+    }
+
+    @Test
+    fun `a profile deleted on another phone is not recreated, and this phone signs out`() = runSession {
+        users.put(UserProfile("sam", "Sam", "h1", null))
+        households.membership("h1", "sam").value = Membership.Active(Role.Member)
+        auth.user.value = sam
+        val manager = manager()
+
+        // Delete account on the other phone: the profile goes first, then the account; this phone's sign-in works.
+        users.doc("sam").value = null
+        advanceUntilIdle()
+
+        assertNull(users.profile("sam"))
+        assertEquals(Session.SignedOut, manager.session.value)
+        assertEquals(listOf("unregister sam", "clear", "signOut"), events)
+    }
+
+    @Test
+    fun `after an interrupted sign-up the next start signs out, and signing in creates the profile`() = runSession {
+        // Signed in, no profile, and no sign-up or sign-in in this process: as after a deletion elsewhere.
+        auth.user.value = sam
+        val manager = manager()
+        assertNull(users.profile("sam"))
+        assertEquals(Session.SignedOut, manager.session.value)
+
+        auth.signInResult = sam
+        manager.signIn("sam@example.com", "password1")
+        advanceUntilIdle()
+        assertEquals("Sam", users.profile("sam")?.displayName)
+        assertEquals(Session.NoHousehold(sam, "Sam", null), manager.session.value)
+    }
+
+    @Test
+    fun `after sign-in a profile deleted later is not recreated`() = runSession {
+        users.put(UserProfile("sam", "Sam", null, null))
+        val manager = manager()
+        auth.signInResult = sam
+        manager.signIn("sam@example.com", "password1")
+        advanceUntilIdle()
+        assertEquals(Session.NoHousehold(sam, "Sam", null), manager.session.value)
+
+        users.doc("sam").value = null
+        advanceUntilIdle()
+        assertNull(users.profile("sam"))
+        assertEquals(Session.SignedOut, manager.session.value)
     }
 
     @Test
