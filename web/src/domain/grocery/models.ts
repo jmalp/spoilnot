@@ -37,6 +37,21 @@ export type GroceryItem = {
 export type GroceryEventType = 'grocery_added' | 'grocery_checked';
 
 /** One write in a grocery plan, applied by the HouseholdWriter together with any pantry changes. */
+/** What the grocery Edit sheet sets on an item (besides its name). */
+export type GroceryItemFields = {
+  quantity: number | null;
+  unit: QuantityUnit | null;
+  note: string | null;
+  category: Category | null;
+};
+
+export const groceryItemFieldsOf = (item: GroceryItem): GroceryItemFields => ({
+  quantity: item.quantity,
+  unit: item.unit,
+  note: item.note,
+  category: item.category,
+});
+
 export type GroceryChange =
   | { type: 'grocery.createList'; list: GroceryList }
   | { type: 'grocery.renameList'; listId: string; name: string }
@@ -44,17 +59,10 @@ export type GroceryChange =
   | { type: 'grocery.setAisleOrder'; listId: string; order: Category[] }
   | { type: 'grocery.deleteList'; listId: string }
   | { type: 'grocery.createItem'; listId: string; item: GroceryItem }
-  /** Puts a deleted item back under its old id (Undo). */
+  /** Puts a deleted item back (Undo): removes the tombstone and nothing else (after v1, DESIGN 8.6). */
   | { type: 'grocery.restoreItem'; listId: string; item: GroceryItem }
-  | {
-      type: 'grocery.updateItem';
-      listId: string;
-      itemId: string;
-      quantity: number | null;
-      unit: QuantityUnit | null;
-      note: string | null;
-      category: Category | null;
-    }
+  /** Writes the fields of `after` that differ from `before`, and only those (after v1, DESIGN 9.4). */
+  | { type: 'grocery.updateItem'; listId: string; itemId: string; before: GroceryItemFields; after: GroceryItemFields }
   /** A new name (after v1), relinked to the household's product of that name, if any. */
   | {
       type: 'grocery.renameItem';

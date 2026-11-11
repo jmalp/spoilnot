@@ -334,7 +334,7 @@ describe('members', () => {
   it('cannot write an invalid quantity, date format or location, or stamp someone else', async () => {
     const db = as('bob');
     const ref = doc(db, `households/${HID}/stock/s1`);
-    await assertFails(setDoc(ref, stock('bob', { quantity: -1 })));
+    await assertFails(setDoc(ref, stock('bob', { quantity: -2e9 })));
     await assertFails(setDoc(ref, stock('bob', { quantity: '2' })));
     await assertFails(setDoc(ref, stock('bob', { expiryDate: '20/10/2026' })));
     await assertFails(setDoc(ref, stock('bob', { location: 'garage' })));
@@ -1365,6 +1365,64 @@ describe('more of the matrix', () => {
 
 // After v1 (2026-11-09, DESIGN 8.5): when two phones finish the same thing, the rules pick the winner and refuse the
 // later phone's whole batch: Add to pantry on two phones, Cooked on two phones, an item added to a deleted list.
+describe('edits and Undo keep what someone else changed', () => {
+  const tombstone = (uid) => ({ deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid });
+  const restore = (uid) => ({ deletedAt: deleteField(), updatedAt: serverTimestamp(), updatedBy: uid });
+  const seed = async () => env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `households/${HID}/products/p1`), product('alice'));
+    await setDoc(doc(db, `households/${HID}/stock/s1`), stock('alice', { quantity: 1 }));
+    await setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i1`), groceryItem('alice'));
+    await setDoc(doc(db, `households/${HID}/recipes/r1`), recipe('alice'));
+  });
+
+  it('two phones\' last -1 may take a batch below 0', async () => {
+    await seed();
+    const minusOne = (uid) => updateDoc(doc(as(uid), `households/${HID}/stock/s1`), {
+      quantity: increment(-1), updatedAt: serverTimestamp(), updatedBy: uid,
+    });
+    await assertSucceeds(minusOne('bob'));
+    await assertSucceeds(minusOne('alice'));
+  });
+
+  it('an edit writes single fields over another member\'s change', async () => {
+    await seed();
+    const ref = doc(as('bob'), `households/${HID}/stock/s1`);
+    await assertSucceeds(updateDoc(ref, { expiryDate: '2026-11-20', updatedAt: serverTimestamp(), updatedBy: 'bob' }));
+    await assertSucceeds(updateDoc(ref, { quantity: increment(2), updatedAt: serverTimestamp(), updatedBy: 'bob' }));
+    await assertSucceeds(setDoc(doc(as('bob'), `households/${HID}/products/p1`), {
+      name: 'Oat milk', nameKey: 'oat milk', updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }, { merge: true }));
+  });
+
+  it('Undo removes the tombstone only, keeping the creator', async () => {
+    await seed();
+    for (const path of ['stock/s1', 'groceryLists/g1/items/i1', 'recipes/r1']) {
+      const ref = doc(as('bob'), `households/${HID}/${path}`);
+      await assertSucceeds(setDoc(ref, tombstone('bob'), { merge: true }));
+      await assertSucceeds(setDoc(ref, restore('bob'), { merge: true }));
+      const back = await getDoc(ref);
+      if (back.data().deletedAt !== undefined) throw new Error(`${path} keeps deletedAt`);
+      if (back.data().createdBy !== 'alice') throw new Error(`${path} changed its creator`);
+    }
+  });
+
+  it('Undo of a -1 that used a batch up adds it back and removes a tombstone in one write', async () => {
+    await seed();
+    const ref = doc(as('bob'), `households/${HID}/stock/s1`);
+    await assertSucceeds(updateDoc(ref, { quantity: increment(-1), updatedAt: serverTimestamp(), updatedBy: 'bob' }));
+    await assertSucceeds(setDoc(doc(as('alice'), `households/${HID}/stock/s1`), tombstone('alice'), { merge: true }));
+    await assertSucceeds(updateDoc(ref, {
+      quantity: increment(1), deletedAt: deleteField(), updatedAt: serverTimestamp(), updatedBy: 'bob',
+    }));
+  });
+
+  it('Undo cannot bring back a document that is gone for real', async () => {
+    const ref = doc(as('bob'), `households/${HID}/stock/gone`);
+    await assertFails(setDoc(ref, restore('bob'), { merge: true }));
+  });
+});
+
 describe('one phone wins', () => {
   const t0 = new Date('2026-10-01T00:00:00Z');
   const h = (path) => `households/${HID}/${path}`;

@@ -140,13 +140,12 @@ class GroceryService @Inject constructor(
     suspend fun increase(householdId: String, actor: Actor, listId: String, existing: GroceryItem, request: QuickAdd) {
         val delta = request.quantity ?: 1.0
         val change = if (existing.quantity == null) {
+            val before = GroceryItemFields.of(existing)
             GroceryChange.UpdateItem(
                 listId,
                 existing.id,
-                1.0 + delta,
-                existing.unit ?: request.unit,
-                existing.note,
-                existing.category,
+                before,
+                before.copy(quantity = 1.0 + delta, unit = existing.unit ?: request.unit),
             )
         } else {
             GroceryChange.AddToItem(listId, existing.id, delta)
@@ -196,9 +195,12 @@ class GroceryService @Inject constructor(
         name: String? = null,
         products: List<Product> = emptyList(),
     ) {
-        val changes = mutableListOf<HouseholdChange>(
-            GroceryChange.UpdateItem(listId, item.id, quantity, unit, note?.trim()?.ifEmpty { null }, category),
-        )
+        // Only what the person changed from [item], the copy the sheet opened with, so another member's change to the
+        // item meanwhile stays (after v1, DESIGN 9.4).
+        val changes = mutableListOf<HouseholdChange>()
+        val before = GroceryItemFields.of(item)
+        val after = GroceryItemFields(quantity, unit, note?.trim()?.ifEmpty { null }, category)
+        if (after != before) changes += GroceryChange.UpdateItem(listId, item.id, before, after)
         // Renaming (after v1, DESIGN 5.3) relinks the item to the product of its new name.
         val clean = name?.let(NameKey::clean)?.take(GroceryRules.MAX_NAME_LENGTH)?.trim()
         if (!clean.isNullOrEmpty() && clean != item.name) {
@@ -206,7 +208,7 @@ class GroceryService @Inject constructor(
             val product = products.firstOrNull { it.nameKey == key }
             changes += GroceryChange.RenameItem(listId, item.id, product?.name ?: clean, key, product?.id)
         }
-        writer.apply(householdId, actor, changes)
+        if (changes.isNotEmpty()) writer.apply(householdId, actor, changes)
     }
 
     suspend fun delete(householdId: String, actor: Actor, listId: String, item: GroceryItem): Undo {

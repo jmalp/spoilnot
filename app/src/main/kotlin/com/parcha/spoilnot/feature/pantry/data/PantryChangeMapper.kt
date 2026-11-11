@@ -1,12 +1,12 @@
 package com.parcha.spoilnot.feature.pantry.data
 
-import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
+import com.parcha.spoilnot.core.firebase.changedFields
 import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
@@ -17,9 +17,18 @@ import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository.Compani
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository.Companion.productFields
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository.Companion.products
 import com.parcha.spoilnot.feature.pantry.data.FirestorePantryRepository.Companion.stock
+import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryEvent
 import javax.inject.Inject
+
+/** A batch's own fields as an edit or Move sets them (never the quantity, which only moves by increments). */
+internal fun editFields(e: BatchEdit): Map<String, Any?> = mapOf(
+    "expiryDate" to e.expiryDate?.toString(),
+    "dateType" to e.dateType.wire,
+    "location" to e.location.wire,
+    "note" to e.note,
+)
 
 /** Firestore writes for [PantryChange]s. */
 class PantryChangeMapper @Inject constructor() : FirestoreChangeMapper {
@@ -54,40 +63,36 @@ class PantryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     mapOf("aliases" to FieldValue.arrayUnion(change.alias)) + stamp,
                 )
 
-            is PantryChange.UpdateProduct ->
-                batch.set(
-                    db.document("${products(hid)}/${change.product.id}"),
-                    productFields(change.product) + stamp,
-                    SetOptions.merge(),
-                )
+            // Only what changed, so an edit never puts back what another member changed meanwhile (DESIGN 9.4).
+            is PantryChange.UpdateProduct -> {
+                val changed = changedFields(productFields(change.before), productFields(change.product))
+                if (changed.isNotEmpty()) {
+                    batch.set(
+                        db.document("${products(hid)}/${change.product.id}"),
+                        changed + stamp,
+                        SetOptions.merge(),
+                    )
+                }
+            }
 
             is PantryChange.CreateBatch ->
                 batch.set(db.document("${stock(hid)}/${change.batch.id}"), batchFields(change.batch) + created + stamp)
 
-            is PantryChange.RestoreBatch -> batch.set(
-                db.document("${stock(hid)}/${change.batch.id}"),
-                batchFields(change.batch) + stamp + mapOf(
-                    "createdAt" to (change.batch.createdAt?.let { Timestamp(it) } ?: FieldValue.serverTimestamp()),
-                    "createdBy" to actor.uid,
-                ),
-            )
+            // Undo removes the tombstone and nothing else: the document keeps every field, another member's change
+            // and fields a newer app added included, and its creator (DESIGN 8.6).
+            is PantryChange.RestoreBatch ->
+                batch.set(db.document("${stock(hid)}/${change.batch.id}"), Tombstones.restore(actor), SetOptions.merge())
 
-            is PantryChange.AddToBatch ->
-                batch.update(
-                    db.document("${stock(hid)}/${change.batchId}"),
-                    mapOf("quantity" to FieldValue.increment(change.delta)) + stamp,
-                )
-
-            is PantryChange.UpdateBatch -> batch.update(
+            is PantryChange.AddToBatch -> batch.update(
                 db.document("${stock(hid)}/${change.batchId}"),
-                mapOf(
-                    "quantity" to change.edit.quantity,
-                    "expiryDate" to change.edit.expiryDate?.toString(),
-                    "dateType" to change.edit.dateType.wire,
-                    "location" to change.edit.location.wire,
-                    "note" to change.edit.note,
-                ) + stamp,
+                mapOf("quantity" to FieldValue.increment(change.delta)) + stamp +
+                    if (change.revive) mapOf(Tombstones.FIELD to FieldValue.delete()) else emptyMap(),
             )
+
+            is PantryChange.UpdateBatch -> {
+                val changed = changedFields(editFields(change.before), editFields(change.after))
+                if (changed.isNotEmpty()) batch.update(db.document("${stock(hid)}/${change.batchId}"), changed + stamp)
+            }
 
             is PantryChange.MarkOpened -> batch.update(
                 db.document("${stock(hid)}/${change.batchId}"),

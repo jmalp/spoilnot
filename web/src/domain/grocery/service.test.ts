@@ -148,7 +148,13 @@ describe('GroceryService', () => {
     const edit = { quantity: 2, unit: null, note: ' note ', category: null };
     await service.edit('h', actor, 'g1', beansItem, { ...edit, name: 'black  BEANS ' }, [beans]);
     expect(writer.last).toEqual([
-      { type: 'grocery.updateItem', listId: 'g1', itemId: 'i1', quantity: 2, unit: null, note: 'note', category: null },
+      {
+        type: 'grocery.updateItem',
+        listId: 'g1',
+        itemId: 'i1',
+        before: { quantity: null, unit: null, note: null, category: null },
+        after: { quantity: 2, unit: null, note: 'note', category: null },
+      },
       {
         type: 'grocery.renameItem',
         listId: 'g1',
@@ -158,26 +164,30 @@ describe('GroceryService', () => {
         productId: 'beans',
       },
     ]);
-    // A name no product has keeps the typed spelling and unlinks; the same name writes no rename.
+    // A name no product has keeps the typed spelling and unlinks; fields that didn't change aren't written.
     const none = { quantity: null, unit: null, note: null, category: null };
     await service.edit('h', actor, 'g1', beansItem, { ...none, name: 'Pinto beans' }, [beans]);
-    expect(writer.last[1]).toEqual({
-      type: 'grocery.renameItem',
-      listId: 'g1',
-      itemId: 'i1',
-      name: 'Pinto beans',
-      nameKey: 'pinto beans',
-      productId: null,
-    });
+    expect(writer.last).toEqual([
+      {
+        type: 'grocery.renameItem',
+        listId: 'g1',
+        itemId: 'i1',
+        name: 'Pinto beans',
+        nameKey: 'pinto beans',
+        productId: null,
+      },
+    ]);
+    // Nothing changed: nothing is written.
+    writer.last = [];
     await service.edit('h', actor, 'g1', beansItem, { ...none, name: 'Beans' }, [beans]);
-    expect(writer.last).toHaveLength(1);
+    expect(writer.last).toEqual([]);
   });
 
   it('increase adds to an existing quantity or starts from one', async () => {
     await service.increase('h', actor, 'g1', { ...item('i1', 'Eggs'), quantity: 6 }, parseQuickAdd('6 eggs'));
     expect(writer.last).toEqual([{ type: 'grocery.addToItem', listId: 'g1', itemId: 'i1', delta: 6 }]);
     await service.increase('h', actor, 'g1', item('i1', 'Eggs'), parseQuickAdd('eggs'));
-    expect(ofType(writer.last, 'grocery.updateItem')[0]!.quantity).toBe(2);
+    expect(ofType(writer.last, 'grocery.updateItem')[0]!.after.quantity).toBe(2);
   });
 
   it('delete and clear checked can be undone', async () => {

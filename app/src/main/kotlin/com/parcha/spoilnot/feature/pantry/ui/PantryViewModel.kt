@@ -13,10 +13,14 @@ import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
+import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
+import com.parcha.spoilnot.feature.pantry.domain.EditWatch
 import com.parcha.spoilnot.feature.pantry.domain.ItemEdit
+import com.parcha.spoilnot.feature.pantry.domain.ItemEditBase
+import com.parcha.spoilnot.feature.pantry.domain.ItemEditWatch
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
@@ -50,6 +54,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -72,7 +77,8 @@ fun todayFlow(clock: Clock): Flow<LocalDate> = flow {
 @HiltViewModel
 class PantryViewModel @Inject constructor(
     session: SessionManager,
-    repository: PantryRepository,
+    private val repository: PantryRepository,
+    households: HouseholdRepository,
     writer: HouseholdWriter,
     private val service: PantryService,
     clock: Clock,
@@ -95,12 +101,41 @@ class PantryViewModel @Inject constructor(
         val query: PantryQuery = PantryQuery(),
         val today: LocalDate = LocalDate.MIN,
         val data: PantryData = PantryData(emptyList(), emptyList(), fromCache = true),
+        /** The open Edit window, if any (after v1, DESIGN 9.2). */
+        val edit: EditWindow? = null,
+        /** Members by uid, while the Edit window is open. */
+        val memberNames: Map<String, String> = emptyMap(),
+    )
+
+    /**
+     * The Edit window: [base] is what it compares with (what it opened with, or the item as it was at the last
+     * Review), [changed] the item as it is now when someone else changed it, and [changedBy] their name, if known.
+     */
+    data class EditWindow(
+        val base: ItemEditBase,
+        val canChangeUnit: Boolean,
+        val changed: ItemEditBase? = null,
+        val changedBy: String? = null,
+        /** The item is gone; the window closes and says who removed it. Never shown. */
+        val removedBy: EditWatch.Removed? = null,
     )
 
     private val me = session.session.filterIsInstance<Session.InHousehold>()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val query = MutableStateFlow(PantryQuery())
+
+    /** What the open Edit window compares with; null while it is closed. */
+    private val editing = MutableStateFlow<ItemEditBase?>(null)
+
+    // Members' names, only while the Edit window is open (it names who changed its item), so Pantry itself doesn't
+    // hold another listener.
+    private val memberNames: Flow<Map<String, String>> =
+        combine(me.map { it?.householdId }, editing.map { it != null }) { hid, open -> hid.takeIf { open } }
+            .distinctUntilChanged()
+            .flatMapLatest { hid -> if (hid == null) flowOf(emptyList()) else households.observeMembers(hid) }
+            .map { list -> list.associate { it.uid to it.displayName } }
+            .catch { emit(emptyMap()) }
 
     @Volatile private var cleaning: Job? = null
 
@@ -116,7 +151,13 @@ class PantryViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val state: StateFlow<UiState> = combine(data, query, todayFlow(clock)) { data, query, today ->
+    val state: StateFlow<UiState> = combine(data, query, todayFlow(clock), editing, memberNames) {
+            data,
+            query,
+            today,
+            editing,
+            names,
+        ->
         if (data == null) {
             UiState(query = query, today = today)
         } else {
@@ -129,9 +170,45 @@ class PantryViewModel @Inject constructor(
                 query = query,
                 today = today,
                 data = data,
+                edit = editing?.let { editWindow(it, data, names) },
+                memberNames = names,
             )
         }
-    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+    }.onEach { s -> s.edit?.removedBy?.let { closeRemoved(s.edit.base, it, s.memberNames) } }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+
+    /** The Edit window against the live [data]: someone else's change, or the item gone (DESIGN 9.2, 9.4). */
+    private fun editWindow(base: ItemEditBase, data: PantryData, names: Map<String, String>): EditWindow {
+        val batch = base.batch
+        val others = data.batches.any { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
+        val window = EditWindow(base, canChangeUnit = !others)
+        return when (val watch = ItemEditWatch.check(base, data, myUid())) {
+            EditWatch.Unchanged -> window
+            is EditWatch.Changed -> window.copy(changed = watch.live, changedBy = watch.byUid?.let(names::get))
+            is EditWatch.Removed -> window.copy(removedBy = watch)
+        }
+    }
+
+    /** Closes the Edit window whose item is gone, saying who removed it unless it was this person. */
+    private fun closeRemoved(base: ItemEditBase, removed: EditWatch.Removed, names: Map<String, String>) {
+        if (!editing.compareAndSet(base, null)) return
+        val hid = me.value?.householdId ?: return
+        viewModelScope.launch {
+            val who = removed.byUid ?: repository.removedBy(hid, base.batch.id)
+            if (who == myUid()) return@launch
+            val name = who?.let(names::get)
+            _messages.send(
+                if (name != null) {
+                    UiMessage(R.string.edit_removed_by, name)
+                } else {
+                    UiMessage(R.string.edit_removed)
+                },
+            )
+        }
+    }
+
+    private fun myUid(): String = me.value?.user?.uid.orEmpty()
 
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
@@ -192,11 +269,29 @@ class PantryViewModel @Inject constructor(
         )
     }
 
-    /** The Edit window: the purchase and its product together. Returns through [onDone] once saved. */
-    fun editItem(batch: StockBatch, edit: ItemEdit, onDone: () -> Unit) = act { hid, actor ->
-        val undo = service.editItem(hid, actor, batch, edit, currentData())
-        onDone()
-        undo?.let { _messages.send(UiMessage(R.string.undo_used_up, batch.productName, it)) }
+    /** Opens the Edit window on [batch] and its product as this phone has them now. */
+    fun openEdit(batch: StockBatch) {
+        editing.value = ItemEditBase(batch, data.value?.products?.firstOrNull { it.id == batch.productId })
+    }
+
+    fun closeEdit() {
+        editing.value = null
+    }
+
+    /** Review: the window now compares with the item as it is ([live]); the sheet has rebased its draft on it. */
+    fun reviewEdit(live: ItemEditBase) {
+        editing.value = live
+    }
+
+    /**
+     * Saves the Edit window: only what the person changed from what it compares with (after v1, DESIGN 9.4). It
+     * closes once saved.
+     */
+    fun saveEdit(edit: ItemEdit) = act { hid, actor ->
+        val base = editing.value ?: return@act
+        val undo = service.editItem(hid, actor, base, edit, currentData())
+        editing.compareAndSet(base, null)
+        undo?.let { _messages.send(UiMessage(R.string.undo_used_up, base.batch.productName, it)) }
     }
 
     fun move(batch: StockBatch, location: Location) = act { hid, actor -> service.move(hid, actor, batch, location) }

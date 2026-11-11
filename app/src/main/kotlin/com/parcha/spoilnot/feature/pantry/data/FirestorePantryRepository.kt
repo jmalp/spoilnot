@@ -2,6 +2,7 @@ package com.parcha.spoilnot.feature.pantry.data
 
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
+import com.google.firebase.firestore.Source
 import com.parcha.spoilnot.core.coroutines.ApplicationScope
 import com.parcha.spoilnot.core.coroutines.SharedByKey
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
@@ -27,6 +28,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +37,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -99,6 +102,14 @@ class FirestorePantryRepository(
             read = read || !live.fromCache
             emit(live to read)
         }
+    }
+
+    override suspend fun removedBy(householdId: String, batchId: String): String? = try {
+        firestore.current.document("${stock(householdId)}/$batchId").get(Source.CACHE).await().getString("updatedBy")
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     override fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>> =
@@ -173,6 +184,7 @@ class FirestorePantryRepository(
             lastAddedQuantity = getDouble("lastAddedQuantity"),
             aliases = (get("aliases") as? List<*>)?.filterIsInstance<String>().orEmpty(),
             openedShelfLifeDays = getLong("openedShelfLifeDays")?.toInt(),
+            updatedBy = getString("updatedBy"),
         )
 
         fun DocumentSnapshot.toBatch() = StockBatch(
@@ -189,6 +201,7 @@ class FirestorePantryRepository(
             createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
             pendingSync = metadata.hasPendingWrites(),
             openedOn = getString("openedOn")?.let { parseDate(it) },
+            updatedBy = getString("updatedBy"),
         )
 
         fun DocumentSnapshot.toEvent(): PantryEvent? {

@@ -47,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,7 +109,6 @@ fun PantryScreen(
     var throwing by remember { mutableStateOf<StockBatch?>(null) }
     var moving by remember { mutableStateOf<StockBatch?>(null) }
     var opening by remember { mutableStateOf<StockBatch?>(null) }
-    var editing by remember { mutableStateOf<StockBatch?>(null) }
     val listState = rememberLazyListState()
 
     MessageEffect(viewModel.messages, snackbar, viewModel::undo)
@@ -159,7 +159,7 @@ fun PantryScreen(
                         actions = actions,
                         onOpen = { item ->
                             when (item) {
-                                is PantryItem.Purchase -> editing = item.batch
+                                is PantryItem.Purchase -> viewModel.openEdit(item.batch)
 
                                 is PantryItem.Out -> {
                                     addingFor = item.product
@@ -222,17 +222,22 @@ fun PantryScreen(
             onDismiss = { opening = null },
         )
     }
-    editing?.let { batch ->
-        val product = state.data.products.firstOrNull { it.id == batch.productId }
-        val others = state.data.batches.any { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
-        EditItemSheet(
-            batch = batch,
-            product = product,
-            canChangeUnit = !others,
-            today = state.today,
-            onSave = { viewModel.editItem(batch, it) { editing = null } },
-            onDismiss = { editing = null },
-        )
+    // The Edit window watches its item while open (after v1, DESIGN 9.2); the view model closes it when the item goes.
+    state.edit?.let { edit ->
+        key(edit.base.batch.id) {
+            EditItemSheet(
+                batch = edit.base.batch,
+                product = edit.base.product,
+                canChangeUnit = edit.canChangeUnit,
+                today = state.today,
+                onSave = viewModel::saveEdit,
+                onDismiss = viewModel::closeEdit,
+                base = edit.base.edit,
+                changed = edit.changed,
+                changedBy = edit.changedBy,
+                onReviewed = viewModel::reviewEdit,
+            )
+        }
     }
 }
 

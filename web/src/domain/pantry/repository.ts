@@ -13,4 +13,9 @@ export interface PantryRepository {
    * true once a full read of products and of stock is on record on this phone.
    */
   observeCached(householdId: string): Observable<PantryData>;
+  /**
+   * Who deleted `batchId`, from the tombstone in the local cache (no read is billed); null when it isn't there
+   * (after v1, DESIGN 9.2: the Edit window says who removed its item).
+   */
+  removedBy(householdId: string, batchId: string): Promise<string | null>;
 }

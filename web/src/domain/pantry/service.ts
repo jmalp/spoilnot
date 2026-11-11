@@ -13,7 +13,9 @@ import {
   type LocalDate,
 } from '../time';
 import type { Actor, HouseholdChange, HouseholdWriter, Undo } from '../write';
+import { itemEditOf, type ItemEditBase } from './edit-watch';
 import {
+  batchEditOf,
   PantryLimits,
   type BatchEdit,
   type Category,
@@ -159,7 +161,7 @@ export class PantryService {
         existing,
       );
       if (JSON.stringify(updated) !== JSON.stringify(existing))
-        changes.push({ type: 'pantry.updateProduct', product: updated });
+        changes.push({ type: 'pantry.updateProduct', product: updated, before: existing });
       product = updated;
     }
 
@@ -214,11 +216,28 @@ export class PantryService {
     };
   }
 
-  /** +1 or -1. Going to 0 or below uses the batch up, which can be undone. */
+  /**
+   * +1 or -1, always an increment, so presses on two phones add up (after v1, DESIGN 9.4). A -1 that takes this
+   * phone's copy to 0 takes what the copy has left, counts the purchase as used for Insights and can be undone. It
+   * doesn't delete the batch: whichever phone sees it at 0 on the server does (8.5 invariant 1), so an addition another
+   * member made meanwhile is kept.
+   */
   async adjust(householdId: string, actor: Actor, batch: StockBatch, delta: number): Promise<Undo | null> {
-    if (batch.quantity + delta <= 0) return this.usedUp(householdId, actor, batch);
-    await this.write(householdId, actor, [{ type: 'pantry.addToBatch', batchId: batch.id, delta }]);
-    return null;
+    if (batch.quantity + delta > 0) {
+      await this.write(householdId, actor, [{ type: 'pantry.addToBatch', batchId: batch.id, delta }]);
+      return null;
+    }
+    return this.takeTheRest(householdId, actor, batch, batch.quantity);
+  }
+
+  /** Takes [amount] off [batch], which this phone's copy says is all of it; Undo puts it back. */
+  private async takeTheRest(householdId: string, actor: Actor, batch: StockBatch, amount: number): Promise<Undo> {
+    const counted = StatsChanges.usedUp(this.today());
+    await this.write(householdId, actor, [{ type: 'pantry.addToBatch', batchId: batch.id, delta: -amount }, counted]);
+    return undoOf(
+      { type: 'pantry.addToBatch', batchId: batch.id, delta: amount, revive: true },
+      StatsChanges.undo(counted),
+    );
   }
 
   /** Deletes the batch and counts it as used for Insights (DESIGN 5.7). Undo restores it and the count. */
@@ -357,23 +376,14 @@ export class PantryService {
     return { changes: undo };
   }
 
-  /** Typed changes. A quantity of 0 uses the batch up. */
-  async edit(householdId: string, actor: Actor, batch: StockBatch, edit: BatchEdit): Promise<Undo | null> {
-    if (edit.quantity <= 0) return this.usedUp(householdId, actor, batch);
+  /** The Move action: the location only (after v1, DESIGN 9.4). */
+  async move(householdId: string, actor: Actor, batch: StockBatch, location: Location): Promise<null> {
+    const before = batchEditOf(batch);
+    if (before.location === location) return null;
     await this.write(householdId, actor, [
-      { type: 'pantry.updateBatch', batchId: batch.id, edit: { ...edit, note: cleanNote(edit.note) } },
+      { type: 'pantry.updateBatch', batchId: batch.id, before, after: { ...before, location } },
     ]);
     return null;
-  }
-
-  move(householdId: string, actor: Actor, batch: StockBatch, location: Location): Promise<Undo | null> {
-    return this.edit(householdId, actor, batch, {
-      quantity: batch.quantity,
-      expiryDate: batch.expiryDate,
-      dateType: batch.dateType,
-      location,
-      note: batch.note,
-    });
   }
 
   /**
@@ -408,7 +418,9 @@ export class PantryService {
       restockArmed: product.restockArmed || raised,
       typicalShelfLifeDays: edit.typicalShelfLifeDays,
     };
-    const changes: PantryChange[] = [{ type: 'pantry.updateProduct', product: updated }];
+    const changes: PantryChange[] = [];
+    if (JSON.stringify(updated) !== JSON.stringify(product))
+      changes.push({ type: 'pantry.updateProduct', product: updated, before: product });
     if (updated.name !== product.name || updated.unit !== product.unit || updated.category !== product.category) {
       for (const b of batches) {
         changes.push({
@@ -423,66 +435,94 @@ export class PantryService {
     await this.writer.apply(householdId, actor, changes);
   }
 
-  /** The Edit window in one write; a quantity of 0 uses the purchase up instead. */
+  /**
+   * The Edit window: the purchase's quantity, date and location, and its product's name, unit, category and restock
+   * settings, in one write. Only what the person changed from [base] (what the window opened with) is written, a
+   * changed quantity as an increment of the difference, so a change another member made meanwhile stays (after v1,
+   * DESIGN 9.4). A quantity of 0 takes what the window opened with off the purchase and can be undone.
+   */
   async editItem(
     householdId: string,
     actor: Actor,
-    batch: StockBatch,
+    base: ItemEditBase,
     edit: ItemEdit,
     data: PantryData,
   ): Promise<Undo | null> {
-    if (edit.quantity <= 0) return this.usedUp(householdId, actor, batch);
-    await this.writer.apply(householdId, actor, this.planEdit(batch, edit, data));
+    if (edit.quantity <= 0) return this.takeTheRest(householdId, actor, base.batch, base.batch.quantity);
+    const changes = this.planEdit(base, edit, data);
+    if (changes.length > 0) await this.writer.apply(householdId, actor, changes);
     return null;
   }
 
   /** The unit can change only when this is the product's only purchase (no unit conversion, DESIGN 2). */
-  planEdit(batch: StockBatch, edit: ItemEdit, data: PantryData): HouseholdChange[] {
+  planEdit(base: ItemEditBase, edit: ItemEdit, data: PantryData): HouseholdChange[] {
     const name = NameKey.clean(edit.name);
     requireName(name);
     const key = NameKey.of(name);
+    const batch = base.batch;
+    const was = itemEditOf(base);
+    const renamed = name !== NameKey.clean(was.name);
+    if (renamed && data.products.some((p) => p.id !== batch.productId && p.nameKey === key))
+      throw new AppError('nameTaken');
+    const changes: PantryChange[] = [];
+
+    const delta = edit.quantity - was.quantity;
+    if (delta !== 0) changes.push({ type: 'pantry.addToBatch', batchId: batch.id, delta });
+    const before = batchEditOf(batch);
+    const after: BatchEdit = {
+      ...before,
+      expiryDate: edit.expiryDate !== was.expiryDate ? edit.expiryDate : before.expiryDate,
+      location: edit.location !== was.location ? edit.location : before.location,
+    };
+    if (after.expiryDate !== before.expiryDate || after.location !== before.location)
+      changes.push({ type: 'pantry.updateBatch', batchId: batch.id, before, after });
+
+    // The product as this phone has it now; only the fields the person changed are set on it.
     const product = data.products.find((p) => p.id === batch.productId) ?? null;
-    if (data.products.some((p) => p.id !== batch.productId && p.nameKey === key)) throw new AppError('nameTaken');
     const others = data.batches.filter((b) => b.productId === batch.productId && b.id !== batch.id && b.quantity > 0);
-    const unit = others.length === 0 ? edit.unit : (product?.unit ?? batch.unit);
-    // An older staple (Keep at least without automatic add, from before the beta) keeps its Keep at least while
-    // the switch stays off: the form never showed it (DECISIONS 2026-11-09).
-    const keepOlder =
-      product !== null && !product.autoAddToGrocery && product.minQuantity !== null && !edit.autoAddToGrocery;
-    const min = keepOlder ? product.minQuantity : edit.autoAddToGrocery ? edit.minQuantity : null;
-    const changes: PantryChange[] = [
-      {
-        type: 'pantry.updateBatch',
-        batchId: batch.id,
-        edit: {
-          quantity: edit.quantity,
-          expiryDate: edit.expiryDate,
-          dateType: batch.dateType,
-          location: edit.location,
-          note: batch.note,
-        },
-      },
-    ];
+    const unitChanged = edit.unit !== was.unit && others.length === 0;
+    const categoryChanged = edit.category !== was.category;
+    const keepChanged =
+      edit.autoAddToGrocery !== was.autoAddToGrocery ||
+      edit.minQuantity !== was.minQuantity ||
+      edit.buyQuantity !== was.buyQuantity;
+    let updated: Product | null = product;
     if (product) {
-      const raised = min !== null && (product.minQuantity === null || min > product.minQuantity);
-      const updated: Product = {
-        ...product,
-        name,
-        nameKey: key,
-        category: edit.category,
-        unit,
-        minQuantity: min,
-        autoAddToGrocery: !keepOlder && min !== null,
-        buyQuantity: keepOlder ? product.buyQuantity : min !== null ? edit.buyQuantity : null,
-        restockArmed: product.restockArmed || raised,
-      };
-      if (JSON.stringify(updated) !== JSON.stringify(product))
-        changes.push({ type: 'pantry.updateProduct', product: updated });
+      let p: Product = product;
+      if (renamed) p = { ...p, name, nameKey: key };
+      if (unitChanged) p = { ...p, unit: edit.unit };
+      if (categoryChanged) p = { ...p, category: edit.category };
+      if (keepChanged) {
+        // An older staple (Keep at least without automatic add, from before the beta) keeps its Keep at least while
+        // the switch stays off: the form never showed it (DECISIONS 2026-11-09).
+        const keepOlder = !product.autoAddToGrocery && product.minQuantity !== null && !edit.autoAddToGrocery;
+        const min = keepOlder ? product.minQuantity : edit.autoAddToGrocery ? edit.minQuantity : null;
+        const raised = min !== null && (product.minQuantity === null || min > product.minQuantity);
+        p = {
+          ...p,
+          minQuantity: min,
+          autoAddToGrocery: !keepOlder && min !== null,
+          buyQuantity: keepOlder ? product.buyQuantity : min !== null ? edit.buyQuantity : null,
+          restockArmed: product.restockArmed || raised,
+        };
+      }
+      if (JSON.stringify(p) !== JSON.stringify(product))
+        changes.push({ type: 'pantry.updateProduct', product: p, before: product });
+      updated = p;
     }
     // Every purchase carries a copy of the product's name, unit and category (invariant 2).
-    if (name !== batch.productName || unit !== batch.unit || edit.category !== batch.category) {
+    if (renamed || unitChanged || categoryChanged) {
+      const copyName = updated?.name ?? name;
+      const copyUnit = updated?.unit ?? (unitChanged ? edit.unit : batch.unit);
+      const copyCategory = updated?.category ?? edit.category;
       for (const b of [...others, batch])
-        changes.push({ type: 'pantry.syncBatchProduct', batchId: b.id, name, unit, category: edit.category });
+        changes.push({
+          type: 'pantry.syncBatchProduct',
+          batchId: b.id,
+          name: copyName,
+          unit: copyUnit,
+          category: copyCategory,
+        });
     }
     return changes;
   }

@@ -237,7 +237,9 @@ service cloud.firestore {
             && optS(d, 'productId', 1, 100)
             && optS(d, 'productName', 1, 80)
             && optS(d, 'unit', 1, 20) && optS(d, 'category', 1, 40)
-            && d.quantity is number && d.quantity >= 0 && d.quantity <= 1000000000
+            // After v1 (DESIGN 8.5, 9.4): below 0 too. -1 and an edited quantity are increments, so two phones'
+            // last -1 can meet below 0; such a batch is hidden and removed like one at 0 (invariant 1).
+            && d.quantity is number && d.quantity >= -1000000000 && d.quantity <= 1000000000
             && optDate(d, 'expiryDate')
             && d.location in ['fridge', 'freezer', 'pantry', 'other']
             && d.dateType in ['use_by', 'best_before']

@@ -1,7 +1,9 @@
 // Products and batches (feature/pantry/data in the app): changes-only listeners and the writes of PantryChange.
 import {
   collection,
+  deleteField,
   doc,
+  getDocFromCache,
   increment,
   arrayUnion,
   serverTimestamp,
@@ -24,7 +26,15 @@ import {
 import type { PantryRepository } from '../domain/pantry/repository';
 import { isLocalDate } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
-import { cachedLiveDocuments, liveDocuments, Stamps, Tombstones, type LiveDocuments, type SyncLog } from './delta-sync';
+import {
+  cachedLiveDocuments,
+  changedFields,
+  liveDocuments,
+  Stamps,
+  Tombstones,
+  type LiveDocuments,
+  type SyncLog,
+} from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
 import { capTo, ReadCaps } from '../domain/caps';
@@ -62,6 +72,7 @@ export function toProduct(s: DocumentSnapshot): Product {
     lastAddedQuantity: num(s.get('lastAddedQuantity')),
     aliases: ((s.get('aliases') as unknown[] | null) ?? []).filter((v): v is string => typeof v === 'string'),
     openedShelfLifeDays: num(s.get('openedShelfLifeDays')),
+    updatedBy: str(s.get('updatedBy')),
   };
 }
 
@@ -80,6 +91,7 @@ export function toBatch(s: DocumentSnapshot): StockBatch {
     createdAt: millis(s, 'createdAt'),
     pendingSync: s.metadata.hasPendingWrites,
     openedOn: date(s.get('openedOn')),
+    updatedBy: str(s.get('updatedBy')),
   };
 }
 
@@ -99,6 +111,19 @@ export class FirestorePantryRepository implements PantryRepository {
 
   observe(householdId: string): Observable<PantryData> {
     return this.shared.get(householdId, () => this.listen(householdId));
+  }
+
+  /**
+   * Who deleted `batchId`, from the tombstone in the local cache (no read is billed); null when it isn't there (after
+   * v1, DESIGN 9.2: the Edit window says who removed its item).
+   */
+  async removedBy(householdId: string, batchId: string): Promise<string | null> {
+    try {
+      const snapshot = await getDocFromCache(doc(this.sdk.current, stock(householdId), batchId));
+      return str(snapshot.get('updatedBy'));
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -216,33 +241,33 @@ export const pantryMapper: ChangeMapper = {
       case 'pantry.addAlias':
         batch.update(product(change.productId), { aliases: arrayUnion(change.alias), ...stamp });
         break;
-      case 'pantry.updateProduct':
-        batch.set(product(change.product.id), { ...productFields(change.product), ...stamp }, { merge: true });
+      // Only what changed, so an edit never puts back what another member changed meanwhile (DESIGN 9.4).
+      case 'pantry.updateProduct': {
+        const changed = changedFields(productFields(change.before), productFields(change.product));
+        if (Object.keys(changed).length > 0)
+          batch.set(product(change.product.id), { ...changed, ...stamp }, { merge: true });
         break;
+      }
       case 'pantry.createBatch':
         batch.set(batchDoc(change.batch.id), { ...batchFields(change.batch), ...Stamps.created(actor), ...stamp });
         break;
+      // Undo removes the tombstone and nothing else: the document keeps every field, another member's change and
+      // fields a newer app added included, and its creator (DESIGN 8.6).
       case 'pantry.restoreBatch':
-        batch.set(batchDoc(change.batch.id), {
-          ...batchFields(change.batch),
-          ...stamp,
-          createdAt: change.batch.createdAt !== null ? Timestamp.fromMillis(change.batch.createdAt) : serverTimestamp(),
-          createdBy: actor.uid,
-        });
+        batch.set(batchDoc(change.batch.id), Tombstones.restore(actor), { merge: true });
         break;
       case 'pantry.addToBatch':
-        batch.update(batchDoc(change.batchId), { quantity: increment(change.delta), ...stamp });
-        break;
-      case 'pantry.updateBatch':
         batch.update(batchDoc(change.batchId), {
-          quantity: change.edit.quantity,
-          expiryDate: change.edit.expiryDate,
-          dateType: change.edit.dateType,
-          location: change.edit.location,
-          note: change.edit.note,
+          quantity: increment(change.delta),
           ...stamp,
+          ...(change.revive ? { deletedAt: deleteField() } : {}),
         });
         break;
+      case 'pantry.updateBatch': {
+        const changed = changedFields(change.before, change.after);
+        if (Object.keys(changed).length > 0) batch.update(batchDoc(change.batchId), { ...changed, ...stamp });
+        break;
+      }
       case 'pantry.markOpened':
         batch.update(batchDoc(change.batchId), { openedOn: change.openedOn, expiryDate: change.expiryDate, ...stamp });
         break;

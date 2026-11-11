@@ -75,7 +75,7 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
                 // An amount in another unit would be meaningless in this one.
                 lastAddedQuantity = if (unit == draft.unit) draft.quantity else existing.lastAddedQuantity,
             ).withKeepAtLeast(draft.minQuantity, draft.autoAddToGrocery, draft.buyQuantity, existing)
-            if (updated != existing) changes += PantryChange.UpdateProduct(updated)
+            if (updated != existing) changes += PantryChange.UpdateProduct(updated, existing)
             updated
         }
 
@@ -124,11 +124,25 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         )
     }
 
-    /** +1 or -1. Going to 0 or below uses the batch up, which can be undone. */
+    /**
+     * +1 or -1, always an increment, so presses on two phones add up (after v1, DESIGN 9.4). A -1 that takes this
+     * phone's copy to 0 takes what the copy has left, counts the purchase as used for Insights and can be undone. It
+     * doesn't delete the batch: whichever phone sees it at 0 on the server does (8.5 invariant 1), so an addition
+     * another member made meanwhile is kept.
+     */
     suspend fun adjust(householdId: String, actor: Actor, batch: StockBatch, delta: Double): Undo? {
-        if (batch.quantity + delta <= 0) return usedUp(householdId, actor, batch)
-        writer.apply(householdId, actor, listOf(PantryChange.AddToBatch(batch.id, delta)))
-        return null
+        if (batch.quantity + delta > 0) {
+            writer.apply(householdId, actor, listOf(PantryChange.AddToBatch(batch.id, delta)))
+            return null
+        }
+        return takeTheRest(householdId, actor, batch, batch.quantity)
+    }
+
+    /** Takes [amount] off [batch], which this phone's copy says is all of it; Undo puts it back. */
+    private suspend fun takeTheRest(householdId: String, actor: Actor, batch: StockBatch, amount: Double): Undo {
+        val counted = StatsChange.usedUp(today())
+        writer.apply(householdId, actor, listOf(PantryChange.AddToBatch(batch.id, -amount), counted))
+        return Undo(listOf(PantryChange.AddToBatch(batch.id, amount, revive = true), StatsChange.undo(counted)))
     }
 
     /** Deletes the batch and counts it as used for Insights (DESIGN 5.7). Undo restores it and the count. */
@@ -265,20 +279,12 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         return Undo(undo)
     }
 
-    /** Typed changes. A quantity of 0 uses the batch up. */
-    suspend fun edit(householdId: String, actor: Actor, batch: StockBatch, edit: BatchEdit): Undo? {
-        if (edit.quantity <= 0) return usedUp(householdId, actor, batch)
-        val clean = edit.copy(note = edit.note?.trim()?.take(PantryLimits.MAX_NOTE_LENGTH)?.ifEmpty { null })
-        writer.apply(householdId, actor, listOf(PantryChange.UpdateBatch(batch.id, clean)))
-        return null
+    /** The Move action: the location only (after v1, DESIGN 9.4). */
+    suspend fun move(householdId: String, actor: Actor, batch: StockBatch, location: Location) {
+        val before = BatchEdit.of(batch)
+        if (before.location == location) return
+        writer.apply(householdId, actor, listOf(PantryChange.UpdateBatch(batch.id, before, before.copy(location = location))))
     }
-
-    suspend fun move(householdId: String, actor: Actor, batch: StockBatch, location: Location) = edit(
-        householdId,
-        actor,
-        batch,
-        BatchEdit(batch.quantity, batch.expiryDate, batch.dateType, location, batch.note),
-    )
 
     /**
      * Product settings and rename (DESIGN 5.2 product detail). A rename is copied to every batch in the same write
@@ -312,7 +318,8 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
             restockArmed = product.restockArmed || raised,
             typicalShelfLifeDays = edit.typicalShelfLifeDays,
         )
-        val changes = mutableListOf<HouseholdChange>(PantryChange.UpdateProduct(updated))
+        val changes = mutableListOf<HouseholdChange>()
+        if (updated != product) changes += PantryChange.UpdateProduct(updated, product)
         if (updated.name != product.name || updated.unit != product.unit || updated.category != product.category) {
             batches.forEach {
                 changes +=
@@ -324,57 +331,80 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
 
     /**
      * The Edit window: the purchase's quantity, date and location, and its product's name, unit, category and restock
-     * settings, in one write. A quantity of 0 uses the purchase up instead. The unit can change only when this is the
-     * product's only purchase (no unit conversion, DESIGN 2).
+     * settings, in one write. Only what the person changed from [base] (what the window opened with) is written, a
+     * changed quantity as an increment of the difference, so a change another member made meanwhile stays (after v1,
+     * DESIGN 9.4). A quantity of 0 takes what the window opened with off the purchase and can be undone. The unit can
+     * change only when this is the product's only purchase (no unit conversion, DESIGN 2).
      */
     suspend fun editItem(
         householdId: String,
         actor: Actor,
-        batch: StockBatch,
+        base: ItemEditBase,
         edit: ItemEdit,
         data: PantryData,
     ): Undo? {
-        if (edit.quantity <= 0) return usedUp(householdId, actor, batch)
-        writer.apply(householdId, actor, planEdit(batch, edit, data))
+        if (edit.quantity <= 0) return takeTheRest(householdId, actor, base.batch, base.batch.quantity)
+        val changes = planEdit(base, edit, data)
+        if (changes.isNotEmpty()) writer.apply(householdId, actor, changes)
         return null
     }
 
-    fun planEdit(batch: StockBatch, edit: ItemEdit, data: PantryData): List<HouseholdChange> {
+    fun planEdit(base: ItemEditBase, edit: ItemEdit, data: PantryData): List<HouseholdChange> {
         val name = NameKey.clean(edit.name)
         require(name.isNotEmpty() && name.length <= PantryLimits.MAX_NAME_LENGTH) { "Invalid name" }
         val key = NameKey.of(name)
-        val product = data.products.firstOrNull { it.id == batch.productId }
-        if (data.products.any { it.id != batch.productId && it.nameKey == key }) throw AppError.NameTaken()
-        val others = data.batches.filter { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
-        val unit = if (others.isEmpty()) edit.unit else product?.unit ?: batch.unit
-        // An older staple (Keep at least without automatic add, from before the beta) keeps its Keep at least while
-        // the switch stays off: the form never showed it (DECISIONS 2026-11-09).
-        val older = product != null && !product.autoAddToGrocery && product.minQuantity != null
-        val keepOlder = older && !edit.autoAddToGrocery
-        val min = if (keepOlder) product?.minQuantity else edit.minQuantity?.takeIf { edit.autoAddToGrocery }
-        val changes = mutableListOf<HouseholdChange>(
-            PantryChange.UpdateBatch(
-                batch.id,
-                BatchEdit(edit.quantity, edit.expiryDate, batch.dateType, edit.location, batch.note),
-            ),
+        val batch = base.batch
+        val was = base.edit
+        val renamed = name != NameKey.clean(was.name)
+        if (renamed && data.products.any { it.id != batch.productId && it.nameKey == key }) throw AppError.NameTaken()
+        val changes = mutableListOf<HouseholdChange>()
+
+        val delta = edit.quantity - was.quantity
+        if (delta != 0.0) changes += PantryChange.AddToBatch(batch.id, delta)
+        val before = BatchEdit.of(batch)
+        val after = before.copy(
+            expiryDate = if (edit.expiryDate != was.expiryDate) edit.expiryDate else before.expiryDate,
+            location = if (edit.location != was.location) edit.location else before.location,
         )
+        if (after != before) changes += PantryChange.UpdateBatch(batch.id, before, after)
+
+        // The product as this phone has it now; only the fields the person changed are set on it.
+        val product = data.products.firstOrNull { it.id == batch.productId }
+        val others = data.batches.filter { it.productId == batch.productId && it.id != batch.id && it.quantity > 0 }
+        val unitChanged = edit.unit != was.unit && others.isEmpty()
+        val categoryChanged = edit.category != was.category
+        val keepChanged = edit.autoAddToGrocery != was.autoAddToGrocery || edit.minQuantity != was.minQuantity ||
+            edit.buyQuantity != was.buyQuantity
+        var updated = product
         if (product != null) {
-            val raised = min != null && (product.minQuantity == null || min > product.minQuantity)
-            val updated = product.copy(
-                name = name,
-                nameKey = key,
-                category = edit.category,
-                unit = unit,
-                minQuantity = min,
-                autoAddToGrocery = !keepOlder && min != null,
-                buyQuantity = if (keepOlder) product.buyQuantity else edit.buyQuantity?.takeIf { min != null },
-                restockArmed = product.restockArmed || raised,
-            )
-            if (updated != product) changes += PantryChange.UpdateProduct(updated)
+            var p: Product = product
+            if (renamed) p = p.copy(name = name, nameKey = key)
+            if (unitChanged) p = p.copy(unit = edit.unit)
+            if (categoryChanged) p = p.copy(category = edit.category)
+            if (keepChanged) {
+                // An older staple (Keep at least without automatic add, from before the beta) keeps its Keep at least
+                // while the switch stays off: the form never showed it (DECISIONS 2026-11-09).
+                val keepOlder = !product.autoAddToGrocery && product.minQuantity != null && !edit.autoAddToGrocery
+                val min = if (keepOlder) product.minQuantity else edit.minQuantity?.takeIf { edit.autoAddToGrocery }
+                val raised = min != null && (product.minQuantity == null || min > product.minQuantity)
+                p = p.copy(
+                    minQuantity = min,
+                    autoAddToGrocery = !keepOlder && min != null,
+                    buyQuantity = if (keepOlder) product.buyQuantity else edit.buyQuantity?.takeIf { min != null },
+                    restockArmed = product.restockArmed || raised,
+                )
+            }
+            if (p != product) changes += PantryChange.UpdateProduct(p, product)
+            updated = p
         }
         // Every purchase carries a copy of the product's name, unit and category (invariant 2).
-        if (name != batch.productName || unit != batch.unit || edit.category != batch.category) {
-            (others + batch).forEach { changes += PantryChange.SyncBatchProduct(it.id, name, unit, edit.category) }
+        if (renamed || unitChanged || categoryChanged) {
+            val copyName = updated?.name ?: name
+            val copyUnit = updated?.unit ?: if (unitChanged) edit.unit else batch.unit
+            val copyCategory = updated?.category ?: edit.category
+            (others + batch).forEach {
+                changes += PantryChange.SyncBatchProduct(it.id, copyName, copyUnit, copyCategory)
+            }
         }
         return changes
     }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -45,6 +46,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -79,10 +81,11 @@ import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.SEGMENTED_STACK_FONT_SCALE
 import com.parcha.spoilnot.core.designsystem.component.Segmented
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
-import com.parcha.spoilnot.feature.pantry.domain.BatchEdit
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.ItemEdit
+import com.parcha.spoilnot.feature.pantry.domain.ItemEditBase
+import com.parcha.spoilnot.feature.pantry.domain.ItemEditWatch
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
@@ -251,6 +254,11 @@ fun AddItemForm(
  * category and grocery settings. The unit can change only when this is the product's only purchase.
  */
 @OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The Edit window on [batch] and its [product], as it compares with them ([base], DESIGN 9.4). When someone else
+ * changed the item ([changed], the item as it is now), it keeps the draft and says so (9.2); Review shows the item as
+ * it is now with this person's changes kept, and hands [changed] to [onReviewed].
+ */
 @Composable
 fun EditItemSheet(
     batch: StockBatch,
@@ -259,6 +267,10 @@ fun EditItemSheet(
     today: LocalDate,
     onSave: (ItemEdit) -> Unit,
     onDismiss: () -> Unit,
+    base: ItemEdit = ItemEdit.of(batch, product),
+    changed: ItemEditBase? = null,
+    changedBy: String? = null,
+    onReviewed: (ItemEditBase) -> Unit = {},
 ) {
     val sheet = rememberFormSheet()
     val form = rememberSaveable(saver = ItemFormState.Saver) {
@@ -308,6 +320,16 @@ fun EditItemSheet(
                 )
             },
         ) {
+            if (changed != null) {
+                ChangedNotice(
+                    text = changedBy?.let { stringResource(R.string.edit_changed_by, it) }
+                        ?: stringResource(R.string.edit_changed),
+                    onReview = {
+                        form.review(base, changed)
+                        onReviewed(changed)
+                    },
+                )
+            }
             ItemFields(
                 form = form,
                 products = emptyList(),
@@ -317,6 +339,61 @@ fun EditItemSheet(
                 allowZero = true,
             )
         }
+    }
+}
+
+/** "Sam changed this item." with Review (DESIGN 9.2); the words say it, not a color (6.8). */
+@Composable
+private fun ChangedNotice(text: String, onReview: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().testTag("notice_item_changed"),
+    ) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp).heightIn(min = 48.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.Rounded.Sync, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = onReview, modifier = Modifier.testTag("button_review_changes")) {
+                Text(stringResource(R.string.action_review))
+            }
+        }
+    }
+}
+
+/**
+ * Review: the fields the person didn't touch take the item's values as they are now ([live]); the ones they changed
+ * keep theirs, and a changed quantity keeps its difference (ItemEditWatch.rebase).
+ */
+private fun ItemFormState.review(base: ItemEdit, live: ItemEditBase) {
+    val now = live.edit
+    val draft = ItemEdit(
+        name = name,
+        quantity = qty ?: base.quantity,
+        unit = unit,
+        category = category,
+        expiryDate = expiry,
+        location = location,
+        autoAddToGrocery = autoAdd,
+        minQuantity = min.takeIf { autoAdd },
+        buyQuantity = buy.takeIf { autoAdd },
+    )
+    val rebased = ItemEditWatch.rebase(draft, base, now)
+    if (rebased.name != draft.name) name = rebased.name
+    if (qty != null) quantity = formatQuantity(rebased.quantity)
+    unit = rebased.unit
+    category = rebased.category
+    expiry = rebased.expiryDate
+    location = rebased.location
+    val keepUntouched = draft.autoAddToGrocery == base.autoAddToGrocery && draft.minQuantity == base.minQuantity &&
+        draft.buyQuantity == base.buyQuantity
+    if (keepUntouched) {
+        autoAdd = now.autoAddToGrocery
+        keepAtLeast = live.product?.minQuantity?.let(::formatQuantity).orEmpty()
+        buyQuantity = live.product?.buyQuantity?.let(::formatQuantity).orEmpty()
     }
 }
 

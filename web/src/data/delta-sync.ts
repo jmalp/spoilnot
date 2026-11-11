@@ -1,5 +1,6 @@
 // Changes-only listeners (DESIGN 9.8; core/firebase/DeltaSync in the app). See domain/sync.ts for the cursor.
 import {
+  deleteField,
   getDocsFromCache,
   limit as limitTo,
   onSnapshot,
@@ -43,12 +44,30 @@ export const Stamps = {
 };
 
 /** Deleted household documents: the document stays, marked with deletedAt, until the daily job (2 days). */
+/**
+ * The fields of `after` whose values differ from `before`: what an edit writes, so it never puts back a field another
+ * member changed meanwhile (after v1, DESIGN 9.4).
+ */
+export function changedFields<T extends Record<string, unknown>>(before: T, after: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const key of Object.keys(after) as (keyof T)[]) {
+    if (JSON.stringify(after[key]) !== JSON.stringify(before[key])) out[key] = after[key];
+  }
+  return out;
+}
+
 export const Tombstones = {
   FIELD: 'deletedAt',
   fields: (actor: Actor) => ({ deletedAt: serverTimestamp(), ...Stamps.updated(actor) }),
   /**
+   * Undo of a deletion, merged into the tombstone: removes deletedAt and stamps the write, and changes nothing else
+   * (after v1, DESIGN 8.6). The tombstone kept every field, so the document comes back as it is on the server, with
+   * fields this app doesn't know, its createdBy and any change another member made meanwhile.
+   */
+  restore: (actor: Actor) => ({ deletedAt: deleteField(), ...Stamps.updated(actor) }),
+  /**
    * Deleted means deletedAt holds a time, the phone's estimate included: until the server confirms an offline delete,
-   * the default read gives null and the document would stay on screen (DESIGN 9.8). Undo removes the field.
+   * the default read gives null and the document would stay on screen (DESIGN 9.8). Undo removes the field (restore).
    */
   is: (snapshot: DocumentSnapshot) => snapshot.get('deletedAt', { serverTimestamps: 'estimate' }) != null,
 };

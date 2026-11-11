@@ -12,16 +12,26 @@ import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
 import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.changedFields
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository.Companion.items
 import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository.Companion.lists
 import com.parcha.spoilnot.feature.grocery.domain.GroceryChange
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
+import com.parcha.spoilnot.feature.grocery.domain.GroceryItemFields
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import javax.inject.Inject
+
+/** What the grocery Edit sheet sets, as written (after v1: only the ones that changed are). */
+internal fun itemEditFields(f: GroceryItemFields): Map<String, Any?> = mapOf(
+    "quantity" to f.quantity,
+    "unit" to f.unit?.wire,
+    "note" to f.note,
+    "category" to f.category?.wire,
+)
 
 /** Firestore writes for [GroceryChange]s. */
 class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
@@ -69,23 +79,18 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     itemFields(change.item) + Stamps.created(actor) + stamp,
                 )
 
+            // Undo removes the tombstone and nothing else (DESIGN 8.6): checked, who checked it, its creator and
+            // fields a newer app added stay as the server has them.
             is GroceryChange.RestoreItem -> batch.set(
                 item(db, hid, change.listId, change.item.id),
-                itemFields(change.item) + stamp + mapOf(
-                    "createdAt" to (change.item.createdAt?.let { Timestamp(it) } ?: FieldValue.serverTimestamp()),
-                    "createdBy" to (change.item.createdBy ?: actor.uid),
-                ),
+                Tombstones.restore(actor),
+                SetOptions.merge(),
             )
 
-            is GroceryChange.UpdateItem -> batch.update(
-                item(db, hid, change.listId, change.itemId),
-                mapOf(
-                    "quantity" to change.quantity,
-                    "unit" to change.unit?.wire,
-                    "note" to change.note,
-                    "category" to change.category?.wire,
-                ) + stamp,
-            )
+            is GroceryChange.UpdateItem -> {
+                val changed = changedFields(itemEditFields(change.before), itemEditFields(change.after))
+                if (changed.isNotEmpty()) batch.update(item(db, hid, change.listId, change.itemId), changed + stamp)
+            }
 
             is GroceryChange.RenameItem -> batch.update(
                 item(db, hid, change.listId, change.itemId),
