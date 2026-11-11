@@ -45,7 +45,7 @@ class EditConflictFlowTest {
     private val today: LocalDate = LocalDate.now()
 
     @Before
-    fun setUp() = runBlocking {
+    fun setUp() = runBlocking<Unit> {
         EmulatorSupport.requireEmulatorAndNetworkAccess()
         alice = TestPhone("alice")
         bob = TestPhone("bob")
@@ -92,7 +92,7 @@ class EditConflictFlowTest {
     }
 
     @Test
-    fun theEditWindowKeepsAnotherMembersUseAndSaysSo() = runBlocking {
+    fun theEditWindowKeepsAnotherMembersUseAndSaysSo() = runBlocking<Unit> {
         // p05: Alice opens Milk x3; Bob uses 2; Alice changes only the date and saves.
         val milk = addMilk(3.0)
         val opened = alice.pantryData { d -> d.batches.any { it.id == milk.id } }
@@ -113,7 +113,7 @@ class EditConflictFlowTest {
     }
 
     @Test
-    fun theEditWindowLearnsWhoRemovedItsItem() = runBlocking {
+    fun theEditWindowLearnsWhoRemovedItsItem() = runBlocking<Unit> {
         // p08: Bob throws the milk away while Alice has it open.
         val milk = addMilk(2.0)
         val opened = alice.pantryData { d -> d.batches.any { it.id == milk.id } }
@@ -126,7 +126,7 @@ class EditConflictFlowTest {
     }
 
     @Test
-    fun minusOneOnAnOfflinePhoneKeepsWhatAnotherMemberAdded() = runBlocking {
+    fun minusOneOnAnOfflinePhoneKeepsWhatAnotherMemberAdded() = runBlocking<Unit> {
         // p04: Yogurt x1 on both phones; Alice goes offline; Bob adds 2; Alice, still seeing 1, presses -1.
         val milk = addMilk(1.0)
         alice.pantryData { d -> d.batches.any { it.id == milk.id } }
@@ -148,7 +148,7 @@ class EditConflictFlowTest {
     }
 
     @Test
-    fun undoAfterAnotherMembersChangeKeepsItAndTheCreator() = runBlocking {
+    fun undoAfterAnotherMembersChangeKeepsItAndTheCreator() = runBlocking<Unit> {
         // Alice created the milk. Bob throws it away; Alice's offline phone, which hadn't seen that, uses 1; Bob
         // presses Undo after Alice's change has reached the server.
         val milk = addMilk(3.0)
@@ -171,7 +171,7 @@ class EditConflictFlowTest {
     }
 
     @Test
-    fun undoOfALastMinusOneBringsBackABatchAnotherPhoneRemoved() = runBlocking {
+    fun undoOfALastMinusOneBringsBackABatchAnotherPhoneRemoved() = runBlocking<Unit> {
         val milk = addMilk(1.0)
         val undo = checkNotNull(alice.pantry.adjust(householdId, alice.actor, milk, -1.0))
         alice.flush()

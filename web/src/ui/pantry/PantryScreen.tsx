@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { catchError, map, of } from 'rxjs';
+import { catchError, firstValueFrom, map, of, timeout } from 'rxjs';
 import { messageId } from '../../core/errors';
 import { pushStatus } from '../../core/push';
 import { useObservable, useToday } from '../../core/hooks';
@@ -39,6 +39,9 @@ const FILTERS: [PantryFilter, StringId][] = [
 ];
 
 /** The Pantry tab (DESIGN 5.2): search, filters, one row per purchase, swipe and menu actions with Undo. */
+/** How long the Edit window waits for the member list to name who removed its item. */
+const MEMBER_NAME_WAIT_MS = 3_000;
+
 export function PantryScreen({
   onOpenSettings,
   joinRequests,
@@ -144,10 +147,21 @@ export function PantryScreen({
       const who = removed.byUid ?? (await pantry.removedBy(hid, editing.batch.id));
       setEditing((open) => (open === editing ? null : open));
       if (who === me.user.uid) return;
-      const name = who !== null ? (members.get(who) ?? null) : null;
+      // The member list starts with the window, so a removal right after opening it may come first: wait a moment.
+      const name =
+        who === null
+          ? null
+          : (members.get(who) ??
+            (await firstValueFrom(
+              households.observeMembers(hid).pipe(
+                map((all) => all.find((m) => m.uid === who)?.displayName ?? null),
+                timeout(MEMBER_NAME_WAIT_MS),
+                catchError(() => of(null)),
+              ),
+            )));
       snackbars.show(name !== null ? str('edit_removed_by', name) : str('edit_removed'));
     })();
-  }, [editing, removed, pantry, hid, me.user.uid, members, snackbars]);
+  }, [editing, removed, pantry, households, hid, me.user.uid, members, snackbars]);
 
   const groups = data ? PantryItems.build(data.products, data.batches, query, today) : [];
   const empty = data !== null && PantryItems.all(data.products, data.batches, today).length === 0;

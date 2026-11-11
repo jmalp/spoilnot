@@ -52,6 +52,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -63,6 +64,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** "Today" in the user's calendar, re-checked every minute so statuses roll over at midnight. */
 fun todayFlow(clock: Clock): Flow<LocalDate> = flow {
@@ -78,7 +80,7 @@ fun todayFlow(clock: Clock): Flow<LocalDate> = flow {
 class PantryViewModel @Inject constructor(
     session: SessionManager,
     private val repository: PantryRepository,
-    households: HouseholdRepository,
+    private val households: HouseholdRepository,
     writer: HouseholdWriter,
     private val service: PantryService,
     clock: Clock,
@@ -197,7 +199,14 @@ class PantryViewModel @Inject constructor(
         viewModelScope.launch {
             val who = removed.byUid ?: repository.removedBy(hid, base.batch.id)
             if (who == myUid()) return@launch
-            val name = who?.let(names::get)
+            // The member list starts with the window, so a removal right after opening it may come first: wait a
+            // moment.
+            val name = who?.let { uid ->
+                names[uid] ?: withTimeoutOrNull(MEMBER_NAME_WAIT_MS) {
+                    runCatching { households.observeMembers(hid).first().firstOrNull { it.uid == uid } }
+                        .getOrNull()?.displayName
+                }
+            }
             _messages.send(
                 if (name != null) {
                     UiMessage(R.string.edit_removed_by, name)
@@ -328,6 +337,9 @@ class PantryViewModel @Inject constructor(
         }
     }
 }
+
+/** How long the Edit window waits for the member list to name who removed its item. */
+internal const val MEMBER_NAME_WAIT_MS = 3_000L
 
 /** Dated items in the pantry before the app explains notifications and asks for permission (after v1). */
 internal const val NOTIFICATION_PROMPT_DATED = 3

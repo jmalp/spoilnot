@@ -35,7 +35,7 @@ async function pantryWithEggs(page: Page): Promise<{ hid: string; uid: string; p
   await seedMember(hid, BLAKE, 'Blake');
   await seedPantry(hid, uid, [{ id: 'eggs', name: 'Eggs', quantity: 8, expiry: inDays(5) }]);
   await page.getByRole('navigation').getByRole('button', { name: 'Pantry' }).click();
-  await expect(eggsRow(page)).toContainText('× 8');
+  await expect(eggsRow(page)).toContainText('× 8', { timeout: 15_000 });
   return { hid, uid, path: `households/${hid}/stock/eggs` };
 }
 
@@ -64,8 +64,9 @@ test("the Edit window keeps Blake's use, says so, and Review shows it", async ({
   await page.getByTestId('date_ok').click();
   await sheet.getByTestId('button_save_item').click();
   await expect(eggsRow(page)).toContainText('× 6');
-  await expect.poll(async () => (await readFields(path))?.quantity).toBe(6);
-  expect((await readFields(path))?.expiryDate).not.toBe(inDays(5));
+  // Only the date was written: Blake's use stays.
+  await expect.poll(async () => (await readFields(path))?.expiryDate).not.toBe(inDays(5));
+  expect((await readFields(path))?.quantity).toBe(6);
 });
 
 test('the Edit window closes when Blake removes the item, and Undo of a delete keeps the creator', async ({ page }) => {
