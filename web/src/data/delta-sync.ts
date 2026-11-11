@@ -25,6 +25,7 @@ import {
   map,
   Observable,
   of,
+  retry,
   switchMap,
   tap,
   throwError,
@@ -230,16 +231,41 @@ async function cachedEmpty(scope: Query): Promise<boolean> {
   return cached === null || cached.empty;
 }
 
-/** A listener on the local cache only: free, and updated by local writes and by every other listener. */
+/**
+ * A listener on the local cache only: free, and updated by local writes and by every other listener.
+ *
+ * The SDK gives a server listener's refusal to every listener of the same query, this one included. A new household's
+ * first read uses the same query for both, and right after creating or joining it the server can refuse until the
+ * membership write lands (retryAfterOwnWrites). So a refusal here is listened again, like the server listener's, at most
+ * CACHE_RETRIES times; a refusal that lasts reaches the screen through the server listener anyway.
+ */
 function cacheSnapshots(scope: Query): Observable<QuerySnapshot> {
-  return new Observable((subscriber) =>
+  return new Observable<QuerySnapshot>((subscriber) =>
     onSnapshot(
       scope,
       { includeMetadataChanges: true, source: 'cache' },
       (snapshot) => subscriber.next(snapshot),
       (error) => subscriber.error(toAppError(error)),
     ),
-  );
+  ).pipe(retryCacheRefusals());
+}
+
+/** How often, and after how long, a cache listener listens again after a server refusal of the same query. */
+export const CACHE_RETRIES = 10;
+const CACHE_RETRY_DELAY_MS = 250;
+
+/** A cache listener's share of a server refusal is listened again (cacheSnapshots); other errors pass. */
+export function retryCacheRefusals<T>() {
+  return (source: Observable<T>): Observable<T> =>
+    source.pipe(
+      retry({
+        count: CACHE_RETRIES,
+        delay: (error: unknown, attempt) => {
+          if (!isAppError(error, 'permissionDenied')) throw error;
+          return timer(CACHE_RETRY_DELAY_MS * attempt);
+        },
+      }),
+    );
 }
 
 /**
