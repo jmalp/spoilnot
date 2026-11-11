@@ -35,15 +35,22 @@ jobs:
       group: expiry-reminders-${{ matrix.project }}
       cancel-in-progress: false
 
+    # The secrets live in the `production` environment, which only `main` can use (DESIGN 12.2 control 8).
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
           cache: npm
           cache-dependency-path: backend/reminder/package-lock.json
+      # Install and build without the key, and without packages' install scripts (none is needed): only the step
+      # that runs the job gets the secret (docs/RUNBOOK.md, "How the jobs get their keys").
+      - name: Install and build
+        working-directory: backend/reminder
+        run: npm ci --ignore-scripts && npm run build
       - name: Run the reminder job
         working-directory: backend/reminder
         env:
@@ -51,4 +58,4 @@ jobs:
           EXPECTED_PROJECT: ${{ matrix.project }}
           # Scheduled runs are live; manual runs default to a dry run.
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
-        run: npm ci && npm run build && node dist/main.js
+        run: node dist/main.js
