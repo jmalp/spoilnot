@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays } from '../time';
 import { meal, THURSDAY } from './fixtures';
 import { MEAL_SLOTS } from './models';
-import { dayOfWeek, firstDayOfWeek, MealWeek, PlanDays } from './week';
+import { dayOfWeek, firstDayOfWeek, isWeekStart, MealWeek, PlanDays, regionFirstDay, weekFirstDay } from './week';
 
 describe('MealWeek', () => {
   it("the week starts on the phone's first day", () => {
@@ -20,6 +20,29 @@ describe('MealWeek', () => {
     expect(firstDayOfWeek('en-GB')).toBe(1);
     expect(firstDayOfWeek('es-ES')).toBe(1);
     expect(firstDayOfWeek('not a locale!')).toBe(1);
+  });
+
+  it('without Intl week info, the fallback lists know Sunday and Saturday regions (WEB-08)', () => {
+    expect(regionFirstDay('US')).toBe(7);
+    expect(regionFirstDay('EG')).toBe(6);
+    expect(regionFirstDay('IR')).toBe(6);
+    expect(regionFirstDay('AE')).toBe(6);
+    expect(regionFirstDay('DE')).toBe(1);
+    expect(regionFirstDay(undefined)).toBe(1);
+  });
+
+  it('Week starts on: Automatic follows the region, a chosen day wins over it (WEB-08)', () => {
+    expect(weekFirstDay('auto', 'en-US')).toBe(7);
+    expect(weekFirstDay('auto', 'en-GB')).toBe(1);
+    expect(weekFirstDay('monday', 'en-US')).toBe(1);
+    expect(weekFirstDay('sunday', 'de-DE')).toBe(7);
+    expect(weekFirstDay('saturday', 'en-US')).toBe(6);
+    // A Monday week in the US: Thursday Oct 29 is in the week from Monday Oct 26.
+    expect(MealWeek.start(THURSDAY, weekFirstDay('monday', 'en-US'))).toBe('2026-10-26');
+    expect(MealWeek.start(THURSDAY, weekFirstDay('saturday', 'en-US'))).toBe('2026-10-24');
+    expect(isWeekStart('monday')).toBe(true);
+    expect(isWeekStart('friday')).toBe(false);
+    expect(isWeekStart(null)).toBe(false);
   });
 
   it('seven days, each with three slots, meals ordered by position then creation', () => {

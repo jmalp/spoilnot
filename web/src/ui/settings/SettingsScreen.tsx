@@ -48,7 +48,7 @@ export function SettingsScreen({
 }) {
   const me = useHouseholdSession();
   const { session, auth, users, households, exporter, preferences, clock } = useServices();
-  const { themeMode, colorTheme } = usePreferences();
+  const { themeMode, colorTheme, weekStart } = usePreferences();
   const snackbars = useSnackbars();
   const action = useAction();
   const [verified, setVerified] = useState(me.user.emailVerified);
@@ -146,9 +146,11 @@ export function SettingsScreen({
           themeMode={themeMode}
           colorTheme={colorTheme}
           units={me.units}
+          weekStart={weekStart}
           onThemeMode={(mode) => preferences.set({ themeMode: mode })}
           onColorTheme={(theme) => preferences.set({ colorTheme: theme })}
           onUnits={(units) => void action.run(() => users.setUnits(me.user.uid, units))}
+          onWeekStart={(choice) => preferences.set({ weekStart: choice })}
         />
         <DataCard
           busy={action.busy}

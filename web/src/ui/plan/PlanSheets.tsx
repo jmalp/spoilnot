@@ -14,6 +14,7 @@ import { BottomSheet, Button, Dialog, FilterChip, Icon, IconButton, TextField } 
 import { FormSheetColumn } from '../pantry/ItemForm';
 import { CandidateRow, RenameDialog } from '../recipes/RecipeSheets';
 import { dayTitle, shortDay, slotLabel } from './components';
+import type { AddMealDraft, MealDraft } from './planDrafts';
 import './plan.css';
 
 /** Most recipes the picker lists at once; searching narrows it. */
@@ -54,11 +55,12 @@ function CookPicker({
 
 /**
  * Adding to a slot (DESIGN 5.9): who cooks, then a saved recipe (searchable) or something else typed in ("Leftovers").
- * Tapping a recipe adds it at once. Recipes that use food expiring soon come first, under Use it up.
+ * Tapping a recipe adds it at once. Recipes that use food expiring soon come first, under Use it up. The slot, cooks
+ * and typed meal are the screen's [draft], kept through a reload (after v1, REL-09).
  */
 export function AddMealSheet({
-  date,
-  slot,
+  draft,
+  onDraft,
   recipes,
   useItUp,
   members,
@@ -67,8 +69,8 @@ export function AddMealSheet({
   onAddOther,
   onDismiss,
 }: {
-  date: LocalDate;
-  slot: MealSlot;
+  draft: AddMealDraft;
+  onDraft: (change: Partial<AddMealDraft>) => void;
   recipes: Recipe[];
   useItUp: UseItUpSuggestion[];
   members: Member[];
@@ -77,9 +79,10 @@ export function AddMealSheet({
   onAddOther: (title: string, cooks: string[]) => void;
   onDismiss: () => void;
 }) {
-  const [cooks, setCooks] = useState<string[]>([]);
+  const { date, slot, cooks, other } = draft;
+  const setCooks = (picked: string[]) => onDraft({ cooks: picked });
+  const setOther = (text: string) => onDraft({ other: text });
   const [search, setSearch] = useState('');
-  const [other, setOther] = useState('');
   const key = NameKey.of(search);
   const shown = recipes.filter((r) => key === '' || NameKey.of(r.content.title).includes(key));
   const title = str('plan_add_title', slotLabel(slot), dayTitle(date));
@@ -167,6 +170,8 @@ export function AddMealSheet({
 /** A planned meal: servings, who cooks and a note, Cooked, Move, its recipe, and removing it (with Undo). */
 export function MealSheet({
   meal,
+  draft,
+  onDraft,
   members,
   myUid,
   recipeExists,
@@ -180,6 +185,9 @@ export function MealSheet({
   onDismiss,
 }: {
   meal: PlannedMeal;
+  /** Servings, cooks and note as changed so far, kept through a reload (after v1, REL-09). */
+  draft: MealDraft;
+  onDraft: (change: Partial<MealDraft>) => void;
   members: Member[];
   myUid: string;
   recipeExists: boolean;
@@ -192,9 +200,10 @@ export function MealSheet({
   onRemove: () => void;
   onDismiss: () => void;
 }) {
-  const [servings, setServings] = useState(meal.servings);
-  const [cooks, setCooks] = useState(meal.cooks);
-  const [note, setNote] = useState(meal.note ?? '');
+  const { servings, cooks, note } = draft;
+  const setServings = (count: number | null) => onDraft({ servings: count });
+  const setCooks = (picked: string[]) => onDraft({ cooks: picked });
+  const setNote = (text: string) => onDraft({ note: text });
   const [moving, setMoving] = useState(false);
   const cookedBy =
     meal.cookedBy === null

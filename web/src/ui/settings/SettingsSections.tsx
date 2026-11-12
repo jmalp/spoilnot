@@ -4,11 +4,13 @@ import { str, type StringId } from '../../core/i18n';
 import { THEME_MODES, type ThemeMode } from '../../core/preferences';
 import { usePreferences } from '../../core/services';
 import type { Units } from '../../domain/account';
+import { firstDayOfWeek, WEEK_STARTS, weekFirstDay, type WeekStart } from '../../domain/plan/week';
 import { isDark, systemDark } from '../../theme/follow';
 import { appliedTextScale } from '../../theme/textScale';
 import type { ThemeId } from '../../theme/theme';
 import { SCHEMES, THEME_IDS } from '../../theme/tokens.generated';
-import { Button, Card, Icon, ListItem, Segmented } from '../kit';
+import { Button, Card, Icon, ListItem, Segmented, SelectField } from '../kit';
+import { weekdayName } from '../plan/components';
 import './settings.css';
 
 function CardTitle({ text }: { text: string }) {
@@ -23,21 +25,36 @@ function useDarkTheme(): boolean {
 
 const UNITS: readonly Units[] = ['metric', 'imperial'];
 
-/** System, Light or Dark; the color theme (DESIGN 6.4); metric or imperial (DESIGN 5.6). */
+/** "Automatic (Sunday)", "Monday": Week starts on's choices, named in the phone's language. */
+function weekStartLabel(choice: WeekStart): string {
+  const locale = typeof navigator === 'undefined' ? 'en-US' : navigator.language;
+  return choice === 'auto'
+    ? str('web_week_start_auto', weekdayName(firstDayOfWeek(locale)))
+    : weekdayName(weekFirstDay(choice, locale));
+}
+
+/**
+ * System, Light or Dark; the color theme (DESIGN 6.4); metric or imperial (DESIGN 5.6); and on the web the first day
+ * of Plan's week (5.9, 18.1; after v1, WEB-08).
+ */
 export function AppearanceCard({
   themeMode,
   colorTheme,
   units,
+  weekStart,
   onThemeMode,
   onColorTheme,
   onUnits,
+  onWeekStart,
 }: {
   themeMode: ThemeMode;
   colorTheme: ThemeId;
   units: Units;
+  weekStart: WeekStart;
   onThemeMode: (mode: ThemeMode) => void;
   onColorTheme: (theme: ThemeId) => void;
   onUnits: (units: Units) => void;
+  onWeekStart: (weekStart: WeekStart) => void;
 }) {
   return (
     <Card data-testid="card_appearance">
@@ -59,6 +76,15 @@ export function AppearanceCard({
           optionLabel={(u) => str(`units_${u}` as StringId)}
           onPick={onUnits}
           testId="units"
+        />
+        <SelectField
+          label={str('web_week_start')}
+          value={weekStart}
+          options={WEEK_STARTS}
+          optionLabel={weekStartLabel}
+          onPick={onWeekStart}
+          supportingText={str('web_week_start_help')}
+          testId="week_start"
         />
       </div>
     </Card>

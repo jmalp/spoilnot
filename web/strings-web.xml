@@ -30,4 +30,8 @@
     <string name="web_install_title">Add Spoil Not to your Home Screen</string>
     <string name="web_install_body">In Safari, tap Share, then Add to Home Screen. Spoil Not then opens full screen and can remind you before food expires.</string>
     <string name="web_install_later">Not now</string>
+    <!-- Settings > Appearance > Week starts on (DESIGN 5.9, 18.1): Android follows the phone's own setting, which a web app cannot read. %1$s is a weekday name. -->
+    <string name="web_week_start">Week starts on</string>
+    <string name="web_week_start_auto">Automatic (%1$s)</string>
+    <string name="web_week_start_help">The first day of each week in Plan. Automatic follows this phone\'s region.</string>
 </resources>

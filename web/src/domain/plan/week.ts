@@ -17,6 +17,16 @@ const SUNDAY_REGIONS = new Set(
   ),
 );
 
+/** Regions whose weeks start on Saturday (CLDR), for browsers without Intl week info (after v1, WEB-08). */
+const SATURDAY_REGIONS = new Set('AE AF BH DJ DZ EG IQ IR JO KW LY OM QA SD SY'.split(' '));
+
+/** The first day of the week in [region] (an ISO 3166 code) by the fallback lists; Monday when unknown. */
+export function regionFirstDay(region: string | undefined): DayOfWeek {
+  if (region && SUNDAY_REGIONS.has(region)) return 7;
+  if (region && SATURDAY_REGIONS.has(region)) return 6;
+  return 1;
+}
+
 /** The first day of the week in the phone's region (WeekFields.of(Locale.getDefault()) in the app). */
 export function firstDayOfWeek(locale: string): DayOfWeek {
   try {
@@ -26,12 +36,25 @@ export function firstDayOfWeek(locale: string): DayOfWeek {
     };
     const info = l.getWeekInfo?.() ?? l.weekInfo;
     if (info && info.firstDay >= 1 && info.firstDay <= 7) return info.firstDay as DayOfWeek;
-    const region = l.maximize().region;
-    return region && SUNDAY_REGIONS.has(region) ? 7 : 1;
+    return regionFirstDay(l.maximize().region);
   } catch {
     return 1;
   }
 }
+
+/**
+ * Settings > Appearance > Week starts on (web only, after v1, WEB-08): Automatic follows the browser's region, since
+ * a web app cannot read the iPhone's own First Day of Week setting; the others pick a day.
+ */
+export type WeekStart = 'auto' | 'sunday' | 'monday' | 'saturday';
+export const WEEK_STARTS: readonly WeekStart[] = ['auto', 'sunday', 'monday', 'saturday'];
+export const isWeekStart = (value: unknown): value is WeekStart => WEEK_STARTS.includes(value as WeekStart);
+
+const CHOSEN_DAY: Record<Exclude<WeekStart, 'auto'>, DayOfWeek> = { sunday: 7, monday: 1, saturday: 6 };
+
+/** The first day of Plan's week for the setting [choice], with [locale] deciding Automatic. */
+export const weekFirstDay = (choice: WeekStart, locale: string): DayOfWeek =>
+  choice === 'auto' ? firstDayOfWeek(locale) : CHOSEN_DAY[choice];
 
 /** One day of the plan: its meals by slot, in order. */
 export type PlanDay = {

@@ -561,13 +561,16 @@
 }
 
 /* Modal bottom sheets: 28 px top corners, surfaceContainerLow, a drag handle, at most 640 px wide. */
+/* Above the on-screen keyboard (after v1, WEB-14): BottomSheet sets --sn-keyboard (the part of the page it covers)
+   and --sn-visible-height (what is left) while it is open, and data-keyboard, where the home indicator's inset is
+   under the keyboard too. */
 .m3-sheet {
   position: fixed;
-  inset: auto 0 0 0;
+  inset: auto 0 var(--sn-keyboard, 0px) 0;
   margin: 0 auto;
   width: 100%;
   max-width: var(--sn-content-width);
-  max-height: calc(100dvh - var(--sn-safe-top) - 8px);
+  max-height: calc(var(--sn-visible-height, 100dvh) - var(--sn-safe-top) - 8px);
   padding: 0 0 var(--sn-safe-bottom);
   border: none;
   border-radius: 28px 28px 0 0;
@@ -578,6 +581,9 @@
   overflow: hidden;
   animation: m3-sheet-in 350ms var(--sn-motion-emphasized-decelerate);
   --sn-field-notch: var(--md-sys-color-surface-container-low);
+}
+.m3-sheet[data-keyboard] {
+  padding-bottom: 0;
 }
 .m3-sheet:focus-visible {
   outline: none; /* the sheet takes focus when it opens; the app shows no ring for that */
@@ -609,6 +615,11 @@
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
+  /* A column, so a form sheet's fields shrink and scroll above its pinned button instead of pushing the button out of
+     the sheet (after v1, WEB-14: seen with every Add to pantry row open). */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 @keyframes m3-sheet-in {
   from {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { map, of } from 'rxjs';
+import { useSessionDraft } from '../../core/drafts';
 import { messageId } from '../../core/errors';
 import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
 import { retryLoading } from '../../domain/load';
@@ -27,6 +28,7 @@ import {
 } from '../kit';
 import { amountText, categoryLabel, unitLabel } from '../pantry/labels';
 import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { AddToPantryDrafts, type AddToPantryDraft } from './addToPantryDrafts';
 import { AddToPantrySheet, EditGroceryItemSheet } from './GroceryForms';
 import { GroceryRow } from './GroceryRow';
 import '../pantry/pantry.css';
@@ -94,7 +96,21 @@ export function GroceriesScreen({
 
   const [text, setText] = useState('');
   const [cartOpen, setCartOpen] = useState(true);
-  const [shopping, setShopping] = useState(false);
+  // The open Add to pantry sheet's draft, kept through a reload (after v1, REL-08); null while it is closed.
+  const [shopping, setShopping] = useSessionDraft<AddToPantryDraft | null>(
+    `addToPantry.${hid}`,
+    AddToPantryDrafts.parse,
+    null,
+  );
+  // A sheet restored after a reload brings back its list, which the shell does not keep; a deleted list closes it.
+  const restoring = useRef(shopping !== null);
+  useEffect(() => {
+    if (!restoring.current || lists === null) return;
+    restoring.current = false;
+    if (shopping === null || shopping.listId === list?.id) return;
+    if (lists.some((l) => l.id === shopping.listId)) onSelectList(shopping.listId);
+    else setShopping(null);
+  }, [lists, list, shopping, onSelectList, setShopping]);
   const [editing, setEditing] = useState<GroceryItem | null>(null);
   const [dialog, setDialog] = useState<ListDialog | null>(null);
   const [duplicate, setDuplicate] = useState<{
@@ -196,7 +212,7 @@ export function GroceriesScreen({
             icon="round/inventory_2"
             label={plural('grocery_add_to_pantry', checkedCount, checkedCount)}
             data-testid="fab_add_to_pantry"
-            onClick={() => setShopping(true)}
+            onClick={() => list && setShopping(AddToPantryDrafts.open(list.id))}
           />
         ) : undefined
       }
@@ -272,19 +288,21 @@ export function GroceriesScreen({
           </p>
         </Dialog>
       )}
-      {shopping && list && (
+      {shopping && list && shopping.listId === list.id && items !== null && (
         <AddToPantrySheet
           items={view.inCart}
           pantry={pantryData}
           today={today}
           imperialFirst={me.units === 'imperial'}
-          onDismiss={() => setShopping(false)}
+          draft={shopping}
+          onDraft={(change) => setShopping((d) => (d === null ? d : change(d)))}
+          onDismiss={() => setShopping(null)}
           onConfirm={(entries, skipped) =>
             // Undo removes what was added and puts the items back (after v1, LOGIC-10).
             actUndo(
               async () => {
                 const undo = await groceryService.addToPantry(hid, actor, list.id, entries, skipped, pantryData);
-                setShopping(false);
+                setShopping(null);
                 return undo;
               },
               str(entries.length > 0 ? 'grocery_added_to_pantry' : 'grocery_skipped_removed'),
