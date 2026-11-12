@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { filter, firstValueFrom, map, of, switchMap, take, timeout } from 'rxjs';
+import { useSessionDraft } from '../../core/drafts';
 import { messageId } from '../../core/errors';
 import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
 import { retryLoading } from '../../domain/load';
@@ -14,13 +15,14 @@ import { MealPlanGrocery } from '../../domain/plan/service';
 import { MealWeek, PlanDays, type PlanDay } from '../../domain/plan/week';
 import { Cooking, UseItUp } from '../../domain/recipes/cooking';
 import type { Recipe } from '../../domain/recipes/models';
-import { addDays, sortedWith, type LocalDate } from '../../domain/time';
+import { addDays, daysBetween, sortedWith, type LocalDate } from '../../domain/time';
 import type { Undo } from '../../domain/write';
 import { Button, Card, Dialog, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
 import { CookedSheet } from '../recipes/RecipeSheets';
 import { LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
-import { CookChip, CookedLabel, cookNames, dayTitle, phoneFirstDay, shortDate, slotLabel } from './components';
+import { CookChip, CookedLabel, cookNames, dayTitle, shortDate, slotLabel, useFirstDay } from './components';
 import { AddMealSheet, MealSheet, WeekGrocerySheet } from './PlanSheets';
+import { PlanDrafts, type PlanSheetDraft } from './planDrafts';
 import '../recipes/recipes.css';
 import './plan.css';
 
@@ -53,7 +55,7 @@ export function PlanScreen({
   const today = useToday(clock);
   const hid = me.householdId;
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
-  const firstDay = useMemo(() => phoneFirstDay(), []);
+  const firstDay = useFirstDay();
   const thisWeek = MealWeek.start(today, firstDay);
   const start = addDays(thisWeek, weekOffset * 7);
 
@@ -86,8 +88,22 @@ export function PlanScreen({
   const canShop = MealPlanGrocery.toShop(days, recipeList).length > 0;
   const weekMeals = days.flatMap(PlanDays.meals);
 
-  const [adding, setAdding] = useState<{ date: LocalDate; slot: MealSlot } | null>(null);
-  const [openMealId, setOpenMealId] = useState<string | null>(null);
+  // Add meal or a meal's sheet, with what was picked in it, kept through a reload (after v1, REL-09).
+  const [sheet, setSheet] = useSessionDraft<PlanSheetDraft | null>(`plan.${hid}`, PlanDrafts.parse, null);
+  const adding = sheet?.kind === 'add' ? sheet : null;
+  const openMealId = sheet?.kind === 'meal' ? sheet.mealId : null;
+  const closeSheet = () => setSheet(null);
+  const editSheet = <T extends PlanSheetDraft>(change: Partial<T>) =>
+    setSheet((d) => (d === null ? d : ({ ...d, ...change } as PlanSheetDraft)));
+  // A sheet restored after a reload opens on its own week, which the shell does not keep.
+  const restoring = useRef(sheet !== null);
+  useEffect(() => {
+    if (!restoring.current) return;
+    restoring.current = false;
+    if (sheet === null) return;
+    const week = MealWeek.start(sheet.date, firstDay);
+    if (week !== start) onWeekOffset(daysBetween(thisWeek, week) / 7);
+  }, [sheet, firstDay, start, thisWeek, onWeekOffset]);
   const [cookingId, setCookingId] = useState<string | null>(null);
   const [shopping, setShopping] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -169,8 +185,8 @@ export function PlanScreen({
           members={members}
           myUid={me.user.uid}
           recipeIds={new Set(recipeList.map((r) => r.id))}
-          onAdd={(date, slot) => setAdding({ date, slot })}
-          onOpen={(meal) => setOpenMealId(meal.id)}
+          onAdd={(date, slot) => setSheet(PlanDrafts.addMeal(date, slot))}
+          onOpen={(meal) => setSheet(PlanDrafts.meal(meal))}
         />
       )}
       {confirmClear && (
@@ -207,14 +223,14 @@ export function PlanScreen({
       )}
       {adding && (
         <AddMealSheetFor
-          date={adding.date}
-          slot={adding.slot}
+          draft={adding}
+          onDraft={editSheet}
           recipes={recipeList}
           members={members}
           myUid={me.user.uid}
-          onDismiss={() => setAdding(null)}
+          onDismiss={closeSheet}
           onAddRecipe={(recipe, cooks) => {
-            setAdding(null);
+            closeSheet();
             act(() =>
               mealPlanService.addRecipe(
                 hid,
@@ -228,7 +244,7 @@ export function PlanScreen({
             );
           }}
           onAddOther={(title, cooks) => {
-            setAdding(null);
+            closeSheet();
             act(() =>
               mealPlanService.addOther(
                 hid,
@@ -243,40 +259,42 @@ export function PlanScreen({
           }}
         />
       )}
-      {openMeal && (
+      {openMeal && sheet?.kind === 'meal' && (
         <MealSheet
           key={openMeal.id}
           meal={openMeal}
+          draft={sheet}
+          onDraft={editSheet}
           members={members}
           myUid={me.user.uid}
           recipeExists={recipeOf(openMeal) !== null}
           weekDays={MealWeek.days(start)}
-          onDismiss={() => setOpenMealId(null)}
+          onDismiss={closeSheet}
           onSave={(servings, cooks, note) => {
-            setOpenMealId(null);
+            closeSheet();
             act(() => mealPlanService.update(hid, actor, openMeal, servings, cooks, note));
           }}
           onCook={() => {
-            setOpenMealId(null);
+            closeSheet();
             cook(openMeal);
           }}
           onNotCooked={() => {
-            setOpenMealId(null);
+            closeSheet();
             act(() => mealPlanService.notCooked(hid, actor, openMeal));
           }}
           onMove={(date, slot) => {
-            setOpenMealId(null);
+            closeSheet();
             withUndo(
               () => mealPlanService.move(hid, actor, openMeal, date, slot, slotMeals(date, slot)),
               str('plan_moved', openMeal.title),
             );
           }}
           onOpenRecipe={() => {
-            setOpenMealId(null);
+            closeSheet();
             if (openMeal.recipeId) onOpenRecipe(openMeal.recipeId);
           }}
           onRemove={() => {
-            setOpenMealId(null);
+            closeSheet();
             withUndo(() => mealPlanService.remove(hid, actor, openMeal), str('plan_removed', openMeal.title));
           }}
         />

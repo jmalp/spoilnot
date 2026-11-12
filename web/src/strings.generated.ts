@@ -616,7 +616,10 @@ export const STRINGS = {
   "web_install_welcome": "On iPhone, add Spoil Not to your Home Screen: tap Share, then Add to Home Screen.",
   "web_install_title": "Add Spoil Not to your Home Screen",
   "web_install_body": "In Safari, tap Share, then Add to Home Screen. Spoil Not then opens full screen and can remind you before food expires.",
-  "web_install_later": "Not now"
+  "web_install_later": "Not now",
+  "web_week_start": "Week starts on",
+  "web_week_start_auto": "Automatic (%1$s)",
+  "web_week_start_help": "The first day of each week in Plan. Automatic follows this phone's region."
 } as const;
 
 export const PLURALS = {

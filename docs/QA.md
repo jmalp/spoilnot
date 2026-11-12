@@ -307,6 +307,19 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     On the next beta (a prod build), run section 5 (Crash reports): the report arrives with Send crash reports on and
     none with it off. Optional, with the phone on `adb`: `adb logcat -s FirebaseAuth` while signing in shows no `D` or
     `I` lines.
+54. iPhone polish and the web's own form state (iPhone web app, after v1, 2026-11-12, DESIGN 5.9, 6.1, 18.1, 18.2,
+    18.3): with Butter, Sugar and Eggs on the list, check off Butter and Eggs on the iPhone and open Add to pantry. Set
+    Butter to 3 in the Freezer. On another phone check off Sugar: the iPhone gets a Sugar row and Butter still says
+    "3 · Freezer". Switch to other apps for a while (open the camera and a few heavy apps) and come back, or pull down
+    to reload in Safari: the sheet is still open with Butter's 3 and Freezer. Close it and reload: it stays closed.
+    In Plan, go to next week, tap + on a dinner, pick yourself and type "Pizza night"; reload: the sheet is back on
+    next week with the pick and the text. **Keyboard** (review 10's phone checks 2 and 5): in Pantry > Add item tap
+    Name, then Quantity, then Notes: the sheet and its Save button stay above the keyboard and the focused field
+    scrolls into view; the same in Add to pantry with every row open, and in landscape. **Edge swipe** (review 10's
+    check 8): in Safari (not installed), swipe a Pantry row to the right starting at the very left edge: Safari goes
+    back and the row is untouched; starting a finger's width in, the row is used up (Undo). **Week starts on**:
+    Settings > Appearance says "Automatic (Sunday)" on a US iPhone; choose Monday: Plan's weeks start on Monday, also
+    after closing and opening the app.
 
 ## 3. Conditions
 

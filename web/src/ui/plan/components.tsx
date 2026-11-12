@@ -1,13 +1,26 @@
 import { str, type StringId } from '../../core/i18n';
+import { usePreferences } from '../../core/services';
 import type { Member } from '../../domain/household';
 import type { MealSlot } from '../../domain/plan/models';
-import { firstDayOfWeek } from '../../domain/plan/week';
+import { firstDayOfWeek, weekFirstDay, type DayOfWeek } from '../../domain/plan/week';
 import type { LocalDate } from '../../domain/time';
 import { Icon } from '../kit';
 import './plan.css';
 
+const phoneLocale = () => (typeof navigator === 'undefined' ? 'en-US' : navigator.language);
+
 /** The phone's region decides the first day of the week (Sunday in the US, Monday in most places). */
-export const phoneFirstDay = () => firstDayOfWeek(typeof navigator === 'undefined' ? 'en-US' : navigator.language);
+export const phoneFirstDay = () => firstDayOfWeek(phoneLocale());
+
+/** The first day of Plan's week: Settings > Appearance > Week starts on, or the region with Automatic (WEB-08). */
+export function useFirstDay(): DayOfWeek {
+  const { weekStart } = usePreferences();
+  return weekFirstDay(weekStart, phoneLocale());
+}
+
+/** "Monday", in the phone's language; 2026-11-02 was a Monday. */
+export const weekdayName = (day: DayOfWeek): string =>
+  new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: 'UTC' }).format(Date.UTC(2026, 10, 1 + day, 12));
 
 const utc = (date: LocalDate) => Date.parse(`${date}T12:00:00Z`);
 

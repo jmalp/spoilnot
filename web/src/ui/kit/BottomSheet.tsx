@@ -1,11 +1,70 @@
-import { useEffect, useRef, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type PointerEvent, type ReactNode, type RefObject } from 'react';
 
 /** A drag down by this share of the sheet's height dismisses it, like FormSheet's threshold in the app. */
 const DISMISS_FRACTION = 0.3;
 
+/** What the sheet needs to know about the visual viewport (the part of the page not under the keyboard). */
+export type VisualViewportSize = { height: number; offsetTop: number; scale: number };
+
+/**
+ * How much of the bottom of the layout viewport the on-screen keyboard covers (after v1, WEB-14). On an iPhone the
+ * keyboard doesn't resize the page (100dvh stays), it shrinks the visual viewport, so a sheet fixed to the bottom
+ * would sit under it. 0 while pinch-zoomed, where a smaller visual viewport is not a keyboard.
+ */
+export function keyboardInset(viewport: VisualViewportSize, layoutHeight: number): number {
+  if (Math.abs(viewport.scale - 1) > 0.01) return 0;
+  const covered = Math.round(layoutHeight - viewport.height - viewport.offsetTop);
+  return covered > 0 ? covered : 0;
+}
+
+const isTextField = (el: Element | null): el is HTMLElement =>
+  el instanceof HTMLElement && el.matches('input:not([type=checkbox]):not([type=radio]), textarea, select');
+
+/**
+ * Keeps [sheet] above the keyboard (Android's imePadding): its bottom follows the visual viewport, it is no taller
+ * than what is left, and the focused field scrolls into view inside it, so Save (pinned below the fields) stays
+ * visible while typing.
+ */
+function useFollowKeyboard(ref: RefObject<HTMLDialogElement | null>) {
+  useEffect(() => {
+    const sheet = ref.current;
+    const viewport = window.visualViewport;
+    if (!sheet || !viewport) return;
+    const reveal = () => {
+      const focused = document.activeElement;
+      if (isTextField(focused) && sheet.contains(focused)) focused.scrollIntoView({ block: 'nearest' });
+    };
+    const follow = () => {
+      const inset = keyboardInset(viewport, window.innerHeight);
+      if (inset > 0) {
+        sheet.style.setProperty('--sn-keyboard', `${inset}px`);
+        sheet.style.setProperty('--sn-visible-height', `${viewport.height}px`);
+        sheet.dataset.keyboard = '';
+      } else {
+        sheet.style.removeProperty('--sn-keyboard');
+        sheet.style.removeProperty('--sn-visible-height');
+        delete sheet.dataset.keyboard;
+      }
+      // After the sheet has moved: the keyboard opening for a field near the bottom.
+      requestAnimationFrame(reveal);
+    };
+    // Moving between fields with the keyboard already open doesn't resize anything.
+    const onFocus = () => requestAnimationFrame(reveal);
+    follow();
+    viewport.addEventListener('resize', follow);
+    viewport.addEventListener('scroll', follow);
+    sheet.addEventListener('focusin', onFocus);
+    return () => {
+      viewport.removeEventListener('resize', follow);
+      viewport.removeEventListener('scroll', follow);
+      sheet.removeEventListener('focusin', onFocus);
+    };
+  }, [ref]);
+}
+
 /**
  * A ModalBottomSheet on a native <dialog>: 28 px top corners, a drag handle (drag down or tap outside to dismiss),
- * at most 640 px wide, scrolling inside. [label] names it for VoiceOver.
+ * at most 640 px wide, scrolling inside, above the on-screen keyboard. [label] names it for VoiceOver.
  */
 export function BottomSheet({
   label,
@@ -27,6 +86,7 @@ export function BottomSheet({
     if (sheet && !sheet.open) sheet.showModal();
     return () => sheet?.close();
   }, []);
+  useFollowKeyboard(ref);
 
   const move = (event: PointerEvent<HTMLElement>) => {
     if (!drag.current || !ref.current) return;
