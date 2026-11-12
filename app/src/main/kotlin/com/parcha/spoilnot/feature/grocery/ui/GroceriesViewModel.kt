@@ -216,7 +216,7 @@ class GroceriesViewModel @Inject constructor(
     }
 
     fun toggle(item: GroceryItem) = act { hid, actor ->
-        service.setChecked(hid, actor, listId(), item, !item.checked, state.value.list?.name)
+        service.setChecked(hid, actor, listId(), item, !item.checked)
         // Learn the store's aisle order from the order things go into the cart (DESIGN 5.3).
         val list = state.value.list ?: return@act
         if (!item.checked) {

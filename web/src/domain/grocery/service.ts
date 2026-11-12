@@ -254,27 +254,12 @@ export class GroceryService {
     return this.write(householdId, actor, [{ type: 'grocery.setAisleOrder', listId: list.id, order }]);
   }
 
-  /** Checking off is logged (DESIGN 5.6); unchecking is not. */
-  setChecked(
-    householdId: string,
-    actor: Actor,
-    listId: string,
-    item: GroceryItem,
-    checked: boolean,
-    listName: string | null = null,
-  ) {
-    const changes: Change[] = [{ type: 'grocery.setChecked', listId, itemId: item.id, checked }];
-    if (checked) {
-      changes.push({
-        type: 'grocery.logEvent',
-        eventId: this.writer.newId(),
-        event: 'grocery_checked',
-        name: item.name,
-        listName,
-        count: null,
-      });
-    }
-    return this.write(householdId, actor, changes);
+  /**
+   * Checking off or unchecking. Not logged in Recent activity since after v1 (R15): the list shows who checked what,
+   * and one shopping trip pushed everything else out of the card.
+   */
+  setChecked(householdId: string, actor: Actor, listId: string, item: GroceryItem, checked: boolean) {
+    return this.write(householdId, actor, [{ type: 'grocery.setChecked', listId, itemId: item.id, checked }]);
   }
 
   /** Quantity, unit, note and aisle; a new name (after v1) relinks the item to the product of that name. */

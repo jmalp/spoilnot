@@ -34,7 +34,7 @@ test('the cards lead to the filtered Pantry, Insights shows each month, and Rece
 
   // A new household: the calm one-line cards.
   await expect(page.getByTestId('card_home_attention')).toContainText('Nothing expires in the next 3 days.');
-  await expect(page.getByTestId('card_home_low_stock')).toContainText('Your staples are stocked.');
+  await expect(page.getByTestId('card_home_low_stock')).toContainText('Nothing is running low.');
   await expect(page.getByTestId('card_home_activity')).toContainText('Changes by anyone in the household');
 
   const hid = await householdId(household);
@@ -50,12 +50,13 @@ test('the cards lead to the filtered Pantry, Insights shows each month, and Rece
   await seedStats(hid, uid, thisMonth, { used: 3, thrown: { expired: 1 }, byDay: { 1: 1 } });
   await seedStats(hid, uid, lastMonth, { used: 12, thrown: { expired: 4, spoiled: 1 }, byDay: { 3: 5 } });
 
-  // Needs attention: soonest first; one is expired and one is not, so See all opens Expiring soon.
+  // Needs attention: soonest first. See all opens the Needs attention filter, which holds the expired too (R8);
+  // the card's own order and count follow in the web port of the Home card.
   const attention = page.getByTestId('card_home_attention');
   await expect(attention.locator('.sn-home-row')).toHaveText([/Yogurt.*Expired/, /Milk.*Tomorrow/]);
   await attention.getByRole('button', { name: 'See all 2 in Pantry' }).click();
-  await expect(page.getByTestId('pantry_filter_expiringSoon')).toHaveAttribute('aria-pressed', 'true');
-  await expect(rows(page)).toHaveText([/Milk/]);
+  await expect(page.getByTestId('pantry_filter_needsAttention')).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows(page)).toHaveText([/Yogurt/, /Milk/]);
 
   // Low stock: out of stock first.
   await goHome(page);

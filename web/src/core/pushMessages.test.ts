@@ -73,7 +73,8 @@ describe('push messages', () => {
   });
 
   it("the digest's routes open the filtered Pantry or the Plan tab; nothing else is a link", () => {
-    expect(DeepLinks.parse('/pantry?filter=expiring')).toEqual({ tab: 'pantry', filter: 'expiringSoon' });
+    // The path keeps its old name, which the released web app still reads as Expiring soon (after v1, R8).
+    expect(DeepLinks.parse('/pantry?filter=expiring')).toEqual({ tab: 'pantry', filter: 'needsAttention' });
     expect(DeepLinks.parse('/plan')).toEqual({ tab: 'plan' });
     expect(DeepLinks.parse('/pantry')).toBeNull();
     expect(DeepLinks.parse(null)).toBeNull();

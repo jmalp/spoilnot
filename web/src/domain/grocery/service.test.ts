@@ -89,20 +89,10 @@ beforeEach(() => {
 });
 
 describe('GroceryService', () => {
-  it('checking off is logged, unchecking is not', async () => {
-    await service.setChecked('h', actor, 'g1', item('i1', 'Milk'), true, 'Groceries');
-    expect(writer.last).toEqual([
-      { type: 'grocery.setChecked', listId: 'g1', itemId: 'i1', checked: true },
-      {
-        type: 'grocery.logEvent',
-        eventId: 'id0',
-        event: 'grocery_checked',
-        name: 'Milk',
-        listName: 'Groceries',
-        count: null,
-      },
-    ]);
-    await service.setChecked('h', actor, 'g1', item('i1', 'Milk', { checked: true }), false, 'Groceries');
+  it('checking off and unchecking are not logged (R15)', async () => {
+    await service.setChecked('h', actor, 'g1', item('i1', 'Milk'), true);
+    expect(writer.last).toEqual([{ type: 'grocery.setChecked', listId: 'g1', itemId: 'i1', checked: true }]);
+    await service.setChecked('h', actor, 'g1', item('i1', 'Milk', { checked: true }), false);
     expect(writer.last).toEqual([{ type: 'grocery.setChecked', listId: 'g1', itemId: 'i1', checked: false }]);
   });
 

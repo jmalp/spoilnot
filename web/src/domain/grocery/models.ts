@@ -34,7 +34,8 @@ export type GroceryItem = {
   aliasOf: string | null;
 };
 
-export type GroceryEventType = 'grocery_added' | 'grocery_checked';
+/** Check-offs (grocery_checked) are no longer logged after v1 (R15). */
+export type GroceryEventType = 'grocery_added';
 
 /** One write in a grocery plan, applied by the HouseholdWriter together with any pantry changes. */
 /** What the grocery Edit sheet sets on an item (besides its name). */
@@ -76,7 +77,7 @@ export type GroceryChange =
   | { type: 'grocery.setChecked'; listId: string; itemId: string; checked: boolean }
   /** [tombstone] false only when the whole list goes, since nothing listens to a deleted list's items. */
   | { type: 'grocery.deleteItem'; listId: string; itemId: string; tombstone: boolean }
-  /** grocery_added or grocery_checked in Recent activity; [count] when several came at once from recipe [name]. */
+  /** grocery_added in Recent activity; [count] when several came at once from recipe [name]. */
   | {
       type: 'grocery.logEvent';
       eventId: string;

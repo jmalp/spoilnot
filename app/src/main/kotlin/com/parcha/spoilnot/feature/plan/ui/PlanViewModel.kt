@@ -165,13 +165,18 @@ class PlanViewModel @Inject constructor(
         }
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
+    /** Recipes the shown week plans from today on, which Use it up leaves out (after v1, UX-05). */
+    private val plannedFromToday: Flow<Set<String>> = combine(state, todayFlow(clock)) { s, today ->
+        MealWeek.plannedFrom(s.days.flatMap { it.meals }, today)
+    }.distinctUntilChanged()
+
     /**
      * "Use it up" at the top of the recipe picker (DESIGN 5.9): saved recipes using food that expires soon. Null until
      * the pantry has loaded, so the sheet opens at its full height.
      */
     val useItUp: StateFlow<List<UseItUpSuggestion>?> =
-        combine(pantryData.conflate(), recipes.box, todayFlow(clock)) { p, box, today ->
-            UseItUp.suggestions(box?.recipes.orEmpty(), p, today)
+        combine(pantryData.conflate(), recipes.box, plannedFromToday, todayFlow(clock)) { p, box, planned, today ->
+            UseItUp.suggestions(box?.recipes.orEmpty(), p, today, planned)
         }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The Cooked sheet for a recipe meal: the pantry products it uses, at the meal's servings. */

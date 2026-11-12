@@ -43,16 +43,10 @@ class GroceryServiceTest {
     )
 
     @Test
-    fun `checking off is logged, unchecking is not`() = runTest {
-        service.setChecked("h", actor, "g1", item("i1", "Milk"), true, "Groceries")
-        assertEquals(
-            listOf(
-                GroceryChange.SetChecked("g1", "i1", true),
-                GroceryChange.LogEvent("id0", GroceryEventType.Checked, "Milk", "Groceries"),
-            ),
-            writer.last,
-        )
-        service.setChecked("h", actor, "g1", item("i1", "Milk", checked = true), false, "Groceries")
+    fun `checking off and unchecking are not logged (R15)`() = runTest {
+        service.setChecked("h", actor, "g1", item("i1", "Milk"), true)
+        assertEquals(listOf(GroceryChange.SetChecked("g1", "i1", true)), writer.last)
+        service.setChecked("h", actor, "g1", item("i1", "Milk", checked = true), false)
         assertEquals(listOf(GroceryChange.SetChecked("g1", "i1", false)), writer.last)
     }
 

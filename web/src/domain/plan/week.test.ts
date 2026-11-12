@@ -67,6 +67,16 @@ describe('MealWeek', () => {
     expect(Object.keys(day.slots)).toEqual([...MEAL_SLOTS]);
   });
 
+  it('recipes planned from today on, cooked or not, are the ones Use it up leaves out', () => {
+    const meals = [
+      { ...meal('yesterday', { date: addDays(THURSDAY, -1) }), recipeId: 'r-old' },
+      { ...meal('tonight'), recipeId: 'r-tacos', cookedAt: 0 },
+      { ...meal('saturday', { date: addDays(THURSDAY, 2) }), recipeId: 'r-curry' },
+      meal('leftovers', { date: addDays(THURSDAY, 1) }),
+    ];
+    expect(MealWeek.plannedFrom(meals, THURSDAY)).toEqual(new Set(['r-tacos', 'r-curry']));
+  });
+
   it('a new meal goes after the last one in its slot', () => {
     expect(MealWeek.nextPosition([])).toBe(0);
     expect(MealWeek.nextPosition([meal('a', { position: 3 }), meal('b', { position: 1 })])).toBe(4);

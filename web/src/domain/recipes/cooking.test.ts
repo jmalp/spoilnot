@@ -77,6 +77,18 @@ describe('UseItUp', () => {
     expect(result[1]!.uses).toHaveLength(1); // "baby spinach leaves" is not Spinach; "spinach" is, once
   });
 
+  it('recipes already planned from today on are left out (UX-05)', () => {
+    const curry = recipe('curry', { title: 'Green curry', ingredients: ['2 cups fresh spinach', '1 cup yogurt'] });
+    const salad = recipe('salad', { title: 'Spinach salad', ingredients: ['1 cup spinach'] });
+    const dip = recipe('dip', { title: 'Yogurt dip', ingredients: ['1 cup yogurt'] });
+    const all = [curry, salad, dip];
+    expect(UseItUp.suggestions(all, pantry, TODAY).map((s) => s.recipe.id)).toEqual(['curry', 'salad', 'dip']);
+    expect(UseItUp.suggestions(all, pantry, TODAY, new Set(['curry'])).map((s) => s.recipe.id)).toEqual([
+      'salad',
+      'dip',
+    ]);
+  });
+
   it('expired food and food with time left are not suggestions', () => {
     const old: PantryData = {
       products: [spinach],

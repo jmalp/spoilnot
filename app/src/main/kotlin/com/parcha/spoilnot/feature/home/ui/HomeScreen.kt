@@ -26,10 +26,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DonutLarge
 import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Kitchen
 import androidx.compose.material.icons.rounded.RestaurantMenu
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
@@ -65,6 +66,8 @@ import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
+import com.parcha.spoilnot.core.designsystem.theme.StatusTone
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
 import com.parcha.spoilnot.feature.home.domain.ActivityType
@@ -74,6 +77,7 @@ import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
 import com.parcha.spoilnot.feature.insights.ui.MonthRing
 import com.parcha.spoilnot.feature.insights.ui.moodText
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
+import com.parcha.spoilnot.feature.pantry.domain.PantryItem
 import com.parcha.spoilnot.feature.pantry.domain.PantryRow
 import com.parcha.spoilnot.feature.pantry.ui.Badge
 import com.parcha.spoilnot.feature.pantry.ui.StatusChip
@@ -157,46 +161,57 @@ internal fun HomeCards(
     todayMeals: List<PlannedMeal> = emptyList(),
     members: List<Member> = emptyList(),
 ) {
-    // Expired only: the Expiring soon filter would hide them.
-    val attentionFilter =
-        if (summary.attention.size == summary.expiredCount) PantryFilter.Expired else PantryFilter.ExpiringSoon
+    val attention = summary.attention
     HomeCard(
         title = stringResource(R.string.home_attention),
         icon = Icons.Rounded.WarningAmber,
         tag = "card_home_attention",
-        action = if (summary.attention.isEmpty()) {
+        // The same set and count as Pantry's Needs attention filter (after v1, R8).
+        action = if (attention.isEmpty()) {
             null
         } else {
-            pluralStringResource(R.plurals.home_see_all, summary.attention.size, summary.attention.size) to
-                { navigation.openPantry(attentionFilter) }
+            pluralStringResource(R.plurals.home_see_all, attention.size, attention.size) to
+                { navigation.openPantry(PantryFilter.NeedsAttention) }
         },
-        calm = if (summary.attention.isEmpty()) stringResource(R.string.home_attention_none) else null,
+        calm = when {
+            !attention.isEmpty() -> null
+            summary.pantryEmpty -> stringResource(R.string.home_attention_start)
+            else -> stringResource(R.string.home_attention_none)
+        },
+        // A new household has nothing done yet: no check mark (after v1, UX-07).
+        calmIcon = if (summary.pantryEmpty) Icons.Rounded.Kitchen else Icons.Rounded.CheckCircle,
         // The tour's Home step points at the first card (DESIGN 5.8).
         modifier = Modifier.coachMark(TourTarget.HomeCards.key),
     ) {
-        summary.attention.take(CARD_ROWS).forEach { row -> AttentionRow(row, today) }
+        // What can still be used comes first; the expired are one line, as in Pantry (after v1, UX-01).
+        attention.usable.take(CARD_ROWS).forEach { item -> AttentionRow(item, today) }
+        if (attention.expired.isNotEmpty()) ExpiredLine(attention.expired.size)
     }
     if (todayMeals.isNotEmpty()) TodayCard(todayMeals, members, myUid, navigation.openPlan)
     if (useItUp.isNotEmpty()) UseItUpCard(useItUp, today, navigation.openRecipe)
+    GroceryCard(summary, navigation.openGroceries)
+    insights?.let { InsightsCard(it, navigation.openInsights) }
     HomeCard(
-        title = stringResource(R.string.home_low_stock),
-        icon = Icons.Rounded.Inventory2,
-        tag = "card_home_low_stock",
-        action = if (summary.lowStock.isEmpty()) {
-            null
-        } else {
-            pluralStringResource(R.plurals.home_see_all, summary.lowStock.size, summary.lowStock.size) to
-                { navigation.openPantry(PantryFilter.LowStock) }
-        },
-        calm = if (summary.lowStock.isEmpty()) stringResource(R.string.home_low_stock_none) else null,
+        title = stringResource(R.string.home_recent_activity),
+        icon = Icons.Rounded.History,
+        tag = "card_home_activity",
+        calm = if (summary.recent.isEmpty()) stringResource(R.string.home_activity_none) else null,
     ) {
-        summary.lowStock.take(CARD_ROWS).forEach { row -> LowStockRow(row) }
+        summary.recent.forEach { ActivityLine(it, myUid) }
     }
+}
+
+/**
+ * The grocery list: what is left to buy, and what is running low (after v1, R1 and R2: Low stock was its own card,
+ * though every low product is already on the list). A household with no Keep some in stock yet is told how to start.
+ */
+@Composable
+private fun GroceryCard(summary: HomeSummary, onOpen: () -> Unit) {
     HomeCard(
         title = stringResource(R.string.home_grocery_list),
         icon = Icons.AutoMirrored.Rounded.ListAlt,
         tag = "card_home_groceries",
-        action = stringResource(R.string.home_open_list) to navigation.openGroceries,
+        action = stringResource(R.string.home_open_list) to onOpen,
     ) {
         Text(
             if (summary.groceryCount == 0) {
@@ -206,15 +221,30 @@ internal fun HomeCards(
             },
             style = MaterialTheme.typography.bodyLarge,
         )
-    }
-    insights?.let { InsightsCard(it, navigation.openInsights) }
-    HomeCard(
-        title = stringResource(R.string.home_recent_activity),
-        icon = Icons.Rounded.History,
-        tag = "card_home_activity",
-        calm = if (summary.recent.isEmpty()) stringResource(R.string.home_activity_none) else null,
-    ) {
-        summary.recent.forEach { ActivityLine(it, myUid) }
+        if (summary.lowStock.isNotEmpty()) {
+            Text(
+                stringResource(R.string.home_running_low),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            summary.lowStock.take(CARD_ROWS).forEach { row -> LowStockRow(row) }
+            val more = summary.lowStock.size - CARD_ROWS
+            if (more > 0) {
+                Text(
+                    pluralStringResource(R.plurals.home_running_low_more, more, more),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else if (summary.noStaples) {
+            Text(
+                stringResource(R.string.home_grocery_start),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("home_grocery_start"),
+            )
+        }
     }
 }
 
@@ -329,6 +359,7 @@ private fun HomeCard(
     action: Pair<String, () -> Unit>? = null,
     /** Nothing to show: one compact row with a check instead of a full card (after v1). */
     calm: String? = null,
+    calmIcon: ImageVector = Icons.Rounded.CheckCircle,
     content: @Composable () -> Unit,
 ) {
     if (calm != null) {
@@ -338,7 +369,7 @@ private fun HomeCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(calmIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {
                     Text(
                         title,
@@ -379,17 +410,36 @@ private fun HomeCard(
     }
 }
 
+/** One purchase that can still be used, as Pantry shows it: name and status chip. */
 @Composable
-private fun AttentionRow(row: PantryRow, today: LocalDate) {
+private fun AttentionRow(item: PantryItem.Purchase, today: LocalDate) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            row.name,
+            item.name,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        row.soonest?.let { StatusChip(it.expiryDate, it.dateType, today) }
+        StatusChip(item.batch.expiryDate, item.batch.dateType, today)
+    }
+}
+
+/** "3 expired items to throw away or check": the expired folded into one line (after v1, UX-01). */
+@Composable
+private fun ExpiredLine(count: Int) {
+    Row(
+        Modifier.fillMaxWidth().testTag("home_attention_expired"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val expired = SpoilNotStatus.colors.forTone(StatusTone.Expired)
+        Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = expired)
+        Text(
+            pluralStringResource(R.plurals.home_attention_expired, count, count),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

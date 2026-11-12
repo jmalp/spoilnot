@@ -98,6 +98,14 @@ export const MealWeek = {
     });
   },
 
+  /**
+   * The recipes planned on [today] or later among [meals], cooked or not, so Use it up doesn't suggest what the plan
+   * already uses (after v1, UX-05).
+   */
+  plannedFrom(meals: PlannedMeal[], today: LocalDate): Set<string> {
+    return new Set(meals.filter((m) => m.date >= today && m.recipeId !== null).map((m) => m.recipeId!));
+  },
+
   /** Where a new meal goes in a slot: after the last one. */
   nextPosition: (slotMeals: PlannedMeal[]): number => Math.max(-1, ...slotMeals.map((m) => m.position)) + 1,
 

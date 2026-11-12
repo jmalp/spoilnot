@@ -3,7 +3,9 @@ package com.parcha.spoilnot.feature.plan.ui
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -85,5 +87,29 @@ class PlanScreenshotTest(private val dark: Boolean, private val fontScale: Float
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/plan_week_$suffix.png")
+    }
+
+    /** An empty week says how to fill it, with Copy last week (after v1, UX-15). */
+    @Test
+    fun emptyWeek() {
+        val state = PlanViewModel.UiState(
+            loading = false,
+            weekStart = start,
+            isThisWeek = true,
+            days = MealWeek.build(start, emptyList(), today),
+            myUid = "u1",
+        )
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
+                    Surface { PlanWeek(state, {}, {}, {}, { _, _ -> }, {}) }
+                }
+            }
+        }
+        compose.onNodeWithTag("plan_week_empty").assertIsDisplayed()
+        compose.onNodeWithTag("plan_empty_copy").assertIsDisplayed()
+        val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
+        compose.onRoot().captureRoboImage("build/outputs/roborazzi/plan_empty_week_$suffix.png")
     }
 }

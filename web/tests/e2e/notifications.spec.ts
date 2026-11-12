@@ -146,7 +146,7 @@ test('installed on the Home Screen: the third dated item explains reminders once
   ]);
 });
 
-test('not allowed yet: Settings offers Turn on; a tapped digest opens Pantry on Expiring soon', async ({ page }) => {
+test('not allowed yet: Settings offers Turn on; a tapped digest opens Pantry on Needs attention', async ({ page }) => {
   await installedIphone(page);
   await openApp(page);
   const { hid, uid } = await newHousehold(page);
@@ -161,6 +161,6 @@ test('not allowed yet: Settings offers Turn on; a tapped digest opens Pantry on 
   // The digest's route, as the service worker opens it when the app was closed.
   await page.goto('/pantry?filter=expiring');
   await expect(page.getByTestId('pantry_list')).toContainText('Milk', { timeout: 15_000 });
-  await expect(page.getByTestId('pantry_filter_expiringSoon')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('pantry_filter_needsAttention')).toHaveAttribute('aria-pressed', 'true');
   expect(new URL(page.url()).search).toBe('');
 });

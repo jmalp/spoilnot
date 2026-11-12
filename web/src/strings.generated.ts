@@ -174,7 +174,7 @@ export const STRINGS = {
   "reason_other": "Other",
   "pantry_search": "Search pantry",
   "filter_all": "All",
-  "filter_expiring_soon": "Expiring soon",
+  "filter_needs_attention": "Needs attention",
   "filter_expired": "Expired",
   "filter_low_stock": "Low stock",
   "sort_and_group": "Sort and group",
@@ -239,8 +239,9 @@ export const STRINGS = {
   "field_category": "Category",
   "field_notes": "Notes",
   "field_keep_at_least": "Keep at least",
-  "keep_at_least_help": "Add to the grocery list when fewer than this remain",
-  "field_auto_add": "Add to grocery list automatically",
+  "keep_at_least_help": "Adds it to the grocery list when you have fewer than this",
+  "field_auto_add": "Keep some in stock",
+  "field_auto_add_help": "Puts it on the grocery list when it runs low",
   "field_buy_quantity": "Buy quantity",
   "error_name_required": "Enter a name.",
   "error_name_80": "Use 80 characters or fewer.",
@@ -415,11 +416,14 @@ export const STRINGS = {
   "recipe_not_found": "No recipe found on this page.",
   "home_attention": "Needs attention",
   "home_attention_none": "Nothing expires in the next 3 days.",
+  "home_attention_start": "Add food with its date, and what to use first shows here.",
   "home_low_stock": "Low stock",
-  "home_low_stock_none": "Your staples are stocked.",
+  "home_low_stock_none": "Nothing is running low.",
   "home_grocery_list": "Grocery list",
   "home_grocery_empty": "Nothing to buy right now.",
   "home_open_list": "Open list",
+  "home_running_low": "Running low",
+  "home_grocery_start": "Turn on Keep some in stock for food you always want at home, and it goes on the list when it runs low.",
   "home_use_it_up": "Use it up",
   "pantry_expired_show": "Show",
   "pantry_expired_hide": "Hide",
@@ -514,7 +518,7 @@ export const STRINGS = {
   "error_keep_at_least": "Enter how many to keep, above 0.",
   "tour_welcome_title": "Welcome to Spoil Not",
   "tour_welcome": "A one-minute tour of the app. Follow along by tapping what is highlighted, or tap Next.",
-  "tour_home": "Home starts with what needs you: food expiring soon. Below are staples running low, your grocery list and what your household did.",
+  "tour_home": "Home starts with what needs you: food to use soon. Below are your grocery list, with what's running low, and what your household did.",
   "tour_open_pantry": "Tap Pantry to see everything you have.",
   "tour_add_item": "Tap Add item to add food. Pick a date with one tap, and Spoil Not reminds you before it expires.",
   "tour_pantry_rows": "Swipe a row right when it's used up and left to throw it away. Undo is always there. Tap a row to edit it, and ⋮ has Mark opened and more.",
@@ -582,6 +586,7 @@ export const STRINGS = {
   "plan_shop_from": "the meal plan",
   "plan_more_actions": "More plan actions",
   "plan_copy_last_week": "Copy last week",
+  "plan_week_empty": "Nothing planned this week. Tap + on a meal, or copy last week's meals.",
   "plan_copied": "Copied last week's meals (%1$s)",
   "plan_copy_none": "Last week has no meals to copy",
   "plan_copy_already": "Last week's meals are already in this week",
@@ -687,9 +692,17 @@ export const PLURALS = {
     "one": "Add %d item",
     "other": "Add %d items"
   },
+  "home_attention_expired": {
+    "one": "%d expired item to throw away or check",
+    "other": "%d expired items to throw away or check"
+  },
   "home_grocery_count": {
     "one": "%d item to buy",
     "other": "%d items to buy"
+  },
+  "home_running_low_more": {
+    "one": "and %d more",
+    "other": "and %d more"
   },
   "home_see_all": {
     "one": "See %d in Pantry",

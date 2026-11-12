@@ -34,7 +34,7 @@ const FILTERS: [PantryFilter, StringId][] = [
   ['freezer', 'location_freezer'],
   ['pantry', 'location_pantry'],
   ['other', 'location_other'],
-  ['expiringSoon', 'filter_expiring_soon'],
+  ['needsAttention', 'filter_needs_attention'],
   ['expired', 'filter_expired'],
   ['lowStock', 'filter_low_stock'],
 ];

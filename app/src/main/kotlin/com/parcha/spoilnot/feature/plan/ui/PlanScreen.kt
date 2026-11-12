@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -153,6 +154,7 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
                         addingSlot = slot
                     },
                     onOpen = { openMealId = it.id },
+                    onCopyLastWeek = viewModel::copyLastWeek,
                 )
             }
         }
@@ -279,12 +281,15 @@ internal fun PlanWeek(
     onThisWeek: () -> Unit,
     onAdd: (LocalDate, MealSlot) -> Unit,
     onOpen: (PlannedMeal) -> Unit,
+    onCopyLastWeek: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
-    // This week opens on today, not on the first day.
+    // An empty week says how to fill it, with Copy last week out of the ⋮ menu too (after v1, UX-15).
+    val empty = state.days.all { it.isEmpty }
+    // This week opens on today, not on the first day; an empty one at its sentence.
     LaunchedEffect(state.weekStart) {
         val today = state.days.indexOfFirst { it.isToday }
-        listState.scrollToItem(if (today >= 0) today else 0)
+        listState.scrollToItem(if (today >= 0 && !empty) today else 0)
     }
     Column(Modifier.fillMaxSize()) {
         WeekHeader(state.weekStart, state.isThisWeek, onPrevious, onNext, onThisWeek)
@@ -295,6 +300,7 @@ internal fun PlanWeek(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize().testTag("plan_days"),
         ) {
+            if (empty) item(key = "empty") { EmptyWeek(onCopyLastWeek) }
             items(state.days, key = { it.date.toString() }) { day ->
                 DayCard(
                     day = day,
@@ -306,6 +312,21 @@ internal fun PlanWeek(
                 )
             }
         }
+    }
+}
+
+/** "Nothing planned this week…" with Copy last week (after v1, UX-15). */
+@Composable
+private fun EmptyWeek(onCopyLastWeek: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().testTag("plan_week_empty"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(stringResource(R.string.plan_week_empty), style = MaterialTheme.typography.bodyLarge)
+        Button(
+            onClick = onCopyLastWeek,
+            modifier = Modifier.heightIn(min = 48.dp).testTag("plan_empty_copy"),
+        ) { Text(stringResource(R.string.plan_copy_last_week)) }
     }
 }
 

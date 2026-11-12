@@ -1,6 +1,7 @@
 // The Home tab (DESIGN 5.6), ported from feature/home/domain: Recent activity and what the cards show.
 import type { Observable } from 'rxjs';
 import type { GroceryItem } from '../grocery/models';
+import { NeedsAttention } from '../pantry/items';
 import { Expiry } from '../pantry/rules';
 import { PantryRows, type PantryRow } from '../pantry/rows';
 import type { DiscardReason, PantryData } from '../pantry/models';
@@ -10,6 +11,7 @@ import { compareStrings, nullsLast, sortedWith, type LocalDate } from '../time';
 export const ACTIVITY_TYPES = [
   'stock_added',
   'grocery_added',
+  /** Written by builds before R15 (after v1); still shown while such events are among the newest. */
   'grocery_checked',
   'recipe_saved',
   'member_joined',
@@ -83,7 +85,7 @@ export const HomeDashboard = {
   summary(pantry: PantryData, groceryItems: GroceryItem[], recent: ActivityEvent[], today: LocalDate): HomeSummary {
     const rows = PantryRows.rows(pantry.products, pantry.batches, today);
     const attention = sortedWith(
-      rows.filter((r) => r.batches.some((b) => Expiry.needsAttention(Expiry.of(b.expiryDate, today)))),
+      rows.filter((r) => r.batches.some((b) => NeedsAttention.includes(Expiry.of(b.expiryDate, today)))),
       (a, b) => nullsLast(compareStrings)(a.soonest?.expiryDate, b.soonest?.expiryDate),
     );
     return {

@@ -38,6 +38,19 @@ class UseItUpTest {
     }
 
     @Test
+    fun `recipes already planned from today on are left out (UX-05)`() {
+        val curry = recipe("curry", "Green curry", ingredients = listOf("2 cups fresh spinach", "1 cup yogurt"))
+        val salad = recipe("salad", "Spinach salad", ingredients = listOf("1 cup spinach"))
+        val dip = recipe("dip", "Yogurt dip", ingredients = listOf("1 cup yogurt"))
+        val all = listOf(curry, salad, dip)
+        assertEquals(listOf("curry", "salad", "dip"), UseItUp.suggestions(all, pantry, TODAY).map { it.recipe.id })
+        assertEquals(
+            listOf("salad", "dip"),
+            UseItUp.suggestions(all, pantry, TODAY, planned = setOf("curry")).map { it.recipe.id },
+        )
+    }
+
+    @Test
     fun `expired food and food with time left are not suggestions`() {
         val old =
             PantryData(

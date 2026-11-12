@@ -62,8 +62,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), low stock, the grocery list, this month's
- * kitchen (5.7) and recent activity.
+ * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), Use it up, the grocery list with low stock,
+ * this month's kitchen (5.7) and recent activity.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -138,20 +138,26 @@ class HomeViewModel @Inject constructor(
                             UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid, s) to p
                         }
                     }
-                val today = todayFlow(clock).flatMapLatest { day ->
+                // Today's meals, and the recipes planned from today to the end of the week (Use it up, UX-05).
+                val week = todayFlow(clock).flatMapLatest { day ->
                     val start = MealWeek.start(day, firstDay)
                     mealPlan.observe(hid, start, MealWeek.end(start))
-                        .map { plan -> MealWeek.build(start, plan.meals, day).first { it.isToday }.meals }
+                        .map { plan ->
+                            PlanToday(
+                                MealWeek.build(start, plan.meals, day).first { it.isToday }.meals,
+                                MealWeek.plannedFrom(plan.meals, day),
+                            )
+                        }
                         .retryLoading(load)
-                        .onStart { emit(emptyList()) }
+                        .onStart { emit(PlanToday(emptyList(), emptySet())) }
                 }
                 val members = households.observeMembers(hid).retryLoading().onStart { emit(emptyList()) }
-                combine(home, box, today, members) { (state, p), saved, meals, people ->
+                combine(home, box, week, members) { (state, p), saved, plan, people ->
                     val names = people.associate { it.uid to it.displayName }
                     state.copy(
                         summary = state.summary?.let { it.copy(recent = ActivityFeed.named(it.recent, names)) },
-                        useItUp = p?.let { UseItUp.suggestions(saved, it, state.today) }.orEmpty(),
-                        todayMeals = meals,
+                        useItUp = p?.let { UseItUp.suggestions(saved, it, state.today, plan.planned) }.orEmpty(),
+                        todayMeals = plan.meals,
                         members = people,
                     )
                 }
@@ -164,6 +170,9 @@ class HomeViewModel @Inject constructor(
 
     /** Retry on "Couldn't load": listens again at once. */
     fun retryLoad() = load.retry()
+
+    /** Today's meals, breakfast first, and the recipes planned from today on. */
+    private data class PlanToday(val meals: List<PlannedMeal>, val planned: Set<String>)
 
     private companion object {
         /** DESIGN 5.6: the last 10 events. */
