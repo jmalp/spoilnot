@@ -236,7 +236,7 @@ about one day's full read more per phone, once.
 
 **The first release after 2026-11-12 (privacy details):** release builds now drop the system log's verbose, debug and
 info lines (R8, DECISIONS 2026-11-12) and turn Firebase Sessions off. On that beta, run QA section 5 (Crash reports)
-and QA flow 52: a crash report still arrives with Send crash reports on. The app's own logs were always debug-only;
+and QA flow 53: a crash report still arrives with Send crash reports on. The app's own logs were always debug-only;
 to read them, run a dev debug build.
 
 **New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
