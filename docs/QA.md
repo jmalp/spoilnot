@@ -300,6 +300,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Watermelon Sorbet, Home's buttons and Pantry's Add item are teal and mint, and the Expired chips stand out next to
     them; the backgrounds and the selected tab keep the orange and the pink. On the web app the same chips use the
     new colors.
+53. Privacy details (Android, after v1, 2026-11-12, DESIGN 11.6, 12.2): on Android 13 or later, Household > Invite
+    people > Copy. The copy preview at the bottom of the screen shows dots instead of the code, and the keyboard's
+    clipboard (Gboard: the clipboard icon) doesn't list it; pasting into a notes app gives the code. Import a recipe
+    the app opens in the built-in browser (Allrecipes, from docs/import-test-sites.md): the recipe is found as before.
+    On the next beta (a prod build), run section 5 (Crash reports): the report arrives with Send crash reports on and
+    none with it off. Optional, with the phone on `adb`: `adb logcat -s FirebaseAuth` while signing in shows no `D` or
+    `I` lines.
 
 ## 3. Conditions
 
