@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.ui.MessageEffect
@@ -132,10 +133,14 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            if (state.offline && !state.loading) OfflineBanner()
+            if (state.loadFailed) {
+                LoadError(onRetry = viewModel::retryLoad)
+            } else if (state.offline && !state.loading) {
+                OfflineBanner()
+            }
             if (state.loading) {
                 androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    if (!state.loadFailed) CircularProgressIndicator()
                 }
             } else {
                 PlanWeek(

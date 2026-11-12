@@ -189,6 +189,8 @@ export const STRINGS = {
   "badge_low": "Low",
   "pending_sync": "Waiting to sync",
   "offline_banner": "Offline. Changes will sync later",
+  "load_error": "Couldn't load.",
+  "action_retry": "Retry",
   "pantry_empty_body": "Add what you have at home and Spoil Not will tell you before it expires.",
   "action_add_first_item": "Add your first item",
   "pantry_no_matches": "Nothing matches. Try another filter or search.",

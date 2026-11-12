@@ -35,6 +35,7 @@ import { isAppError } from '../core/errors';
 import { CURSOR_MARGIN_MS, cursor } from '../domain/sync';
 import type { Actor } from '../domain/write';
 import { querySnapshots, retryAfterOwnWrites, toAppError } from './firestore-rx';
+import { timeOf } from './fields';
 
 const UPDATED_AT = 'updatedAt';
 
@@ -189,7 +190,7 @@ export function newestReceived(snapshot: QuerySnapshot, field: string): number |
   let newest: number | null = null;
   for (const d of snapshot.docs) {
     if (d.metadata.hasPendingWrites) continue;
-    const at = (d.get(field) as Timestamp | null)?.toMillis?.() ?? null;
+    const at = timeOf(d.get(field));
     if (at !== null && (newest === null || at > newest)) newest = at;
   }
   return newest;

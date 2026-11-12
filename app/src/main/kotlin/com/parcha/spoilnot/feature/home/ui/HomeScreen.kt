@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
@@ -115,7 +116,11 @@ fun HomeScreen(
         modifier = modifier.testTag("screen_home"),
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            if (state.offline && state.summary != null) OfflineBanner()
+            if (state.loadFailed) {
+                LoadError(onRetry = viewModel::retryLoad)
+            } else if (state.offline && state.summary != null) {
+                OfflineBanner()
+            }
             Column(
                 Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -123,7 +128,7 @@ fun HomeScreen(
                 if (pendingJoinRequests > 0) JoinRequestsCard(pendingJoinRequests, navigation.reviewJoinRequests)
                 val summary = state.summary
                 if (summary == null) {
-                    repeat(4) { SkeletonCard() }
+                    if (!state.loadFailed) repeat(4) { SkeletonCard() }
                 } else {
                     HomeCards(
                         summary,

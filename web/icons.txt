@@ -34,6 +34,7 @@ round/notifications
 # Status and feedback
 round/check_circle
 round/cloud_off
+round/error_outline
 round/person
 round/warning_amber
 round/restaurant_menu

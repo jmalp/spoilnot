@@ -248,6 +248,9 @@
     <string name="badge_low">Low</string>
     <string name="pending_sync">Waiting to sync</string>
     <string name="offline_banner">Offline. Changes will sync later</string>
+    <!-- A list failed to load (DESIGN 6.7, after v1); the app also listens again by itself. -->
+    <string name="load_error">Couldn\'t load.</string>
+    <string name="action_retry">Retry</string>
     <string name="pantry_empty_body">Add what you have at home and Spoil Not will tell you before it expires.</string>
     <string name="action_add_first_item">Add your first item</string>
     <string name="pantry_no_matches">Nothing matches. Try another filter or search.</string>

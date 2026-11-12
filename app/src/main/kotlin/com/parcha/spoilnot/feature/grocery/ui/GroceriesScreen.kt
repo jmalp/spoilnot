@@ -87,6 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
+import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
@@ -143,7 +144,11 @@ fun GroceriesScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            if (state.offline) OfflineBanner()
+            if (state.loadFailed) {
+                LoadError(onRetry = viewModel::retryLoad)
+            } else if (state.offline) {
+                OfflineBanner()
+            }
             QuickAddField(
                 text = text,
                 onText = { text = it },
@@ -154,7 +159,7 @@ fun GroceriesScreen(
                 state.loading -> Box(
                     Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator() }
+                ) { if (!state.loadFailed) CircularProgressIndicator() }
 
                 state.items.isEmpty() -> EmptyState(Icons.Outlined.ShoppingCart, stringResource(R.string.grocery_empty))
 

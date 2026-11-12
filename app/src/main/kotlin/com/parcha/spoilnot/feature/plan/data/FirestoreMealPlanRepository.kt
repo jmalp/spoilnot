@@ -3,7 +3,12 @@ package com.parcha.spoilnot.feature.plan.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.instant
 import com.parcha.spoilnot.core.firebase.liveDocuments
+import com.parcha.spoilnot.core.firebase.long
+import com.parcha.spoilnot.core.firebase.mapEach
+import com.parcha.spoilnot.core.firebase.string
+import com.parcha.spoilnot.core.firebase.strings
 import com.parcha.spoilnot.core.write.ReadCaps
 import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.plan.domain.MealPlanData
@@ -32,7 +37,7 @@ class FirestoreMealPlanRepository @Inject constructor(
                 .whereLessThanOrEqualTo("date", to.toString())
             meals.liveDocuments(db, syncLog, scope = window, key = "${meals.path}?date=$from..$to")
         }
-        .map { live -> MealPlanData(live.documents.mapNotNull { it.toMeal() }, live.fromCache) }
+        .map { live -> MealPlanData(live.documents.mapEach { it.toMeal() }, live.fromCache) }
         .distinctUntilChanged()
 
     internal companion object {
@@ -40,22 +45,22 @@ class FirestoreMealPlanRepository @Inject constructor(
 
         // New fields are optional on read with defaults (DESIGN 8.1); a meal with no valid date or slot is skipped.
         fun DocumentSnapshot.toMeal(): PlannedMeal? {
-            val date = getString("date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return null
-            val slot = MealSlot.fromWire(getString("slot")) ?: return null
+            val date = string("date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return null
+            val slot = MealSlot.fromWire(string("slot")) ?: return null
             return PlannedMeal(
                 id = id,
                 date = date,
                 slot = slot,
-                position = getLong("position") ?: 0L,
-                recipeId = getString("recipeId"),
-                title = getString("title").orEmpty().capTo(ReadCaps.MEAL_TITLE),
-                servings = getLong("servings")?.toInt(),
-                cooks = (get("cooks") as? List<*>)?.filterIsInstance<String>().orEmpty(),
-                note = getString("note"),
-                cookedAt = getTimestamp("cookedAt")?.toDate()?.toInstant(),
-                cookedBy = getString("cookedBy"),
-                createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
-                createdBy = getString("createdBy"),
+                position = long("position") ?: 0L,
+                recipeId = string("recipeId"),
+                title = string("title").orEmpty().capTo(ReadCaps.MEAL_TITLE),
+                servings = long("servings")?.toInt(),
+                cooks = strings("cooks"),
+                note = string("note"),
+                cookedAt = instant("cookedAt", estimate = false),
+                cookedBy = string("cookedBy"),
+                createdAt = instant("createdAt"),
+                createdBy = string("createdBy"),
                 pendingSync = metadata.hasPendingWrites(),
             )
         }

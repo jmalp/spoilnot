@@ -13,6 +13,7 @@ import com.parcha.spoilnot.core.firebase.Stamps
 import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.core.firebase.changedFields
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository.Companion.items
@@ -196,7 +197,7 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
             }
             if (with(Tombstones) { doc.isTombstone() }) {
                 val race = if (chunk.any { it is PantryChange }) Race.AddedToPantry else Race.Removed
-                return AppError.LostRace(race, doc.getString("updatedBy"))
+                return AppError.LostRace(race, doc.string("updatedBy"))
             }
         }
         return null

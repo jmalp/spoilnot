@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.update
 @HiltViewModel
 class RecipesViewModel @Inject constructor(
     session: SessionManager,
-    store: RecipeStore,
+    private val store: RecipeStore,
     private val service: RecipeService,
     events: RecipeEvents,
 ) : RecipeScopeViewModel(session) {
@@ -38,13 +38,15 @@ class RecipesViewModel @Inject constructor(
         val boxEmpty: Boolean = false,
         val offline: Boolean = false,
         val query: RecipeQuery = RecipeQuery(),
+        /** The box failed to load and is being listened to again (DESIGN 6.7). */
+        val loadFailed: Boolean = false,
     )
 
     private val query = MutableStateFlow(RecipeQuery())
 
-    val state: StateFlow<UiState> = combine(store.box, query) { box, query ->
+    val state: StateFlow<UiState> = combine(store.box, query, store.loadFailed) { box, query, failed ->
         if (box == null) {
-            UiState(query = query)
+            UiState(query = query, loadFailed = failed)
         } else {
             val tags = RecipeBox.tags(box.recipes)
             // A tag chip whose last recipe was deleted falls back to All.
@@ -62,6 +64,7 @@ class RecipesViewModel @Inject constructor(
                 boxEmpty = box.recipes.isEmpty(),
                 offline = box.fromCache,
                 query = q,
+                loadFailed = failed,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
@@ -69,6 +72,9 @@ class RecipesViewModel @Inject constructor(
     init {
         events.messages.onEach { show(it) }.launchIn(viewModelScope)
     }
+
+    /** Retry on "Couldn't load": listens again at once. */
+    fun retryLoad() = store.retry()
 
     fun setSearch(text: String) = query.update { it.copy(search = text) }
 

@@ -5,6 +5,7 @@ import com.google.firebase.firestore.SetOptions
 import com.parcha.spoilnot.BuildConfig
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import java.time.ZoneId
 import javax.inject.Inject
@@ -25,13 +26,13 @@ class FirebaseDeviceRegistry @Inject constructor(
         try {
             // Time zone at app start, when it changed (DESIGN 10.2).
             val zone = ZoneId.systemDefault().id
-            if (user.get().awaitMapped().getString("timezone") != zone) {
+            if (user.get().awaitMapped().string("timezone") != zone) {
                 user.update(mapOf("timezone" to zone, "updatedAt" to FieldValue.serverTimestamp()))
             }
             val token = push.token()
             val device = db.document("users/$uid/devices/${push.installId()}")
             val current = device.get().awaitMapped()
-            if (current.getString("token") != token || current.getString("appVersion") != BuildConfig.VERSION_NAME) {
+            if (current.string("token") != token || current.string("appVersion") != BuildConfig.VERSION_NAME) {
                 device.set(
                     mapOf(
                         "token" to token,

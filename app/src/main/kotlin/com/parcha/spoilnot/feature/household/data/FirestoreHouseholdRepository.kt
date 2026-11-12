@@ -14,10 +14,14 @@ import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.boolean
 import com.parcha.spoilnot.core.firebase.commitConfirmed
 import com.parcha.spoilnot.core.firebase.commitQueued
+import com.parcha.spoilnot.core.firebase.instant
+import com.parcha.spoilnot.core.firebase.mapEach
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.ReadCaps
 import com.parcha.spoilnot.core.write.capTo
@@ -75,7 +79,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         }
         .map { snapshot ->
             snapshot.documents
-                .map { it.toMember() }
+                .mapEach { it.toMember() }
                 .sortedWith(compareBy(nullsLast()) { it.joinedAt })
         }
         .distinctUntilChanged()
@@ -84,7 +88,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         .flatMapLatest { db ->
             db.collection("${householdPath(householdId)}/joinRequests").snapshotFlow().retryAfterOwnWrites(db)
         }
-        .map { snapshot -> snapshot.documents.mapNotNull { it.toJoinRequest() }.sortedBy { it.requestedAt } }
+        .map { snapshot -> snapshot.documents.mapEach { it.toJoinRequest() }.sortedBy { it.requestedAt } }
         .distinctUntilChanged()
 
     override fun observeOwnJoinRequest(householdId: String, uid: String): Flow<JoinRequest?> = firestore.instance
@@ -312,7 +316,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         val lists = db.collection("$base/groceryLists").get(Source.SERVER).awaitMapped().documents
         for (list in lists) {
             val items = list.reference.collection("items").get(Source.SERVER).awaitMapped().documents
-            if (list.getBoolean("isDefault") == true) {
+            if (list.boolean("isDefault") == true) {
                 items.filterNot { with(Tombstones) { it.isTombstone() } }
                     .forEach { doc -> ops += { it.set(doc.reference, tombstone, SetOptions.merge()) } }
                 ops += {
@@ -419,31 +423,31 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
 
         fun codePath(code: String) = "inviteCodes/$code"
 
-        fun DocumentSnapshot.role() = if (getString("role") == ROLE_OWNER) Role.Owner else Role.Member
+        fun DocumentSnapshot.role() = if (string("role") == ROLE_OWNER) Role.Owner else Role.Member
 
         fun DocumentSnapshot.toMember() = Member(
             id,
-            getString("displayName").orEmpty().capTo(ReadCaps.PERSON),
+            string("displayName").orEmpty().capTo(ReadCaps.PERSON),
             role(),
-            getTimestamp("joinedAt")?.toInstant(),
+            instant("joinedAt", estimate = false),
         )
 
         fun DocumentSnapshot.toHousehold() = Household(
             id = id,
-            name = getString("name").orEmpty().capTo(ReadCaps.LIST_NAME),
-            ownerUid = getString("ownerUid").orEmpty(),
-            inviteCode = getString("inviteCode").orEmpty(),
+            name = string("name").orEmpty().capTo(ReadCaps.LIST_NAME),
+            ownerUid = string("ownerUid").orEmpty(),
+            inviteCode = string("inviteCode").orEmpty(),
         )
 
         fun DocumentSnapshot.toInviteCode() = InviteCode(
             code = id,
-            householdId = getString("householdId").orEmpty(),
-            householdName = getString("householdName").orEmpty().capTo(ReadCaps.LIST_NAME),
-            active = getBoolean("active") == true,
+            householdId = string("householdId").orEmpty(),
+            householdName = string("householdName").orEmpty().capTo(ReadCaps.LIST_NAME),
+            active = boolean("active") == true,
         )
 
         fun DocumentSnapshot.toJoinRequest(): JoinRequest? {
-            val status = when (getString("status")) {
+            val status = when (string("status")) {
                 STATUS_PENDING -> JoinRequestStatus.Pending
                 STATUS_APPROVED -> JoinRequestStatus.Approved
                 STATUS_DECLINED -> JoinRequestStatus.Declined
@@ -451,10 +455,10 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             }
             return JoinRequest(
                 uid = id,
-                displayName = getString("displayName").orEmpty().capTo(ReadCaps.PERSON),
-                code = getString("joinCode").orEmpty(),
+                displayName = string("displayName").orEmpty().capTo(ReadCaps.PERSON),
+                code = string("joinCode").orEmpty(),
                 status = status,
-                requestedAt = getTimestamp("requestedAt")?.toInstant(),
+                requestedAt = instant("requestedAt", estimate = false),
                 // Older builds don't write it; another type is ignored rather than failing the list.
                 emailMasked = (get(EMAIL_MASKED) as? String)?.capTo(ReadCaps.PERSON * 3),
             )

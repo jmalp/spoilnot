@@ -23,7 +23,11 @@ data class AddPlan(val changes: List<HouseholdChange>, val result: AddResult, va
  * Pantry business rules (DESIGN 5.2, 8.5). Each action builds a plan of [PantryChange]s from the current data and
  * hands it to the [HouseholdWriter], which writes it as one batch.
  */
-class PantryService @Inject constructor(private val writer: HouseholdWriter, private val clock: Clock) {
+class PantryService @Inject constructor(
+    private val writer: HouseholdWriter,
+    private val clock: Clock,
+    private val cleanups: EmptyBatchCleanups = EmptyBatchCleanups(),
+) {
     private fun today(): LocalDate = LocalDate.now(clock)
 
     /**
@@ -458,10 +462,18 @@ class PantryService @Inject constructor(private val writer: HouseholdWriter, pri
         return undo
     }
 
-    /** Batches at 0 or below are hidden and deleted by whichever client notices first (DESIGN 8.5, invariant 1). */
+    /**
+     * Batches at 0 or below are hidden and deleted by whichever client notices first (DESIGN 8.5, invariant 1). It is
+     * background work nobody asked for, so a refusal isn't shown, and a batch whose clean-up the server refused isn't
+     * tried again by this process (after v1, review REL-11: a batch the rules wouldn't let go, at −3, was retried
+     * 3.5 times a second with a message each time). A batch whose clean-up hasn't been answered isn't tried twice.
+     */
     suspend fun deleteEmptyBatches(householdId: String, actor: Actor, data: PantryData) {
-        val empty = data.batches.filter { it.quantity <= 0 && !it.pendingSync }
-        if (empty.isNotEmpty()) writer.apply(householdId, actor, empty.map { PantryChange.DeleteBatch(it.id) })
+        val empty = cleanups.toTry(data.batches.filter { it.quantity <= 0 && !it.pendingSync }.map { it.id })
+        if (empty.isEmpty()) return
+        writer.applyQuietly(householdId, actor, empty.map { PantryChange.DeleteBatch(it) }) { refusal ->
+            cleanups.answered(empty, refused = refusal != null)
+        }
     }
 
     private fun Product.withKeepAtLeast(min: Double?, autoAdd: Boolean, buy: Double?, before: Product): Product {

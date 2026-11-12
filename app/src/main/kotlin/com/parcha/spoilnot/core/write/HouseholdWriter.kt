@@ -30,6 +30,21 @@ interface HouseholdWriter {
     val errors: Flow<AppError>
 
     /**
+     * [apply] for a change nobody asked for, such as the pantry's clean-up of empty batches (DESIGN 8.5): a refusal
+     * isn't reported on [errors]. [onAnswer] gets the server's answer, null when it accepted every batch, once it
+     * comes (never while offline). Writers that can't tell (test fakes) answer at once.
+     */
+    suspend fun applyQuietly(
+        householdId: String,
+        actor: Actor,
+        changes: List<HouseholdChange>,
+        onAnswer: (AppError?) -> Unit,
+    ) {
+        apply(householdId, actor, changes)
+        onAnswer(null)
+    }
+
+    /**
      * Every plan this phone applied, as soon as it is in the local cache. The restock engine uses it to tell a change
      * made on this phone from one that came from another phone (DESIGN 9.6). Writers that never report it (test
      * fakes) look like a phone that only receives changes.

@@ -94,7 +94,7 @@ object DeltaSync {
         if (snapshot.metadata.isFromCache) return null
         return snapshot.documents
             .filterNot { it.metadata.hasPendingWrites() }
-            .mapNotNull { it.getTimestamp(field)?.toDate()?.toInstant() }
+            .mapNotNull { it.instant(field, estimate = false) }
             .maxOrNull()
     }
 }
@@ -252,8 +252,8 @@ fun CollectionReference.liveNewest(
 /**
  * The server listener's "from the cache" flag, kept alive when the server refuses it for the quota or can't be
  * reached (after v1, REL-02): it then reports the cache (so the screen keeps its list and says "Offline") and listens
- * again after 1, 2, 4 … 32 s. A refused listen reads nothing, so the retries cost no quota. Other errors (a
- * permission refusal, a bad document) still end the flow.
+ * again after 1, 2, 4 … 32 s. A refused listen reads nothing, so the retries cost no quota. A permission refusal
+ * still ends the flow, after [retryAfterOwnWrites]; the screen then says "Couldn't load" and retries (DESIGN 6.7).
  */
 internal fun Flow<Boolean>.keepCacheWhileUnreachable(): Flow<Boolean> = retryWhen { cause, attempt ->
     if (cause !is AppError.QuotaExceeded && cause !is AppError.Offline) return@retryWhen false
@@ -280,8 +280,29 @@ private fun SyncLog.recordServerSnapshot(key: String, snapshot: QuerySnapshot, f
 fun Query.cachedLiveDocuments(): Flow<List<DocumentSnapshot>> =
     cacheSnapshotFlow().map { snapshot -> snapshot.documents.filterNot { with(Tombstones) { it.isTombstone() } } }
 
-/** A listener on the local cache only: free, and updated by local writes and by every other listener. */
-private fun Query.cacheSnapshotFlow(): Flow<QuerySnapshot> = callbackFlow {
+/**
+ * A listener on the local cache only: free, and updated by local writes and by every other listener. The SDK hands a
+ * server listener's refusal to every listener of the same query, this one included, so a full read refused right
+ * after creating or joining a household (the membership not on the server yet) would end it too (after v1; seen on the
+ * web, review B11; `BadDataFlowTest` shows it on Android). It listens again ([retryCacheRefusals]), which reads
+ * nothing. The refused server listener is removed at once (callbackFlow's awaitClose), before this one listens again:
+ * removing a refused server listener after another listener of the same query has started trips an assertion in the
+ * SDK.
+ */
+private fun Query.cacheSnapshotFlow(): Flow<QuerySnapshot> = rawCacheSnapshotFlow().retryCacheRefusals()
+
+/** How often, and after how long, a cache listener listens again after a refusal of the same query on the server. */
+internal const val CACHE_RETRIES = 10L
+private const val CACHE_RETRY_DELAY_MS = 250L
+
+/** A cache listener's share of a server refusal is listened again ([cacheSnapshotFlow]); other errors pass. */
+internal fun <T> Flow<T>.retryCacheRefusals(): Flow<T> = retryWhen { cause, attempt ->
+    if (cause !is AppError.PermissionDenied || attempt >= CACHE_RETRIES) return@retryWhen false
+    delay(CACHE_RETRY_DELAY_MS * (attempt + 1))
+    true
+}
+
+private fun Query.rawCacheSnapshotFlow(): Flow<QuerySnapshot> = callbackFlow {
     val options = SnapshotListenOptions.Builder()
         .setMetadataChanges(MetadataChanges.INCLUDE)
         .setSource(ListenSource.CACHE)

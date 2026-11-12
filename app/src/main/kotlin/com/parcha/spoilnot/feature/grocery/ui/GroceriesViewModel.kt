@@ -4,11 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.coroutines.LoadRetry
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
-import com.parcha.spoilnot.core.ui.toUiMessage
 import com.parcha.spoilnot.core.write.Actor
-import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryLayout
@@ -41,7 +41,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -50,7 +49,6 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
@@ -67,7 +65,6 @@ class GroceriesViewModel @Inject constructor(
     grocery: GroceryRepository,
     pantry: PantryRepository,
     households: HouseholdRepository,
-    writer: HouseholdWriter,
     private val service: GroceryService,
     clock: Clock,
     savedState: SavedStateHandle,
@@ -89,6 +86,8 @@ class GroceriesViewModel @Inject constructor(
         val pantry: PantryData = PantryData(emptyList(), emptyList(), fromCache = true),
         val today: LocalDate = LocalDate.MIN,
         val myUid: String = "",
+        /** A list failed to load and is being listened to again (DESIGN 6.7). */
+        val loadFailed: Boolean = false,
     ) {
         /**
          * The household data comes from the phone only (DESIGN 6.7, 9.5; after v1, REL-10): the pantry listener, which
@@ -96,6 +95,9 @@ class GroceriesViewModel @Inject constructor(
          */
         val offline: Boolean get() = !loading && pantry.fromCache
     }
+
+    /** "Couldn't load. Retry" (DESIGN 6.7): the lists, items and pantry listen again instead of ending (REL-04). */
+    private val load = LoadRetry()
 
     private val me = session.session.filterIsInstance<Session.InHousehold>()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -110,7 +112,7 @@ class GroceriesViewModel @Inject constructor(
         } else {
             grocery.observeLists(it)
         }
-    }.catch { }
+    }.retryLoading(load, fallback = emptyList())
     private val currentList = combine(lists, selectedListId) { all, selected ->
         all.firstOrNull { it.id == selected } ?: all.firstOrNull { it.isDefault } ?: all.firstOrNull()
     }.distinctUntilChanged()
@@ -124,11 +126,12 @@ class GroceriesViewModel @Inject constructor(
             l
     }
         .flatMapLatest { (h, l) -> if (h == null || l == null) flowOf(null) else grocery.observeItems(h, l) }
-        .catch { }
-    private val pantryData = hid.flatMapLatest { if (it == null) emptyFlow() else pantry.observe(it) }.catch { }
+        .retryLoading(load, fallback = null)
+    private val pantryData = hid.flatMapLatest { if (it == null) emptyFlow() else pantry.observe(it) }
+        .retryLoading(load, fallback = PantryData(emptyList(), emptyList(), fromCache = true))
     private val members = hid.flatMapLatest { if (it == null) flowOf(emptyList()) else households.observeMembers(it) }
         .map { list -> list.associate { it.uid to it.displayName } }
-        .catch { emit(emptyMap()) }
+        .retryLoading(fallback = emptyMap())
 
     // "Someone added" is announced from the state's own pipeline, so the listeners stop once the screen is left
     // (after v1, EFF-01; it was a collector started in init that never let go). Built off the main thread (PERF-02).
@@ -151,7 +154,8 @@ class GroceriesViewModel @Inject constructor(
             today = today,
             myUid = me.value?.user?.uid.orEmpty(),
         )
-    }.onStart { known = null }
+    }.combine(load.failed) { s, failed -> s.copy(loadFailed = failed) }
+        .onStart { known = null }
         .onEach(::announceOthersAdditions)
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), UiState())
@@ -163,13 +167,8 @@ class GroceriesViewModel @Inject constructor(
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
-    init {
-        // A refused write that lost to another phone names who won (DESIGN 8.5).
-        writer.errors.onEach { error ->
-            val s = state.value
-            _messages.send(error.toUiMessage({ s.memberNames[it] }, s.myUid))
-        }.launchIn(viewModelScope)
-    }
+    /** Retry on "Couldn't load": listens again at once. */
+    fun retryLoad() = load.retry()
 
     fun selectList(list: GroceryList) = selectedListId.update { list.id }
 

@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
-import { catchError, distinctUntilChanged, map, of, startWith, switchMap } from 'rxjs';
-import { useNow, useObservable, useToday } from '../../core/hooks';
+import { distinctUntilChanged, map, of, startWith, switchMap } from 'rxjs';
+import { useLoadRetry, useNow, useObservable, useToday } from '../../core/hooks';
+import { retryLoading } from '../../domain/load';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import type { GroceryItem } from '../../domain/grocery/models';
@@ -21,7 +22,7 @@ import { moodText } from '../insights/labels';
 import { chipText } from '../pantry/labels';
 import { Badge, StatusChip } from '../pantry/PantryRow';
 import { InstallCard } from '../install/InstallHelp';
-import { OfflineBanner, TabScaffold } from '../Scaffold';
+import { LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
 import { activityText, relativeTime } from './labels';
 import './home.css';
 
@@ -50,19 +51,14 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
   const { pantry, grocery, activity, stats, recipes, mealPlan, households, clock } = useServices();
   const today = useToday(clock);
   const hid = me.householdId;
+  // "Couldn't load. Retry" (DESIGN 6.7): Home's listeners listen again instead of spinning (after v1, WEB-10).
+  const { load, failed: loadFailed } = useLoadRetry();
   const data = useObservable<PantryData | null>(
-    useMemo(() => pantry.observe(hid), [pantry, hid]),
+    useMemo(() => pantry.observe(hid).pipe(retryLoading(load)), [pantry, hid, load]),
     null,
   );
   const recent = useObservable<ActivityEvent[]>(
-    useMemo(
-      () =>
-        activity.observeRecent(hid, RECENT).pipe(
-          catchError(() => of([])),
-          startWith([]),
-        ),
-      [activity, hid],
-    ),
+    useMemo(() => activity.observeRecent(hid, RECENT).pipe(retryLoading(load), startWith([])), [activity, hid, load]),
     [],
   );
   // The default list's items, as the Groceries tab reads them (DESIGN 9.1).
@@ -73,10 +69,10 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
           map((lists) => lists.find((l) => l.isDefault)?.id ?? null),
           distinctUntilChanged(),
           switchMap((id) => (id === null ? of([]) : grocery.observeItems(hid, id))),
-          catchError(() => of([])),
+          retryLoading(load),
           startWith([]),
         ),
-      [grocery, hid],
+      [grocery, hid, load],
     ),
     [],
   );
@@ -93,14 +89,14 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
       () =>
         mealPlan.observe(hid, weekStart, MealWeek.end(weekStart)).pipe(
           map((plan) => PlanDays.meals(MealWeek.build(weekStart, plan.meals, today).find((d) => d.isToday)!)),
-          catchError(() => of([])),
+          retryLoading(load),
         ),
-      [mealPlan, hid, weekStart, today],
+      [mealPlan, hid, weekStart, today, load],
     ),
     [],
   );
   const members = useObservable<Member[]>(
-    useMemo(() => households.observeMembers(hid).pipe(catchError(() => of([]))), [households, hid]),
+    useMemo(() => households.observeMembers(hid).pipe(retryLoading<Member[]>(undefined, [])), [households, hid]),
     [],
   );
   // Authors are named from the member list (by actorUid), not by the name stored with the event.
@@ -118,12 +114,12 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
       joinRequests={joinRequests}
       testId="screen_home"
     >
-      {data?.fromCache && <OfflineBanner />}
+      {loadFailed ? <LoadError onRetry={() => load.retry()} /> : data?.fromCache && <OfflineBanner />}
       <div className="sn-home">
         <InstallCard />
         {joinRequests > 0 && <JoinRequestsCard count={joinRequests} onReview={navigation.reviewJoinRequests} />}
         {summary === null ? (
-          Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} />)
+          !loadFailed && Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} />)
         ) : (
           <HomeCards
             summary={summary}

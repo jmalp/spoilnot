@@ -2,6 +2,7 @@ package com.parcha.spoilnot.feature.notifications.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
@@ -11,7 +12,6 @@ import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -36,7 +36,7 @@ class NotificationSettingsViewModel @Inject constructor(
         .map { s -> (s as? Session.InHousehold)?.user?.uid ?: (s as? Session.NoHousehold)?.user?.uid }
         .distinctUntilChanged()
         .flatMapLatest { uid -> if (uid == null) flowOf(null) else repository.observe(uid) }
-        .catch { }
+        .retryLoading()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun update(change: (NotificationPrefs) -> NotificationPrefs) {

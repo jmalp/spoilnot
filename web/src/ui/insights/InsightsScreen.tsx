@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { catchError, combineLatest, distinctUntilChanged, map, of, switchMap, type Observable } from 'rxjs';
+import { combineLatest, distinctUntilChanged, map, of, switchMap, type Observable } from 'rxjs';
 import { useObservable, useToday } from '../../core/hooks';
+import { retryLoading } from '../../domain/load';
 import { str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import {
@@ -30,10 +31,12 @@ export function insights$(
   from: (today: LocalDate) => YearMonth,
 ): Observable<InsightsSummary> {
   const first$ = today$.pipe(map(from), distinctUntilChanged());
-  return combineLatest([first$.pipe(switchMap((first) => stats.observeMonths(householdId, first))), today$]).pipe(
-    map(([months, day]) => Insights.summary(months, day)),
-    catchError(() => today$.pipe(map((day) => Insights.summary([], day)))),
-  );
+  return combineLatest([
+    first$.pipe(
+      switchMap((first) => stats.observeMonths(householdId, first).pipe(retryLoading(undefined, [] as MonthStats[]))),
+    ),
+    today$,
+  ]).pipe(map(([months, day]) => Insights.summary(months, day)));
 }
 
 /** The Insights screen (DESIGN 5.7). */

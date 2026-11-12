@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { catchError, map, of } from 'rxjs';
-import { errorText, messageId } from '../../core/errors';
-import { useObservable, useToday } from '../../core/hooks';
+import { map, of } from 'rxjs';
+import { messageId } from '../../core/errors';
+import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
+import { retryLoading } from '../../domain/load';
 import { plural, str } from '../../core/i18n';
 import { useRemoteChanges } from '../../core/remoteChanges';
 import { useHouseholdSession, useServices } from '../../core/services';
@@ -25,7 +26,7 @@ import {
   useSnackbars,
 } from '../kit';
 import { amountText, categoryLabel, unitLabel } from '../pantry/labels';
-import { EmptyState, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { AddToPantrySheet, EditGroceryItemSheet } from './GroceryForms';
 import { GroceryRow } from './GroceryRow';
 import '../pantry/pantry.css';
@@ -52,27 +53,31 @@ export function GroceriesScreen({
   onSelectList: (id: string | null) => void;
 }) {
   const me = useHouseholdSession();
-  const { grocery, groceryService, pantry, households, writer, clock } = useServices();
+  const { grocery, groceryService, pantry, households, clock } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
   const hid = me.householdId;
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
 
-  // A failed listener keeps the lists it had and listens again (useObservable): an empty answer here left the tab
-  // loading when the quota ran out (after v1, WEB-04).
+  // A failed listener keeps what it had and listens again, saying "Couldn't load. Retry" meanwhile (DESIGN 6.7): an
+  // empty answer here left the tab loading when the quota ran out (after v1, WEB-04).
+  const { load, failed: loadFailed } = useLoadRetry();
   const lists = useObservable<GroceryList[] | null>(
-    useMemo(() => grocery.observeLists(hid), [grocery, hid]),
+    useMemo(() => grocery.observeLists(hid).pipe(retryLoading(load)), [grocery, hid, load]),
     null,
   );
   const list = lists?.find((l) => l.id === listId) ?? lists?.find((l) => l.isDefault) ?? lists?.[0] ?? null;
   // null while loading; the list's items while it is visible (DESIGN 9.1).
   const shownListId = list?.id ?? null;
   const items = useObservable<GroceryItem[] | null>(
-    useMemo(() => (shownListId ? grocery.observeItems(hid, shownListId) : of(null)), [grocery, hid, shownListId]),
+    useMemo(
+      () => (shownListId ? grocery.observeItems(hid, shownListId).pipe(retryLoading(load)) : of(null)),
+      [grocery, hid, shownListId, load],
+    ),
     null,
   );
   const pantryData = useObservable<PantryData>(
-    useMemo(() => pantry.observe(hid).pipe(catchError(() => of(EMPTY_PANTRY))), [pantry, hid]),
+    useMemo(() => pantry.observe(hid).pipe(retryLoading(load, EMPTY_PANTRY)), [pantry, hid, load]),
     EMPTY_PANTRY,
   );
   const members = useObservable<Map<string, string>>(
@@ -80,7 +85,7 @@ export function GroceriesScreen({
       () =>
         households.observeMembers(hid).pipe(
           map((all) => new Map(all.map((m) => [m.uid, m.displayName]))),
-          catchError(() => of(new Map<string, string>())),
+          retryLoading(undefined, new Map<string, string>()),
         ),
       [households, hid],
     ),
@@ -111,15 +116,6 @@ export function GroceriesScreen({
     (i) => i.pendingSync,
     (i) => ({ ...i, pendingSync: false }),
   );
-
-  // A server rejection of a write arrives after it was applied locally.
-  useEffect(() => {
-    // One that lost to another phone names who won (DESIGN 8.5).
-    const subscription = writer.errors$.subscribe((e) =>
-      snackbars.show(errorText(e, (uid) => members.get(uid), me.user.uid)),
-    );
-    return () => subscription.unsubscribe();
-  }, [writer, snackbars, members, me.user.uid]);
 
   // "Sam added Eggs" when someone else adds to the list being viewed (DESIGN 9.2). Only items added in the last
   // minutes: a phone whose cache starts empty would otherwise announce every item already on the list.
@@ -205,7 +201,11 @@ export function GroceriesScreen({
         ) : undefined
       }
     >
-      {pantryData.fromCache && items !== null && <OfflineBanner />}
+      {loadFailed ? (
+        <LoadError onRetry={() => load.retry()} />
+      ) : (
+        pantryData.fromCache && items !== null && <OfflineBanner />
+      )}
       <QuickAddField
         text={text}
         onText={setText}
@@ -213,9 +213,7 @@ export function GroceriesScreen({
         onAdd={(value) => quickAdd(value)}
       />
       {items === null ? (
-        <div className="sn-centered">
-          <Progress />
-        </div>
+        <div className="sn-centered">{!loadFailed && <Progress />}</div>
       ) : items.length === 0 ? (
         <EmptyState icon="outlined/shopping_cart" message={str('grocery_empty')} />
       ) : (

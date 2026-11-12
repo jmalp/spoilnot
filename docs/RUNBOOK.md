@@ -404,6 +404,17 @@ the old one. If that is not possible, in the Firebase console → Firestore:
 3. `households/<id>`: set `inviteCode` to the new code.
 4. Delete the old `inviteCodes/<old code>` document.
 
+## A screen says "Couldn't load" or something is missing from a list (DESIGN 6.7, 8.6)
+
+"Couldn't load." with Retry means one of the screen's listeners failed; the app listens again by itself after up to
+32 s, so a short outage needs nothing. If it stays, the usual cause is the phone's access (it was removed from the
+household, or the rules changed): the session moves it to the gate once the server confirms. A document with a field
+of another type (a console edit, a restore, a buggy build) doesn't cause it any more: both apps read that field as
+missing (a text quantity counts as 0) and skip a document only if it still can't be read. To find one, run a dev
+debug build and filter logcat for `Skipped a document`, or in the web app on the emulators look for the same warning
+in the browser console; it names the document ID. Fix the field in the console with its right type and a new
+`updatedAt` (a server timestamp), so the changes-only listeners pick it up.
+
 ## Check quota usage (DESIGN 9.7)
 
 Firebase console → the project → **Usage and billing → Usage** (or Firestore → Usage) shows reads, writes and

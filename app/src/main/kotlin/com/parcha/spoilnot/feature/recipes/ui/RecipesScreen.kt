@@ -68,6 +68,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
+import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
@@ -118,10 +119,14 @@ fun RecipesScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            if (state.offline && !state.loading) OfflineBanner()
+            if (state.loadFailed) {
+                LoadError(onRetry = viewModel::retryLoad)
+            } else if (state.offline && !state.loading) {
+                OfflineBanner()
+            }
             when {
                 state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    if (!state.loadFailed) CircularProgressIndicator()
                 }
 
                 // The three ways to add a recipe, right where the box is empty (after v1).

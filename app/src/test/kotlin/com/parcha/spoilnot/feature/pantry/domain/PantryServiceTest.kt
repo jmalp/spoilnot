@@ -379,6 +379,21 @@ class PantryServiceTest {
         assertEquals(listOf(PantryChange.DeleteBatch("a")), repo.last)
     }
 
+    @Test
+    fun `a clean-up the server refused is quiet and isn't tried again`() = runTest {
+        val refusing = RecordingWriter(refuse = true)
+        val quiet = PantryService(refusing, clock, EmptyBatchCleanups())
+        val data = data(batches = listOf(batch("neg", "milk", quantity = -3.0)))
+        quiet.deleteEmptyBatches("h", actor, data)
+        assertEquals(listOf(PantryChange.DeleteBatch("neg")), refusing.last)
+        assertEquals(1, refusing.quietApplies)
+        // The rules rolled it back, so the data shows it again: no second write, no message (review REL-11).
+        refusing.last = emptyList()
+        quiet.deleteEmptyBatches("h", actor, data)
+        assertEquals(emptyList<HouseholdChange>(), refusing.last)
+        assertEquals(1, refusing.quietApplies)
+    }
+
     private fun edit(p: Product, name: String = p.name, unit: QuantityUnit = p.unit, min: Double? = p.minQuantity) =
         ProductEdit(
             name,
@@ -523,14 +538,26 @@ class PantryServiceTest {
         }
     }
 
-    private class RecordingWriter : HouseholdWriter {
+    private class RecordingWriter(private val refuse: Boolean = false) : HouseholdWriter {
         var last: List<HouseholdChange> = emptyList()
+        var quietApplies = 0
         private var next = 0
 
         override fun newId() = "id${next++}"
 
         override suspend fun apply(householdId: String, actor: Actor, changes: List<HouseholdChange>) {
             last = changes
+        }
+
+        override suspend fun applyQuietly(
+            householdId: String,
+            actor: Actor,
+            changes: List<HouseholdChange>,
+            onAnswer: (AppError?) -> Unit,
+        ) {
+            last = changes
+            quietApplies++
+            onAnswer(if (refuse) AppError.PermissionDenied() else null)
         }
 
         override val errors: Flow<AppError> = emptyFlow()

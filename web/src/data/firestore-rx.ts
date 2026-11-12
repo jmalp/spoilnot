@@ -23,6 +23,7 @@ import {
   race,
   retry,
   share,
+  Subject,
   switchMap,
   take,
   tap,
@@ -150,14 +151,29 @@ export async function mapped<T>(work: Promise<T>): Promise<T> {
 }
 
 /**
+ * Refusals of writes whose caller didn't wait for the server (a queued commit), reported once in the app's shell with
+ * every other refused write (after v1, review REL-13; FirestoreHouseholdWriter.errors$): before, they were dropped,
+ * so a change made offline just disappeared when the server refused it.
+ */
+const lateRefusals = new Subject<AppError>();
+export const lateRefusals$: Observable<AppError> = lateRefusals.asObservable();
+
+/**
  * Commits a batch that may stay queued offline (DESIGN 9.5): returns once the server accepts it, or after a short
- * wait while it remains queued in the local cache. Rule rejections that arrive in time are thrown.
+ * wait while it remains queued in the local cache. Rule rejections that arrive in time are thrown; a later one goes
+ * to lateRefusals$.
  */
 export async function commitQueued(batch: WriteBatch): Promise<void> {
   const commit = mapped(batch.commit());
-  // A rejection after the wait has nowhere to go; the listeners show the server's state.
-  commit.catch(() => undefined);
-  await Promise.race([commit, new Promise((resolve) => setTimeout(resolve, QUEUED_WRITE_WAIT_MS))]);
+  let waited = false;
+  commit.catch((error: unknown) => {
+    if (waited) lateRefusals.next(toAppError(error));
+  });
+  const answered = await Promise.race([
+    commit.then(() => true),
+    new Promise<false>((resolve) => setTimeout(() => resolve(false), QUEUED_WRITE_WAIT_MS)),
+  ]);
+  if (!answered) waited = true;
 }
 
 /** Commits a batch that must reach the server, such as leaving a household before the cache is cleared. */

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.prefs.ThemeMode
@@ -35,7 +36,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
@@ -131,7 +131,7 @@ class SettingsViewModel @Inject constructor(
     val notifications: StateFlow<NotificationPrefs?> = session.session
         .filterIsInstance<Session.InHousehold>()
         .flatMapLatest { notificationPrefs.observe(it.user.uid) }
-        .catch { }
+        .retryLoading()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     data class Content(
@@ -166,7 +166,7 @@ class SettingsViewModel @Inject constructor(
                 Content(me.displayName, me.user.email, h?.name, m.size, me.role == Role.Owner)
             }
         }
-        .catch { }
+        .retryLoading()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _state = MutableStateFlow(UiState(emailVerified = auth.currentUser?.emailVerified ?: true))

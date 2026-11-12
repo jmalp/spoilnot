@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, type UIEvent } from 'react';
 import { str } from '../core/i18n';
-import { Icon, IconButton, TopAppBar, useOptionalSnackbars, useSnackbars, type IconName } from './kit';
+import { Button, Icon, IconButton, TopAppBar, useOptionalSnackbars, useSnackbars, type IconName } from './kit';
 import './scaffold.css';
 
 const ScrolledContext = createContext<(scrolled: boolean) => void>(() => undefined);
@@ -144,6 +144,23 @@ export function QuotaBanner() {
     <div className="sn-quota" data-testid="quota_banner" role="status">
       <Icon name="round/cloud_off" size={24} />
       <span className="t-body-medium">{str('error_quota')}</span>
+    </div>
+  );
+}
+
+/**
+ * "Couldn't load." with Retry (DESIGN 6.7, after v1; LoadError in the app): shown while one of the screen's listeners
+ * is failing, where the Offline banner goes, above what the screen still shows. The icon and the words carry the
+ * status, not the color alone.
+ */
+export function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="sn-load-error" data-testid="load_error" role="alert">
+      <Icon name="round/error_outline" size={20} />
+      <span className="t-body-medium sn-load-error__text">{str('load_error')}</span>
+      <Button variant="text" data-testid="load_error_retry" onClick={onRetry}>
+        {str('action_retry')}
+      </Button>
     </div>
   );
 }

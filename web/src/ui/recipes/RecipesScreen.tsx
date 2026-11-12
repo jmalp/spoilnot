@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { messageId } from '../../core/errors';
 import { useObservable } from '../../core/hooks';
 import { str } from '../../core/i18n';
@@ -7,7 +7,7 @@ import { NameKey } from '../../domain/pantry/rules';
 import { RecipeBox, type RecipeFilter, type RecipeQuery, type RecipeSort } from '../../domain/recipes/box';
 import type { Recipe } from '../../domain/recipes/models';
 import { FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
-import { EmptyState, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { RecipeCard } from './components';
 import '../pantry/pantry.css';
 import './recipes.css';
@@ -31,16 +31,12 @@ export function RecipesScreen({
   onOpenRecipe: (id: string) => void;
 }) {
   const me = useHouseholdSession();
-  const { recipes, recipeService, writer } = useServices();
+  const { recipes, recipeService } = useServices();
   const snackbars = useSnackbars();
   const box = useObservable(recipes.box$, null);
+  const loadFailed = useObservable(recipes.load.failed$, false);
   const onScroll = useOnInnerScroll();
   const actor = { uid: me.user.uid, name: me.displayName };
-
-  useEffect(() => {
-    const subscription = writer.errors$.subscribe((e) => snackbars.show(str(messageId(e))));
-    return () => subscription.unsubscribe();
-  }, [writer, snackbars]);
 
   const tags = box ? RecipeBox.tags(box.recipes) : [];
   // A tag chip whose last recipe was deleted falls back to All.
@@ -66,11 +62,9 @@ export function RecipesScreen({
         ) : undefined
       }
     >
-      {box?.fromCache && <OfflineBanner />}
+      {loadFailed ? <LoadError onRetry={() => recipes.load.retry()} /> : box?.fromCache && <OfflineBanner />}
       {box === null ? (
-        <div className="sn-centered">
-          <Progress />
-        </div>
+        <div className="sn-centered">{!loadFailed && <Progress />}</div>
       ) : box.recipes.length === 0 ? (
         <EmptyState icon="outlined/menu_book" message={str('web_recipes_empty')} />
       ) : (

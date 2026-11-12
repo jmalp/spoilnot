@@ -16,6 +16,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,6 +46,7 @@ import com.parcha.spoilnot.core.designsystem.component.CoachMarks
 import com.parcha.spoilnot.core.designsystem.component.LocalCoachMarks
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
+import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
 import com.parcha.spoilnot.feature.home.ui.HomeNavigation
 import com.parcha.spoilnot.feature.home.ui.HomeScreen
@@ -91,6 +94,8 @@ fun AppShell(
         }
     }
     val pendingJoinRequests by shellViewModel.pendingJoinRequests.collectAsStateWithLifecycle()
+    val shellSnackbar = remember { SnackbarHostState() }
+    MessageEffect(shellViewModel.messages, shellSnackbar, onUndo = {})
     val deepLink by shellViewModel.deepLink.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(TabNavigator.START) }
     val backStacks = TopLevelDestination.entries.associateWith { tab -> key(tab) { rememberNavBackStack(tab.root) } }
@@ -269,6 +274,8 @@ fun AppShell(
         Box(modifier) {
             Scaffold(
                 contentWindowInsets = WindowInsets(0),
+                // Refused writes from any screen (after v1, REL-13), above the navigation bar.
+                snackbarHost = { SnackbarHost(shellSnackbar) },
                 bottomBar = {
                     NavigationBar {
                         TopLevelDestination.entries.forEach { tab ->

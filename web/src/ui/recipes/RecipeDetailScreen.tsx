@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { catchError, distinctUntilChanged, of, switchMap } from 'rxjs';
+import { useMemo, useState } from 'react';
+import { distinctUntilChanged, of, switchMap } from 'rxjs';
 import { messageId } from '../../core/errors';
 import { useObservable } from '../../core/hooks';
+import { retryLoading } from '../../domain/load';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import type { GroceryItem, GroceryList } from '../../domain/grocery/models';
@@ -41,7 +42,7 @@ export function RecipeDetailScreen({
   onCook: (servings: number | null) => void;
 }) {
   const me = useHouseholdSession();
-  const { recipes, recipeService, pantryService, writer } = useServices();
+  const { recipes, recipeService, pantryService } = useServices();
   const snackbars = useSnackbars();
   const box = useObservable(recipes.box$, null);
   const recipe = box?.recipes.find((r) => r.id === recipeId) ?? null;
@@ -57,11 +58,6 @@ export function RecipeDetailScreen({
   });
   const servings =
     servingsState.base === recipe?.content.servings ? servingsState.value : (recipe?.content.servings ?? null);
-
-  useEffect(() => {
-    const subscription = writer.errors$.subscribe((e) => snackbars.show(str(messageId(e))));
-    return () => subscription.unsubscribe();
-  }, [writer, snackbars]);
 
   const failed = (e: unknown) => snackbars.show(str(messageId(e)));
   const share = (r: Recipe) => void shareRecipe(r).then((copied) => copied && snackbars.show(str('web_recipe_copied')));
@@ -401,7 +397,7 @@ function AddToListFor({
   const hid = me.householdId;
   const [chosenList, setChosenList] = useState<string | null>(null);
   const lists = useObservable<GroceryList[] | null>(
-    useMemo(() => grocery.observeLists(hid).pipe(catchError(() => of([]))), [grocery, hid]),
+    useMemo(() => grocery.observeLists(hid).pipe(retryLoading<GroceryList[]>(undefined, [])), [grocery, hid]),
     null,
   );
   const list = lists?.find((l) => l.id === chosenList) ?? lists?.find((l) => l.isDefault) ?? lists?.[0] ?? null;
@@ -412,14 +408,14 @@ function AddToListFor({
         of(listId).pipe(
           distinctUntilChanged(),
           switchMap((id) => (id === null ? of([]) : grocery.observeItems(hid, id))),
-          catchError(() => of([])),
+          retryLoading<GroceryItem[]>(undefined, []),
         ),
       [grocery, hid, listId],
     ),
     null,
   );
   const pantryData = useObservable<PantryData | null>(
-    useMemo(() => pantry.observe(hid).pipe(catchError(() => of(NO_PANTRY))), [pantry, hid]),
+    useMemo(() => pantry.observe(hid).pipe(retryLoading(undefined, NO_PANTRY)), [pantry, hid]),
     null,
   );
   const loading = lists === null || items === null || pantryData === null;

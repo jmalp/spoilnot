@@ -2,6 +2,7 @@ package com.parcha.spoilnot.feature.recipes.ui
 
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
@@ -27,7 +28,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -78,7 +78,7 @@ class RecipeDetailViewModel @AssistedInject constructor(
             if (hid == null) {
                 flowOf(GroceryState())
             } else {
-                val lists = groceries.observeLists(hid).catch { emit(emptyList()) }
+                val lists = groceries.observeLists(hid).retryLoading(fallback = emptyList())
                 val listId = combine(lists, chosenList) { all, chosen ->
                     all.firstOrNull { it.id == chosen }?.id ?: all.firstOrNull { it.isDefault }?.id
                         ?: all.firstOrNull()?.id
@@ -89,10 +89,10 @@ class RecipeDetailViewModel @AssistedInject constructor(
                     ) {
                         flowOf(emptyList())
                     } else {
-                        groceries.observeItems(hid, id).catch { emit(emptyList<GroceryItem>()) }
+                        groceries.observeItems(hid, id).retryLoading(fallback = emptyList<GroceryItem>())
                     }
                 }
-                combine(state, lists, listId, items, pantry.observe(hid).catch { }) { s, all, id, listItems, p ->
+                combine(state, lists, listId, items, pantry.observe(hid).retryLoading()) { s, all, id, listItems, p ->
                     GroceryState(
                         lists = all,
                         listId = id,
@@ -118,7 +118,7 @@ class RecipeDetailViewModel @AssistedInject constructor(
         .flatMapLatest { open ->
             val (hid, factor) = open ?: return@flatMapLatest flowOf(CookState())
             if (hid == null) return@flatMapLatest flowOf(CookState())
-            combine(state, pantry.observe(hid).catch { }) { s, p ->
+            combine(state, pantry.observe(hid).retryLoading()) { s, p ->
                 CookState(s.recipe?.let { Cooking.lines(it, p, factor) }.orEmpty(), p, loading = false)
             }
         }

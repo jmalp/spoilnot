@@ -7,7 +7,6 @@ import {
   increment,
   arrayUnion,
   serverTimestamp,
-  Timestamp,
   type DocumentSnapshot,
   type Firestore,
   type WriteBatch,
@@ -24,7 +23,6 @@ import {
   type StockBatch,
 } from '../domain/pantry/models';
 import type { PantryRepository } from '../domain/pantry/repository';
-import { isLocalDate } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
 import {
   cachedLiveDocuments,
@@ -39,17 +37,11 @@ import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
 import { capTo, ReadCaps } from '../domain/caps';
 import { SharedByKey, STOP_TIMEOUT_MS } from '../domain/shared';
+import { date, mapEach, millis, num, numbers, str, strings } from './fields';
 
 export const products = (hid: string) => `households/${hid}/products`;
 export const stock = (hid: string) => `households/${hid}/stock`;
 export const activity = (hid: string) => `households/${hid}/activity`;
-
-const num = (value: unknown): number | null => (typeof value === 'number' ? value : null);
-const str = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-const date = (value: unknown) => (isLocalDate(value) ? value : null);
-/** A server timestamp, estimated while it is pending (ServerTimestampBehavior.ESTIMATE). */
-const millis = (s: DocumentSnapshot, field: string): number | null =>
-  (s.get(field, { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null;
 
 // New fields are optional on read with defaults, because phones run different versions (DESIGN 8.1).
 export function toProduct(s: DocumentSnapshot): Product {
@@ -65,12 +57,10 @@ export function toProduct(s: DocumentSnapshot): Product {
     buyQuantity: num(s.get('buyQuantity')),
     restockArmed: s.get('restockArmed') !== false,
     typicalShelfLifeDays: num(s.get('typicalShelfLifeDays')),
-    recentShelfLifeDays: ((s.get('recentShelfLifeDays') as unknown[] | null) ?? []).filter(
-      (v): v is number => typeof v === 'number',
-    ),
+    recentShelfLifeDays: numbers(s.get('recentShelfLifeDays')),
     createdAt: millis(s, 'createdAt'),
     lastAddedQuantity: num(s.get('lastAddedQuantity')),
-    aliases: ((s.get('aliases') as unknown[] | null) ?? []).filter((v): v is string => typeof v === 'string'),
+    aliases: strings(s.get('aliases')),
     openedShelfLifeDays: num(s.get('openedShelfLifeDays')),
     updatedBy: str(s.get('updatedBy')),
   };
@@ -142,8 +132,8 @@ export class FirestorePantryRepository implements PantryRepository {
         ]),
       ),
       map(([p, s, pRead, sRead]) => ({
-        products: p.map(toProduct),
-        batches: s.map(toBatch),
+        products: mapEach(p, toProduct),
+        batches: mapEach(s, toBatch),
         fromCache: true,
         serverRead: pRead !== null && sRead !== null,
       })),
@@ -162,8 +152,8 @@ export class FirestorePantryRepository implements PantryRepository {
         ]),
       ),
       map(([[p, pRead], [s, sRead]]) => ({
-        products: p.documents.map(toProduct),
-        batches: s.documents.map(toBatch),
+        products: mapEach(p.documents, toProduct),
+        batches: mapEach(s.documents, toBatch),
         fromCache: p.fromCache || s.fromCache,
         serverRead: pRead && sRead,
       })),
