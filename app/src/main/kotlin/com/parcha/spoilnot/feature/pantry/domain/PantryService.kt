@@ -40,13 +40,17 @@ class PantryService @Inject constructor(
         return plan.result
     }
 
-    /** The plan behind [add], without writing it. */
-    fun planAdd(draft: StockDraft, data: PantryData): AddPlan {
+    /**
+     * The plan behind [add], without writing it. [productId] is the product the addition is for when it is known (a
+     * grocery item's link, after v1, LOGIC-03): it is used while it exists, even under another name, before the name.
+     */
+    fun planAdd(draft: StockDraft, data: PantryData, productId: String? = null): AddPlan {
         val name = NameKey.clean(draft.name)
         require(name.isNotEmpty() && name.length <= PantryLimits.MAX_NAME_LENGTH) { "Invalid name" }
         require(draft.quantity > 0) { "Quantity must be above 0" }
         val key = NameKey.of(name)
-        val existing = data.products.firstOrNull { it.nameKey == key }
+        val existing = productId?.let { id -> data.products.firstOrNull { it.id == id } }
+            ?: data.products.firstOrNull { it.nameKey == key }
         val changes = mutableListOf<HouseholdChange>()
 
         val product = if (existing == null) {
@@ -418,6 +422,45 @@ class PantryService @Inject constructor(
     }
 
     suspend fun undo(householdId: String, actor: Actor, undo: Undo) = writer.apply(householdId, actor, undo.changes)
+
+    /**
+     * The Undo of a plan of additions (after v1, LOGIC-10: Add to pantry): the products it created and the batches it
+     * created go as tombstones, an amount added to an existing batch comes off again as an increment, a product it
+     * updated gets back the fields it changed (only those, DESIGN 9.4), and its activity events are removed. An alias it
+     * taught an existing product stays. Changes that are not additions are ignored.
+     */
+    fun undoAdditions(changes: List<HouseholdChange>): List<HouseholdChange> {
+        val createdProducts = changes.filterIsInstance<PantryChange.CreateProduct>().map { it.product.id }.toSet()
+        val createdBatches = changes.filterIsInstance<PantryChange.CreateBatch>().map { it.batch.id }.toSet()
+        // The first "before" and the last "after" of each product, when one plan updated it more than once.
+        val firstBefore = linkedMapOf<String, Product>()
+        val lastAfter = mutableMapOf<String, Product>()
+        val added = linkedMapOf<String, Double>()
+        val undo = mutableListOf<HouseholdChange>()
+        for (change in changes) {
+            when (change) {
+                is PantryChange.CreateBatch -> undo += PantryChange.DeleteBatch(change.batch.id)
+
+                is PantryChange.AddToBatch -> if (change.batchId !in createdBatches) {
+                    added[change.batchId] = (added[change.batchId] ?: 0.0) + change.delta
+                }
+
+                is PantryChange.UpdateProduct -> if (change.product.id !in createdProducts) {
+                    firstBefore.getOrPut(change.product.id) { change.before }
+                    lastAfter[change.product.id] = change.product
+                }
+
+                is PantryChange.LogEvent -> undo += PantryChange.DeleteEvent(change.eventId)
+
+                else -> Unit
+            }
+        }
+        added.forEach { (batchId, delta) -> undo += PantryChange.AddToBatch(batchId, -delta) }
+        firstBefore.forEach { (id, before) -> undo += PantryChange.UpdateProduct(before, lastAfter.getValue(id)) }
+        // Products last, after the batches that point at them.
+        createdProducts.forEach { undo += PantryChange.DeleteProduct(it) }
+        return undo
+    }
 
     /**
      * Batches at 0 or below are hidden and deleted by whichever client notices first (DESIGN 8.5, invariant 1). It is

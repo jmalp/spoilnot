@@ -85,6 +85,20 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   await sheet.getByTestId('button_confirm_add_to_pantry').click();
   await expect(page.getByRole('status').filter({ hasText: 'Added to the pantry' })).toBeVisible();
   await expect(page.getByTestId('cart_header')).toHaveCount(0);
+
+  // Undo puts the three items back in the cart and takes the purchases off (after v1, LOGIC-10); then again.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByTestId('cart_header')).toContainText('In cart (3)');
+  await tab(page, 'Pantry');
+  await expect(page.getByTestId('pantry_list')).toHaveCount(0);
+  await tab(page, 'Groceries');
+  await expect(page.getByTestId('cart_header')).toContainText('In cart (3)');
+  await page.getByTestId('fab_add_to_pantry').click();
+  const again = sheet.locator('[data-testid^="entry_"]').filter({ hasText: 'batteries' });
+  await again.getByRole('button').first().click();
+  await again.getByRole('switch').check();
+  await sheet.getByTestId('button_confirm_add_to_pantry').click();
+  await expect(page.getByTestId('cart_header')).toHaveCount(0);
   await expect(row(page, 'batteries')).toHaveCount(0);
 
   await tab(page, 'Pantry');
@@ -94,6 +108,17 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   // Home counts what is left to buy.
   await tab(page, 'Home');
   await expect(page.getByTestId('card_home_groceries')).toContainText('2 items to buy');
+
+  // Increase quantity only adds in the same unit (after v1, LOGIC-08).
+  await tab(page, 'Groceries');
+  // Quick add needs the list loaded.
+  await expect(row(page, 'milk')).toBeVisible();
+  await add(page, '500g rice');
+  await expect(row(page, 'rice')).toContainText('500 g');
+  await add(page, '2 kg rice').catch(() => undefined);
+  await expect(page.getByRole('dialog')).toContainText('rice is already on the list as 500 g.');
+  await expect(page.getByTestId('button_increase')).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
 });
 
 test('lists, edit, swipe and clear with Undo, low-stock restock, and another phone adding', async ({

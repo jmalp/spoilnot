@@ -345,6 +345,7 @@
     <string name="grocery_item_options">Options for %1$s</string>
     <string name="grocery_already_title">Already on the list</string>
     <string name="grocery_already_body">%1$s is already on the list.</string>
+    <string name="grocery_already_other_unit">%1$s is already on the list as %2$s. Amounts in different units aren\'t added together.</string>
     <string name="grocery_increase">Increase quantity</string>
     <string name="grocery_add_anyway">Add anyway</string>
     <string name="grocery_deleted">%1$s removed</string>
@@ -364,6 +365,7 @@
         <item quantity="other">Add all %d to pantry</item>
     </plurals>
     <string name="grocery_added_to_pantry">Added to the pantry</string>
+    <string name="grocery_skipped_removed">Removed from the list</string>
     <string name="grocery_add_to_list">Add</string>
 
     <!-- Notifications (DESIGN 5.4, 10.2) -->

@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { plural, str } from '../../core/i18n';
 import { GroceryRules, type GroceryItem } from '../../domain/grocery/models';
-import type { PantryEntry } from '../../domain/grocery/service';
+import { AddToPantryRules, type PantryEntry } from '../../domain/grocery/service';
 import { CATEGORIES, unitMenu, type Category, type Location, type PantryData } from '../../domain/pantry/models';
 import type { QuantityUnit } from '../../domain/pantry/models';
-import { NameKey, ShelfLife } from '../../domain/pantry/rules';
 import type { LocalDate } from '../../domain/time';
 import { BottomSheet, Button, Icon, SelectField, Switch, TextField } from '../kit';
 import { DateChips, FormSheetColumn, largeText, LocationChoice, parseQuantity } from '../pantry/ItemForm';
@@ -21,6 +20,8 @@ type EntryDraft = {
   skip: boolean;
   /** Showing the full editor instead of the one-line summary (after v1). */
   expanded: boolean;
+  /** The product has stock, so the unit is its own (DESIGN 2; after v1, LOGIC-04). */
+  unitLocked: boolean;
 };
 
 const valid = (d: EntryDraft) => d.skip || (parseQuantity(d.quantity) ?? 0) > 0;
@@ -47,18 +48,17 @@ export function AddToPantrySheet({
 }) {
   const [drafts, setDrafts] = useState<EntryDraft[]>(() =>
     items.map((item) => {
-      const product =
-        pantry.products.find((p) => p.id === item.productId) ??
-        pantry.products.find((p) => p.nameKey === NameKey.of(item.name)) ??
-        null;
+      // The linked product, its unit while it has stock, and the item's amount only in that unit (LOGIC-03, 04).
+      const d = AddToPantryRules.defaults(item, pantry, today);
       return {
         item,
-        quantity: formatQuantity(item.quantity ?? 1),
-        unit: item.unit ?? product?.unit ?? 'pcs',
-        expiry: ShelfLife.suggestExpiry(product?.typicalShelfLifeDays ?? null, today),
-        location: product?.defaultLocation ?? 'fridge',
+        quantity: d.quantity === null ? '' : formatQuantity(d.quantity),
+        unit: d.unit,
+        expiry: d.expiry,
+        location: d.location,
         skip: false,
         expanded: false,
+        unitLocked: d.unitLocked,
       };
     }),
   );
@@ -186,6 +186,8 @@ function EntryRow({
                     options={unitMenu(imperialFirst)}
                     optionLabel={unitLabel}
                     onPick={(unit) => onChange({ unit })}
+                    disabled={draft.unitLocked}
+                    supportingText={draft.unitLocked ? str('unit_locked_short') : undefined}
                   />
                 </div>
               </div>

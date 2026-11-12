@@ -146,6 +146,20 @@ describe('pantry', () => {
     expect(server.writes).toHaveLength(count);
   });
 
+  it('the Undo of an addition that created a product leaves it a tombstone with its creator (LOGIC-10)', () => {
+    const server = new FakeServer();
+    const bread = productOf('bread');
+    server.run(pantryMapper, alice, { type: 'pantry.createProduct', product: bread } satisfies PantryChange);
+    server.run(pantryMapper, alice, { type: 'pantry.deleteProduct', productId: 'bread' } satisfies PantryChange);
+    expect(server.last.kind).toBe('merge');
+    expect(Object.keys(server.last.fields).sort()).toEqual(restoreKeys);
+    expect(server.docs.get('households/h1/products/bread')).toMatchObject({
+      name: 'Bread',
+      createdBy: 'alice',
+      deletedAt: SERVER_TIME,
+    });
+  });
+
   it('undo of a minus one that used the batch up adds it back and removes a tombstone', () => {
     const server = new FakeServer();
     server.run(pantryMapper, bob, {

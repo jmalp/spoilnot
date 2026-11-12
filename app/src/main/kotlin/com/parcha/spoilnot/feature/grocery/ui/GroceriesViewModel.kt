@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.feature.grocery.ui
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
@@ -66,7 +67,11 @@ class GroceriesViewModel @Inject constructor(
     households: HouseholdRepository,
     private val service: GroceryService,
     clock: Clock,
+    savedState: SavedStateHandle,
 ) : ViewModel() {
+    /** What was typed in the Add to pantry sheet, by item id (after v1, REL-08). */
+    val pantryDrafts = AddToPantryDrafts(savedState)
+
     /** This phone's current shopping trip, for learning the store order. */
     private val trip = ShoppingTrip(clock)
 
@@ -194,6 +199,7 @@ class GroceriesViewModel @Inject constructor(
     fun increaseDuplicate(onDone: () -> Unit) = act { hid, actor ->
         val pending = duplicate.value ?: return@act
         val list = state.value.list ?: return@act
+        if (!pending.request.canIncrease(pending.existing)) return@act
         service.increase(hid, actor, list.id, pending.existing, pending.request)
         duplicate.value = null
         onDone()
@@ -253,11 +259,16 @@ class GroceriesViewModel @Inject constructor(
         selectedListId.value = null
     }
 
+    /** Done shopping; the snackbar offers Undo (after v1, LOGIC-10). */
     fun addToPantry(entries: List<PantryEntry>, skipped: List<GroceryItem>, onDone: () -> Unit) = act { hid, actor ->
-        service.addToPantry(hid, actor, listId(), entries, skipped, state.value.pantry)
+        val undo = service.addToPantry(hid, actor, listId(), entries, skipped, state.value.pantry)
+        pantryDrafts.clear()
         onDone()
-        if (entries.isNotEmpty()) _messages.send(UiMessage(R.string.grocery_added_to_pantry))
+        val text = if (entries.isNotEmpty()) R.string.grocery_added_to_pantry else R.string.grocery_skipped_removed
+        if (undo != null) _messages.send(UiMessage(text, null, undo))
     }
+
+    fun closeAddToPantry() = pantryDrafts.clear()
 
     fun undo(undo: Undo) = act { hid, actor -> service.undo(hid, actor, undo) }
 

@@ -1,7 +1,9 @@
 name: restore-from-export
 
 # Restores one household from a nightly export (docs/RUNBOOK.md). Manual only, and a dry run unless "apply" is
-# ticked. Restores products, stock, grocery lists and recipes; never the household itself or its members.
+# ticked. Restores products, stock, grocery lists, recipes, monthly counts and planned meals; never the household
+# itself or its members. It refuses a target household with another owner than the export's unless "different
+# owner" is ticked, and checks that in the dry run too.
 # The repository is public: exports are decrypted with EXPORT_ENCRYPTION_KEY, and households are named by the first
 # characters of their ID only (logs show the inputs).
 on:
@@ -19,6 +21,10 @@ on:
         description: 'Full ID of a different household to write into (leave empty for the same one)'
         required: false
         type: string
+      different_owner:
+        description: "Allow a target household whose owner is not the exported household's owner"
+        type: boolean
+        default: false
       apply:
         description: 'Write the documents (otherwise only list what would be written)'
         type: boolean
@@ -38,6 +44,11 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `shell: bash` runs each step with -eo pipefail, so a step fails when any command in a pipe fails (a tar that
+    # stops half-way must not leave an encrypted, truncated archive). GitHub's default for `run` has no pipefail.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -72,6 +83,7 @@ jobs:
           SOURCE: ${{ inputs.household_id }}
           TARGET: ${{ inputs.target_household_id }}
           APPLY: ${{ inputs.apply && '--apply' || '' }}
+          DIFFERENT_OWNER: ${{ inputs.different_owner && '--different-owner' || '' }}
         run: |
           if [ -z "$SOURCE" ]; then
             node dist/restore-main.js --list "$RUNNER_TEMP/plain"
@@ -84,4 +96,4 @@ jobs:
             exit 1
           fi
           id=$(basename "${matches[0]}" .json)
-          node dist/restore-main.js "${matches[0]}" "${TARGET:-$id}" $APPLY
+          node dist/restore-main.js "${matches[0]}" "${TARGET:-$id}" $APPLY $DIFFERENT_OWNER

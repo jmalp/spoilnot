@@ -276,6 +276,9 @@ export const pantryMapper: ChangeMapper = {
       case 'pantry.deleteBatch':
         batch.set(batchDoc(change.batchId), Tombstones.fields(actor), { merge: true });
         break;
+      case 'pantry.deleteProduct':
+        batch.set(product(change.productId), Tombstones.fields(actor), { merge: true });
+        break;
       case 'pantry.logEvent':
         batch.set(doc(db, activity(hid), change.eventId), {
           type: change.eventType === 'added' ? 'stock_added' : 'discarded',

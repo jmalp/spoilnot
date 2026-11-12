@@ -16,6 +16,7 @@ import type { Actor, HouseholdChange, HouseholdWriter, Undo } from '../write';
 import { itemEditOf, type ItemEditBase } from './edit-watch';
 import {
   batchEditOf,
+  isPantryChange,
   PantryLimits,
   type BatchEdit,
   type Category,
@@ -114,12 +115,18 @@ export class PantryService {
     return plan.result;
   }
 
-  planAdd(draft: StockDraft, data: PantryData): AddPlan {
+  /**
+   * The plan behind add, without writing it. `productId` is the product the addition is for when it is known (a
+   * grocery item's link, after v1, LOGIC-03): it is used while it exists, even under another name, before the name.
+   */
+  planAdd(draft: StockDraft, data: PantryData, productId: string | null = null): AddPlan {
     const name = NameKey.clean(draft.name);
     requireName(name);
     if (!(draft.quantity > 0)) throw new Error('Quantity must be above 0');
     const key = NameKey.of(name);
-    const existing = data.products.find((p) => p.nameKey === key);
+    const existing =
+      (productId === null ? undefined : data.products.find((p) => p.id === productId)) ??
+      data.products.find((p) => p.nameKey === key);
     const changes: Change[] = [];
     let product: Product;
     if (!existing) {
@@ -531,6 +538,49 @@ export class PantryService {
 
   undo(householdId: string, actor: Actor, undo: Undo): Promise<void> {
     return this.writer.apply(householdId, actor, undo.changes);
+  }
+
+  /**
+   * The Undo of a plan of additions (after v1, LOGIC-10: Add to pantry): the products and batches it created go as
+   * tombstones, an amount added to an existing batch comes off again as an increment, a product it updated gets back
+   * the fields it changed (only those, DESIGN 9.4), and its activity events are removed. An alias it taught an
+   * existing product stays. Changes that are not additions are ignored.
+   */
+  undoAdditions(changes: readonly HouseholdChange[]): PantryChange[] {
+    const pantry = changes.filter(isPantryChange);
+    const createdProducts = new Set(pantry.flatMap((c) => (c.type === 'pantry.createProduct' ? [c.product.id] : [])));
+    const createdBatches = new Set(pantry.flatMap((c) => (c.type === 'pantry.createBatch' ? [c.batch.id] : [])));
+    // The first "before" and the last "after" of each product, when one plan updated it more than once.
+    const products = new Map<string, { before: Product; after: Product }>();
+    const added = new Map<string, number>();
+    const undo: PantryChange[] = [];
+    for (const c of pantry) {
+      switch (c.type) {
+        case 'pantry.createBatch':
+          undo.push({ type: 'pantry.deleteBatch', batchId: c.batch.id });
+          break;
+        case 'pantry.addToBatch':
+          if (!createdBatches.has(c.batchId)) added.set(c.batchId, (added.get(c.batchId) ?? 0) + c.delta);
+          break;
+        case 'pantry.updateProduct':
+          if (!createdProducts.has(c.product.id)) {
+            const was = products.get(c.product.id);
+            products.set(c.product.id, { before: was?.before ?? c.before, after: c.product });
+          }
+          break;
+        case 'pantry.logEvent':
+          undo.push({ type: 'pantry.deleteEvent', eventId: c.eventId });
+          break;
+        default:
+          break;
+      }
+    }
+    for (const [batchId, delta] of added) undo.push({ type: 'pantry.addToBatch', batchId, delta: -delta });
+    for (const { before, after } of products.values())
+      undo.push({ type: 'pantry.updateProduct', product: before, before: after });
+    // Products last, after the batches that point at them.
+    for (const productId of createdProducts) undo.push({ type: 'pantry.deleteProduct', productId });
+    return undo;
   }
 
   /**

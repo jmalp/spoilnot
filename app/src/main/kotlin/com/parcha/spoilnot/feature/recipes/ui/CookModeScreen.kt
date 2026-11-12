@@ -47,6 +47,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
+import com.parcha.spoilnot.core.ui.rememberSaveableList
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.Scaling
 import kotlinx.coroutines.launch
@@ -92,7 +93,7 @@ private fun CookSteps(recipe: Recipe, servings: Int?, modifier: Modifier = Modif
     val pager = rememberPagerState { steps.size }
     val scope = rememberCoroutineScope()
     var showIngredients by rememberSaveable { mutableStateOf(false) }
-    val checked = remember { mutableStateListOf<Int>() }
+    val checked = rememberSaveableList<Int>()
     Column(modifier.fillMaxSize()) {
         LinearProgressIndicator(
             progress = { (pager.currentPage + 1f) / steps.size.coerceAtLeast(1) },

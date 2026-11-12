@@ -134,12 +134,12 @@ it('a prune whose deletions fail counts them, goes on, and prints nothing of the
 const restoreMain = fileURLToPath(new URL('../../src/restore-main.ts', import.meta.url));
 
 /** Runs the restore entry point as the workflow does, with the throwaway key, and returns everything it printed. */
-async function restore(file: HouseholdExport, target: string) {
+async function restore(file: HouseholdExport, target: string, ...flags: string[]) {
   const dir = await mkdtemp(join(tmpdir(), 'spoilnot-restore-'));
   try {
     const path = join(dir, `${HOUSEHOLD}.json`);
     await writeFile(path, JSON.stringify(file));
-    return spawnSync(process.execPath, [restoreMain, path, target, '--apply'], {
+    return spawnSync(process.execPath, [restoreMain, path, target, '--apply', ...flags], {
       encoding: 'utf8',
       env: { PATH: process.env.PATH, FIRESTORE_EMULATOR_HOST: host, FIREBASE_SERVICE_ACCOUNT_JSON: keyFile },
     });
@@ -150,7 +150,7 @@ async function restore(file: HouseholdExport, target: string) {
 
 const exported = (products: HouseholdExport['products']): HouseholdExport => ({
   format: FORMAT, formatVersion: FORMAT_VERSION, appVersion: 'test', exportedAt: '2026-10-12T07:17:00.000Z',
-  household: null, members: [], products, stock: [], groceryLists: [], recipes: [],
+  household: { id: HOUSEHOLD, name: 'Home', ownerUid: 'u1' }, members: [], products, stock: [], groceryLists: [], recipes: [],
 });
 
 it('a restore whose writes fail counts them, exits 1 and prints only counts', async () => {
@@ -170,4 +170,19 @@ it('a restore that stops prints the code only', async () => {
   assert.equal(result.status, 1);
   assert.equal(result.stderr, 'restore failed: no-such-household. Details are not printed in public logs; see docs/RUNBOOK.md.\n');
   assertClean(result.stdout + result.stderr, missing);
+});
+
+it('a restore into a household with a different owner stops before writing, unless asked', async () => {
+  const other = { ...exported([{ id: 'p1', name: 'Milk' }]), household: { id: HOUSEHOLD, name: 'Home', ownerUid: 'u9' } };
+  const refused = await restore(other, HOUSEHOLD);
+  assert.equal(refused.status, 1);
+  assert.equal(refused.stderr, 'restore failed: different-owner. Details are not printed in public logs; see docs/RUNBOOK.md.\n');
+  assert.equal((await db.doc(`households/${HOUSEHOLD}/products/p1`).get()).exists, false, 'nothing written');
+  assertClean(refused.stdout + refused.stderr);
+
+  const asked = await restore(other, HOUSEHOLD, '--different-owner');
+  assert.equal(asked.status, 0, asked.stderr);
+  assert.match(asked.stdout, /Target: a different owner, as asked/);
+  assert.match(asked.stdout, /restored 1 document\(s\), 0 failed/);
+  assertClean(asked.stdout + asked.stderr);
 });

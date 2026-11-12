@@ -121,6 +121,12 @@ class PantryChangeMapper @Inject constructor() : FirestoreChangeMapper {
             is PantryChange.DeleteBatch ->
                 batch.set(db.document("${stock(hid)}/${change.batchId}"), Tombstones.fields(actor), SetOptions.merge())
 
+            is PantryChange.DeleteProduct -> batch.set(
+                db.document("${products(hid)}/${change.productId}"),
+                Tombstones.fields(actor),
+                SetOptions.merge(),
+            )
+
             is PantryChange.LogEvent -> batch.set(
                 db.document("${activity(hid)}/${change.eventId}"),
                 mapOf(

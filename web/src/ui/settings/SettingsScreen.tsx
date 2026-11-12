@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { combineLatest, map } from 'rxjs';
+import { messageId } from '../../core/errors';
 import { useAction, useObservable } from '../../core/hooks';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, usePreferences, useServices } from '../../core/services';
@@ -153,7 +154,16 @@ export function SettingsScreen({
           busy={action.busy}
           onExport={() =>
             void action.run(async () => {
-              download(ExportFormat.fileName(today(clock)), await exporter.export(me.householdId));
+              // Read from the server first: offline this fails with "You're offline" and nothing is downloaded. The
+              // failure shows as a snackbar by the button, as "Export saved" does, not at the top of the screen.
+              let json: string;
+              try {
+                json = await exporter.export(me.householdId, me.user.uid);
+              } catch (error) {
+                snackbars.show(str(messageId(error)));
+                return;
+              }
+              download(ExportFormat.fileName(today(clock)), json);
               snackbars.show(str('settings_exported'));
             })
           }

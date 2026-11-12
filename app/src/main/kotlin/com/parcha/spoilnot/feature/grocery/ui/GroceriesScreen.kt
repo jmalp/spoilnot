@@ -219,14 +219,28 @@ fun GroceriesScreen(
     }
 
     duplicate?.let { pending ->
+        val canIncrease = pending.request.canIncrease(pending.existing)
         AlertDialog(
             onDismissRequest = viewModel::dismissDuplicate,
             title = { Text(stringResource(R.string.grocery_already_title)) },
-            text = { Text(stringResource(R.string.grocery_already_body, pending.existing.name)) },
+            text = {
+                // Amounts in another unit aren't added together (no conversion, DESIGN 2; after v1, LOGIC-08).
+                val existing = pending.existing
+                val body = if (canIncrease) {
+                    stringResource(R.string.grocery_already_body, existing.name)
+                } else {
+                    val unit = checkNotNull(existing.unit)
+                    val amount = existing.quantity?.let { amountText(it, unit) } ?: stringResource(unit.label())
+                    stringResource(R.string.grocery_already_other_unit, existing.name, amount)
+                }
+                Text(body)
+            },
             confirmButton = {
-                TextButton(
-                    onClick = { viewModel.increaseDuplicate { text = "" } },
-                ) { Text(stringResource(R.string.grocery_increase)) }
+                if (canIncrease) {
+                    TextButton(
+                        onClick = { viewModel.increaseDuplicate { text = "" } },
+                    ) { Text(stringResource(R.string.grocery_increase)) }
+                }
             },
             dismissButton = {
                 Row {
@@ -243,8 +257,12 @@ fun GroceriesScreen(
             items = state.view.inCart,
             pantry = state.pantry,
             today = state.today,
+            drafts = viewModel.pantryDrafts,
             onConfirm = { entries, skipped -> viewModel.addToPantry(entries, skipped) { shopping = false } },
-            onDismiss = { shopping = false },
+            onDismiss = {
+                shopping = false
+                viewModel.closeAddToPantry()
+            },
         )
     }
     editing?.let { item ->

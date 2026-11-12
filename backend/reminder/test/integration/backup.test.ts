@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, it } from 'node:test';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { applyRestore, exportHousehold, householdIds, planRestore } from '../../src/backup.ts';
+import { applyRestore, checkTarget, exportHousehold, householdIds, planRestore } from '../../src/backup.ts';
 
 const PROJECT = 'demo-backup-test';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -28,33 +28,36 @@ beforeEach(async () => {
   b.set(db.doc('households/h1'), { name: 'Home', ownerUid: 'u1', createdAt: created });
   b.set(db.doc('households/h1/members/u1'), { role: 'owner', displayName: 'Sam', joinedAt: created });
   b.set(db.doc('households/h1/products/p1'), { name: 'Milk', nameKey: 'milk', minQuantity: null, createdAt: created });
-  b.set(db.doc('households/h1/stock/s1'), { productId: 'p1', quantity: 2, expiryDate: '2026-10-20', createdAt: created });
-  b.set(db.doc('households/h1/groceryLists/g1'), { name: 'Groceries', isDefault: true });
+  b.set(db.doc('households/h1/stock/s1'), { productId: 'p1', quantity: 2, expiryDate: '2026-10-20', createdAt: created, updatedAt: created, updatedBy: 'u1' });
+  // A note that looks like a date-time: text, which a restore must keep as text.
+  b.set(db.doc('households/h1/stock/s-iso'), { productId: 'p1', quantity: 1, expiryDate: '2026-12-24', note: '2026-12-24T18:00:00Z', createdAt: created });
+  b.set(db.doc('households/h1/groceryLists/g1'), { name: 'Groceries', isDefault: true, updatedAt: created });
   b.set(db.doc('households/h1/groceryLists/g1/items/i1'), { name: 'Eggs', checked: false, createdAt: created });
   b.set(db.doc('households/h1/recipes/r1'), { title: 'Pie', ingredients: [{ raw: '1 cup flour', qty: 1 }], createdAt: created });
   b.set(db.doc('households/h1/activity/a1'), { type: 'stock_added', createdAt: created });
   b.set(db.doc('households/h1/meals/m1'), { date: '2026-10-29', slot: 'dinner', title: 'Pie', cooks: ['u1'], createdAt: created });
   b.set(db.doc('households/h1/stock/s-gone'), { productId: 'p1', quantity: 1, expiryDate: '2026-10-21', deletedAt: created });
   b.set(db.doc('households/h2'), { name: 'Other', ownerUid: 'u2' });
+  b.set(db.doc('households/h3'), { name: 'Home again', ownerUid: 'u1' });
   await b.commit();
 });
 
 it('exports every household in the app format, without the activity log or tombstones', async () => {
-  assert.deepEqual((await householdIds(db)).sort(), ['h1', 'h2']);
+  assert.deepEqual((await householdIds(db)).sort(), ['h1', 'h2', 'h3']);
   const data = await exportHousehold(db, 'h1', new Date('2026-10-18T03:17:00Z'), 'test');
   assert.equal(data.format, 'spoilnot-export');
   assert.equal(data.household?.name, 'Home');
   assert.equal(data.members[0]?.displayName, 'Sam');
   assert.equal(data.products[0]?.createdAt, '2026-10-01T08:00:00.000Z');
-  assert.equal(data.stock[0]?.expiryDate, '2026-10-20');
-  assert.equal(data.stock.length, 1, 'the deleted batch is left out');
+  assert.equal(data.stock.find((s) => s.id === 's1')?.expiryDate, '2026-10-20');
+  assert.equal(data.stock.length, 2, 'the deleted batch is left out');
   assert.equal(data.groceryLists[0]?.items[0]?.name, 'Eggs');
   assert.equal(data.recipes[0]?.title, 'Pie');
   assert.equal(data.meals?.[0]?.slot, 'dinner', 'planned meals (after v1)');
   assert.equal(JSON.stringify(data).includes('stock_added'), false);
 });
 
-it('a restore puts deleted and changed documents back as they were', async () => {
+it('a restore puts deleted and changed documents back as they were, stamped with the restore', async () => {
   const data = JSON.parse(JSON.stringify(await exportHousehold(db, 'h1', new Date(), 'test')));
   await db.doc('households/h1/products/p1').delete();
   await db.doc('households/h1/stock/s1').update({ quantity: 0 });
@@ -62,16 +65,46 @@ it('a restore puts deleted and changed documents back as they were', async () =>
   await db.doc('households/h1/products/p2').set({ name: 'Bread' });
   await db.doc('households/h1/meals/m1').delete();
 
-  assert.deepEqual(await applyRestore(db, planRestore(data, 'h1')), { written: 6, failed: 0 });
+  const before = Date.now() - 5_000;
+  assert.deepEqual(await applyRestore(db, planRestore(data, 'h1')), { written: 7, failed: 0 });
   assert.equal((await db.doc('households/h1/meals/m1').get()).get('title'), 'Pie', 'meals come back too');
   const milk = await db.doc('households/h1/products/p1').get();
   assert.equal(milk.get('name'), 'Milk');
   assert.ok(milk.get('createdAt') instanceof Timestamp);
   assert.equal(milk.get('createdAt').toMillis(), created.toMillis());
-  assert.equal((await db.doc('households/h1/stock/s1').get()).get('quantity'), 2);
+  const batch = await db.doc('households/h1/stock/s1').get();
+  assert.equal(batch.get('quantity'), 2);
   assert.equal((await db.doc('households/h1/groceryLists/g1/items/i1').get()).get('name'), 'Eggs');
   // Added after the export: left alone.
   assert.equal((await db.doc('households/h1/products/p2').get()).get('name'), 'Bread');
+
+  // Every restored document has a new update stamp, so changes-only listeners see it (DESIGN 9.8).
+  for (const path of ['products/p1', 'stock/s1', 'stock/s-iso', 'groceryLists/g1/items/i1', 'recipes/r1', 'meals/m1']) {
+    const d = await db.doc(`households/h1/${path}`).get();
+    assert.ok(d.get('updatedAt') instanceof Timestamp, `${path} updatedAt`);
+    assert.ok(d.get('updatedAt').toMillis() > before, `${path} updatedAt is the restore's time`);
+    assert.equal(d.get('updatedBy'), 'restore', `${path} updatedBy`);
+  }
+  const list = await db.doc('households/h1/groceryLists/g1').get();
+  assert.ok(list.get('updatedAt').toMillis() > before, 'the list too');
+  assert.equal(list.get('updatedBy'), undefined, "a list's rules allow updatedAt only");
+
+  // Text that looks like a date-time stays text.
+  assert.equal((await db.doc('households/h1/stock/s-iso').get()).get('note'), '2026-12-24T18:00:00Z');
+});
+
+it('refuses a household with a different owner unless asked, before writing anything', async () => {
+  const data = JSON.parse(JSON.stringify(await exportHousehold(db, 'h1', new Date(), 'test')));
+  await assert.rejects(applyRestore(db, planRestore(data, 'h2')), { code: 'different-owner' });
+  assert.equal((await db.collection('households/h2/products').get()).size, 0, 'nothing written');
+
+  // Another household of the same owner is fine (the original was deleted and made again).
+  assert.equal(await checkTarget(db, planRestore(data, 'h3')), true);
+  // A different owner, when the workflow's "different owner" is ticked.
+  assert.equal(await checkTarget(db, planRestore(data, 'h2'), { differentOwner: true }), false);
+  assert.deepEqual(await applyRestore(db, planRestore(data, 'h2'), { differentOwner: true }), { written: 7, failed: 0 });
+  // An export without its household document names no owner, so it needs the same input.
+  await assert.rejects(checkTarget(db, planRestore({ ...data, household: null }, 'h1')), { code: 'different-owner' });
 });
 
 it('refuses to restore into a household that does not exist', async () => {

@@ -261,7 +261,28 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Undo), turn Airplane Mode off: both show Yogurt ×2. Press −1 on Yogurt until it is used up on A and Undo within a
     few seconds: Yogurt ×1 is back on both. Throw a purchase away on B and Undo: it comes back, and in the Emulator UI
     (or the console on spoilnot-dev) its `createdBy` is still A's.
-49. Bad data skips one document (Android and the iPhone web app, after v1, 2026-11-11, DESIGN 6.7, 8.6): add Cheese to
+49. Restore and Export tell the truth (Android and the iPhone web app, after v1, 2026-11-11, DESIGN 13.4): in Airplane
+    Mode, Settings > Export on Android says "You're offline" and opens no Save dialog; on the iPhone it says the same
+    and downloads nothing. Back online, Export saves the file: it has `profile` (your name and settings) and
+    `activity` (recent events) after `meals`. Owner's restore check on spoilnot-prod: run restore-from-export with the
+    household's first characters and **apply** unticked; the log shows the counts and `Target: same owner as the
+    export.` (never the full ID). A target household of another account (a spare household) stops with `restore
+    failed: different-owner`. After a real restore, a phone that stayed closed shows the restored pantry within a
+    minute of opening, without a restart.
+50. Forms keep what you typed, and Add to pantry gets Undo (Android and the iPhone web app, after v1, 2026-11-11,
+    DESIGN 5.3, 6.1): with Butter, Sugar and Eggs on the list, check off Butter and Eggs on phone A and open Add to
+    pantry. Set Butter to 3 and +2 weeks. On phone B check off Sugar: A gets a Sugar row and Butter still says 3 and
+    the date. Rotate A, then switch to another app, run `adb shell am kill com.parcha.spoilnot.dev` and come back:
+    the sheet and Butter's edits are still there (Android). Press Add all: "Added to the pantry" with Undo. Press Undo:
+    Butter, Sugar and Eggs are back in the cart on both phones and the pantry has no new purchases; a product the
+    addition created (say Sugar) is gone from the pantry and from Add item's suggestions. With Rice kept in grams and
+    in stock, quick-add "2 kg rice" and open Add to pantry: its unit is grams and can't be changed ("Set while in
+    stock") and the amount is empty or the last amount. With "Rice 500 g" on the list, quick-add "2 kg rice": the
+    prompt says it's already on the list as 500 g and offers only Add anyway. Quick-add "3 lbs apples": an item
+    "apples" with 3 lb. Rename Milk to "Whole milk" while "Milk" is on the list from Low stock, then add it to the
+    pantry: it goes to Whole milk, with no second Milk. On Android, type a title in Plan's Add meal sheet and rotate:
+    the sheet stays with the title.
+51. Bad data skips one document (Android and the iPhone web app, after v1, 2026-11-11, DESIGN 6.7, 8.6): add Cheese to
     the pantry, then in the Emulator UI (or the console on spoilnot-dev) change one purchase's `quantity` to the text
     "2", its `updatedAt` to now, and one grocery item's `checked` to the text "yes" (or run `bad-data.spec.ts`).
     Pantry, Groceries and Home keep showing everything, the edited purchase as used up and the item unchecked; before,

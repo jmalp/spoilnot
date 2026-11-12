@@ -29,7 +29,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,15 +45,15 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.feature.grocery.domain.AddToPantryRules
+import com.parcha.spoilnot.feature.grocery.domain.EntryDefaults
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.PantryEntry
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.Location
-import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
-import com.parcha.spoilnot.feature.pantry.domain.ShelfLife
 import com.parcha.spoilnot.feature.pantry.ui.DateChips
 import com.parcha.spoilnot.feature.pantry.ui.EnumDropdown
 import com.parcha.spoilnot.feature.pantry.ui.LocationChoice
@@ -67,30 +66,27 @@ import com.parcha.spoilnot.feature.pantry.ui.parseQuantity
 import com.parcha.spoilnot.feature.pantry.ui.unitMenu
 import java.time.LocalDate
 
-/** One editable row of the Add to pantry sheet. */
-private class EntryDraft(
-    val item: GroceryItem,
-    quantity: String,
-    unit: QuantityUnit,
-    expiry: LocalDate?,
-    location: Location,
-) {
-    var quantity by mutableStateOf(quantity)
-    var unit by mutableStateOf(unit)
-    var expiry by mutableStateOf(expiry)
-    var location by mutableStateOf(location)
-    var skip by mutableStateOf(false)
+/** One line of the Add to pantry sheet: its item, where it started and what it holds now. */
+private class EntryLine(val item: GroceryItem, val defaults: EntryDefaults, edit: EntryEdit?, val expanded: Boolean) {
+    val value: EntryEdit = (
+        edit ?: EntryEdit(
+            quantity = defaults.quantity?.let(::formatQuantity).orEmpty(),
+            unit = defaults.unit,
+            expiry = defaults.expiry,
+            location = defaults.location,
+            skip = false,
+        )
+        // A product with stock keeps its unit (DESIGN 2; after v1, LOGIC-04), also when it got stock meanwhile.
+        ).let { if (defaults.unitLocked) it.copy(unit = defaults.unit) else it }
 
-    /** Showing the full editor instead of the one-line summary (after v1). */
-    var expanded by mutableStateOf(false)
-
-    val valid: Boolean get() = skip || parseQuantity(quantity)?.let { it > 0 } == true
+    val valid: Boolean get() = value.skip || parseQuantity(value.quantity)?.let { it > 0 } == true
 }
 
 /**
  * Done shopping (DESIGN 5.3): one line per checked item summing up what will be added (amount, location, date
  * pre-filled from the product's typical shelf life). Tapping a line opens its editor: quantity, unit, expiry quick
- * chips, location and Skip, which removes the item without adding stock. Add all adds them in one write.
+ * chips, location and Skip, which removes the item without adding stock. Add all adds them in one write. What the
+ * person sets is kept in [drafts] by item id (after v1, REL-08).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,6 +94,7 @@ fun AddToPantrySheet(
     items: List<GroceryItem>,
     pantry: PantryData,
     today: LocalDate,
+    drafts: AddToPantryDrafts,
     onConfirm: (entries: List<PantryEntry>, skipped: List<GroceryItem>) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -108,7 +105,7 @@ fun AddToPantrySheet(
         contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier.testTag("sheet_add_to_pantry"),
     ) {
-        AddToPantryContent(items, pantry, today, onConfirm)
+        AddToPantryContent(items, pantry, today, drafts, onConfirm)
     }
 }
 
@@ -118,25 +115,20 @@ internal fun AddToPantryContent(
     items: List<GroceryItem>,
     pantry: PantryData,
     today: LocalDate,
+    drafts: AddToPantryDrafts = remember { AddToPantryDrafts() },
     onConfirm: (entries: List<PantryEntry>, skipped: List<GroceryItem>) -> Unit,
 ) {
-    val drafts = remember(items) {
-        mutableStateListOf(
-            *items.map { item ->
-                val product = pantry.products.firstOrNull { it.id == item.productId }
-                    ?: pantry.products.firstOrNull { it.nameKey == NameKey.of(item.name) }
-                EntryDraft(
-                    item = item,
-                    quantity = formatQuantity(item.quantity ?: 1.0),
-                    unit = item.unit ?: product?.unit ?: QuantityUnit.Pieces,
-                    expiry = ShelfLife.suggestExpiry(product?.typicalShelfLifeDays, today),
-                    location = product?.defaultLocation ?: Location.Fridge,
-                )
-            }.toTypedArray(),
+    // The current items with the edits kept for them: a check-off elsewhere adds a line and keeps the others.
+    val lines = items.map { item ->
+        EntryLine(
+            item,
+            AddToPantryRules.defaults(item, pantry, today),
+            drafts.edit(item.id),
+            drafts.isExpanded(item.id),
         )
     }
-    val valid = drafts.all { it.valid }
-    val count = drafts.count { !it.skip }
+    val valid = lines.all { it.valid }
+    val count = lines.count { !it.value.skip }
 
     Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
         Column(
@@ -148,8 +140,13 @@ internal fun AddToPantryContent(
                 style = MaterialTheme.typography.headlineSmall,
             )
             Column {
-                drafts.forEach { draft ->
-                    EntryRow(draft, today)
+                lines.forEach { line ->
+                    EntryRow(
+                        line,
+                        today,
+                        onChange = { drafts.set(line.item.id, it) },
+                        onToggle = { drafts.setExpanded(line.item.id, !line.expanded) },
+                    )
                     HorizontalDivider()
                 }
             }
@@ -158,7 +155,7 @@ internal fun AddToPantryContent(
             PrimaryButton(
                 text = if (count == 0) {
                     stringResource(R.string.grocery_remove_skipped)
-                } else if (count == drafts.size && count > 1) {
+                } else if (count == lines.size && count > 1) {
                     pluralStringResource(R.plurals.grocery_add_all_to_pantry, count, count)
                 } else {
                     pluralStringResource(R.plurals.grocery_add_to_pantry, count, count)
@@ -166,13 +163,19 @@ internal fun AddToPantryContent(
                 onClick = {
                     if (!valid) {
                         // Show what needs fixing.
-                        drafts.filter { !it.valid }.forEach { it.expanded = true }
+                        lines.filter { !it.valid }.forEach { drafts.setExpanded(it.item.id, true) }
                         return@PrimaryButton
                     }
-                    val entries = drafts.filter { !it.skip }.map {
-                        PantryEntry(it.item, parseQuantity(it.quantity)!!, it.unit, it.expiry, it.location)
+                    val entries = lines.filter { !it.value.skip }.map {
+                        PantryEntry(
+                            it.item,
+                            parseQuantity(it.value.quantity)!!,
+                            it.value.unit,
+                            it.value.expiry,
+                            it.value.location,
+                        )
                     }
-                    onConfirm(entries, drafts.filter { it.skip }.map { it.item })
+                    onConfirm(entries, lines.filter { it.value.skip }.map { it.item })
                 },
                 modifier = Modifier.testTag("button_confirm_add_to_pantry"),
             )
@@ -182,41 +185,43 @@ internal fun AddToPantryContent(
 
 /** "2 · Fridge · Oct 26", "Skipped" or the problem, for one line of the sheet. */
 @Composable
-private fun entrySummary(draft: EntryDraft, today: LocalDate): String {
-    if (draft.skip) return stringResource(R.string.grocery_entry_skipped)
-    val quantity = parseQuantity(draft.quantity)?.takeIf { it > 0 } ?: return stringResource(R.string.error_quantity)
-    val date = draft.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date)
+private fun entrySummary(line: EntryLine, today: LocalDate): String {
+    val value = line.value
+    if (value.skip) return stringResource(R.string.grocery_entry_skipped)
+    val quantity = parseQuantity(value.quantity)?.takeIf { it > 0 } ?: return stringResource(R.string.error_quantity)
+    val date = value.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date)
     return stringResource(
         R.string.grocery_entry_summary,
-        amountText(quantity, draft.unit),
-        stringResource(draft.location.label()),
+        amountText(quantity, value.unit),
+        stringResource(value.location.label()),
         date,
     )
 }
 
 @Composable
-private fun EntryRow(draft: EntryDraft, today: LocalDate) {
-    val summary = entrySummary(draft, today)
-    Column(Modifier.fillMaxWidth().testTag("entry_${draft.item.id}")) {
+private fun EntryRow(line: EntryLine, today: LocalDate, onChange: (EntryEdit) -> Unit, onToggle: () -> Unit) {
+    val summary = entrySummary(line, today)
+    Column(Modifier.fillMaxWidth().testTag("entry_${line.item.id}")) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clickable(
                     onClickLabel = stringResource(
-                        if (draft.expanded) R.string.grocery_entry_done else R.string.grocery_entry_edit,
+                        if (line.expanded) R.string.grocery_entry_done else R.string.grocery_entry_edit,
                     ),
-                ) { draft.expanded = !draft.expanded }
+                    onClick = onToggle,
+                )
                 .heightIn(min = 56.dp)
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text(draft.item.name, style = MaterialTheme.typography.titleMedium)
+                Text(line.item.name, style = MaterialTheme.typography.titleMedium)
                 Text(
                     summary,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (draft.valid) {
+                    color = if (line.valid) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.error
@@ -224,16 +229,18 @@ private fun EntryRow(draft: EntryDraft, today: LocalDate) {
                 )
             }
             Icon(
-                if (draft.expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                if (line.expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                 contentDescription = null,
             )
         }
-        if (draft.expanded) EntryEditor(draft, today)
+        if (line.expanded) EntryEditor(line, today, onChange)
     }
 }
 
 @Composable
-private fun EntryEditor(draft: EntryDraft, today: LocalDate) {
+private fun EntryEditor(line: EntryLine, today: LocalDate, onChange: (EntryEdit) -> Unit) {
+    val value = line.value
+    val id = line.item.id
     Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -243,23 +250,21 @@ private fun EntryEditor(draft: EntryDraft, today: LocalDate) {
             )
             Text(stringResource(R.string.grocery_skip), style = MaterialTheme.typography.bodyMedium)
             Switch(
-                checked = draft.skip,
-                onCheckedChange = { draft.skip = it },
-                modifier = Modifier.padding(start = 8.dp).testTag("entry_skip_${draft.item.id}"),
+                checked = value.skip,
+                onCheckedChange = { onChange(value.copy(skip = it)) },
+                modifier = Modifier.padding(start = 8.dp).testTag("entry_skip_$id"),
             )
         }
-        if (!draft.skip) {
+        if (!value.skip) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
                 FormTextField(
-                    value = draft.quantity,
-                    onValueChange = { draft.quantity = it },
+                    value = value.quantity,
+                    onValueChange = { onChange(value.copy(quantity = it)) },
                     label = stringResource(R.string.field_quantity),
-                    error = if (parseQuantity(draft.quantity)?.let { it > 0 } !=
-                        true
-                    ) {
+                    error = if (parseQuantity(value.quantity)?.let { it > 0 } != true) {
                         stringResource(R.string.error_quantity)
                     } else {
                         null
@@ -268,23 +273,26 @@ private fun EntryEditor(draft: EntryDraft, today: LocalDate) {
                         keyboardType = KeyboardType.Decimal,
                         imeAction = ImeAction.Next,
                     ),
-                    modifier = Modifier.width(140.dp),
+                    modifier = Modifier.width(140.dp).testTag("entry_quantity_$id"),
                 )
                 Column(Modifier.weight(1f)) {
-                    EnumDropdown(stringResource(R.string.field_unit), draft.unit, unitMenu(), {
-                        stringResource(it.label())
-                    }, {
-                        draft.unit =
-                            it
-                    })
+                    EnumDropdown(
+                        label = stringResource(R.string.field_unit),
+                        value = value.unit,
+                        options = unitMenu(),
+                        optionLabel = { stringResource(it.label()) },
+                        onPick = { onChange(value.copy(unit = it)) },
+                        enabled = !line.defaults.unitLocked,
+                        helper = if (line.defaults.unitLocked) stringResource(R.string.unit_locked_short) else null,
+                    )
                 }
             }
             Text(
-                draft.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date),
+                value.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date),
                 style = MaterialTheme.typography.labelLarge,
             )
-            DateChips(draft.expiry, today) { draft.expiry = it }
-            LocationChoice(draft.location) { draft.location = it }
+            DateChips(value.expiry, today) { onChange(value.copy(expiry = it)) }
+            LocationChoice(value.location) { onChange(value.copy(location = it)) }
         }
     }
 }

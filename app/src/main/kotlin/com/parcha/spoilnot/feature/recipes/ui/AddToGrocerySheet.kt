@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.ui.rememberSaveableMap
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
@@ -70,10 +71,10 @@ fun AddToGrocerySheet(
     onDismiss: () -> Unit,
 ) {
     // User choices, by line; lines not touched follow their default.
-    val choices = remember { mutableStateMapOf<Int, Boolean>() }
+    val choices = rememberSaveableMap<Int, Boolean>()
     // Names typed in "Change" by line (DESIGN 5.5); applied on top of the latest candidates.
-    val renames = remember { mutableStateMapOf<Int, String>() }
-    var editing by remember { mutableStateOf<Int?>(null) }
+    val renames = rememberSaveableMap<Int, String>()
+    var editing by rememberSaveable { mutableStateOf<Int?>(null) }
     val products = state.pantry.products
     val candidates = state.candidates.mapIndexed { i, c ->
         renames[i]?.let { RecipeGrocery.rename(c, it, products) } ?: c

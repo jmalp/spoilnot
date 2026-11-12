@@ -16,26 +16,64 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryLimits
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
+import com.parcha.spoilnot.feature.pantry.domain.ShelfLife
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
+import com.parcha.spoilnot.feature.recipes.domain.IngredientParser
 import java.time.LocalDate
 import javax.inject.Inject
 
 /** "2 kg rice" in the quick-add field: an optional leading quantity and unit, then the name. */
-data class QuickAdd(val name: String, val quantity: Double?, val unit: QuantityUnit?)
+data class QuickAdd(val name: String, val quantity: Double?, val unit: QuantityUnit?) {
+    /**
+     * Whether "Increase quantity" can add this to [existing] (after v1, LOGIC-08): only in the same unit, or when one
+     * side has none. There is no unit conversion (DESIGN 2), so 2 kg is never added to 500 g.
+     */
+    fun canIncrease(existing: GroceryItem): Boolean = existing.unit == null || unit == null || existing.unit == unit
+}
 
 object QuickAddParser {
-    private val NUMBER = Regex("""^(\d+(?:[.,]\d+)?)\s+(.*)$""")
+    private val NUMBER = Regex("""^(\d+(?:[.,]\d+)?)(\s*)(.*)$""")
+
+    /** The recipe parser's words for the units the pantry has (after v1, LOGIC-08: "3 lbs", "2 litres"). */
+    private val RECIPE_UNITS = mapOf(
+        "g" to QuantityUnit.Grams,
+        "kg" to QuantityUnit.Kilograms,
+        "ml" to QuantityUnit.Milliliters,
+        "l" to QuantityUnit.Liters,
+        "oz" to QuantityUnit.Ounces,
+        "lb" to QuantityUnit.Pounds,
+    )
+    private val WORDS: Map<String, QuantityUnit> = buildMap {
+        QuantityUnit.entries.forEach { put(it.wire.replace('_', ' '), it) }
+        IngredientParser.UNITS.forEach { (canonical, words) ->
+            RECIPE_UNITS[canonical]?.let { unit -> words.forEach { put(it, unit) } }
+        }
+    }
+
+    /** A unit word, an optional dot, then a space: "2 lemons" is not 2 litres of "emons". */
+    private val UNIT = Regex(
+        """^(${WORDS.keys.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }})\.?\s+(.*)$""",
+        RegexOption.IGNORE_CASE,
+    )
 
     fun parse(text: String): QuickAdd {
         val clean = NameKey.clean(text)
         val match = NUMBER.matchEntire(clean) ?: return QuickAdd(clean, null, null)
-        val quantity = match.groupValues[1].replace(',', '.').toDouble()
-        val rest = match.groupValues[2]
-        val unit = QuantityUnit.entries
-            .sortedByDescending { it.wire.length }
-            .firstOrNull { u -> rest.lowercase().startsWith(u.wire.replace('_', ' ') + " ") }
-        val name = if (unit == null) rest else rest.drop(unit.wire.length).trim()
-        return if (name.isEmpty()) QuickAdd(clean, null, null) else QuickAdd(name, quantity, unit)
+        val (number, space, rest) = match.destructured
+        val quantity = number.replace(',', '.').toDouble()
+        val unitMatch = UNIT.matchEntire(rest)
+        val unit = unitMatch?.let { WORDS[it.groupValues[1].lowercase()] }
+        // A unit may follow the number directly ("2l milk", "500g rice"); a name may not ("7up").
+        if (unit == null && space.isEmpty()) return QuickAdd(clean, null, null)
+        val name = unitMatch?.groupValues?.get(2)?.trim() ?: rest
+        return when {
+            name.isEmpty() -> QuickAdd(clean, null, null)
+
+            // "0 eggs" means eggs: an amount of nothing is no amount.
+            quantity <= 0.0 -> QuickAdd(name, null, null)
+
+            else -> QuickAdd(name, quantity, unit)
+        }
     }
 }
 
@@ -56,6 +94,46 @@ data class PantryEntry(
     val location: Location,
     val dateType: DateType = DateType.UseBy,
 )
+
+/**
+ * What a line of the Add to pantry sheet starts with (DESIGN 5.3). [product] is the one the item adds to: its linked
+ * product while it exists, else the one of its name (after v1, LOGIC-03). A product with stock fixes the unit
+ * ([unitLocked], DESIGN 2: no conversion, LOGIC-04), and the item's amount is used only in that unit or when the item
+ * has none; otherwise the product's last added amount, or none, so the person types it.
+ */
+data class EntryDefaults(
+    val product: Product?,
+    val quantity: Double?,
+    val unit: QuantityUnit,
+    val unitLocked: Boolean,
+    val expiry: LocalDate?,
+    val location: Location,
+)
+
+object AddToPantryRules {
+    fun productFor(item: GroceryItem, products: List<Product>): Product? =
+        item.productId?.let { id -> products.firstOrNull { it.id == id } }
+            ?: products.firstOrNull { it.nameKey == NameKey.of(item.name) }
+
+    fun defaults(item: GroceryItem, data: PantryData, today: LocalDate): EntryDefaults {
+        val product = productFor(item, data.products)
+        val locked = product != null && data.batches.any { it.productId == product.id && it.quantity > 0 }
+        val unit = if (locked) product.unit else item.unit ?: product?.unit ?: QuantityUnit.Pieces
+        val sameUnit = item.unit == null || item.unit == unit
+        val quantity = when {
+            sameUnit -> item.quantity ?: 1.0
+            else -> product?.lastAddedQuantity?.takeIf { it > 0 }
+        }
+        return EntryDefaults(
+            product = product,
+            quantity = quantity,
+            unit = unit,
+            unitLocked = locked,
+            expiry = ShelfLife.suggestExpiry(product?.typicalShelfLifeDays, today),
+            location = product?.defaultLocation ?: Location.Fridge,
+        )
+    }
+}
 
 /** Groups for the list screen: unchecked items by category (aisle), then the In cart section (DESIGN 5.3). */
 data class GroceryView(val aisles: List<Pair<Category, List<GroceryItem>>>, val inCart: List<GroceryItem>)
@@ -136,8 +214,9 @@ class GroceryService @Inject constructor(
         return QuickAddResult.Added
     }
 
-    /** "Increase quantity" from the Already on the list prompt. */
+    /** "Increase quantity" from the Already on the list prompt, offered only when [QuickAdd.canIncrease]. */
     suspend fun increase(householdId: String, actor: Actor, listId: String, existing: GroceryItem, request: QuickAdd) {
+        require(request.canIncrease(existing)) { "Different units" }
         val delta = request.quantity ?: 1.0
         val change = if (existing.quantity == null) {
             val before = GroceryItemFields.of(existing)
@@ -250,7 +329,10 @@ class GroceryService @Inject constructor(
 
     /**
      * Done shopping (DESIGN 5.3): creates the stock batches (and any new products) for [entries], removes those
-     * items and the [skipped] ones from the list, all in one batched write.
+     * items and the [skipped] ones from the list, all in one batched write. Each entry adds to its item's linked
+     * product while it exists (after v1, LOGIC-03). The Undo (LOGIC-10) removes what it added (new batches and
+     * products as tombstones, amounts added to existing batches as increments) and puts the items back; null when
+     * nothing was written.
      */
     suspend fun addToPantry(
         householdId: String,
@@ -259,7 +341,7 @@ class GroceryService @Inject constructor(
         entries: List<PantryEntry>,
         skipped: List<GroceryItem>,
         pantryData: PantryData,
-    ) {
+    ): Undo? {
         var data = pantryData
         val changes = mutableListOf<HouseholdChange>()
         for (entry in entries) {
@@ -278,6 +360,7 @@ class GroceryService @Inject constructor(
                     buyQuantity = null,
                 ),
                 data,
+                productId = entry.item.productId,
             )
             val learned = learnAlias(entry.item.aliasOf, plan)
             changes += learned.changes
@@ -285,7 +368,10 @@ class GroceryService @Inject constructor(
             data = learned.after
         }
         changes += skipped.map { GroceryChange.DeleteItem(listId, it.id) }
-        if (changes.isNotEmpty()) writer.apply(householdId, actor, changes)
+        if (changes.isEmpty()) return null
+        writer.apply(householdId, actor, changes)
+        val removed = entries.map { it.item } + skipped
+        return Undo(pantry.undoAdditions(changes) + removed.map { GroceryChange.RestoreItem(listId, it) })
     }
 
     suspend fun undo(householdId: String, actor: Actor, undo: Undo) = writer.apply(householdId, actor, undo.changes)
