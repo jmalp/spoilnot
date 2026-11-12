@@ -156,7 +156,7 @@ export function GroceriesScreen({
   const toggle = (item: GroceryItem) => {
     if (!list) return;
     act(async () => {
-      await groceryService.setChecked(hid, actor, list.id, item, !item.checked, list.name);
+      await groceryService.setChecked(hid, actor, list.id, item, !item.checked);
       // Learn the store's aisle order from the order things go into the cart (DESIGN 5.3).
       if (!item.checked) {
         const aisle = item.category ?? 'other';

@@ -425,7 +425,7 @@ private fun PantryFilter.label(): Int = when (this) {
     PantryFilter.Freezer -> R.string.location_freezer
     PantryFilter.Pantry -> R.string.location_pantry
     PantryFilter.Other -> R.string.location_other
-    PantryFilter.ExpiringSoon -> R.string.filter_expiring_soon
+    PantryFilter.NeedsAttention -> R.string.filter_needs_attention
     PantryFilter.Expired -> R.string.filter_expired
     PantryFilter.LowStock -> R.string.filter_low_stock
 }

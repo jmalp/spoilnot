@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, daysBetween } from '../time';
 import { TODAY } from './fixtures';
+import { NeedsAttention } from './items';
 import { Expiry, NameKey, naturalOrder, ShelfLife } from './rules';
 
 const status = (days: number | null) => Expiry.of(days === null ? null : addDays(TODAY, days), TODAY);
@@ -32,8 +33,10 @@ describe('Expiry', () => {
   });
 
   it('needs attention means expired or within 3 days', () => {
-    for (const d of [-1, 0, 1, 2, 3]) expect(Expiry.needsAttention(status(d))).toBe(true);
-    for (const d of [4, 8, null]) expect(Expiry.needsAttention(status(d))).toBe(false);
+    for (const d of [-1, 0, 1, 2, 3]) expect(NeedsAttention.includes(status(d))).toBe(true);
+    for (const d of [4, 8, null]) expect(NeedsAttention.includes(status(d))).toBe(false);
+    expect(NeedsAttention.usable(status(-1))).toBe(false);
+    for (const d of [0, 1, 2, 3]) expect(NeedsAttention.usable(status(d))).toBe(true);
   });
 });
 

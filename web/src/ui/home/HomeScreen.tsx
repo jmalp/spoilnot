@@ -159,7 +159,8 @@ function HomeCards({
   const { clock } = useServices();
   const now = useNow(clock);
   // Expired only: the Expiring soon filter would hide them.
-  const attentionFilter: PantryFilter = summary.attention.length === summary.expiredCount ? 'expired' : 'expiringSoon';
+  // The filter holds the expired too since R8; the card itself is ported in the next PR.
+  const attentionFilter: PantryFilter = 'needsAttention';
   return (
     <>
       <HomeCard

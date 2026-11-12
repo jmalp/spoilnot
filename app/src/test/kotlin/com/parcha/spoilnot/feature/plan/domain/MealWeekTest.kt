@@ -56,6 +56,17 @@ class MealWeekTest {
     }
 
     @Test
+    fun `recipes planned from today on, cooked or not, are the ones Use it up leaves out`() {
+        val meals = listOf(
+            meal("yesterday", date = thursday.minusDays(1)).copy(recipeId = "r-old"),
+            meal("tonight").copy(recipeId = "r-tacos", cookedAt = Instant.EPOCH),
+            meal("saturday", date = thursday.plusDays(2)).copy(recipeId = "r-curry"),
+            meal("leftovers", date = thursday.plusDays(1)),
+        )
+        assertEquals(setOf("r-tacos", "r-curry"), MealWeek.plannedFrom(meals, thursday))
+    }
+
+    @Test
     fun `a new meal goes after the last one in its slot`() {
         assertEquals(0, MealWeek.nextPosition(emptyList()))
         assertEquals(4, MealWeek.nextPosition(listOf(meal("a", position = 3), meal("b", position = 1))))

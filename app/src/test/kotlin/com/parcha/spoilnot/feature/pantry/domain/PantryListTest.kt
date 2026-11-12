@@ -76,11 +76,11 @@ class PantryListTest {
     }
 
     @Test
-    fun `expiring soon is today to 3 days, expired is separate`() {
+    fun `needs attention is expired or within 3 days, expired is also its own filter`() {
         val withExpired = batches + batch("m2", "milk", inDays = -2)
-        val soon = PantryList.build(products, withExpired, PantryQuery(filter = PantryFilter.ExpiringSoon), TODAY)
+        val soon = PantryList.build(products, withExpired, PantryQuery(filter = PantryFilter.NeedsAttention), TODAY)
         assertEquals(listOf("Milk", "Yogurt"), soon.flatMap { g -> g.rows.map { it.name } })
-        assertEquals(listOf("m1"), soon.single().rows.first().batches.map { it.id })
+        assertEquals(listOf("m2", "m1"), soon.single().rows.first().batches.map { it.id })
         val expired = PantryList.build(products, withExpired, PantryQuery(filter = PantryFilter.Expired), TODAY)
         assertEquals(listOf("m2"), expired.single().rows.single().batches.map { it.id })
         assertEquals(ExpiryStatus.Expired, expired.single().rows.single().status)

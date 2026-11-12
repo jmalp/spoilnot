@@ -34,7 +34,8 @@ class PantryItemsTest {
     @Test
     fun `filters work per purchase`() {
         assertEquals(listOf("m2"), keys(PantryQuery(filter = PantryFilter.Freezer)))
-        assertEquals(listOf("m1"), keys(PantryQuery(filter = PantryFilter.ExpiringSoon)))
+        // Needs attention includes the expired (after v1, R8).
+        assertEquals(listOf("s1", "m1"), keys(PantryQuery(filter = PantryFilter.NeedsAttention)))
         assertEquals(listOf("s1"), keys(PantryQuery(filter = PantryFilter.Expired)))
         assertEquals(listOf("r1", "out-oil"), keys(PantryQuery(filter = PantryFilter.LowStock)))
         assertEquals(listOf("r1", "out-oil"), keys(PantryQuery(filter = PantryFilter.Pantry)))

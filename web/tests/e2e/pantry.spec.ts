@@ -62,9 +62,10 @@ test('the list, filters and search, as on Android', async ({ page }) => {
     'Expires tomorrow',
   );
 
-  await page.getByTestId('pantry_filter_expiringSoon').click();
-  await expect(rows(page)).toHaveText([/Milk/]);
-  await page.getByTestId('pantry_filter_expiringSoon').click(); // the chosen filter again: everything
+  // Needs attention holds the expired too, as Home and the digest count them (after v1, R8).
+  await page.getByTestId('pantry_filter_needsAttention').click();
+  await expect(rows(page)).toHaveText([/Soup/, /Milk/]);
+  await page.getByTestId('pantry_filter_needsAttention').click(); // the chosen filter again: everything
   await expect(rows(page)).toHaveCount(5);
 
   await page.getByRole('searchbox').fill('YOG');

@@ -63,9 +63,10 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
                 product("cheese"),
                 product("oil", name = "Olive oil", min = 1.0),
             ),
-            // Two expired, and no activity: the compact card (after v1).
+            // Two expired, folded into one line under what can still be used (UX-01), and no activity.
             listOf(
                 batch("m1", "milk", inDays = 1),
+                batch("m2", "milk", inDays = 3),
                 batch("y1", "yogurt", inDays = -1),
                 batch("c1", "cheese", inDays = -3),
             ),
@@ -111,6 +112,32 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_cards_$suffix.png")
+    }
+
+    /** A new household: Needs attention and the grocery list say how to start, with no "all done" check (UX-07). */
+    @Test
+    fun newHousehold() {
+        val summary = HomeDashboard.summary(
+            PantryData(emptyList(), emptyList(), false),
+            emptyList(),
+            emptyList(),
+            TODAY,
+        )
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
+                    Surface {
+                        Column(
+                            Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) { HomeCards(summary, TODAY, "me", HomeNavigation({}, {}, {}, {})) }
+                    }
+                }
+            }
+        }
+        val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
+        compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_new_household_$suffix.png")
     }
 
     /** Nothing needs doing: the empty cards are one compact row each (after v1). */

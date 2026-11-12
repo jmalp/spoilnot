@@ -50,9 +50,6 @@ export const Expiry = {
     if (days <= 7) return 'week';
     return 'fresh';
   },
-  /** Within 3 days or already past: what Expiring soon and the Home card show. */
-  needsAttention: (status: ExpiryStatus): boolean =>
-    status === 'expired' || status === 'today' || status === 'tomorrow' || status === 'soon',
   /** Calendar days from [today] to [expiry]; negative once expired. */
   daysUntil: (expiry: LocalDate, today: LocalDate): number => daysBetween(today, expiry),
 };

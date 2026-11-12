@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { afterSend, buildDigest, buildDigestWithMeals, capBytes, cookingFor, DEFAULT_PREFS, MAX_BODY_BYTES, shorten, type Meal, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
+import { afterSend, buildDigest, buildDigestWithMeals, capBytes, cookingFor, DEFAULT_PREFS, MAX_BODY_BYTES, needsAttention, shorten, type Meal, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
 
 const user = (over: Partial<UserDoc> = {}, prefs: Partial<UserDoc['prefs']> = {}): UserDoc => ({
   uid: 'u1',
@@ -74,6 +74,20 @@ describe('what is in the digest', () => {
     assert.deepEqual(items.map((i) => [i.name, i.stage]).sort(), [
       ['Bread', 'expired'], ['Cheese', 3], ['Eggs', 2], ['Milk', 0], ['Soup', 'expired'], ['Yogurt', 1],
     ].sort());
+  });
+
+  it('starts from the one Needs attention set the apps show (R8): expired or within 3 days, in stock', () => {
+    // The same cases as NeedsAttentionTest (Android) and items.test.ts (web).
+    const set = needsAttention(today, stock);
+    assert.deepEqual(set.map((a) => [a.batch.productName, a.days]).sort(), [
+      ['Bread', -1], ['Cheese', 3], ['Eggs', 2], ['Milk', 0], ['Soup', -2], ['Yogurt', 1],
+    ].sort());
+    // A day later Milk has expired and Ham comes within 3 days.
+    assert.deepEqual(needsAttention('2026-10-13', stock).map((a) => a.batch.productName).sort(),
+      ['Bread', 'Cheese', 'Eggs', 'Ham', 'Milk', 'Soup', 'Yogurt']);
+    // With every stage on and expired reported every day, the digest names exactly the set.
+    const everything = user({}, { expiredMode: 'daily' });
+    assert.deepEqual(selectItems(everything, today, stock).map((i) => i.name).sort(), set.map((a) => a.batch.productName).sort());
   });
 
   it('respects a subset of stages', () => {

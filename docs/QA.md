@@ -19,14 +19,14 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 1. Pantry: add Milk (expires tomorrow) on Phone A. Phone B shows it in under 2 seconds with a short highlight.
 2. Mark it used up with a swipe, then Undo from the snackbar. Throw away something with a reason; Undo. Tap a row:
    the Edit window opens; drag it down a little (it stays) and then past halfway (it closes).
-3. Turn on Add to grocery list automatically with Keep at least on a product and use it below that: it appears on
+3. Turn on Keep some in stock with Keep at least on a product and use it below that: it appears on
    the grocery list by itself on both phones.
 4. Groceries: quick-add "2 kg rice", check it off (light vibration), Add to pantry.
 5. Recipes: share a recipe page from Chrome (Share > Spoil Not). The preview opens in under 5 seconds; Save. Open it,
    change servings, start Cook mode (screen stays on), add ingredients to the grocery list ("Probably in pantry"
    items start unchecked).
-6. Home: Needs attention, Low stock, Grocery list and Recent activity match what you just did; each card's button
-   switches to the right tab with the right filter.
+6. Home: Needs attention, Grocery list (with what is running low) and Recent activity match what you just did; each
+   card's button switches to the right tab with the right filter.
 7. Open Settings on one tab, switch to another tab and back: Settings is closed.
 8. Insights: use up one item and throw away another (Spoiled). On both phones, Home > Your kitchen this month shows
    "1 used · 1 thrown away" and a 50% ring with a dashed part. Undo the throw-away: it shows "1 used · 0 thrown
@@ -155,9 +155,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 35. Web app W6b (an iPhone with iOS 16.4 or later and a deployed build, W7): in Safari, Settings > Notifications asks
     to add Spoil Not to the Home Screen. Add it and open it from there. Add three items with dates: the third explains
     reminders; Turn on shows the iPhone's question, Allow. Settings > Notifications has no banner; Send test
-    notification shows one, and tapping it opens Pantry on Expiring soon. Set the time to the next hour: the digest
+    notification shows one, and tapping it opens Pantry on Needs attention. Set the time to the next hour: the digest
     arrives shortly after it, on the iPhone and the Android phone, with the same words; tapping it opens Pantry on
-    Expiring soon (or Plan when only meals are listed). Turn notifications off for Spoil Not in the iPhone's Settings:
+    Needs attention (or Plan when only meals are listed). Turn notifications off for Spoil Not in the iPhone's Settings:
     the banner says where to turn them on. Sign out: the next digest does not reach this iPhone.
 36. Web app W7 (an iPhone and `https://spoilnot-dev.web.app`, then prod): in Safari the welcome screen says how to add
     Spoil Not to the Home Screen and Home shows the card; Not now hides it. Share > Add to Home Screen: the icon is
@@ -183,7 +183,7 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     and open it again (leave it on Welcome): no digest reaches the iPhone from then on, while Phone A gets its own. Signed in
     without a household on either phone: the gate's menu has Delete account; a wrong password says so in the
     dialog; the right one shows Welcome, and signing in with that account then fails. A test notification still
-    opens the Pantry on Expiring soon (notification links stay on this site).
+    opens the Pantry on Needs attention (notification links stay on this site).
 39. Rules of 2026-11-08 (both apps on spoilnot-dev after the rules are deployed there, RUNBOOK): with two expired
     batches, throw both away at once: no "You don't have permission to do that.", Insights' month counts both, and
     Undo puts both batches and the count back. I cooked this on a recipe that uses up two whole batches: both go,
@@ -292,6 +292,18 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     phone, turn on Airplane Mode, press +1 on Cheese, go to Recipes, delete the purchase in the Emulator UI or the
     console and turn Airplane Mode off: Recipes shows "You don't have permission to do that." (the rules see no
     purchase to update).
+52. Home tells the truth (Android, and the shared parts on the iPhone web app; after v1, 2026-11-12, DESIGN 5.2, 5.4,
+    5.6, 5.9): in a household with 8 expired purchases and Milk (today) and Yogurt (in 2 days), Home > Needs attention
+    lists Milk and Yogurt with their chips, then "8 expired items to throw away or check"; See all 10 in Pantry opens
+    the Needs attention filter with the same 10 purchases, the expired folded at the top. A digest naming expired items
+    opens the same filter on Android and on the iPhone (`/pantry?filter=expiring`). With Olive oil out and on the list,
+    there is no Low stock card: the Grocery list card shows "N items to buy", then Running low with Olive oil and an
+    Out badge, and Open list opens Groceries. Plan Tacos for tonight with a recipe that uses Milk: Use it up on Home and
+    in Plan's Add meal sheet no longer suggests Tacos. Check off an item: Recent activity doesn't say so (a check-off
+    from a phone on beta 9 still shows). Create a new household: Needs attention says "Add food with its date…" and the
+    Grocery list card "Turn on Keep some in stock…", with no green checks; Add item's switch reads Keep some in stock
+    with "Puts it on the grocery list when it runs low". Go to next week on Plan: "Nothing planned this week…" with
+    Copy last week, which copies this week's meals (or says last week has no meals to copy).
 
 ## 3. Conditions
 

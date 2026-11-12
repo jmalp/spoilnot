@@ -47,6 +47,13 @@ object MealWeek {
         }
     }
 
+    /**
+     * The recipes planned on [today] or later among [meals], cooked or not, so Use it up doesn't suggest what the plan
+     * already uses (after v1, UX-05).
+     */
+    fun plannedFrom(meals: List<PlannedMeal>, today: LocalDate): Set<String> =
+        meals.filter { !it.date.isBefore(today) }.mapNotNullTo(HashSet()) { it.recipeId }
+
     /** Where a new meal goes in a slot: after the last one. */
     fun nextPosition(slotMeals: List<PlannedMeal>): Long = (slotMeals.maxOfOrNull { it.position } ?: -1L) + 1
 

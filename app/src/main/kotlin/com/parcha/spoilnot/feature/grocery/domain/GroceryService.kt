@@ -236,31 +236,12 @@ class GroceryService @Inject constructor(
     suspend fun setAisleOrder(householdId: String, actor: Actor, list: GroceryList, order: List<Category>) =
         writer.apply(householdId, actor, listOf(GroceryChange.SetAisleOrder(list.id, order)))
 
-    /** Checking off is logged (DESIGN 5.6); unchecking is not. */
-    suspend fun setChecked(
-        householdId: String,
-        actor: Actor,
-        listId: String,
-        item: GroceryItem,
-        checked: Boolean,
-        listName: String? = null,
-    ) = writer.apply(
-        householdId,
-        actor,
-        listOfNotNull(
-            GroceryChange.SetChecked(listId, item.id, checked),
-            if (checked) {
-                GroceryChange.LogEvent(
-                    writer.newId(),
-                    GroceryEventType.Checked,
-                    item.name,
-                    listName,
-                )
-            } else {
-                null
-            },
-        ),
-    )
+    /**
+     * Checking off or unchecking. Not logged in Recent activity since after v1 (R15): the list shows who checked what,
+     * and one shopping trip pushed everything else out of the card.
+     */
+    suspend fun setChecked(householdId: String, actor: Actor, listId: String, item: GroceryItem, checked: Boolean) =
+        writer.apply(householdId, actor, listOf(GroceryChange.SetChecked(listId, item.id, checked)))
 
     suspend fun edit(
         householdId: String,

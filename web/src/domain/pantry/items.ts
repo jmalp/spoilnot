@@ -4,7 +4,9 @@ import { compareStrings, nullsLast, sortedWith, type LocalDate } from '../time';
 import { CATEGORIES, isStaple, LOCATIONS, type Category, type Location, type Product, type StockBatch } from './models';
 import { Expiry, NameKey, naturalOrder, type ExpiryStatus } from './rules';
 
-export type PantryFilter = 'all' | 'fridge' | 'freezer' | 'pantry' | 'other' | 'expiringSoon' | 'expired' | 'lowStock';
+/** Pantry's filter chips (DESIGN 5.2). 'needsAttention' is the one set Home and the daily reminder use (after v1, R8). */
+export type PantryFilter =
+  'all' | 'fridge' | 'freezer' | 'pantry' | 'other' | 'needsAttention' | 'expired' | 'lowStock';
 export type PantrySort = 'soonestExpiry' | 'name' | 'recentlyAdded';
 export type PantryGrouping = 'none' | 'location' | 'category';
 export type PantryQuery = { filter: PantryFilter; sort: PantrySort; grouping: PantryGrouping; search: string };
@@ -92,6 +94,53 @@ export const PantryItems = {
   },
 };
 
+/**
+ * Needs attention (DESIGN 5.2, 5.4, 5.6; one set and one name after v1, review R8), ported from the app's
+ * NeedsAttention: every purchase in stock that has expired or expires within [DAYS] days. Home's card, Pantry's Needs
+ * attention filter and the daily reminder's tap use this set; the reminder job computes the same one (`needsAttention`
+ * in `backend/reminder/src/digest.ts`). [usable] is what Home lists and Use it up cooks with; [expired] is folded.
+ * Pure: callers pass today's date from the injected clock, so tests fix the day.
+ */
+export type NeedsAttentionSet = {
+  /** Expires today, tomorrow or in 2 to 3 days: soonest first, then by name. */
+  usable: PurchaseItem[];
+  /** Past its date: the longest expired first, then by name. */
+  expired: PurchaseItem[];
+};
+
+export const NeedsAttention = {
+  /** Expiring within this many days, today included, needs attention (DESIGN 5.2 statuses Today to Soon). */
+  DAYS: 3,
+  /** Whether a purchase with [status] is in the set. */
+  includes: (status: ExpiryStatus): boolean => status === 'expired' || NeedsAttention.usable(status),
+  /** Still good to use, and expiring within [DAYS] days. */
+  usable: (status: ExpiryStatus): boolean => status === 'today' || status === 'tomorrow' || status === 'soon',
+  /** Whether [item] is in the set (Pantry's filter). Out rows have nothing to use, so they never are. */
+  includesItem: (item: PantryItem): boolean => item.kind === 'purchase' && NeedsAttention.includes(item.status),
+  /** What Pantry's Needs attention filter lists: one row per purchase. */
+  size: (set: NeedsAttentionSet): number => set.usable.length + set.expired.length,
+  /** The set from [PantryItems.all]'s result. */
+  of(items: PantryItem[]): NeedsAttentionSet {
+    const purchases = items.filter(
+      (i): i is PurchaseItem => i.kind === 'purchase' && NeedsAttention.includes(i.status),
+    );
+    const order = [byExpiry, byName] as const;
+    return {
+      usable: sortedWith(
+        purchases.filter((i) => NeedsAttention.usable(i.status)),
+        ...order,
+      ),
+      expired: sortedWith(
+        purchases.filter((i) => i.status === 'expired'),
+        ...order,
+      ),
+    };
+  },
+  fromPantry(products: Product[], batches: StockBatch[], today: LocalDate): NeedsAttentionSet {
+    return NeedsAttention.of(PantryItems.all(products, batches, today));
+  },
+};
+
 function matches(item: PantryItem, filter: PantryFilter): boolean {
   switch (filter) {
     case 'all':
@@ -101,8 +150,8 @@ function matches(item: PantryItem, filter: PantryFilter): boolean {
     case 'pantry':
     case 'other':
       return item.location === filter;
-    case 'expiringSoon':
-      return item.kind === 'purchase' && Expiry.needsAttention(item.status) && item.status !== 'expired';
+    case 'needsAttention':
+      return NeedsAttention.includesItem(item);
     case 'expired':
       return item.kind === 'purchase' && item.status === 'expired';
     case 'lowStock':

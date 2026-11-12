@@ -108,8 +108,8 @@ sealed interface GroceryChange : HouseholdChange {
     data class DeleteItem(val listId: String, val itemId: String, val tombstone: Boolean = true) : GroceryChange
 
     /**
-     * grocery_added or grocery_checked in the activity log (DESIGN 5.6). [count] is set when several items were added
-     * at once from the recipe called [name].
+     * grocery_added in the activity log (DESIGN 5.6). [count] is set when several items were added at once from the
+     * recipe called [name]. Check-offs (grocery_checked) are no longer logged after v1 (R15).
      */
     data class LogEvent(
         val eventId: String,
@@ -138,7 +138,6 @@ sealed interface GroceryChange : HouseholdChange {
 
 enum class GroceryEventType(val wire: String) {
     Added("grocery_added"),
-    Checked("grocery_checked"),
 }
 
 object GroceryRules {

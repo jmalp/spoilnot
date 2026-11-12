@@ -79,16 +79,45 @@ export function stockWindow(dates: string[]): { lo: string; hi: string } {
   return { lo: addDays(sorted[0]!, -14), hi: addDays(sorted[sorted.length - 1]!, 3) };
 }
 
-/** The items for one user's digest, from their own stages and local date. */
+/** Expiring within this many days, today included, needs attention (DESIGN 5.2 statuses Today to Soon). */
+export const ATTENTION_DAYS = 3;
+
+/** A batch in the Needs attention set, with its calendar days left (negative once expired). */
+export interface AttentionBatch {
+  batch: Batch;
+  days: number;
+}
+
+/**
+ * Needs attention (DESIGN 5.4, 5.6; one set and one name after v1, review R8): every batch in stock that has expired or
+ * expires within [ATTENTION_DAYS] days of [localDate]. The apps compute the same set (`NeedsAttention` on Android,
+ * `NeedsAttention` in web/src/domain/pantry/items.ts) for Home's card and Pantry's Needs attention filter, which the
+ * digest's tap opens. The digest narrows it by the member's choices ([selectItems]).
+ */
+export function needsAttention(localDate: string, batches: Batch[]): AttentionBatch[] {
+  const set: AttentionBatch[] = [];
+  for (const batch of batches) {
+    if (!(batch.quantity > 0) || !batch.expiryDate) continue;
+    const days = daysBetween(localDate, batch.expiryDate);
+    if (days <= ATTENTION_DAYS) set.push({ batch, days });
+  }
+  return set;
+}
+
+/**
+ * The items for one user's digest: the [needsAttention] set narrowed by their own choices. Each of the stages 3, 2, 1
+ * and 0 days can be off, and expired items come once (only those that expired after the last digest that reported
+ * expired items), every day or never. The stock read reaches 14 days back ([stockWindow]), so an item expired longer
+ * ago is never in a digest, though it stays in the app's set.
+ */
 export function selectItems(user: UserDoc, localDate: string, batches: Batch[]): DigestItem[] {
   const items: DigestItem[] = [];
-  for (const b of batches) {
-    if (!(b.quantity > 0)) continue;
-    const d = daysBetween(localDate, b.expiryDate);
-    if (d >= 0 && d <= 3 && user.prefs.stages.includes(d)) {
-      items.push({ stage: d as Stage, name: b.productName, dateType: b.dateType, days: d });
-    }
-    if (d < 0 && user.prefs.expiredMode !== 'never') {
+  for (const { batch: b, days: d } of needsAttention(localDate, batches)) {
+    if (d >= 0) {
+      if (user.prefs.stages.includes(d)) {
+        items.push({ stage: d as Stage, name: b.productName, dateType: b.dateType, days: d });
+      }
+    } else if (user.prefs.expiredMode !== 'never') {
       // Once: only items that expired after the last digest that reported expired items.
       if (user.prefs.expiredMode === 'daily' || b.expiryDate > (user.lastExpiredThrough ?? '')) {
         items.push({ stage: 'expired', name: b.productName, dateType: b.dateType, days: d });

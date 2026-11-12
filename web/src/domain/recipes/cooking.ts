@@ -1,5 +1,6 @@
 // "I cooked this" and "Use it up" (DESIGN 5.5, 5.6, after v1), ported from Cooking and UseItUp.
 import type { PantryData, Product, QuantityUnit, StockBatch } from '../pantry/models';
+import { NeedsAttention } from '../pantry/items';
 import { Expiry } from '../pantry/rules';
 import { compareStrings, sortedWith, type LocalDate } from '../time';
 import { PantryMatch } from './box';
@@ -99,18 +100,25 @@ export type UseItUpSuggestion = { recipe: Recipe; uses: ExpiringUse[] };
 
 /**
  * "Use it up" on Home: saved recipes that use what expires today or in the next few days, the ones using the most
- * expiring products first, then the most urgent. Expired food is left out: it belongs in Needs attention.
+ * expiring products first, then the most urgent. Expired food is left out: it belongs in Needs attention. Recipes
+ * already planned from today to the end of the week ([planned], `MealWeek.plannedFrom`) are left out too (after v1,
+ * UX-05).
  */
 export const UseItUp = {
   /** At most this many recipes on Home. */
   MAX: 3,
 
-  suggestions(recipes: Recipe[], pantry: PantryData, today: LocalDate): UseItUpSuggestion[] {
+  suggestions(
+    recipes: Recipe[],
+    pantry: PantryData,
+    today: LocalDate,
+    planned: ReadonlySet<string> = new Set(),
+  ): UseItUpSuggestion[] {
     const expiring = new Map<string, StockBatch>();
     for (const b of pantry.batches) {
       if (b.quantity <= 0 || b.expiryDate === null) continue;
       const status = Expiry.of(b.expiryDate, today);
-      if (!Expiry.needsAttention(status) || status === 'expired') continue;
+      if (!NeedsAttention.usable(status)) continue;
       const first = expiring.get(b.productId);
       if (!first || b.expiryDate < first.expiryDate!) expiring.set(b.productId, b);
     }
@@ -121,6 +129,7 @@ export const UseItUp = {
       pantry.products.filter((p) => expiring.has(p.id)).flatMap((p) => [...index.linkWords(p)]),
     );
     const suggestions = recipes.flatMap((recipe): UseItUpSuggestion[] => {
+      if (planned.has(recipe.id)) return [];
       const seen = new Set<string>();
       const uses: ExpiringUse[] = [];
       for (const { product } of RecipeIngredients.linked(recipe, index, expiringWords)) {

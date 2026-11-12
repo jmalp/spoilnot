@@ -232,7 +232,7 @@
     <!-- Pantry list -->
     <string name="pantry_search">Search pantry</string>
     <string name="filter_all">All</string>
-    <string name="filter_expiring_soon">Expiring soon</string>
+    <string name="filter_needs_attention">Needs attention</string>
     <string name="filter_expired">Expired</string>
     <string name="filter_low_stock">Low stock</string>
     <string name="sort_and_group">Sort and group</string>
@@ -304,8 +304,9 @@
     <string name="field_category">Category</string>
     <string name="field_notes">Notes</string>
     <string name="field_keep_at_least">Keep at least</string>
-    <string name="keep_at_least_help">Add to the grocery list when fewer than this remain</string>
-    <string name="field_auto_add">Add to grocery list automatically</string>
+    <string name="keep_at_least_help">Adds it to the grocery list when you have fewer than this</string>
+    <string name="field_auto_add">Keep some in stock</string>
+    <string name="field_auto_add_help">Puts it on the grocery list when it runs low</string>
     <string name="field_buy_quantity">Buy quantity</string>
     <string name="error_name_required">Enter a name.</string>
     <string name="error_name_80">Use 80 characters or fewer.</string>
@@ -514,8 +515,13 @@
     <!-- Home and activity (DESIGN 5.6) -->
     <string name="home_attention">Needs attention</string>
     <string name="home_attention_none">Nothing expires in the next 3 days.</string>
+    <string name="home_attention_start">Add food with its date, and what to use first shows here.</string>
+    <plurals name="home_attention_expired">
+        <item quantity="one">%d expired item to throw away or check</item>
+        <item quantity="other">%d expired items to throw away or check</item>
+    </plurals>
     <string name="home_low_stock">Low stock</string>
-    <string name="home_low_stock_none">Your staples are stocked.</string>
+    <string name="home_low_stock_none">Nothing is running low.</string>
     <string name="home_grocery_list">Grocery list</string>
     <string name="home_grocery_empty">Nothing to buy right now.</string>
     <plurals name="home_grocery_count">
@@ -523,6 +529,12 @@
         <item quantity="other">%d items to buy</item>
     </plurals>
     <string name="home_open_list">Open list</string>
+    <string name="home_running_low">Running low</string>
+    <plurals name="home_running_low_more">
+        <item quantity="one">and %d more</item>
+        <item quantity="other">and %d more</item>
+    </plurals>
+    <string name="home_grocery_start">Turn on Keep some in stock for food you always want at home, and it goes on the list when it runs low.</string>
     <plurals name="home_see_all">
         <item quantity="one">See %d in Pantry</item>
         <item quantity="other">See all %d in Pantry</item>
@@ -647,7 +659,7 @@
     <!-- App tour (after v1, DESIGN 5.8) -->
     <string name="tour_welcome_title">Welcome to Spoil Not</string>
     <string name="tour_welcome">A one-minute tour of the app. Follow along by tapping what is highlighted, or tap Next.</string>
-    <string name="tour_home">Home starts with what needs you: food expiring soon. Below are staples running low, your grocery list and what your household did.</string>
+    <string name="tour_home">Home starts with what needs you: food to use soon. Below are your grocery list, with what\'s running low, and what your household did.</string>
     <string name="tour_open_pantry">Tap Pantry to see everything you have.</string>
     <string name="tour_add_item">Tap Add item to add food. Pick a date with one tap, and Spoil Not reminds you before it expires.</string>
     <string name="tour_pantry_rows">Swipe a row right when it\'s used up and left to throw it away. Undo is always there. Tap a row to edit it, and ⋮ has Mark opened and more.</string>
@@ -721,6 +733,7 @@
     <string name="plan_shop_from">the meal plan</string>
     <string name="plan_more_actions">More plan actions</string>
     <string name="plan_copy_last_week">Copy last week</string>
+    <string name="plan_week_empty">Nothing planned this week. Tap + on a meal, or copy last week\'s meals.</string>
     <string name="plan_copied">Copied last week\'s meals (%1$s)</string>
     <string name="plan_copy_none">Last week has no meals to copy</string>
     <string name="plan_copy_already">Last week\'s meals are already in this week</string>

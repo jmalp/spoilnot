@@ -27,7 +27,8 @@ data class PantryRow(
     val pendingSync: Boolean,
 )
 
-enum class PantryFilter { All, Fridge, Freezer, Pantry, Other, ExpiringSoon, Expired, LowStock }
+/** Pantry's filter chips (DESIGN 5.2). [NeedsAttention] is the one set Home and the daily reminder use (after v1, R8). */
+enum class PantryFilter { All, Fridge, Freezer, Pantry, Other, NeedsAttention, Expired, LowStock }
 
 enum class PantrySort { SoonestExpiry, Name, RecentlyAdded }
 
@@ -101,24 +102,12 @@ object PantryList {
         fun at(location: Location) = keep({ it.location == location }, row.product?.defaultLocation == location)
         return when (filter) {
             PantryFilter.All -> row
-
             PantryFilter.Fridge -> at(Location.Fridge)
-
             PantryFilter.Freezer -> at(Location.Freezer)
-
             PantryFilter.Pantry -> at(Location.Pantry)
-
             PantryFilter.Other -> at(Location.Other)
-
-            PantryFilter.ExpiringSoon -> keep({
-                ExpiryStatus.of(it.expiryDate, today).let { s ->
-                    s.needsAttention &&
-                        s != ExpiryStatus.Expired
-                }
-            })
-
+            PantryFilter.NeedsAttention -> keep({ NeedsAttention.includes(ExpiryStatus.of(it.expiryDate, today)) })
             PantryFilter.Expired -> keep({ ExpiryStatus.of(it.expiryDate, today) == ExpiryStatus.Expired })
-
             PantryFilter.LowStock -> row.takeIf { it.isLow }
         }
     }

@@ -93,20 +93,12 @@ object PantryItems {
 
     private fun matches(item: PantryItem, filter: PantryFilter): Boolean = when (filter) {
         PantryFilter.All -> true
-
         PantryFilter.Fridge -> item.location == Location.Fridge
-
         PantryFilter.Freezer -> item.location == Location.Freezer
-
         PantryFilter.Pantry -> item.location == Location.Pantry
-
         PantryFilter.Other -> item.location == Location.Other
-
-        PantryFilter.ExpiringSoon ->
-            item is PantryItem.Purchase && item.status.needsAttention && item.status != ExpiryStatus.Expired
-
+        PantryFilter.NeedsAttention -> NeedsAttention.includes(item)
         PantryFilter.Expired -> item is PantryItem.Purchase && item.status == ExpiryStatus.Expired
-
         PantryFilter.LowStock -> item.isLow
     }
 

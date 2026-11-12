@@ -452,7 +452,10 @@ private fun ItemFields(
     AutoAddFields(form)
 }
 
-/** The switch, then Keep at least and Buy quantity while it is on. */
+/**
+ * Keep some in stock (after v1, UX-07; "Add to grocery list automatically" before): the switch says what it does
+ * while off, then Keep at least and Buy quantity while it is on.
+ */
 @Composable
 private fun AutoAddFields(form: ItemFormState) {
     // The whole row toggles, so the label is a touch target too (DESIGN 6.8).
@@ -464,7 +467,16 @@ private fun AutoAddFields(form: ItemFormState) {
             .testTag("switch_auto_add"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(stringResource(R.string.field_auto_add), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.field_auto_add), style = MaterialTheme.typography.bodyLarge)
+            if (!form.autoAdd) {
+                Text(
+                    stringResource(R.string.field_auto_add_help),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         Switch(checked = form.autoAdd, onCheckedChange = null)
     }
     AnimatedVisibility(form.autoAdd) {
