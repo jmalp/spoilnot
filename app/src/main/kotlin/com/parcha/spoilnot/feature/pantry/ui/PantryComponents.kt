@@ -61,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.theme.STATUS_TINT_ALPHA
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
 import com.parcha.spoilnot.feature.pantry.domain.DateType
@@ -326,7 +327,7 @@ private fun SwipeBackground(direction: SwipeToDismissBoxValue) {
         SwipeToDismissBoxValue.Settled -> return
     }
     Box(
-        Modifier.fillMaxSize().background(color.copy(alpha = 0.16f)).padding(horizontal = 20.dp),
+        Modifier.fillMaxSize().background(color.copy(alpha = STATUS_TINT_ALPHA)).padding(horizontal = 20.dp),
         contentAlignment = alignment,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
