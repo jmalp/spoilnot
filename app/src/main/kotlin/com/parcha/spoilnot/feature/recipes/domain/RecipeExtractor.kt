@@ -34,7 +34,7 @@ data class PageSnapshot(
 object RecipeExtractor {
     fun fromHtml(url: String, html: String): Extraction {
         val doc = Jsoup.parse(html, url)
-        val ld = doc.select("script[type=application/ld+json]").map { it.data() }
+        val ld = JsonLdLimits.cap(doc.select("script[type=application/ld+json]").map { it.data() })
         JsonLd.best(ld)?.let { node -> found(JsonLd.map(node, url), doc, ExtractionMethod.JsonLd)?.let { return it } }
         Microdata.recipe(doc)?.let { node ->
             found(JsonLd.map(node, url), doc, ExtractionMethod.Microdata)?.let { return it }

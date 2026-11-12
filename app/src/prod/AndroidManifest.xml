@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prod only. Firebase Sessions, which Crashlytics brings, would send an event at each app start even without a
+     crash; the app has no analytics, so it stays off (DESIGN 12.2, control 11). Crash reports still work, and stay
+     on by default with the opt-out in Settings. Dev debug and dev benchmark turn it off in src/devDebug. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <meta-data
+            android:name="firebase_sessions_enabled"
+            android:value="false" />
+    </application>
+</manifest>

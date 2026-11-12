@@ -128,6 +128,8 @@
     <string name="action_pause_joining">Pause joining</string>
     <string name="action_resume_joining">Resume joining</string>
     <string name="code_copied">Code copied</string>
+    <!-- The clipboard label of a copied invite code (the code itself is marked sensitive). -->
+    <string name="invite_code_clip_label">Invite code</string>
     <string name="share_message">Join our household \"%1$s\" on Spoil Not with the code %2$s</string>
     <string name="regenerate_title">Create a new code?</string>
     <string name="regenerate_body">The current code stops working right away. Requests already sent are not affected.</string>
