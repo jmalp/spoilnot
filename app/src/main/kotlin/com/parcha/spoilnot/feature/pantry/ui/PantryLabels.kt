@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.theme.STATUS_TINT_ALPHA
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -132,7 +133,7 @@ fun StatusChip(expiry: LocalDate?, dateType: DateType, today: LocalDate, modifie
     val description = statusText(expiry, dateType, today)
     Row(
         modifier = modifier
-            .background(color.copy(alpha = 0.12f), CircleShape)
+            .background(color.copy(alpha = STATUS_TINT_ALPHA), CircleShape)
             .padding(horizontal = 10.dp, vertical = 4.dp)
             .clearAndSetSemantics { contentDescription = description }
             .testTag("status_chip"),

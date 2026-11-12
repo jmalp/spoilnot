@@ -292,6 +292,14 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     phone, turn on Airplane Mode, press +1 on Cheese, go to Recipes, delete the purchase in the Emulator UI or the
     console and turn Airplane Mode off: Recipes shows "You don't have permission to do that." (the rules see no
     purchase to update).
+52. Contrast and time to act (Android, colors also on the iPhone web app, after v1, 2026-11-12, DESIGN 5.2, 6.1, 6.4):
+    on the phone set Settings > Accessibility > Time to take action to 1 minute, mark a pantry item Used up and wait:
+    the Undo snackbar stays about a minute (8 s with the default setting), and Undo still works after 30 s. Put the
+    setting back. In light mode on Spoil Not green and on Summer Fun, the Fresh, Soon and Today chips on Pantry and
+    Home read clearly, and so do Used up and Throw away while swiping a row. In dark mode on Fiery Palette and on
+    Watermelon Sorbet, Home's buttons and Pantry's Add item are teal and mint, and the Expired chips stand out next to
+    them; the backgrounds and the selected tab keep the orange and the pink. On the web app the same chips use the
+    new colors.
 
 ## 3. Conditions
 
