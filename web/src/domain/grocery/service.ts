@@ -1,10 +1,11 @@
 // Grocery list rules (DESIGN 5.3), ported from GroceryService, QuickAddParser and GroceryLayout.
 import { CATEGORIES, PantryLimits, UNITS, type Category, type DateType, type Location } from '../pantry/models';
 import type { PantryChange, PantryData, Product, QuantityUnit } from '../pantry/models';
-import { NameKey, naturalOrder } from '../pantry/rules';
+import { NameKey, naturalOrder, ShelfLife } from '../pantry/rules';
 import type { AddPlan, PantryService } from '../pantry/service';
 import { nullsLast, sortedWith, type LocalDate } from '../time';
 import type { Actor, HouseholdChange, HouseholdWriter, Undo } from '../write';
+import { UNITS as RECIPE_WORDS } from '../recipes/parser';
 import { guessAisle } from './aisles';
 import {
   GroceryRules,
@@ -19,18 +20,47 @@ import {
 /** "2 kg rice" in the quick-add field: an optional leading quantity and unit, then the name. */
 export type QuickAdd = { name: string; quantity: number | null; unit: QuantityUnit | null };
 
+/**
+ * Whether "Increase quantity" can add `request` to `existing` (after v1, LOGIC-08): only in the same unit, or when
+ * one side has none. There is no unit conversion (DESIGN 2), so 2 kg is never added to 500 g.
+ */
+export const canIncrease = (request: QuickAdd, existing: GroceryItem): boolean =>
+  existing.unit === null || request.unit === null || existing.unit === request.unit;
+
+/** The recipe parser's words for the units the pantry has (after v1, LOGIC-08: "3 lbs", "2 litres"). */
+const RECIPE_UNITS: Record<string, QuantityUnit> = { g: 'g', kg: 'kg', ml: 'ml', l: 'l', oz: 'oz', lb: 'lb' };
+const UNIT_WORDS = new Map<string, QuantityUnit>([
+  ...UNITS.map((u): [string, QuantityUnit] => [u.replace('_', ' '), u]),
+  ...RECIPE_WORDS.flatMap(([canonical, words]) => {
+    const unit = RECIPE_UNITS[canonical];
+    return unit ? words.map((w): [string, QuantityUnit] => [w, unit]) : [];
+  }),
+]);
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** A unit word, an optional dot, then a space: "2 lemons" is not 2 litres of "emons". */
+const UNIT = new RegExp(
+  `^(${[...UNIT_WORDS.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map(escape)
+    .join('|')})\\.?\\s+(.*)$`,
+  'i',
+);
+
 export function parseQuickAdd(text: string): QuickAdd {
   const clean = NameKey.clean(text);
-  const match = /^(\d+(?:[.,]\d+)?)\s+(.*)$/.exec(clean);
+  const match = /^(\d+(?:[.,]\d+)?)(\s*)(.*)$/.exec(clean);
   if (!match) return { name: clean, quantity: null, unit: null };
   const quantity = Number(match[1]!.replace(',', '.'));
-  const rest = match[2]!;
-  const unit =
-    [...UNITS]
-      .sort((a, b) => b.length - a.length)
-      .find((u) => rest.toLowerCase().startsWith(`${u.replace('_', ' ')} `)) ?? null;
-  const name = unit === null ? rest : rest.slice(unit.length).trim();
-  return name === '' ? { name: clean, quantity: null, unit: null } : { name, quantity, unit };
+  const rest = match[3]!;
+  const unitMatch = UNIT.exec(rest);
+  const unit = unitMatch ? (UNIT_WORDS.get(unitMatch[1]!.toLowerCase()) ?? null) : null;
+  // A unit may follow the number directly ("2l milk", "500g rice"); a name may not ("7up").
+  if (unit === null && match[2] === '') return { name: clean, quantity: null, unit: null };
+  const name = unitMatch ? unitMatch[2]!.trim() : rest;
+  if (name === '') return { name: clean, quantity: null, unit: null };
+  // "0 eggs" means eggs: an amount of nothing is no amount.
+  if (quantity <= 0) return { name, quantity: null, unit: null };
+  return { name, quantity, unit };
 }
 
 /** Outcome of the quick-add field: added, or already on the list unchecked (ask to increase it or add anyway). */
@@ -44,6 +74,47 @@ export type PantryEntry = {
   expiryDate: LocalDate | null;
   location: Location;
   dateType: DateType;
+};
+
+/**
+ * What a line of the Add to pantry sheet starts with (DESIGN 5.3). `product` is the one the item adds to: its linked
+ * product while it exists, else the one of its name (after v1, LOGIC-03). A product with stock fixes the unit
+ * (`unitLocked`, DESIGN 2: no conversion, LOGIC-04), and the item's amount is used only in that unit or when the item
+ * has none; otherwise the product's last added amount, or none, so the person types it.
+ */
+export type EntryDefaults = {
+  product: Product | null;
+  quantity: number | null;
+  unit: QuantityUnit;
+  unitLocked: boolean;
+  expiry: LocalDate | null;
+  location: Location;
+};
+
+export const AddToPantryRules = {
+  productFor(item: GroceryItem, products: readonly Product[]): Product | null {
+    return (
+      (item.productId === null ? undefined : products.find((p) => p.id === item.productId)) ??
+      products.find((p) => p.nameKey === NameKey.of(item.name)) ??
+      null
+    );
+  },
+
+  defaults(item: GroceryItem, data: PantryData, today: LocalDate): EntryDefaults {
+    const product = AddToPantryRules.productFor(item, data.products);
+    const unitLocked = product !== null && data.batches.some((b) => b.productId === product.id && b.quantity > 0);
+    const unit = unitLocked ? product.unit : (item.unit ?? product?.unit ?? 'pcs');
+    const sameUnit = item.unit === null || item.unit === unit;
+    const last = product?.lastAddedQuantity ?? null;
+    return {
+      product,
+      quantity: sameUnit ? (item.quantity ?? 1) : last !== null && last > 0 ? last : null,
+      unit,
+      unitLocked,
+      expiry: ShelfLife.suggestExpiry(product?.typicalShelfLifeDays ?? null, today),
+      location: product?.defaultLocation ?? 'fridge',
+    };
+  },
 };
 
 /** The list screen: unchecked items by aisle, then the In cart section (DESIGN 5.3). */
@@ -161,8 +232,9 @@ export class GroceryService {
     return { kind: 'added' };
   }
 
-  /** "Increase quantity" from the Already on the list prompt. */
+  /** "Increase quantity" from the Already on the list prompt, offered only when canIncrease. */
   increase(householdId: string, actor: Actor, listId: string, existing: GroceryItem, request: QuickAdd) {
+    if (!canIncrease(request, existing)) return Promise.reject(new Error('Different units'));
     const delta = request.quantity ?? 1;
     const change: Change =
       existing.quantity === null
@@ -292,7 +364,9 @@ export class GroceryService {
 
   /**
    * Done shopping: creates the stock batches (and any new products) for [entries], and removes those items and the
-   * [skipped] ones from the list, all in one batched write.
+   * [skipped] ones from the list, all in one batched write. Each entry adds to its item's linked product while it
+   * exists (after v1, LOGIC-03). The Undo (LOGIC-10) removes what it added (new batches and products as tombstones,
+   * amounts added to existing batches as increments) and puts the items back; null when nothing was written.
    */
   async addToPantry(
     householdId: string,
@@ -301,7 +375,7 @@ export class GroceryService {
     entries: PantryEntry[],
     skipped: GroceryItem[],
     pantryData: PantryData,
-  ): Promise<void> {
+  ): Promise<Undo | null> {
     let data = pantryData;
     const changes: HouseholdChange[] = [];
     const remove = (itemId: string): Change => ({ type: 'grocery.deleteItem', listId, itemId, tombstone: true });
@@ -321,13 +395,21 @@ export class GroceryService {
           buyQuantity: null,
         },
         data,
+        entry.item.productId,
       );
       const learned = learnAlias(entry.item.aliasOf, plan);
       changes.push(...learned.changes, remove(entry.item.id));
       data = learned.after;
     }
     for (const item of skipped) changes.push(remove(item.id));
-    if (changes.length > 0) await this.writer.apply(householdId, actor, changes);
+    if (changes.length === 0) return null;
+    await this.writer.apply(householdId, actor, changes);
+    const restore = [...entries.map((e) => e.item), ...skipped].map((item): Change => ({
+      type: 'grocery.restoreItem',
+      listId,
+      item,
+    }));
+    return { changes: [...this.pantry.undoAdditions(changes), ...restore] };
   }
 
   undo(householdId: string, actor: Actor, undo: Undo) {

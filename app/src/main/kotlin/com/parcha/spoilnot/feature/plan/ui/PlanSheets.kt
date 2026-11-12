@@ -56,6 +56,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.ui.rememberSaveableList
 import com.parcha.spoilnot.feature.household.domain.Member
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.plan.domain.MealPlanLimits
@@ -86,7 +87,7 @@ fun AddMealSheet(
     onDismiss: () -> Unit,
 ) {
     val sheet = rememberFormSheet()
-    val cooks = remember { mutableStateListOf<String>() }
+    val cooks = rememberSaveableList<String>()
     var search by rememberSaveable { mutableStateOf("") }
     var other by rememberSaveable { mutableStateOf("") }
     val key = NameKey.of(search)
@@ -211,7 +212,7 @@ fun MealSheet(
 ) {
     val sheet = rememberFormSheet()
     var servings by rememberSaveable { mutableStateOf(meal.servings) }
-    val cooks = remember { mutableStateListOf(*meal.cooks.toTypedArray()) }
+    val cooks = rememberSaveableList(*meal.cooks.toTypedArray())
     var note by rememberSaveable { mutableStateOf(meal.note.orEmpty()) }
     var moving by rememberSaveable { mutableStateOf(false) }
     if (moving) {

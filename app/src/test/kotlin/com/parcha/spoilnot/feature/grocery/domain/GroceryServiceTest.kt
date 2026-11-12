@@ -145,6 +145,40 @@ class GroceryServiceTest {
     }
 
     @Test
+    fun `quick add reads the recipe parser's unit words, units after the number, and no amount for zero`() {
+        // After v1, LOGIC-08.
+        assertEquals(QuickAdd("apples", 3.0, QuantityUnit.Pounds), QuickAddParser.parse("3 lbs apples"))
+        assertEquals(QuickAdd("apples", 3.0, QuantityUnit.Pounds), QuickAddParser.parse("3 lbs. apples"))
+        assertEquals(QuickAdd("milk", 2.0, QuantityUnit.Liters), QuickAddParser.parse("2l milk"))
+        assertEquals(QuickAdd("rice", 500.0, QuantityUnit.Grams), QuickAddParser.parse("500g rice"))
+        assertEquals(QuickAdd("milk", 2.0, QuantityUnit.Liters), QuickAddParser.parse("2 Litres milk"))
+        assertEquals(QuickAdd("flour", 1.0, QuantityUnit.Kilograms), QuickAddParser.parse("1 kilo flour"))
+        assertEquals(QuickAdd("eggs", null, null), QuickAddParser.parse("0 eggs"))
+        // A word that starts like a unit is a name; a name may not follow the number directly.
+        assertEquals(QuickAdd("lemons", 2.0, null), QuickAddParser.parse("2 lemons"))
+        assertEquals(QuickAdd("gherkins", 2.0, null), QuickAddParser.parse("2 gherkins"))
+        assertEquals(QuickAdd("7up", null, null), QuickAddParser.parse("7up"))
+        assertEquals(QuickAdd("kg", 2.0, null), QuickAddParser.parse("2 kg"))
+        // Recipe-only units aren't pantry units.
+        assertEquals(QuickAdd("cups flour", 2.0, null), QuickAddParser.parse("2 cups flour"))
+    }
+
+    @Test
+    fun `increase quantity only adds in the same unit or when one side has none`() = runTest {
+        val rice = item("i1", "Rice").copy(quantity = 500.0, unit = QuantityUnit.Grams)
+        val kilos = QuickAddParser.parse("2 kg rice")
+        assertTrue(!kilos.canIncrease(rice))
+        assertTrue(QuickAddParser.parse("200 g rice").canIncrease(rice))
+        assertTrue(QuickAddParser.parse("2 rice").canIncrease(rice))
+        assertTrue(kilos.canIncrease(rice.copy(unit = null)))
+        val refused = runCatching { service.increase("h", actor, "g1", rice, kilos) }
+        assertTrue(refused.isFailure)
+        assertEquals(0, writer.calls)
+        service.increase("h", actor, "g1", rice, QuickAddParser.parse("200 g rice"))
+        assertEquals(GroceryChange.AddToItem("g1", "i1", 200.0), writer.last.single())
+    }
+
+    @Test
     fun `increase adds to an existing quantity or starts from one`() = runTest {
         service.increase("h", actor, "g1", item("i1", "Eggs").copy(quantity = 6.0), QuickAdd("eggs", 6.0, null))
         assertEquals(GroceryChange.AddToItem("g1", "i1", 6.0), writer.last.single())
@@ -246,6 +280,131 @@ class GroceryServiceTest {
                 it.itemId
             }.toSet(),
         )
+    }
+
+    @Test
+    fun `add to pantry adds to the item's linked product after it was renamed`() = runTest {
+        // After v1, LOGIC-03: "Milk" on the list, the product renamed "Whole milk" since.
+        val milk = product("p1", "Whole milk")
+        val data = PantryData(listOf(milk), emptyList(), false)
+        val low = item("low_p1", "Milk").copy(productId = "p1", source = ItemSource.LowStock)
+        service.addToPantry(
+            "h",
+            actor,
+            "g1",
+            listOf(PantryEntry(low, 2.0, QuantityUnit.Pieces, TODAY.plusDays(7), Location.Fridge)),
+            emptyList(),
+            data,
+        )
+        val changes = writer.last
+        assertTrue(changes.none { it is PantryChange.CreateProduct })
+        val batch = changes.filterIsInstance<PantryChange.CreateBatch>().single().batch
+        assertEquals("p1", batch.productId)
+        assertEquals("Whole milk", batch.productName)
+
+        // A link to a product that is gone falls back to the name.
+        val gone = item("i2", "Whole milk").copy(productId = "deleted")
+        service.addToPantry(
+            "h",
+            actor,
+            "g1",
+            listOf(PantryEntry(gone, 1.0, QuantityUnit.Pieces, null, Location.Fridge)),
+            emptyList(),
+            data,
+        )
+        assertEquals("p1", writer.last.filterIsInstance<PantryChange.CreateBatch>().single().batch.productId)
+    }
+
+    @Test
+    fun `a product with stock fixes the line's unit, and an amount in another unit isn't used`() {
+        // After v1, LOGIC-04: "2 kg rice" on the list, Rice kept in grams with 500 g in stock.
+        val rice = product("rice", unit = QuantityUnit.Grams).copy(lastAddedQuantity = 1000.0)
+        val stock = batch("r1", "rice", quantity = 500.0)
+        val data = PantryData(listOf(rice), listOf(stock), false)
+        val kilos = item("i1", "Rice").copy(productId = "rice", quantity = 2.0, unit = QuantityUnit.Kilograms)
+
+        val locked = AddToPantryRules.defaults(kilos, data, TODAY)
+        assertEquals(QuantityUnit.Grams, locked.unit)
+        assertTrue(locked.unitLocked)
+        assertEquals("the product's last amount instead of 2", 1000.0, locked.quantity!!, 0.0)
+        assertNull(
+            "no last amount: the person types it",
+            AddToPantryRules.defaults(kilos, data.copy(products = listOf(rice.copy(lastAddedQuantity = null))), TODAY)
+                .quantity,
+        )
+        // In the product's unit, or without one, the item's amount is used.
+        val grams = kilos.copy(quantity = 250.0, unit = QuantityUnit.Grams)
+        assertEquals(250.0, AddToPantryRules.defaults(grams, data, TODAY).quantity!!, 0.0)
+        assertEquals(
+            3.0,
+            AddToPantryRules.defaults(kilos.copy(quantity = 3.0, unit = null), data, TODAY).quantity!!,
+            0.0,
+        )
+        // Without stock, the unit is free and starts from the item's.
+        val free = AddToPantryRules.defaults(kilos, data.copy(batches = emptyList()), TODAY)
+        assertEquals(QuantityUnit.Kilograms, free.unit)
+        assertTrue(!free.unitLocked)
+        assertEquals(2.0, free.quantity!!, 0.0)
+    }
+
+    @Test
+    fun `undo of add to pantry removes what it added and puts the items back`() = runTest {
+        // After v1, LOGIC-10.
+        val milk = product("milk", recent = listOf(7))
+        val existing = batch("m1", "milk", quantity = 1.0, inDays = 7)
+        val data = PantryData(listOf(milk), listOf(existing), false)
+        val milkItem = item("i1", "Milk", checked = true).copy(productId = "milk")
+        val bread1 = item("i2", "Bread", checked = true)
+        val bread2 = item("i3", "bread", checked = true)
+        val skipped = item("i4", "Batteries", checked = true)
+
+        val undo = service.addToPantry(
+            "h",
+            actor,
+            "g1",
+            listOf(
+                PantryEntry(milkItem, 2.0, QuantityUnit.Pieces, TODAY.plusDays(7), Location.Fridge),
+                PantryEntry(bread1, 1.0, QuantityUnit.Pieces, TODAY.plusDays(3), Location.Pantry),
+                PantryEntry(bread2, 1.0, QuantityUnit.Pieces, TODAY.plusDays(3), Location.Pantry),
+            ),
+            listOf(skipped),
+            data,
+        )!!
+        val written = writer.last
+        val bread = written.filterIsInstance<PantryChange.CreateProduct>().single().product
+        val breadBatch = written.filterIsInstance<PantryChange.CreateBatch>().single().batch
+        val updated = written.filterIsInstance<PantryChange.UpdateProduct>().single { it.product.id == "milk" }
+        val events = written.filterIsInstance<PantryChange.LogEvent>().map { it.eventId }
+
+        val changes = undo.changes
+        assertEquals(
+            "the new batch goes; nothing is taken off a batch Undo removes anyway",
+            listOf(breadBatch.id),
+            changes.filterIsInstance<PantryChange.DeleteBatch>().map { it.batchId },
+        )
+        assertEquals(listOf(PantryChange.AddToBatch("m1", -2.0)), changes.filterIsInstance<PantryChange.AddToBatch>())
+        assertEquals(
+            listOf(PantryChange.DeleteProduct(bread.id)),
+            changes.filterIsInstance<PantryChange.DeleteProduct>(),
+        )
+        assertEquals(
+            "Milk gets back what the addition changed",
+            listOf(PantryChange.UpdateProduct(milk, updated.product)),
+            changes.filterIsInstance<PantryChange.UpdateProduct>(),
+        )
+        assertEquals(events, changes.filterIsInstance<PantryChange.DeleteEvent>().map { it.eventId })
+        assertEquals(
+            listOf(milkItem, bread1, bread2, skipped).map { GroceryChange.RestoreItem("g1", it) },
+            changes.filterIsInstance<GroceryChange.RestoreItem>(),
+        )
+        assertEquals("nothing else", 1 + 1 + 1 + 1 + events.size + 4, changes.size)
+
+        // Only skipped items: their Undo puts them back. Nothing at all: no write and no Undo.
+        val removed = service.addToPantry("h", actor, "g1", emptyList(), listOf(skipped), data)!!
+        assertEquals(listOf(GroceryChange.RestoreItem("g1", skipped)), removed.changes)
+        val calls = writer.calls
+        assertNull(service.addToPantry("h", actor, "g1", emptyList(), emptyList(), data))
+        assertEquals(calls, writer.calls)
     }
 
     @Test

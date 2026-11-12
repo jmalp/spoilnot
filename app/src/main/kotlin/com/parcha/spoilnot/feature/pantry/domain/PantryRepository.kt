@@ -61,6 +61,12 @@ sealed interface PantryChange : HouseholdChange {
     data class DeleteBatch(val batchId: String) : PantryChange
 
     /**
+     * A product's tombstone (after v1): only the Undo of an addition that created it writes one (LOGIC-10), so a
+     * product nobody meant to make goes again.
+     */
+    data class DeleteProduct(val productId: String) : PantryChange
+
+    /**
      * Puts a deleted batch back (Undo): removes the tombstone and changes nothing else, so what the document holds
      * stays, including another member's change and fields a newer app added (after v1, DESIGN 8.6). [batch] is this
      * phone's copy, for planning.
