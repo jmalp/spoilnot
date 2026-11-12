@@ -61,5 +61,20 @@ and every link with placeholders, and drops reviews, videos and nutrition.
 one, such as Simply Recipes' optional pizza toppings ("Pesto", "Ham, thinly sliced"); they keep their text and are
 not scaled.
 
+## Built-in browser only (2026-11-12)
+
+After the JSON-LD limits (DESIGN 11.6), the same test with every site read in the app's web view instead of fetched,
+so the browser script runs on each page:
+
+```
+./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.live=true \
+  -Pandroid.testInstrumentationRunnerArguments.browser=true \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.parcha.spoilnot.feature.recipes.LiveImportTest
+```
+
+**10 of 10 imported**, each with the same ingredient, step, servings and time counts as its fetch on the same day (the
+fetch also found all 10). Times were 1.0 to 6.2 s, except Food Network at 31 s (its page keeps loading; the test
+waits up to 45 s).
+
 Share sheet: `RecipeUiTest` sends the same intent Chrome's share sheet does. Share to preview took 1.6 s on an idle
 host (target under 5 s).

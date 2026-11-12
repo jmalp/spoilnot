@@ -234,6 +234,11 @@ have it. Older builds still take the cursor from the cache and can miss another 
 20 hours. Updated phones read each collection in full once at their next open (their sync log has no cursor yet),
 about one day's full read more per phone, once.
 
+**The first release after 2026-11-12 (privacy details):** release builds now drop the system log's verbose, debug and
+info lines (R8, DECISIONS 2026-11-12) and turn Firebase Sessions off. On that beta, run QA section 5 (Crash reports)
+and QA flow 53: a crash report still arrives with Send crash reports on. The app's own logs were always debug-only;
+to read them, run a dev debug build.
+
 **New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
 
 ```bash
@@ -542,6 +547,11 @@ library update, also install a build on a phone before the next beta. With Depen
   repos/<owner>/<action>/commits/<tag> --jq .sha`, and check that the tag is the release you meant.
 - **npm** installs in CI and the jobs use `--ignore-scripts`. A dependency that needs its install script fails CI;
   don't add one to `backend/reminder` (its jobs hold the keys).
+- **npm audit:** run `npm audit fix --ignore-scripts` (never `--force`) in a project and review the lockfile diff;
+  it may pick an older patch release that sits outside an advisory's range. On 2026-11-12 the reminder job's tree had
+  no known advisories; the ones left in `firebase/` are in the rules-test SDK and the CLI (dev only) and need a major
+  downgrade, so they wait for upstream releases. The Firebase web SDK (13.3.0) pins `@grpc/grpc-js` to 1.9 for its
+  Node build; when a release lifts that pin, update `firebase` in `web/` and `firebase/` together.
 - **Guava** comes only through Firestore's gRPC; the catalog's `guava` is the lowest version allowed (a constraint in
   `app/build.gradle.kts`). Dependabot raises it. Remove both when Firebase brings that version or a newer one.
 - Gradle dependency verification is not used (DECISIONS 2026-11-10); the Gradle wrapper is checked by its

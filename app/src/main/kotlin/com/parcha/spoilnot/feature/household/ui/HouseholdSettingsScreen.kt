@@ -1,6 +1,5 @@
 package com.parcha.spoilnot.feature.household.ui
 
-import android.content.ClipData
 import android.content.Intent
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +61,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
+import com.parcha.spoilnot.core.ui.sensitiveClip
 import com.parcha.spoilnot.feature.household.domain.HouseholdRules
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.JoinRequest
@@ -275,6 +275,7 @@ private fun InviteCard(
     val scope = rememberCoroutineScope()
     val formatted = InviteCodes.format(code)
     val copied = stringResource(R.string.code_copied)
+    val clipLabel = stringResource(R.string.invite_code_clip_label)
     val shareText = stringResource(R.string.share_message, householdName, formatted)
     val codeDescription = stringResource(R.string.invite_code_description, formatted.toList().joinToString(" "))
 
@@ -304,7 +305,7 @@ private fun InviteCard(
                 FilledTonalButton(
                     onClick = {
                         scope.launch {
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(formatted, formatted)))
+                            clipboard.setClipEntry(ClipEntry(sensitiveClip(clipLabel, formatted)))
                             snackbar.showSnackbar(copied)
                         }
                     },

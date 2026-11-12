@@ -29,6 +29,8 @@ import org.junit.runner.RunWith
  * the app's locked-down web view, as in DESIGN 11.2. Needs the internet, so it runs only when asked:
  * `./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.live=true
  *  -Pandroid.testInstrumentationRunnerArguments.class=com.parcha.spoilnot.feature.recipes.LiveImportTest`
+ * Add `-Pandroid.testInstrumentationRunnerArguments.browser=true` to skip the fetch and read every site in the web
+ * view, which runs the browser script and its JSON-LD limits (DESIGN 11.6).
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -55,10 +57,12 @@ class LiveImportTest {
     fun importsAtLeastNineOfTheTenSites() {
         val args = InstrumentationRegistry.getArguments()
         assumeTrue("live import runs only with -e live true", args.getString("live") == "true")
+        val browserOnly = args.getString("browser") == "true"
         val importer = OkHttpRecipeImportService(OkHttpClient())
         val outcomes = sites.associateWith { url ->
             val start = System.currentTimeMillis()
-            when (val fetched = runBlocking { importer.fromUrl(url) }) {
+            val fetched = if (browserOnly) null else runBlocking { importer.fromUrl(url) }
+            when (fetched) {
                 is ImportResult.Found -> Outcome("fetch", fetched.content, System.currentTimeMillis() - start)
                 else -> Outcome("browser", inBrowser(url), System.currentTimeMillis() - start)
             }

@@ -106,6 +106,7 @@ export const STRINGS = {
   "action_pause_joining": "Pause joining",
   "action_resume_joining": "Resume joining",
   "code_copied": "Code copied",
+  "invite_code_clip_label": "Invite code",
   "share_message": "Join our household \"%1$s\" on Spoil Not with the code %2$s",
   "regenerate_title": "Create a new code?",
   "regenerate_body": "The current code stops working right away. Requests already sent are not affected.",

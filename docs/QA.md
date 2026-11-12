@@ -292,7 +292,22 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     phone, turn on Airplane Mode, press +1 on Cheese, go to Recipes, delete the purchase in the Emulator UI or the
     console and turn Airplane Mode off: Recipes shows "You don't have permission to do that." (the rules see no
     purchase to update).
-52. iPhone polish and the web's own form state (iPhone web app, after v1, 2026-11-12, DESIGN 5.9, 6.1, 18.1, 18.2,
+52. Contrast and time to act (Android, colors also on the iPhone web app, after v1, 2026-11-12, DESIGN 5.2, 6.1, 6.4):
+    on the phone set Settings > Accessibility > Time to take action to 1 minute, mark a pantry item Used up and wait:
+    the Undo snackbar stays about a minute (8 s with the default setting), and Undo still works after 30 s. Put the
+    setting back. In light mode on Spoil Not green and on Summer Fun, the Fresh, Soon and Today chips on Pantry and
+    Home read clearly, and so do Used up and Throw away while swiping a row. In dark mode on Fiery Palette and on
+    Watermelon Sorbet, Home's buttons and Pantry's Add item are teal and mint, and the Expired chips stand out next to
+    them; the backgrounds and the selected tab keep the orange and the pink. On the web app the same chips use the
+    new colors.
+53. Privacy details (Android, after v1, 2026-11-12, DESIGN 11.6, 12.2): on Android 13 or later, Household > Invite
+    people > Copy. The copy preview at the bottom of the screen shows dots instead of the code, and the keyboard's
+    clipboard (Gboard: the clipboard icon) doesn't list it; pasting into a notes app gives the code. Import a recipe
+    the app opens in the built-in browser (Allrecipes, from docs/import-test-sites.md): the recipe is found as before.
+    On the next beta (a prod build), run section 5 (Crash reports): the report arrives with Send crash reports on and
+    none with it off. Optional, with the phone on `adb`: `adb logcat -s FirebaseAuth` while signing in shows no `D` or
+    `I` lines.
+54. iPhone polish and the web's own form state (iPhone web app, after v1, 2026-11-12, DESIGN 5.9, 6.1, 18.1, 18.2,
     18.3): with Butter, Sugar and Eggs on the list, check off Butter and Eggs on the iPhone and open Add to pantry. Set
     Butter to 3 in the Freezer. On another phone check off Sugar: the iPhone gets a Sugar row and Butter still says
     "3 · Freezer". Switch to other apps for a while (open the camera and a few heavy apps) and come back, or pull down

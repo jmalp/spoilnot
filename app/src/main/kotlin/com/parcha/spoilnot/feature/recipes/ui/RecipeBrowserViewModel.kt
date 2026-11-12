@@ -70,8 +70,10 @@ class RecipeBrowserViewModel @AssistedInject constructor(
      */
     fun onPage(result: String?, final: Boolean) {
         extractions += viewModelScope.launch {
-            val page = BrowserScript.parse(result) ?: return@launch
-            val extracted = withContext(Dispatchers.Default) { RecipeExtractor.fromPage(page) }
+            // Both off the main thread: the result can be megabytes (BrowserScript.MAX_RESULT).
+            val extracted = withContext(Dispatchers.Default) {
+                BrowserScript.parse(result)?.let(RecipeExtractor::fromPage)
+            } ?: return@launch
             _state.update { s ->
                 when {
                     extracted is Extraction.Found -> s.copy(found = extracted, notFound = null)
