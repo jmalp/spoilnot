@@ -292,6 +292,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     phone, turn on Airplane Mode, press +1 on Cheese, go to Recipes, delete the purchase in the Emulator UI or the
     console and turn Airplane Mode off: Recipes shows "You don't have permission to do that." (the rules see no
     purchase to update).
+52. Privacy details (Android, after v1, 2026-11-12, DESIGN 11.6, 12.2): on Android 13 or later, Household > Invite
+    people > Copy. The copy preview at the bottom of the screen shows dots instead of the code, and the keyboard's
+    clipboard (Gboard: the clipboard icon) doesn't list it; pasting into a notes app gives the code. Import a recipe
+    the app opens in the built-in browser (Allrecipes, from docs/import-test-sites.md): the recipe is found as before.
+    On the next beta (a prod build), run section 5 (Crash reports): the report arrives with Send crash reports on and
+    none with it off. Optional, with the phone on `adb`: `adb logcat -s FirebaseAuth` while signing in shows no `D` or
+    `I` lines.
 
 ## 3. Conditions
 
