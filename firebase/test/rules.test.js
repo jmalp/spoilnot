@@ -1588,3 +1588,54 @@ describe('one phone wins', () => {
     if ((await live('groceryLists/g2/items')).length !== 0) throw new Error('an item was left under a deleted list');
   });
 });
+
+// After v1 (2026-11-11, DESIGN 13.4): the restore sets each document as exported with updatedAt at the restore's
+// time and updatedBy 'restore' (grocery lists: updatedAt only). Members must still be able to change it after.
+describe('restored documents', () => {
+  const restored = (data, list = false) => {
+    const { createdAt: _c, updatedAt: _u, updatedBy: _b, ...fields } = data;
+    const t = new Date('2026-10-01T00:00:00Z');
+    return list ? { ...fields, createdAt: t, updatedAt: new Date() } : { ...fields, createdAt: t, updatedAt: new Date(), updatedBy: 'restore' };
+  };
+  const meal = restored({
+    date: '2026-10-29', slot: 'dinner', position: 0, recipeId: 'r1', title: 'Lasagna', servings: 4,
+    cooks: ['alice'], note: null, cookedAt: new Date('2026-10-29T19:00:00Z'), cookedBy: 'alice', createdBy: 'alice',
+  });
+  const seed = () => env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `households/${HID}/products/p1`), restored(product('alice')));
+    await setDoc(doc(db, `households/${HID}/stock/s1`), restored(stock('alice', { note: '2026-12-24T18:00:00Z' })));
+    await setDoc(doc(db, `households/${HID}/groceryLists/g1`), restored({ name: 'Groceries', isDefault: true }, true));
+    await setDoc(doc(db, `households/${HID}/groceryLists/g1/items/i1`), restored(groceryItem('alice', {
+      checked: true, checkedBy: 'alice', checkedAt: new Date('2026-10-20T10:00:00Z'),
+    })));
+    await setDoc(doc(db, `households/${HID}/recipes/r1`), restored(recipe('alice')));
+    await setDoc(doc(db, `households/${HID}/meals/m1`), meal);
+    await setDoc(doc(db, `households/${HID}/stats/2026-10`), { used: 3, updatedAt: new Date(), updatedBy: 'restore' });
+  });
+  const by = (uid, fields) => ({ ...fields, updatedAt: serverTimestamp(), updatedBy: uid });
+
+  it('a member edits, counts and removes what a restore wrote', async () => {
+    await seed();
+    const db = as('bob');
+    const h = (p) => doc(db, `households/${HID}/${p}`);
+    await assertSucceeds(updateDoc(h('products/p1'), by('bob', { name: 'Oat milk', nameKey: 'oat milk' })));
+    await assertSucceeds(updateDoc(h('stock/s1'), by('bob', { quantity: increment(-1) })));
+    await assertSucceeds(updateDoc(h('stock/s1'), by('bob', { note: 'Top shelf' })));
+    await assertSucceeds(updateDoc(h('groceryLists/g1'), { name: 'Weekly', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(h('groceryLists/g1/items/i1'), by('bob', { checked: false, checkedBy: null, checkedAt: null })));
+    await assertSucceeds(updateDoc(h('recipes/r1'), by('bob', { favorite: true })));
+    await assertSucceeds(updateDoc(h('meals/m1'), by('bob', { note: 'Extra cheese' })));
+    await assertSucceeds(setDoc(h('stats/2026-10'), by('bob', { used: increment(1) }), { merge: true }));
+    for (const p of ['products/p1', 'stock/s1', 'groceryLists/g1/items/i1', 'recipes/r1', 'meals/m1']) {
+      await assertSucceeds(setDoc(h(p), by('bob', { deletedAt: serverTimestamp() }), { merge: true }));
+    }
+  });
+
+  it('only the restore may write updatedBy restore', async () => {
+    await seed();
+    await assertFails(updateDoc(doc(as('bob'), `households/${HID}/products/p1`), {
+      name: 'Oat milk', updatedAt: serverTimestamp(), updatedBy: 'restore',
+    }));
+  });
+});

@@ -71,7 +71,10 @@ again. Its Export saves the file on the phone; nothing is uploaded.
 
 ## Your controls
 
-- **Export:** Settings > Data > Export household data saves everything above as a JSON file.
+- **Export:** Settings > Data > Export household data saves the household's data (products, purchases, grocery
+  lists, recipes, planned meals, monthly counts, the household and its members' names and roles), your own profile
+  (your name and settings) and the household's recent activity as a JSON file. It needs a connection, so the file
+  always has what the household has; offline it says "You're offline". Your devices and your email are not in it.
 - **Backups:** every night the household data is saved, encrypted, as a private backup kept for 14 days, so it can be
   restored after a mistake. Only the app's developer holds the key.
 - **Delete account:** Settings > Delete account removes your profile, devices and membership, then your sign-in.
