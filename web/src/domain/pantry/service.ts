@@ -28,6 +28,7 @@ import {
   type QuantityUnit,
   type StockBatch,
 } from './models';
+import { EmptyBatchCleanups } from './cleanups';
 import { NameKey, ShelfLife } from './rules';
 
 /** What a person enters in the Add item sheet. */
@@ -92,6 +93,7 @@ export class PantryService {
   constructor(
     private readonly writer: HouseholdWriter,
     private readonly clock: Clock,
+    private readonly cleanups: EmptyBatchCleanups = new EmptyBatchCleanups(),
   ) {}
 
   private today(): LocalDate {
@@ -531,15 +533,22 @@ export class PantryService {
     return this.writer.apply(householdId, actor, undo.changes);
   }
 
-  /** Batches at 0 or below are hidden and deleted by whichever client notices first (DESIGN 8.5, invariant 1). */
+  /**
+   * Batches at 0 or below are hidden and deleted by whichever client notices first (DESIGN 8.5, invariant 1). It is
+   * background work nobody asked for, so a refusal isn't shown, and a batch whose clean-up the server refused isn't
+   * tried again by this page (after v1, review REL-11: a batch the rules wouldn't let go was retried several times a
+   * second with a message each time). A batch whose clean-up hasn't been answered isn't tried twice.
+   */
   async deleteEmptyBatches(householdId: string, actor: Actor, data: PantryData): Promise<void> {
-    const empty = data.batches.filter((b) => b.quantity <= 0 && !b.pendingSync);
-    if (empty.length > 0) {
-      await this.writer.apply(
-        householdId,
-        actor,
-        empty.map((b): PantryChange => ({ type: 'pantry.deleteBatch', batchId: b.id })),
-      );
+    const empty = this.cleanups.toTry(data.batches.filter((b) => b.quantity <= 0 && !b.pendingSync).map((b) => b.id));
+    if (empty.length === 0) return;
+    const changes = empty.map((batchId): PantryChange => ({ type: 'pantry.deleteBatch', batchId }));
+    const answered = (refusal: AppError | null) => this.cleanups.answered(empty, refusal !== null);
+    if (this.writer.applyQuietly) {
+      await this.writer.applyQuietly(householdId, actor, changes, answered);
+    } else {
+      await this.writer.apply(householdId, actor, changes);
+      answered(null);
     }
   }
 }

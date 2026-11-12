@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { map, of } from 'rxjs';
+import { catchError, concatMap, firstValueFrom, map, of, timeout } from 'rxjs';
+import { errorText } from '../core/errors';
 import { useObservable } from '../core/hooks';
 import { str, type StringId } from '../core/i18n';
 import { useNav } from '../core/NavProvider';
@@ -69,12 +70,49 @@ export function AppShell() {
         <SnackbarProvider>
           <Screen tab={nav.state.tab} route={route} />
           <UpdatePrompt />
+          <WriteRefusals />
         </SnackbarProvider>
       </div>
       <NavigationBar items={TAB_ITEMS} selected={nav.state.tab} onSelect={nav.selectTab} />
     </div>
   );
 }
+
+/**
+ * Writes the server refused after the action returned, from any screen (after v1, review REL-13): reported once here,
+ * whichever tab or screen is open, instead of by Pantry, Plan, Groceries and Recipes when they happened to be open. A
+ * refusal that lost to another phone names who won (DESIGN 8.5), from one read of the member list.
+ */
+function WriteRefusals() {
+  const snackbars = useSnackbars();
+  const me = useHouseholdSession();
+  const { writer, households } = useServices();
+  useEffect(() => {
+    const subscription = writer.errors$
+      .pipe(
+        concatMap(async (error) => {
+          const winner = error.byUid !== null && error.byUid !== me.user.uid ? error.byUid : null;
+          const name =
+            winner === null
+              ? undefined
+              : await firstValueFrom(
+                  households.observeMembers(me.householdId).pipe(
+                    map((all) => all.find((m) => m.uid === winner)?.displayName),
+                    timeout(MEMBER_NAME_WAIT_MS),
+                    catchError(() => of(undefined)),
+                  ),
+                );
+          return errorText(error, () => name, me.user.uid);
+        }),
+      )
+      .subscribe((text) => snackbars.show(text));
+    return () => subscription.unsubscribe();
+  }, [writer, households, snackbars, me.householdId, me.user.uid]);
+  return null;
+}
+
+/** How long a refusal's message waits for the member list to name who won. */
+const MEMBER_NAME_WAIT_MS = 3_000;
 
 /**
  * A new version is ready (DESIGN 18.5): Update reloads into it; otherwise it starts with the next launch. When

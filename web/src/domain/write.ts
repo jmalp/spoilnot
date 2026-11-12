@@ -24,6 +24,17 @@ export interface HouseholdWriter {
   apply(householdId: string, actor: Actor, changes: HouseholdChange[]): Promise<void>;
   readonly errors$: Observable<AppError>;
   /**
+   * apply for a change nobody asked for, such as the pantry's clean-up of empty batches (DESIGN 8.5): a refusal isn't
+   * reported on errors$. [onAnswer] gets the server's answer, null when it accepted every batch, once it comes (never
+   * while offline). Writers without it (test fakes) are used through apply, answered at once.
+   */
+  applyQuietly?(
+    householdId: string,
+    actor: Actor,
+    changes: HouseholdChange[],
+    onAnswer: (refusal: AppError | null) => void,
+  ): Promise<void>;
+  /**
    * Every plan this phone applied, once it is in the local cache. The restock engine uses it to tell a change made on
    * this phone from one that came from another phone (DESIGN 9.6). Writers without it (test fakes) look like a phone
    * that only receives changes.

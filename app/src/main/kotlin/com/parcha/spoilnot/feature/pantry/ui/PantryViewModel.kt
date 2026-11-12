@@ -1,9 +1,10 @@
 package com.parcha.spoilnot.feature.pantry.ui
 
-import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.coroutines.LoadRetry
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.navigation.DeepLink
 import com.parcha.spoilnot.core.navigation.DeepLinkRouter
@@ -11,7 +12,6 @@ import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
-import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.Session
@@ -48,7 +48,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
@@ -81,7 +80,6 @@ class PantryViewModel @Inject constructor(
     session: SessionManager,
     private val repository: PantryRepository,
     private val households: HouseholdRepository,
-    writer: HouseholdWriter,
     private val service: PantryService,
     clock: Clock,
     private val deepLinks: DeepLinkRouter,
@@ -107,6 +105,8 @@ class PantryViewModel @Inject constructor(
         val edit: EditWindow? = null,
         /** Members by uid, while the Edit window is open. */
         val memberNames: Map<String, String> = emptyMap(),
+        /** The pantry failed to load and is being listened to again (DESIGN 6.7). */
+        val loadFailed: Boolean = false,
     )
 
     /**
@@ -137,9 +137,12 @@ class PantryViewModel @Inject constructor(
             .distinctUntilChanged()
             .flatMapLatest { hid -> if (hid == null) flowOf(emptyList()) else households.observeMembers(hid) }
             .map { list -> list.associate { it.uid to it.displayName } }
-            .catch { emit(emptyMap()) }
+            .retryLoading(fallback = emptyMap())
 
     @Volatile private var cleaning: Job? = null
+
+    /** "Couldn't load. Retry" (DESIGN 6.7): the pantry listener listens again instead of ending (after v1, REL-04). */
+    private val load = LoadRetry()
 
     // The household's shared pantry flow (DESIGN 9.1). Everything here runs only while the screen collects [state],
     // so leaving the tab lets go of the listeners (after v1, EFF-01), and off the main thread (PERF-02). A StateFlow,
@@ -149,7 +152,7 @@ class PantryViewModel @Inject constructor(
         .distinctUntilChanged()
         .flatMapLatest { hid -> if (hid == null) flow { } else repository.observe(hid) }
         .onEach(::deleteEmptyBatches)
-        .catch { }
+        .retryLoading(load)
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -176,7 +179,8 @@ class PantryViewModel @Inject constructor(
                 memberNames = names,
             )
         }
-    }.onEach { s -> s.edit?.removedBy?.let { closeRemoved(s.edit.base, it, s.memberNames) } }
+    }.combine(load.failed) { s, failed -> s.copy(loadFailed = failed) }
+        .onEach { s -> s.edit?.removedBy?.let { closeRemoved(s.edit.base, it, s.memberNames) } }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
@@ -223,7 +227,6 @@ class PantryViewModel @Inject constructor(
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     init {
-        writer.errors.onEach { _messages.send(UiMessage(it.writeMessage())) }.launchIn(viewModelScope)
         // A tapped digest lands here filtered to Expiring soon (DESIGN 5.4); Home cards bring their own filter.
         deepLinks.pending.onEach { link ->
             if (link is DeepLink.Pantry) {
@@ -232,6 +235,9 @@ class PantryViewModel @Inject constructor(
             }
         }.launchIn(viewModelScope)
     }
+
+    /** Retry on "Couldn't load": listens again at once. */
+    fun retryLoad() = load.retry()
 
     fun setFilter(filter: PantryFilter) = query.update { it.copy(filter = filter) }
 
@@ -343,7 +349,3 @@ internal const val MEMBER_NAME_WAIT_MS = 3_000L
 
 /** Dated items in the pantry before the app explains notifications and asks for permission (after v1). */
 internal const val NOTIFICATION_PROMPT_DATED = 3
-
-/** Server rejections of pantry writes; a vanished item means someone else deleted it (DESIGN 9.4). */
-@StringRes
-internal fun AppError.writeMessage(): Int = messageRes()

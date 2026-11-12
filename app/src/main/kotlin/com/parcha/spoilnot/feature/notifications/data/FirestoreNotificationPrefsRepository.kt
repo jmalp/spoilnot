@@ -2,6 +2,7 @@ package com.parcha.spoilnot.feature.notifications.data
 
 import com.google.firebase.firestore.FieldValue
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.LateRefusals
 import com.parcha.spoilnot.core.firebase.snapshotFlow
 import com.parcha.spoilnot.feature.notifications.domain.ExpiredMode
 import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
@@ -34,8 +35,9 @@ class FirestoreNotificationPrefsRepository @Inject constructor(private val fires
         .distinctUntilChanged()
 
     override suspend fun save(uid: String, prefs: NotificationPrefs) {
-        // Applied to the cache at once; syncs when online (DESIGN 9.5).
-        firestore.current.document("users/$uid").update(
+        // Applied to the cache at once; syncs when online (DESIGN 9.5). A later refusal is reported in the shell
+        // (after v1, REL-13).
+        val task = firestore.current.document("users/$uid").update(
             mapOf(
                 "notificationPrefs" to mapOf(
                     "enabled" to prefs.enabled,
@@ -47,5 +49,6 @@ class FirestoreNotificationPrefsRepository @Inject constructor(private val fires
                 "updatedAt" to FieldValue.serverTimestamp(),
             ),
         )
+        LateRefusals.watch(task)
     }
 }

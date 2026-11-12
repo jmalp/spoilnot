@@ -41,6 +41,7 @@ import {
 } from './firestore-rx';
 import { UserFields } from './users';
 import { capTo, ReadCaps } from '../domain/caps';
+import { mapEach } from './fields';
 
 const SCHEMA_VERSION = 1;
 /** DESIGN 8.5: chunk batched writes at 400 operations. */
@@ -153,8 +154,7 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
       querySnapshots(collection(db, `${householdPath(householdId)}/members`)).pipe(retryAfterOwnWrites(db)),
     ).pipe(
       map((snapshot) =>
-        snapshot.docs
-          .map(toMember)
+        mapEach(snapshot.docs, toMember)
           // Ordered by join date; a join not yet stamped by the server goes last.
           .sort((a, b) => (a.joinedAt?.getTime() ?? Infinity) - (b.joinedAt?.getTime() ?? Infinity)),
       ),
@@ -167,10 +167,9 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
       querySnapshots(collection(db, `${householdPath(householdId)}/joinRequests`)).pipe(retryAfterOwnWrites(db)),
     ).pipe(
       map((snapshot) =>
-        snapshot.docs
-          .map(toJoinRequest)
-          .filter((r): r is JoinRequest => r !== null)
-          .sort((a, b) => (a.requestedAt?.getTime() ?? Infinity) - (b.requestedAt?.getTime() ?? Infinity)),
+        mapEach(snapshot.docs, toJoinRequest).sort(
+          (a, b) => (a.requestedAt?.getTime() ?? Infinity) - (b.requestedAt?.getTime() ?? Infinity),
+        ),
       ),
       distinctUntilChanged(same),
     );

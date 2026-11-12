@@ -64,6 +64,21 @@
 .sn-full {
   min-height: 100%;
 }
+.sn-load-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 2px 16px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  flex: none;
+}
+.sn-load-error__text {
+  flex: 1;
+}
+.sn-load-error .m3-button--text {
+  color: var(--md-sys-color-on-error-container);
+}
 .sn-offline {
   display: flex;
   align-items: center;

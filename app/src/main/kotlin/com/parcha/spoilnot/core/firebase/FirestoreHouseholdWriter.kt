@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.core.firebase
 
+import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.WriteBatch
@@ -18,8 +19,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 /** Turns one feature's [HouseholdChange]s into Firestore writes. Each feature's data layer provides one. */
@@ -48,7 +51,9 @@ class FirestoreHouseholdWriter @Inject constructor(
     private val mappers: Set<@JvmSuppressWildcards FirestoreChangeMapper>,
 ) : HouseholdWriter {
     private val _errors = MutableSharedFlow<AppError>(extraBufferCapacity = 8)
-    override val errors: SharedFlow<AppError> = _errors
+
+    /** Every refused write, this writer's and the queued ones of other repositories ([LateRefusals], REL-13). */
+    override val errors: Flow<AppError> = merge(_errors, LateRefusals.errors)
     private val _localPlans = MutableSharedFlow<List<HouseholdChange>>(extraBufferCapacity = 16)
     override val localPlans: SharedFlow<List<HouseholdChange>> = _localPlans
 
@@ -56,13 +61,7 @@ class FirestoreHouseholdWriter @Inject constructor(
 
     override suspend fun apply(householdId: String, actor: Actor, changes: List<HouseholdChange>) {
         val db = firestore.current
-        // Counts go one step per write (DESIGN 8.5), so a plan may need more batches than its size alone.
-        WriteBatches.plan(changes).forEach { chunk ->
-            val batch = db.batch()
-            chunk.forEach { change ->
-                check(mappers.any { it.write(batch, db, householdId, actor, change) }) { "No mapper for $change" }
-            }
-            val task = batch.commit()
+        commit(db, householdId, actor, changes).forEach { (chunk, task) ->
             scope.launch {
                 try {
                     task.awaitMapped()
@@ -72,6 +71,41 @@ class FirestoreHouseholdWriter @Inject constructor(
             }
         }
         _localPlans.tryEmit(changes)
+    }
+
+    override suspend fun applyQuietly(
+        householdId: String,
+        actor: Actor,
+        changes: List<HouseholdChange>,
+        onAnswer: (AppError?) -> Unit,
+    ) {
+        val tasks = commit(firestore.current, householdId, actor, changes).map { it.second }
+        scope.launch {
+            var refusal: AppError? = null
+            for (task in tasks) {
+                try {
+                    task.awaitMapped()
+                } catch (e: AppError) {
+                    refusal = refusal ?: e
+                }
+            }
+            onAnswer(refusal)
+        }
+        _localPlans.tryEmit(changes)
+    }
+
+    /** Commits [changes] to the local cache; counts go one step per write (DESIGN 8.5), so maybe in more batches. */
+    private fun commit(
+        db: FirebaseFirestore,
+        householdId: String,
+        actor: Actor,
+        changes: List<HouseholdChange>,
+    ): List<Pair<List<HouseholdChange>, Task<Void>>> = WriteBatches.plan(changes).map { chunk ->
+        val batch = db.batch()
+        chunk.forEach { change ->
+            check(mappers.any { it.write(batch, db, householdId, actor, change) }) { "No mapper for $change" }
+        }
+        chunk to batch.commit()
     }
 
     /** The race a refused batch lost, if a feature can tell (DESIGN 8.5); a failed read leaves the plain refusal. */

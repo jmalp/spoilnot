@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EMPTY, retry, switchMap, timer, type Observable } from 'rxjs';
+import { LoadRetry } from '../domain/load';
 import { today as todayOf, type Clock, type LocalDate } from '../domain/time';
 import { messageId } from './errors';
 import type { StringId } from './i18n';
@@ -29,6 +30,16 @@ export function useObservable<T>(source: Observable<T>, initial: T): T {
     return () => subscription.unsubscribe();
   }, [source]);
   return value;
+}
+
+/**
+ * DESIGN 6.7's "Couldn't load. Retry" for one screen (domain/load): pipe the screen's listeners through
+ * `retryLoading(load)`; `failed` is true while one of them is failing, and `load.retry()` listens again at once.
+ */
+export function useLoadRetry(): { load: LoadRetry; failed: boolean } {
+  const load = useMemo(() => new LoadRetry(), []);
+  const failed = useObservable(load.failed$, false);
+  return { load, failed };
 }
 
 /**

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { catchError, filter, firstValueFrom, map, of, switchMap, take, timeout } from 'rxjs';
-import { errorText, messageId } from '../../core/errors';
-import { useObservable, useToday } from '../../core/hooks';
+import { filter, firstValueFrom, map, of, switchMap, take, timeout } from 'rxjs';
+import { messageId } from '../../core/errors';
+import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
+import { retryLoading } from '../../domain/load';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import type { GroceryItem, GroceryList } from '../../domain/grocery/models';
@@ -17,7 +18,7 @@ import { addDays, sortedWith, type LocalDate } from '../../domain/time';
 import type { Undo } from '../../domain/write';
 import { Button, Card, Dialog, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
 import { CookedSheet } from '../recipes/RecipeSheets';
-import { OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { CookChip, CookedLabel, cookNames, dayTitle, phoneFirstDay, shortDate, slotLabel } from './components';
 import { AddMealSheet, MealSheet, WeekGrocerySheet } from './PlanSheets';
 import '../recipes/recipes.css';
@@ -47,7 +48,7 @@ export function PlanScreen({
   onOpenRecipe: (id: string) => void;
 }) {
   const me = useHouseholdSession();
-  const { mealPlan, mealPlanService, households, recipes, writer, clock } = useServices();
+  const { mealPlan, mealPlanService, households, recipes, clock } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
   const hid = me.householdId;
@@ -56,8 +57,13 @@ export function PlanScreen({
   const thisWeek = MealWeek.start(today, firstDay);
   const start = addDays(thisWeek, weekOffset * 7);
 
+  // "Couldn't load. Retry" (DESIGN 6.7): the week listens again instead of spinning (after v1, WEB-10).
+  const { load, failed: loadFailed } = useLoadRetry();
   const plan = useObservable<MealPlanData | null>(
-    useMemo(() => mealPlan.observe(hid, start, MealWeek.end(start)), [mealPlan, hid, start]),
+    useMemo(
+      () => mealPlan.observe(hid, start, MealWeek.end(start)).pipe(retryLoading(load)),
+      [mealPlan, hid, start, load],
+    ),
     null,
   );
   const members = useObservable<Member[]>(
@@ -65,7 +71,7 @@ export function PlanScreen({
       () =>
         households.observeMembers(hid).pipe(
           map((all) => sortedWith(all, (a, b) => naturalOrder(a.displayName, b.displayName))),
-          catchError(() => of([])),
+          retryLoading(undefined, [] as Member[]),
         ),
       [households, hid],
     ),
@@ -88,14 +94,6 @@ export function PlanScreen({
   const findMeal = (id: string | null) => (id === null ? null : (weekMeals.find((m) => m.id === id) ?? null));
   const openMeal = findMeal(openMealId);
   const recipeOf = (meal: PlannedMeal) => recipeList.find((r) => r.id === meal.recipeId) ?? null;
-
-  useEffect(() => {
-    // A Cooked that lost to another phone names who cooked it (DESIGN 8.5).
-    const subscription = writer.errors$.subscribe((e) =>
-      snackbars.show(errorText(e, (uid) => members.find((m) => m.uid === uid)?.displayName, me.user.uid)),
-    );
-    return () => subscription.unsubscribe();
-  }, [writer, snackbars, members, me.user.uid]);
 
   const failed = (e: unknown) => snackbars.show(str(messageId(e)));
   const act = (work: () => Promise<unknown>) => void work().catch(failed);
@@ -154,7 +152,7 @@ export function PlanScreen({
         </>
       }
     >
-      {plan?.fromCache && <OfflineBanner />}
+      {loadFailed ? <LoadError onRetry={() => load.retry()} /> : plan?.fromCache && <OfflineBanner />}
       <WeekHeader
         start={start}
         isThisWeek={weekOffset === 0}
@@ -164,9 +162,7 @@ export function PlanScreen({
       />
       <hr className="sn-plan-divider" />
       {plan === null ? (
-        <div className="sn-centered">
-          <Progress />
-        </div>
+        <div className="sn-centered">{!loadFailed && <Progress />}</div>
       ) : (
         <PlanDaysList
           days={days}
@@ -525,7 +521,7 @@ function AddMealSheetFor(props: Omit<Parameters<typeof AddMealSheet>[0], 'useItU
   const { pantry, clock } = useServices();
   const today = useToday(clock);
   const data = useObservable<PantryData | null>(
-    useMemo(() => pantry.observe(me.householdId).pipe(catchError(() => of(NO_PANTRY))), [pantry, me.householdId]),
+    useMemo(() => pantry.observe(me.householdId).pipe(retryLoading(undefined, NO_PANTRY)), [pantry, me.householdId]),
     null,
   );
   if (data === null) return null;
@@ -547,7 +543,7 @@ function CookedSheetFor({
   const me = useHouseholdSession();
   const { pantry } = useServices();
   const data = useObservable<PantryData | null>(
-    useMemo(() => pantry.observe(me.householdId).pipe(catchError(() => of(NO_PANTRY))), [pantry, me.householdId]),
+    useMemo(() => pantry.observe(me.householdId).pipe(retryLoading(undefined, NO_PANTRY)), [pantry, me.householdId]),
     null,
   );
   if (data === null) return null;
@@ -579,7 +575,7 @@ function WeekGroceryFor({
   const hid = me.householdId;
   const [chosenList, setChosenList] = useState<string | null>(null);
   const lists = useObservable<GroceryList[] | null>(
-    useMemo(() => grocery.observeLists(hid).pipe(catchError(() => of([]))), [grocery, hid]),
+    useMemo(() => grocery.observeLists(hid).pipe(retryLoading<GroceryList[]>(undefined, [])), [grocery, hid]),
     null,
   );
   const list = lists?.find((l) => l.id === chosenList) ?? lists?.find((l) => l.isDefault) ?? lists?.[0] ?? null;
@@ -589,14 +585,14 @@ function WeekGroceryFor({
       () =>
         of(listId).pipe(
           switchMap((id) => (id === null ? of([]) : grocery.observeItems(hid, id))),
-          catchError(() => of([])),
+          retryLoading<GroceryItem[]>(undefined, []),
         ),
       [grocery, hid, listId],
     ),
     null,
   );
   const data = useObservable<PantryData | null>(
-    useMemo(() => pantry.observe(hid).pipe(catchError(() => of(NO_PANTRY))), [pantry, hid]),
+    useMemo(() => pantry.observe(hid).pipe(retryLoading(undefined, NO_PANTRY)), [pantry, hid]),
     null,
   );
   // Shown once loaded: a sheet that grows after it opens keeps its first resting place and hides its button.

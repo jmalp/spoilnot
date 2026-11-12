@@ -8,10 +8,18 @@ import com.parcha.spoilnot.core.coroutines.SharedByKey
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.LiveDocuments
 import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.boolean
 import com.parcha.spoilnot.core.firebase.cachedLiveDocuments
+import com.parcha.spoilnot.core.firebase.double
+import com.parcha.spoilnot.core.firebase.instant
+import com.parcha.spoilnot.core.firebase.list
 import com.parcha.spoilnot.core.firebase.liveDocuments
+import com.parcha.spoilnot.core.firebase.long
+import com.parcha.spoilnot.core.firebase.mapEach
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.string
+import com.parcha.spoilnot.core.firebase.strings
 import com.parcha.spoilnot.core.write.ReadCaps
 import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -63,8 +71,8 @@ class FirestorePantryRepository(
         val stock = db.collection(stock(householdId)).let { it.liveDocuments(db, syncLog).serverRead(it.path) }
         combine(products, stock) { (p, pRead), (s, sRead) ->
             PantryData(
-                products = p.documents.map { it.toProduct() },
-                batches = s.documents.map { it.toBatch() },
+                products = p.documents.mapEach { it.toProduct() },
+                batches = s.documents.mapEach { it.toBatch() },
                 fromCache = p.fromCache || s.fromCache,
                 serverRead = pRead && sRead,
             )
@@ -84,8 +92,8 @@ class FirestorePantryRepository(
         }
         combine(products, stock, read) { p, s, serverRead ->
             PantryData(
-                products = p.map { it.toProduct() },
-                batches = s.map { it.toBatch() },
+                products = p.mapEach { it.toProduct() },
+                batches = s.mapEach { it.toBatch() },
                 fromCache = true,
                 serverRead = serverRead,
             )
@@ -105,7 +113,7 @@ class FirestorePantryRepository(
     }
 
     override suspend fun removedBy(householdId: String, batchId: String): String? = try {
-        firestore.current.document("${stock(householdId)}/$batchId").get(Source.CACHE).await().getString("updatedBy")
+        firestore.current.document("${stock(householdId)}/$batchId").get(Source.CACHE).await().string("updatedBy")
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -119,7 +127,7 @@ class FirestorePantryRepository(
                 activity(householdId),
             ).whereEqualTo("productId", productId).snapshotFlow().retryAfterOwnWrites(db)
         }.map { snapshot ->
-            snapshot.documents.mapNotNull { it.toEvent() }
+            snapshot.documents.mapEach { it.toEvent() }
                 .sortedWith(compareByDescending(nullsFirst()) { it.createdAt })
                 .take(limit)
         }.distinctUntilChanged()
@@ -167,45 +175,43 @@ class FirestorePantryRepository(
         // New fields are optional on read with defaults, because phones run different versions (DESIGN 8.1).
         fun DocumentSnapshot.toProduct() = Product(
             id = id,
-            name = getString("name").orEmpty().capTo(ReadCaps.NAME),
-            nameKey = getString("nameKey").orEmpty(),
-            category = Category.fromWire(getString("category")),
-            defaultLocation = Location.fromWire(getString("defaultLocation")),
-            unit = QuantityUnit.fromWire(getString("unit")),
-            minQuantity = getDouble("minQuantity"),
-            autoAddToGrocery = getBoolean("autoAddToGrocery") == true,
-            buyQuantity = getDouble("buyQuantity"),
-            restockArmed = getBoolean("restockArmed") ?: true,
-            typicalShelfLifeDays = getLong("typicalShelfLifeDays")?.toInt(),
-            recentShelfLifeDays = (get("recentShelfLifeDays") as? List<*>)?.mapNotNull {
-                (it as? Number)?.toInt()
-            }.orEmpty(),
-            createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
-            lastAddedQuantity = getDouble("lastAddedQuantity"),
-            aliases = (get("aliases") as? List<*>)?.filterIsInstance<String>().orEmpty(),
-            openedShelfLifeDays = getLong("openedShelfLifeDays")?.toInt(),
-            updatedBy = getString("updatedBy"),
+            name = string("name").orEmpty().capTo(ReadCaps.NAME),
+            nameKey = string("nameKey").orEmpty(),
+            category = Category.fromWire(string("category")),
+            defaultLocation = Location.fromWire(string("defaultLocation")),
+            unit = QuantityUnit.fromWire(string("unit")),
+            minQuantity = double("minQuantity"),
+            autoAddToGrocery = boolean("autoAddToGrocery") == true,
+            buyQuantity = double("buyQuantity"),
+            restockArmed = boolean("restockArmed") ?: true,
+            typicalShelfLifeDays = long("typicalShelfLifeDays")?.toInt(),
+            recentShelfLifeDays = list("recentShelfLifeDays")?.mapNotNull { (it as? Number)?.toInt() }.orEmpty(),
+            createdAt = instant("createdAt"),
+            lastAddedQuantity = double("lastAddedQuantity"),
+            aliases = strings("aliases"),
+            openedShelfLifeDays = long("openedShelfLifeDays")?.toInt(),
+            updatedBy = string("updatedBy"),
         )
 
         fun DocumentSnapshot.toBatch() = StockBatch(
             id = id,
-            productId = getString("productId").orEmpty(),
-            productName = getString("productName").orEmpty().capTo(ReadCaps.NAME),
-            unit = QuantityUnit.fromWire(getString("unit")),
-            category = Category.fromWire(getString("category")),
-            quantity = getDouble("quantity") ?: 0.0,
-            expiryDate = getString("expiryDate")?.let { parseDate(it) },
-            dateType = DateType.fromWire(getString("dateType")),
-            location = Location.fromWire(getString("location")),
-            note = getString("note"),
-            createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
+            productId = string("productId").orEmpty(),
+            productName = string("productName").orEmpty().capTo(ReadCaps.NAME),
+            unit = QuantityUnit.fromWire(string("unit")),
+            category = Category.fromWire(string("category")),
+            quantity = double("quantity") ?: 0.0,
+            expiryDate = string("expiryDate")?.let { parseDate(it) },
+            dateType = DateType.fromWire(string("dateType")),
+            location = Location.fromWire(string("location")),
+            note = string("note"),
+            createdAt = instant("createdAt"),
             pendingSync = metadata.hasPendingWrites(),
-            openedOn = getString("openedOn")?.let { parseDate(it) },
-            updatedBy = getString("updatedBy"),
+            openedOn = string("openedOn")?.let { parseDate(it) },
+            updatedBy = string("updatedBy"),
         )
 
         fun DocumentSnapshot.toEvent(): PantryEvent? {
-            val type = when (getString("type")) {
+            val type = when (string("type")) {
                 TYPE_ADDED -> PantryEvent.Type.Added
                 TYPE_DISCARDED -> PantryEvent.Type.Discarded
                 else -> return null
@@ -216,10 +222,10 @@ class FirestorePantryRepository(
             return PantryEvent(
                 id = id,
                 type = type,
-                actorName = getString("actorName").orEmpty().capTo(ReadCaps.PERSON),
+                actorName = string("actorName").orEmpty().capTo(ReadCaps.PERSON),
                 quantity = (params?.get("quantity") as? Number)?.toDouble(),
                 reason = DiscardReason.fromWire(params?.get("reason") as? String),
-                createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
+                createdAt = instant("createdAt"),
             )
         }
 

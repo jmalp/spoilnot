@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { catchError, firstValueFrom, map, of, timeout } from 'rxjs';
 import { messageId } from '../../core/errors';
 import { pushStatus } from '../../core/push';
-import { useObservable, useToday } from '../../core/hooks';
+import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
+import { retryLoading } from '../../domain/load';
 import { useRemoteChanges } from '../../core/remoteChanges';
 import { str, type StringId } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
@@ -21,7 +22,7 @@ import type { Undo } from '../../domain/write';
 import { NotificationRules } from '../../domain/notifications';
 import { NotificationExplainer } from '../notifications/NotificationExplainer';
 import { Button, Fab, FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
-import { EmptyState, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { categoryLabel, locationLabel } from './labels';
 import { AddItemSheet, EditItemSheet } from './ItemForm';
 import { OpenedSheet } from './OpenedSheet';
@@ -55,12 +56,14 @@ export function PantryScreen({
   onQueryChange: (query: PantryQuery) => void;
 }) {
   const me = useHouseholdSession();
-  const { pantry, pantryService, writer, clock, preferences, households } = useServices();
+  const { pantry, pantryService, clock, preferences, households } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
   // The household's shared pantry listeners (after v1, DESIGN 9.1).
+  // "Couldn't load. Retry" (DESIGN 6.7): the listener listens again instead of spinning (after v1, WEB-10).
+  const { load, failed } = useLoadRetry();
   const data = useObservable<PantryData | null>(
-    useMemo(() => pantry.observe(me.householdId), [pantry, me.householdId]),
+    useMemo(() => pantry.observe(me.householdId).pipe(retryLoading(load)), [pantry, me.householdId, load]),
     null,
   );
   const [throwing, setThrowing] = useState<StockBatch | null>(null);
@@ -87,11 +90,6 @@ export function PantryScreen({
   useEffect(() => {
     if (data) void pantryService.deleteEmptyBatches(me.householdId, actor, data).catch(() => undefined);
   }, [data, pantryService, me.householdId, actor]);
-  // A server rejection of a write arrives after it was applied locally.
-  useEffect(() => {
-    const subscription = writer.errors$.subscribe((e) => snackbars.show(str(messageId(e))));
-    return () => subscription.unsubscribe();
-  }, [writer, snackbars]);
 
   const act = (work: () => Promise<Undo | null>, message?: (undo: Undo) => string) => {
     work().then(
@@ -128,7 +126,7 @@ export function PantryScreen({
         editOpen
           ? households.observeMembers(hid).pipe(
               map((all) => new Map(all.map((m) => [m.uid, m.displayName]))),
-              catchError(() => of(new Map<string, string>())),
+              retryLoading(undefined, new Map<string, string>()),
             )
           : of(new Map<string, string>()),
       [households, hid, editOpen],
@@ -192,11 +190,9 @@ export function PantryScreen({
         ) : undefined
       }
     >
-      {data?.fromCache && <OfflineBanner />}
+      {failed ? <LoadError onRetry={() => load.retry()} /> : data?.fromCache && <OfflineBanner />}
       {data === null ? (
-        <div className="sn-centered">
-          <Progress />
-        </div>
+        <div className="sn-centered">{!failed && <Progress />}</div>
       ) : empty ? (
         <EmptyState icon="outlined/kitchen" message={str('pantry_empty_body')}>
           <Button full large data-testid="button_add_first_item" onClick={() => setAdding({ prefill: null })}>

@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.household.ui
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.feature.household.domain.Household
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
@@ -20,7 +21,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
@@ -70,8 +70,8 @@ class HouseholdViewModel @Inject constructor(
                 Content(me.user.uid, me.role, h, members, pending, joiningPaused = invite?.active == false)
             }
         }
-        // Losing access ends these listeners; the session moves the user to the gate.
-        .catch { }
+        // Listens again after a failure (DESIGN 6.7). Losing access moves the session to the gate, which ends them.
+        .retryLoading()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _actions = MutableStateFlow(Actions())

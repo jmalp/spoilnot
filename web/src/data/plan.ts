@@ -27,11 +27,9 @@ import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
 import { lostRace, type AppError } from '../core/errors';
 import { capTo, ReadCaps } from '../domain/caps';
+import { mapEach, millis, str as text, strings } from './fields';
 
 export const meals = (hid: string) => `households/${hid}/meals`;
-
-const millis = (value: unknown): number | null => (value instanceof Timestamp ? value.toMillis() : null);
-const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 // New fields are optional on read with defaults (DESIGN 8.1); a meal with no valid date or slot is skipped.
 export function toMeal(s: DocumentSnapshot): PlannedMeal | null {
@@ -47,11 +45,11 @@ export function toMeal(s: DocumentSnapshot): PlannedMeal | null {
     recipeId: text(s.get('recipeId')),
     title: capTo(text(s.get('title')) ?? '', ReadCaps.MEAL_TITLE),
     servings: typeof servings === 'number' ? Math.trunc(servings) : null,
-    cooks: ((s.get('cooks') as unknown[] | null) ?? []).filter((c): c is string => typeof c === 'string'),
+    cooks: strings(s.get('cooks')),
     note: text(s.get('note')),
-    cookedAt: millis(s.get('cookedAt')),
+    cookedAt: millis(s, 'cookedAt', false),
     cookedBy: text(s.get('cookedBy')),
-    createdAt: (s.get('createdAt', { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null,
+    createdAt: millis(s, 'createdAt'),
     createdBy: text(s.get('createdBy')),
     pendingSync: s.metadata.hasPendingWrites,
   };
@@ -73,7 +71,7 @@ export class FirestoreMealPlanRepository implements MealPlanRepository {
         return liveDocuments(db, all, this.log, window, `${all.path}?date=${from}..${to}`);
       }),
       map((live) => ({
-        meals: live.documents.map(toMeal).filter((m): m is PlannedMeal => m !== null),
+        meals: mapEach(live.documents, toMeal),
         fromCache: live.fromCache,
       })),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),

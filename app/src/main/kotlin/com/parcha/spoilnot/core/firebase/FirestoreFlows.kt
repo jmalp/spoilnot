@@ -18,6 +18,8 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.tasks.await
@@ -70,10 +72,31 @@ suspend fun <T> Task<T>.awaitMapped(): T = try {
 
 /**
  * Commits a batch that may stay queued offline (DESIGN 9.5): returns once the server accepts it, or after a short
- * wait while it remains queued in the local cache. Rule rejections that arrive in time are thrown.
+ * wait while it remains queued in the local cache. Rule rejections that arrive in time are thrown; a later one goes
+ * to [LateRefusals] (after v1, REL-13), so it is still reported.
  */
 suspend fun WriteBatch.commitQueued() {
-    withTimeoutOrNull(QUEUED_WRITE_WAIT_MS) { commit().awaitMapped() }
+    val task = commit()
+    val answered = withTimeoutOrNull(QUEUED_WRITE_WAIT_MS) {
+        task.awaitMapped()
+        true
+    }
+    if (answered == null) LateRefusals.watch(task)
+}
+
+/**
+ * Refusals of writes whose caller didn't wait for the server (a queued commit, a profile update), reported once in
+ * the app's shell with every other refused write (after v1, review REL-13; [FirestoreHouseholdWriter.errors]): before,
+ * they were dropped, so a change made offline just disappeared when the server refused it.
+ */
+object LateRefusals {
+    private val refusals = MutableSharedFlow<AppError>(extraBufferCapacity = 8)
+    val errors: SharedFlow<AppError> = refusals
+
+    /** Reports [task]'s failure, whenever it comes. */
+    fun watch(task: Task<*>) {
+        task.addOnFailureListener { refusals.tryEmit(it.toAppError()) }
+    }
 }
 
 /** Commits a batch that must reach the server, such as leaving a household before the cache is cleared. */

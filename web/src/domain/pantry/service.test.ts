@@ -1,5 +1,6 @@
 // Ported from PantryServiceTest.
 import { EMPTY } from 'rxjs';
+import { AppError } from '../../core/errors';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { StatsChange } from '../insights/stats';
 import { addDays } from '../time';
@@ -395,6 +396,27 @@ describe('PantryService', () => {
     ];
     await service.deleteEmptyBatches('h', actor, data([], batches));
     expect(repo.last).toEqual([{ type: 'pantry.deleteBatch', batchId: 'a' }]);
+  });
+
+  it('a clean-up the server refused is quiet and is not tried again (REL-11)', async () => {
+    const quiet: HouseholdChange[][] = [];
+    const refusing: HouseholdWriter = {
+      newId: () => 'id',
+      errors$: EMPTY,
+      apply: async () => {
+        throw new Error('apply is not used for the clean-up');
+      },
+      applyQuietly: async (_h, _a, changes, onAnswer) => {
+        quiet.push(changes);
+        onAnswer(new AppError('permissionDenied'));
+      },
+    };
+    const own = new PantryService(refusing, FIXED_CLOCK);
+    const negative = data([], [batch('neg', 'milk', { quantity: -3 })]);
+    await own.deleteEmptyBatches('h', actor, negative);
+    // The rules rolled it back, so the data shows it again: no second write.
+    await own.deleteEmptyBatches('h', actor, negative);
+    expect(quiet).toEqual([[{ type: 'pantry.deleteBatch', batchId: 'neg' }]]);
   });
 
   /** The Edit window opened on `b` with the product as `d` has it. */

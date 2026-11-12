@@ -11,6 +11,7 @@ import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
 import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.plan.data.FirestoreMealPlanRepository.Companion.meals
@@ -72,7 +73,7 @@ class MealPlanChangeMapper @Inject constructor() : FirestoreChangeMapper {
         val cooked = chunk.filterIsInstance<MealPlanChange.SetCooked>().firstOrNull { it.cooked } ?: return null
         val doc = db.document("${meals(householdId)}/${cooked.mealId}").get(Source.SERVER).awaitMapped()
         if (doc.get("cookedAt") == null) return null
-        return AppError.LostRace(AppError.LostRace.Race.Cooked, doc.getString("cookedBy"))
+        return AppError.LostRace(AppError.LostRace.Race.Cooked, doc.string("cookedBy"))
     }
 
     private fun fields(meal: PlannedMeal): Map<String, Any?> = mapOf(

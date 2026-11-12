@@ -12,6 +12,7 @@ import {
   timer,
   type Observable,
 } from 'rxjs';
+import { LoadRetry, retryLoading } from '../load';
 import type { SessionManager } from '../session';
 import type { RecipeBoxData, RecipeRepository } from './models';
 
@@ -25,12 +26,14 @@ const LINGER_MS = 5_000;
  */
 export class RecipeStore {
   readonly box$: Observable<RecipeBoxData | null>;
+  /** "Couldn't load. Retry" on the Recipes tab (DESIGN 6.7): the box listens again instead of ending (WEB-10). */
+  readonly load = new LoadRetry();
 
   constructor(session: SessionManager, repository: RecipeRepository, stopAtOnce$: Observable<unknown> = NEVER) {
     this.box$ = session.session$.pipe(
       map((s) => (s.kind === 'inHousehold' ? s.householdId : null)),
       distinctUntilChanged(),
-      switchMap((hid) => (hid === null ? of(null) : repository.observe(hid))),
+      switchMap((hid) => (hid === null ? of(null) : repository.observe(hid).pipe(retryLoading(this.load)))),
       share({
         connector: () => new ReplaySubject(1),
         resetOnRefCountZero: () => race(timer(LINGER_MS), stopAtOnce$.pipe(take(1))),

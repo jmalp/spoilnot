@@ -37,6 +37,47 @@ object EmulatorAdmin {
         check(code == HttpURLConnection.HTTP_OK) { "DELETE $path: HTTP $code" }
     }
 
+    /**
+     * Writes [fields] into a document past the rules, as a console edit or a buggy client could leave it (after v1,
+     * review 05's bad-data documents). Values: text, whole and decimal numbers, true or false, null, lists, maps and
+     * [java.time.Instant] for a timestamp.
+     */
+    fun putDocument(path: String, fields: Map<String, Any?>) {
+        val name = "projects/$project/databases/(default)/documents/$path"
+        val write = JSONObject().put("update", JSONObject().put("name", name).put("fields", encodeFields(fields)))
+        val (code, text) = request("$documents:commit", JSONObject().put("writes", JSONArray().put(write)).toString())
+        check(code == HttpURLConnection.HTTP_OK) { "commit $path: HTTP $code $text" }
+    }
+
+    private fun encodeFields(fields: Map<String, Any?>): JSONObject =
+        JSONObject().also { o -> fields.forEach { (k, v) -> o.put(k, encode(v)) } }
+
+    private fun encode(value: Any?): JSONObject = when (value) {
+        null -> JSONObject().put("nullValue", JSONObject.NULL)
+
+        is String -> JSONObject().put("stringValue", value)
+
+        is Boolean -> JSONObject().put("booleanValue", value)
+
+        is Int, is Long -> JSONObject().put("integerValue", value.toString())
+
+        is Number -> JSONObject().put("doubleValue", value.toDouble())
+
+        is java.time.Instant -> JSONObject().put("timestampValue", value.toString())
+
+        is List<*> -> JSONObject().put(
+            "arrayValue",
+            JSONObject().put("values", JSONArray().also { a -> value.forEach { a.put(encode(it)) } }),
+        )
+
+        is Map<*, *> -> JSONObject().put(
+            "mapValue",
+            JSONObject().put("fields", encodeFields(value.entries.associate { (k, v) -> k.toString() to v })),
+        )
+
+        else -> error("Can't encode $value")
+    }
+
     fun authUserExists(uid: String): Boolean {
         val url = "http://$host:${FirebaseEmulators.AUTH_PORT}/identitytoolkit.googleapis.com/v1/projects/$project" +
             "/accounts:lookup"

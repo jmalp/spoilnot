@@ -9,6 +9,7 @@ import com.google.firebase.firestore.WriteBatch
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.Stamps
+import com.parcha.spoilnot.core.firebase.mapEach
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
 import com.parcha.spoilnot.core.write.Actor
@@ -43,7 +44,7 @@ class FirestoreStatsRepository @Inject constructor(private val firestore: Firest
                 .snapshotFlow()
                 .retryAfterOwnWrites(db)
         }
-        .map { snapshot -> snapshot.documents.mapNotNull { it.toMonthStats() }.sortedBy { it.month } }
+        .map { snapshot -> snapshot.documents.mapEach { it.toMonthStats() }.sortedBy { it.month } }
         .distinctUntilChanged()
 
     private fun DocumentSnapshot.toMonthStats(): MonthStats? {

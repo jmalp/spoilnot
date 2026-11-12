@@ -9,10 +9,15 @@ import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.Tombstones.isTombstone
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.boolean
 import com.parcha.spoilnot.core.firebase.cachedLiveDocuments
+import com.parcha.spoilnot.core.firebase.double
+import com.parcha.spoilnot.core.firebase.instant
 import com.parcha.spoilnot.core.firebase.liveDocuments
+import com.parcha.spoilnot.core.firebase.mapEach
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.core.write.ReadCaps
 import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
@@ -60,7 +65,7 @@ class FirestoreGroceryRepository(
             firestore.instance
                 // Changes-only listeners (DESIGN 9.8); each item keeps its pending-sync flag from the cache.
                 .flatMapLatest { db -> db.collection(items(householdId, listId)).liveDocuments(db, syncLog) }
-                .map { live -> live.documents.map { it.toItem() } }
+                .map { live -> live.documents.mapEach { it.toItem() } }
                 .distinctUntilChanged()
         }
 
@@ -82,13 +87,13 @@ class FirestoreGroceryRepository(
 
         fun items(hid: String, listId: String) = "households/$hid/groceryLists/$listId/items"
 
-        fun List<DocumentSnapshot>.toLists() = map { it.toList() }
+        fun List<DocumentSnapshot>.toLists() = mapEach { it.toList() }
             .sortedWith(compareByDescending<GroceryList> { it.isDefault }.thenBy { it.name.lowercase() })
 
         fun DocumentSnapshot.toList() = GroceryList(
             id,
-            getString("name").orEmpty().capTo(ReadCaps.LIST_NAME),
-            getBoolean("isDefault") == true,
+            string("name").orEmpty().capTo(ReadCaps.LIST_NAME),
+            boolean("isDefault") == true,
             (get("aisleOrder") as? List<*>).orEmpty().mapNotNull { wire ->
                 (wire as? String)?.let { w -> Category.entries.firstOrNull { c -> c.wire == w } }
             },
@@ -97,21 +102,21 @@ class FirestoreGroceryRepository(
         // New fields are optional on read with defaults (DESIGN 8.1); `checked` absent means false (DESIGN 8.2).
         fun DocumentSnapshot.toItem() = GroceryItem(
             id = id,
-            name = getString("name").orEmpty().capTo(ReadCaps.NAME),
-            nameKey = getString("nameKey").orEmpty(),
-            quantity = getDouble("quantity"),
-            unit = getString("unit")?.let { QuantityUnit.fromWire(it) },
-            note = getString("note"),
-            category = getString("category")?.let { Category.fromWire(it) },
-            checked = getBoolean("checked") == true,
-            checkedBy = getString("checkedBy"),
-            source = ItemSource.fromWire(getString("source")),
-            productId = getString("productId"),
-            recipeId = getString("recipeId"),
-            createdBy = getString("createdBy"),
-            createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
+            name = string("name").orEmpty().capTo(ReadCaps.NAME),
+            nameKey = string("nameKey").orEmpty(),
+            quantity = double("quantity"),
+            unit = string("unit")?.let { QuantityUnit.fromWire(it) },
+            note = string("note"),
+            category = string("category")?.let { Category.fromWire(it) },
+            checked = boolean("checked") == true,
+            checkedBy = string("checkedBy"),
+            source = ItemSource.fromWire(string("source")),
+            productId = string("productId"),
+            recipeId = string("recipeId"),
+            createdBy = string("createdBy"),
+            createdAt = instant("createdAt"),
             pendingSync = metadata.hasPendingWrites(),
-            aliasOf = getString("aliasOf"),
+            aliasOf = string("aliasOf"),
         )
     }
 }

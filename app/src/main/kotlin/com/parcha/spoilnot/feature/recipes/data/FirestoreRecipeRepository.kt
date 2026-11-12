@@ -4,9 +4,16 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.MetadataChanges
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.boolean
+import com.parcha.spoilnot.core.firebase.instant
 import com.parcha.spoilnot.core.firebase.liveDocuments
+import com.parcha.spoilnot.core.firebase.long
+import com.parcha.spoilnot.core.firebase.mapEach
+import com.parcha.spoilnot.core.firebase.maps
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.string
+import com.parcha.spoilnot.core.firebase.strings
 import com.parcha.spoilnot.core.write.ReadCaps
 import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
@@ -32,7 +39,7 @@ class FirestoreRecipeRepository @Inject constructor(
     // Changes-only listeners (DESIGN 9.8); fromCache turns false once the server confirms (offline banner).
     override fun observe(householdId: String): Flow<RecipeBoxData> = firestore.instance
         .flatMapLatest { db -> db.collection(recipes(householdId)).liveDocuments(db, syncLog) }
-        .map { live -> RecipeBoxData(live.documents.map { it.toRecipe() }, live.fromCache) }
+        .map { live -> RecipeBoxData(live.documents.mapEach { it.toRecipe() }, live.fromCache) }
         .distinctUntilChanged()
 
     internal companion object {
@@ -64,16 +71,16 @@ class FirestoreRecipeRepository @Inject constructor(
         fun DocumentSnapshot.toRecipe() = Recipe(
             id = id,
             content = RecipeContent(
-                title = getString("title").orEmpty().capTo(ReadCaps.RECIPE_TITLE),
-                sourceUrl = getString("sourceUrl")?.takeIf { SourceUrl.isWebUrl(it) },
-                sourceName = getString("sourceName"),
-                imageUrl = getString("imageUrl")?.takeIf { SourceUrl.isWebUrl(it) },
-                description = getString("description"),
-                servings = getLong("servings")?.toInt(),
-                servingsText = getString("servingsText"),
-                prepMinutes = getLong("prepMinutes")?.toInt(),
-                cookMinutes = getLong("cookMinutes")?.toInt(),
-                totalMinutes = getLong("totalMinutes")?.toInt(),
+                title = string("title").orEmpty().capTo(ReadCaps.RECIPE_TITLE),
+                sourceUrl = string("sourceUrl")?.takeIf { SourceUrl.isWebUrl(it) },
+                sourceName = string("sourceName"),
+                imageUrl = string("imageUrl")?.takeIf { SourceUrl.isWebUrl(it) },
+                description = string("description"),
+                servings = long("servings")?.toInt(),
+                servingsText = string("servingsText"),
+                prepMinutes = long("prepMinutes")?.toInt(),
+                cookMinutes = long("cookMinutes")?.toInt(),
+                totalMinutes = long("totalMinutes")?.toInt(),
                 ingredients = maps("ingredients").mapNotNull { m ->
                     (m["raw"] as? String)?.let { raw ->
                         Ingredient(
@@ -88,17 +95,14 @@ class FirestoreRecipeRepository @Inject constructor(
                 steps = maps("steps").mapNotNull { m ->
                     (m["text"] as? String)?.let { Step(it, m["group"] as? String) }
                 },
-                notes = getString("notes"),
-                tags = (get("tags") as? List<*>)?.filterIsInstance<String>().orEmpty(),
-                importMethod = ImportMethod.fromWire(getString("importMethod")),
+                notes = string("notes"),
+                tags = strings("tags"),
+                importMethod = ImportMethod.fromWire(string("importMethod")),
             ),
-            favorite = getBoolean("favorite") == true,
-            rating = getLong("rating")?.toInt(),
-            createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
-            createdBy = getString("createdBy"),
+            favorite = boolean("favorite") == true,
+            rating = long("rating")?.toInt(),
+            createdAt = instant("createdAt"),
+            createdBy = string("createdBy"),
         )
-
-        private fun DocumentSnapshot.maps(field: String): List<Map<*, *>> =
-            (get(field) as? List<*>)?.filterIsInstance<Map<*, *>>().orEmpty()
     }
 }

@@ -9,7 +9,6 @@ import {
   getDocsFromServer,
   increment,
   serverTimestamp,
-  Timestamp,
   type DocumentSnapshot,
   type Firestore,
   type WriteBatch,
@@ -34,15 +33,13 @@ import { activity } from './pantry';
 import type { ChangeMapper } from './writer';
 import { capTo, ReadCaps } from '../domain/caps';
 import { SharedByKey, STOP_TIMEOUT_MS } from '../domain/shared';
+import { list as entries, mapEach, millis, num, str as text } from './fields';
 
 export const lists = (hid: string) => `households/${hid}/groceryLists`;
 export const items = (hid: string, listId: string) => `households/${hid}/groceryLists/${listId}/items`;
 
-const num = (value: unknown): number | null => (typeof value === 'number' ? value : null);
-const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-
 export function toList(s: DocumentSnapshot): GroceryList {
-  const order = (s.get('aisleOrder') as unknown[] | null) ?? [];
+  const order = entries(s.get('aisleOrder'));
   return {
     id: s.id,
     name: capTo(text(s.get('name')) ?? '', ReadCaps.LIST_NAME),
@@ -53,11 +50,9 @@ export function toList(s: DocumentSnapshot): GroceryList {
 
 /** The default list first, then by name. */
 const toLists = (docs: DocumentSnapshot[]): GroceryList[] =>
-  docs
-    .map(toList)
-    .sort(
-      (a, b) => Number(b.isDefault) - Number(a.isDefault) || compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
-    );
+  mapEach(docs, toList).sort(
+    (a, b) => Number(b.isDefault) - Number(a.isDefault) || compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
+  );
 
 // New fields are optional on read with defaults (DESIGN 8.1); `checked` absent means false (DESIGN 8.2).
 export function toItem(s: DocumentSnapshot): GroceryItem {
@@ -77,7 +72,7 @@ export function toItem(s: DocumentSnapshot): GroceryItem {
     productId: text(s.get('productId')),
     recipeId: text(s.get('recipeId')),
     createdBy: text(s.get('createdBy')),
-    createdAt: (s.get('createdAt', { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null,
+    createdAt: millis(s, 'createdAt'),
     pendingSync: s.metadata.hasPendingWrites,
     aliasOf: text(s.get('aliasOf')),
   };
@@ -118,7 +113,7 @@ export class FirestoreGroceryRepository implements GroceryRepository {
     return this.sharedItems.get(items(householdId, listId), () =>
       this.sdk.instance$.pipe(
         switchMap((db) => liveDocuments(db, collection(db, items(householdId, listId)), this.log)),
-        map((live) => live.documents.map(toItem)),
+        map((live) => mapEach(live.documents, toItem)),
         distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
       ),
     );

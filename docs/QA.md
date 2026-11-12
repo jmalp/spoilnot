@@ -261,6 +261,16 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Undo), turn Airplane Mode off: both show Yogurt ×2. Press −1 on Yogurt until it is used up on A and Undo within a
     few seconds: Yogurt ×1 is back on both. Throw a purchase away on B and Undo: it comes back, and in the Emulator UI
     (or the console on spoilnot-dev) its `createdBy` is still A's.
+49. Bad data skips one document (Android and the iPhone web app, after v1, 2026-11-11, DESIGN 6.7, 8.6): add Cheese to
+    the pantry, then in the Emulator UI (or the console on spoilnot-dev) change one purchase's `quantity` to the text
+    "2", its `updatedAt` to now, and one grocery item's `checked` to the text "yes" (or run `bad-data.spec.ts`).
+    Pantry, Groceries and Home keep showing everything, the edited purchase as used up and the item unchecked; before,
+    the tabs went blank. In the web app on the emulators in a desktop browser, run
+    `spoilnotTest.refuseListens('internal')` in the console on Pantry: it says "Couldn't load." with Retry above the
+    list it showed; run `spoilnotTest.refuseListens(null)` and tap Retry: the banner goes within a few seconds. On a
+    phone, turn on Airplane Mode, press +1 on Cheese, go to Recipes, delete the purchase in the Emulator UI or the
+    console and turn Airplane Mode off: Recipes shows "You don't have permission to do that." (the rules see no
+    purchase to update).
 
 ## 3. Conditions
 
