@@ -112,6 +112,7 @@ gh workflow run reminders.yml -f dry_run=true
   | `RESOURCE_EXHAUSTED` | The day's free reads or writes ran out (Check quota usage) |
   | `UNAVAILABLE`, `DEADLINE_EXCEEDED` | Google was briefly unreachable; the next run catches up |
   | `usage`, `no-key`, `not-an-export`, `no-such-household` | A restore that could not start (Restore a household) |
+  | `different-owner` | The restore's target household has another owner than the export's; nothing was written (Restore a household) |
   | Anything else, or `no code` | Run it again by hand. If it keeps failing, reproduce it on a computer with the dev key; never commit a change that prints the error |
 
 ## Firestore rules
@@ -330,9 +331,11 @@ retried); both are now off in the emulator builds.
 
 `nightly-export.yml` runs at 07:17 UTC (about 3 AM Eastern) and saves every spoilnot-prod household as
 `<householdId>.json`, encrypted together as `household-exports.tar.gz.enc` in an artifact called `household-exports`,
-kept 14 days. The format inside is the same as the app's Settings > Export file. The repository is public, and anyone
+kept 14 days. The format inside is the same as the app's Settings > Export file, without the two parts only the apps
+add: the person's own profile and the activity log. The repository is public, and anyone
 signed in to GitHub can download artifacts, so the job encrypts with the `EXPORT_ENCRYPTION_KEY` secret (AES-256,
-PBKDF2) and fails rather than upload anything unencrypted.
+PBKDF2) and fails rather than upload anything unencrypted. Its steps run with `shell: bash` (`pipefail`), so it also
+fails rather than upload an archive that `tar` didn't finish.
 
 **Set up the key once** (and again only to rotate it; older exports then need the old key):
 
@@ -352,29 +355,43 @@ This is also the way back after an owner's **Clear household data** (Settings): 
 the clear. It brings back products, stock, lists and their items, recipes and the monthly counts; the cleared
 activity does not come back.
 
-Restoring writes back the export's products, stock, grocery lists and their items, and recipes, exactly as they
-were. It never changes the household document or its members (they control access), and it leaves documents created
-after the export alone. Anything deleted since the export comes back; anything changed since goes back to the
-exported version.
+Restoring writes back the export's products, stock, grocery lists and their items, recipes, monthly counts and
+planned meals, as they were, each stamped with the time of the restore (`updatedAt`, and `updatedBy: restore`), so
+every phone shows the restore within a minute. It never changes the household document or its members (they control
+access), never writes a profile or the activity log, and it leaves documents created after the export alone.
+Anything deleted since the export comes back; anything changed since goes back to the exported version. Only the
+timestamp fields come back as timestamps (`createdAt`, `updatedAt`, `checkedAt` and the like); everything else, such
+as a note that looks like a date and time, stays as it was typed.
+
+The target household must have the same owner as the exported one. Otherwise the restore stops with `restore failed:
+different-owner` before writing anything, also in the dry run. Tick **different owner** only when that is what you
+mean: ownership moved to another member since the export, or you are restoring into a household someone else
+owns.
 
 1. **Actions → restore-from-export → Run workflow.** Enter the export run's ID and leave the household empty: the
    log lists the first four characters of each household ID in that export with its document counts (nothing is
    written). Logs are public, so full IDs are never printed; the full ID is in the Firebase console under
    `households`.
 2. Run it again with the first characters of the household ID (four or more, enough to match one export) and
-   "apply" unticked. The log shows how many documents would be written, by kind.
+   "apply" unticked. The log shows how many documents would be written, by kind, and `Target: same owner as the
+   export.` (it reads the target household, nothing else).
 3. Run it again with **apply** ticked. The log ends with `restored N document(s), M failed`. If M is not 0, the
    run fails: those documents were not written (for example one too large for Firestore, which can take others in
    its batch with it). A restore sets each document as exported, so running it again is safe. `restore failed: no-such-household` means
    the target household does not exist (step 4).
-4. To restore into a different household (for example after the original was deleted, recreate one in the app,
-   then find its ID in the Firebase console under `households`), fill in **target household**.
+4. To restore into a different household (for example after the original was deleted, recreate one in the app with
+   the same owner's account, then find its ID in the Firebase console under `households`), fill in **target
+   household**. A household with another owner also needs **different owner** ticked; the log then says `Target: a
+   different owner, as asked`.
 
-From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<first characters> -f apply=false`.
+From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<first characters> -f apply=false`
+(add `-f different_owner=true` for step 4's other owner).
 
 A file saved from Settings > Export can be restored the same way from a computer that has the service account key
 in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci --ignore-scripts && npm run build && node
-dist/restore-main.js <file> <householdId>`), but the workflow is preferred because the key never leaves GitHub.
+dist/restore-main.js <file> <householdId> [--apply] [--different-owner]`), but the workflow is preferred because the
+key never leaves GitHub. Its `profile` and `activity` are not restored. Settings > Export needs a connection: it reads
+from the server and, offline, says "You're offline" and saves nothing.
 
 ## Regenerate an invite code by hand
 

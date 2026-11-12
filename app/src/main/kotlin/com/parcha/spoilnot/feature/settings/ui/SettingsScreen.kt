@@ -65,14 +65,28 @@ fun SettingsScreen(
     val units by viewModel.units.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val exportedText = stringResource(R.string.settings_exported)
-    // The system's Save dialog picks where the export goes (DESIGN 13.4).
+    // The system's Save dialog picks where the export goes (DESIGN 13.4). It opens once the export has been read from
+    // the server, so offline there is no dialog and no empty file, only "You're offline".
     val saveExport =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-            if (uri != null) viewModel.export(uri)
+            if (uri != null) viewModel.saveExport(uri) else viewModel.cancelExport()
         }
+    LaunchedEffect(state.exportReady) {
+        state.exportReady?.let { fileName ->
+            viewModel.exportDialogOpened()
+            saveExport.launch(fileName)
+        }
+    }
     LaunchedEffect(state.exported) {
         if (state.exported) {
             snackbar.showSnackbar(exportedText)
+            viewModel.dismissExported()
+        }
+    }
+    val exportErrorText = state.exportError?.let { stringResource(it) }
+    LaunchedEffect(exportErrorText) {
+        if (exportErrorText != null) {
+            snackbar.showSnackbar(exportErrorText)
             viewModel.dismissExported()
         }
     }
@@ -189,7 +203,7 @@ fun SettingsScreen(
                 onColorTheme = { viewModel.setColorTheme(it) },
                 onUnits = viewModel::setUnits,
             )
-            DataCard(busy = state.busy, onExport = { saveExport.launch(viewModel.exportFileName()) })
+            DataCard(busy = state.busy, onExport = viewModel::export)
             PrivacyAndAboutCard(
                 crashReports = device.crashReports,
                 onCrashReports = { viewModel.setCrashReports(it) },

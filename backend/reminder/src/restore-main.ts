@@ -1,12 +1,14 @@
 // Restore from an export (docs/RUNBOOK.md).
-//   node dist/restore-main.js <file.json> <householdId> [--apply]   restore one household (dry run without --apply)
-//   node dist/restore-main.js --list <directory>                     list the export files: short IDs and counts
+//   node dist/restore-main.js <file.json> <householdId> [--apply] [--different-owner]
+//       restore one household (a dry run without --apply). With a key it first checks the target exists and has the
+//       export's owner; --different-owner allows another owner.
+//   node dist/restore-main.js --list <directory>     list the export files: short IDs and counts
 // Workflow logs are public with the repository, so household IDs are only ever printed shortened (shortId).
 // See planRestore for what is and is not restored.
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getFirestore } from 'firebase-admin/firestore';
-import { applyRestore, planRestore, shortId, type HouseholdExport } from './backup.ts';
+import { applyRestore, checkTarget, planRestore, shortId, type HouseholdExport } from './backup.ts';
 import { fromEnv } from './credentials.ts';
 import { JobError, runMain } from './errors.ts';
 
@@ -32,21 +34,36 @@ async function list(dir: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const [file, householdId, flag] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const flags = new Set(args.filter((a) => a.startsWith('--') && a !== '--list'));
+  const [file, householdId] = args.filter((a) => !flags.has(a));
+  const unknown = [...flags].filter((f) => f !== '--apply' && f !== '--different-owner');
   if (file === '--list' && householdId) return list(householdId);
-  if (!file || !householdId) {
-    console.log('Usage: restore-main.js <file.json> <householdId> [--apply] | --list <dir>');
-    throw new JobError('usage', 'Missing arguments');
+  if (!file || !householdId || unknown.length > 0) {
+    console.log('Usage: restore-main.js <file.json> <householdId> [--apply] [--different-owner] | --list <dir>');
+    throw new JobError('usage', 'Missing or unknown arguments');
   }
+  const apply = flags.has('--apply');
+  const options = { differentOwner: flags.has('--different-owner') };
   const plan = planRestore(JSON.parse(await readFile(file, 'utf8')) as HouseholdExport, householdId);
   console.log(`Household ${shortId(householdId)}: ${summarize(plan)}`);
-  if (flag !== '--apply') {
+  const credentials = fromEnv('restore');
+  if (!credentials) {
+    if (!apply) {
+      console.log('[dry run] Nothing written; the target was not checked (no key). Run again with --apply to restore.');
+      return;
+    }
+    throw new JobError('no-key', 'FIREBASE_SERVICE_ACCOUNT_JSON is not set');
+  }
+  const db = getFirestore(credentials.app);
+  // Refuses a missing household, or one with another owner unless --different-owner (DESIGN 13.4).
+  const sameOwner = await checkTarget(db, plan, options);
+  console.log(sameOwner ? 'Target: same owner as the export.' : 'Target: a different owner, as asked (--different-owner).');
+  if (!apply) {
     console.log('[dry run] Nothing written. Run again with --apply to restore.');
     return;
   }
-  const credentials = fromEnv('restore');
-  if (!credentials) throw new JobError('no-key', 'FIREBASE_SERVICE_ACCOUNT_JSON is not set');
-  const { written, failed } = await applyRestore(getFirestore(credentials.app), plan);
+  const { written, failed } = await applyRestore(db, plan, options);
   console.log(`project ${credentials.projectId}: restored ${written} document(s), ${failed} failed`);
   if (failed > 0) {
     console.error(`${failed} document(s) were not written. Running the restore again writes the same documents.`);

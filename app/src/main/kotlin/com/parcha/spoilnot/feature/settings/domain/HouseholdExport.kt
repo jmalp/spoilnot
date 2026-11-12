@@ -9,10 +9,16 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-/** Settings > Data > Export (DESIGN 13.4): products, stock, lists, recipes, Insights counts and meals as JSON. */
+/**
+ * Settings > Data > Export (DESIGN 13.4): products, stock, lists, recipes, Insights counts and meals as JSON, with the
+ * person's own profile and the household's activity log (after v1, 2026-11-11).
+ */
 interface HouseholdExporter {
-    /** The household's data as a JSON document. Reads the server when online, the local copy otherwise. */
-    suspend fun export(householdId: String): String
+    /**
+     * The household's data and [uid]'s profile as a JSON document, read from the server. Offline it throws
+     * [com.parcha.spoilnot.core.error.AppError.Offline]: an export from the phone's copy could be missing things.
+     */
+    suspend fun export(householdId: String, uid: String): String
 }
 
 /** A document read for the export: its id and plain values (maps, lists, strings, numbers, Instants). */
@@ -31,6 +37,10 @@ data class ExportData(
     val stats: List<ExportDoc> = emptyList(),
     /** Planned meals (after v1, DESIGN 5.9; older files have none). */
     val meals: List<ExportDoc> = emptyList(),
+    /** The exporting person's own profile (after v1, 2026-11-11; the restore never writes it). */
+    val profile: ExportDoc? = null,
+    /** The household's activity log, about 30 days (after v1, 2026-11-11; the restore never writes it). */
+    val activity: List<ExportDoc> = emptyList(),
 )
 
 object ExportFormat {
@@ -58,6 +68,8 @@ object ExportFormat {
                 "recipes" to JsonArray(data.recipes.map(::doc)),
                 "stats" to JsonArray(data.stats.map(::doc)),
                 "meals" to JsonArray(data.meals.map(::doc)),
+                "profile" to (data.profile?.let(::doc) ?: JsonNull),
+                "activity" to JsonArray(data.activity.map(::doc)),
             ),
         )
         return json.encodeToString(JsonElement.serializer(), root)

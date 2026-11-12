@@ -1,5 +1,6 @@
 // Settings > Data > Export (DESIGN 13.4), ported from HouseholdExport.kt: products, stock, lists, recipes, Insights
-// counts and meals as one JSON document, in the same format as the Android app's export.
+// counts and meals, with the person's own profile and the activity log, as one JSON document, in the same format as
+// the Android app's export.
 import type { LocalDate } from '../time';
 
 /** A point in time from Firestore, written like java.time.Instant ("2026-10-17T12:00:00Z"). */
@@ -40,11 +41,18 @@ export type ExportData = {
   stats: ExportDoc[];
   /** Planned meals (DESIGN 5.9). */
   meals: ExportDoc[];
+  /** The exporting person's own profile (after v1, 2026-11-11; the restore never writes it). */
+  profile?: ExportDoc | null;
+  /** The household's activity log, about 30 days (after v1, 2026-11-11; the restore never writes it). */
+  activity?: ExportDoc[];
 };
 
-/** The household's data as a JSON document; reads the server when online, the phone's copy otherwise. */
+/**
+ * The household's data and `uid`'s profile as a JSON document, read from the server. Offline it rejects with
+ * "You're offline" (AppError 'offline'): an export from the phone's copy could be missing things.
+ */
 export interface HouseholdExporter {
-  export(householdId: string): Promise<string>;
+  export(householdId: string, uid: string): Promise<string>;
 }
 
 type Json = null | string | number | boolean | Json[] | { [key: string]: Json };
@@ -71,6 +79,8 @@ export const ExportFormat = {
       recipes: data.recipes.map(doc),
       stats: data.stats.map(doc),
       meals: data.meals.map(doc),
+      profile: data.profile ? doc(data.profile) : null,
+      activity: (data.activity ?? []).map(doc),
     };
     // Four spaces, like kotlinx.serialization's prettyPrint.
     return JSON.stringify(root, null, 4);
