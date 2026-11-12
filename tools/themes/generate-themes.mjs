@@ -3,6 +3,8 @@
 // second one, an accent (also the "thrown away" color in charts) and the neutral that tints backgrounds. Material
 // Color Utilities builds full light and dark schemes from them with the "fidelity" variant, which keeps each color
 // close to the palette and picks tones that meet contrast (checked by ColorThemesContrastTest).
+// The main color must not be red, orange or yellow: buttons keep 45° of hue from the Soon, Today and Expired status
+// colors (DESIGN 6.1, 6.4; ColorThemesContrastTest), so Fiery Palette uses its teal and Watermelon Sorbet its mint.
 //
 //   cd tools/themes && npm ci && npm run generate
 import { readFileSync, writeFileSync } from 'node:fs';
