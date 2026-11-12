@@ -1,6 +1,7 @@
 // Small settings kept on this phone, not in the household (AppPreferences in the app, DESIGN 7.3): System, Light or
-// Dark, the color theme, whether notifications were explained and whether the Add to Home Screen card was put away. Stored in localStorage; without it (private browsing)
+// Dark, the color theme, the first day of Plan's week, whether notifications were explained and whether the Add to Home Screen card was put away. Stored in localStorage; without it (private browsing)
 // they last until the app closes.
+import { isWeekStart, type WeekStart } from '../domain/plan/week';
 import { DEFAULT_THEME, isThemeId, type ThemeId } from '../theme/theme';
 
 /** Settings > Appearance (DESIGN 5.6). */
@@ -11,6 +12,8 @@ export type Preferences = {
   themeMode: ThemeMode;
   /** Settings > Appearance > Colors (DESIGN 6.4); the web app has no Wallpaper (18.1), so Spoil Not green. */
   colorTheme: ThemeId;
+  /** Settings > Appearance > Week starts on (web only, after v1, WEB-08; DESIGN 5.9, 18.1). */
+  weekStart: WeekStart;
   /** The notification explanation (DESIGN 5.4) was answered or not needed; it is not shown again. */
   notificationExplainerShown: boolean;
   /** Home's Add to Home Screen card (DESIGN 18.1) was answered Not now. */
@@ -20,6 +23,7 @@ export type Preferences = {
 export const PREFERENCE_KEYS = {
   themeMode: 'spoilnot.themeMode',
   colorTheme: 'spoilnot.colorTheme',
+  weekStart: 'spoilnot.weekStart',
   notificationExplainerShown: 'spoilnot.notificationExplainerShown',
   installHelpDismissed: 'spoilnot.installHelpDismissed',
 } as const;
@@ -47,10 +51,12 @@ export class AppPreferences {
     };
     const mode = read(PREFERENCE_KEYS.themeMode);
     const theme = read(PREFERENCE_KEYS.colorTheme);
+    const weekStart = read(PREFERENCE_KEYS.weekStart);
     this.value = {
       themeMode: THEME_MODES.includes(mode as ThemeMode) ? (mode as ThemeMode) : 'system',
       // A theme only Android has (Wallpaper) shows as the Spoil Not green.
       colorTheme: isThemeId(theme) ? theme : DEFAULT_THEME,
+      weekStart: isWeekStart(weekStart) ? weekStart : 'auto',
       notificationExplainerShown: read(PREFERENCE_KEYS.notificationExplainerShown) === 'true',
       installHelpDismissed: read(PREFERENCE_KEYS.installHelpDismissed) === 'true',
     };

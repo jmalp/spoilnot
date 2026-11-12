@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { drafts } from './core/drafts';
 import { useObservable } from './core/hooks';
 import { str } from './core/i18n';
 import { NavProvider } from './core/NavProvider';
@@ -31,6 +32,11 @@ function RootScreen() {
     useMemo(() => manager.session$, [manager]),
     manager.session,
   );
+  // A sheet's draft kept through a reload (core/drafts.ts) belongs to the household it was typed in.
+  const outside = session.kind === 'signedOut' || session.kind === 'noHousehold';
+  useEffect(() => {
+    if (outside) drafts.clear();
+  }, [outside]);
   switch (session.kind) {
     case 'loading':
       return (

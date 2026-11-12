@@ -308,7 +308,7 @@ A short follow-along tour teaches new users the app and its main actions. The ow
 
 A fifth tab, **Plan** (Home, Pantry, Plan, Recipes, Groceries), shows one week of meals for the household, shared by every member.
 
-- **Week.** The header shows the week ("Oct 26 – Nov 1") with Previous and Next week buttons, and *Go to this week* when another week is shown. The week starts on the first day of the phone's region (Sunday in the US, Monday in most places). This week opens scrolled to today.
+- **Week.** The header shows the week ("Oct 26 – Nov 1") with Previous and Next week buttons, and *Go to this week* when another week is shown. The week starts on the first day of the phone's region (Sunday in the US, Monday in most places). This week opens scrolled to today. In the web app (after v1, 2026-11-12) Settings > Appearance > *Week starts on* chooses it (Automatic, Sunday, Monday or Saturday), because a web app cannot read the iPhone's own First Day of Week setting (18.1).
 - **Days.** One card per day with three slots, **Breakfast, Lunch and Dinner**. Today has a thicker border and a *Today* label (never color alone); past days have a quieter title.
 - **Adding.** **+** on a slot opens "Dinner · Thursday, Oct 29": *Who's cooking?* (any members, as chips with their names), *Something else* (a typed meal without a recipe such as "Leftovers" or "Eat out"), and the recipe box with a search. Tapping a recipe adds it at once with the recipe's servings. A slot can hold several meals; new ones go after the others.
 - **A planned meal** shows its name, servings and cooks (chips with a person icon and the name, "You" for the user). Tapping it opens its sheet: servings (− and +, or not set), cooks, a note, *Open recipe* (when the recipe still exists) and *Remove from plan* with Undo. A meal whose recipe was deleted keeps its name and says *Recipe deleted*; a member who left disappears from the cooks.
@@ -324,7 +324,7 @@ A fifth tab, **Plan** (Home, Pantry, Plan, Recipes, Groceries), shows one week o
 
 ## 6. UX and visual design
 
-**6.1 Principles.** Glanceable (what needs attention comes first), fast capture (adding an item takes under 10 seconds with thumb-reachable controls), calm (color is reserved for status), trustworthy (Undo on every destructive action, visible sync state). After v1 (2026-11-11), Add to pantry has Undo too; the household actions, Clear household data and Delete list ask first instead (DECISIONS). Forms and sheets keep what was typed or picked through rotation, theme and font changes and Android closing the app: the Add to pantry rows, Plan's Add meal sheet (open, with its title and cooks) and a meal's cooks, cook mode's ticked ingredients, a recipe's Add to grocery list choices and renames, and I cooked this amounts.
+**6.1 Principles.** Glanceable (what needs attention comes first), fast capture (adding an item takes under 10 seconds with thumb-reachable controls), calm (color is reserved for status), trustworthy (Undo on every destructive action, visible sync state). After v1 (2026-11-11), Add to pantry has Undo too; the household actions, Clear household data and Delete list ask first instead (DECISIONS). Forms and sheets keep what was typed or picked through rotation, theme and font changes and Android closing the app: the Add to pantry rows, Plan's Add meal sheet (open, with its title and cooks) and a meal's cooks, cook mode's ticked ingredients, a recipe's Add to grocery list choices and renames, and I cooked this amounts. In the web app (after v1, 2026-11-12) the Add to pantry rows and Plan's Add meal sheet (cooks and typed meal) and meal sheet (servings, cooks and note) also come back, still open, when iOS reloads a page it discarded in the background (18.3).
 
 **6.2 Navigation.** A bottom `NavigationBar` with four destinations: Home, Pantry, Recipes, Groceries (after v1, five: Plan between Pantry and Recipes, 5.9). Settings opens from the avatar button in each tab's top app bar. Each tab keeps its own back stack (Navigation 3) so scroll position and sub-screens survive tab switches. Portrait-first; landscape and tablets MUST NOT break (use window size classes, center content, maximum width 640 dp).
 
@@ -1392,6 +1392,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-11 | Restore and Export tell the truth (both apps, the restore and the export workflows; review findings REL-07, REL-12, REL-14, WEB-12): the restore stamps every document with the server's time and `updatedBy: 'restore'`, so phones show it within a minute; it turns only the known timestamp fields back into timestamps, so text that looks like a date-time stays text; it refuses a target household with a different owner unless the new **different owner** input is ticked, and checks that in the dry run; the export and restore steps fail on any pipe error. Settings > Export reads from the server and says "You're offline" instead of saving the phone's copy, and also holds the person's own profile and the activity log | 13.4, DECISIONS, QA, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-11-11 | Forms keep what you typed, and Add to pantry gets Undo (review findings REL-08, REL-09, LOGIC-03, LOGIC-04, LOGIC-08, LOGIC-10). Android: Add to pantry keeps its rows' edits by item id in the screen's saved state (`AddToPantryDrafts` over `SavedStateHandle`), so rotation, process death and others' check-offs no longer reset them; Plan's Add meal sheet, a meal's cooks, cook mode's ticks, Add to grocery list and I cooked this use saved state (`rememberSaveableList`, `rememberSaveableMap`). Both apps: Add to pantry adds to the item's linked product (`planAdd(…, productId)`), locks the unit to a product with stock and uses the item's amount only in that unit (`AddToPantryRules`); quick add reads the recipe parser's unit words and glued units and ignores a zero amount, and Increase quantity only adds in the same unit; Add to pantry returns an Undo built by `PantryService.undoAdditions` (new `PantryChange.DeleteProduct`, a product tombstone) plus the items' restores, all merges and increments the rules on main accept. Delete list keeps its confirmation. The web's own form-state fixes (its sheet still takes its rows when it opens) are the next change | 5.2, 5.3, 6.1, QA, DECISIONS |
 | 2026-11-11 | Bad data skips one document, not the screen (both apps; review findings REL-04, WEB-10, REL-13, REL-11): every field is read on its own with a safe cast, a value of another type reading as missing, and each document maps on its own, so a document with a wrong-typed field is skipped or shown with that field missing instead of blanking the list on every phone; a failed listener listens again after 1, 2, 4 … 32 s instead of ending, and Home, Pantry, Plan, Recipes and Groceries say "Couldn't load." with Retry meanwhile; a change the server refuses later is reported once, by the shell, whichever screen is open, including queued household and notification-setting writes; the pantry's clean-up of empty batches is quiet and isn't retried once refused; Android's cache listeners listen again after a server refusal of the same query, as the web's do since 2026-11-10. Unit tests with wrong types on both apps (`WrongTypeReadTest`, `wrong-types.test.ts`), `LoadRetryTest` and `load.test.ts`, `EmptyBatchCleanupsTest`; instrumented `BadDataFlowTest` (review 05's bad-data documents) and `WriteRefusalUiTest`; `bad-data.spec.ts` in WebKit; QA flow 51. quota-sim unchanged | 6.7, 7.5, 8.5, 8.6, 9.8, 13.4, QA, RUNBOOK, DECISIONS |
+| 2026-11-12 | iPhone polish and the web's own form state (web only; review findings REL-08 and REL-09 on the web, WEB-14, WEB-15, WEB-08): Add to pantry keeps its rows' edits by item id, so another phone's check-off adds a row and keeps the edited ones, and the open sheet with its edits, like Plan's Add meal sheet (cooks, typed meal) and meal sheet (servings, cooks, note), comes back after iOS reloads a page it discarded (`sessionStorage`); sheets stay above the on-screen keyboard (`visualViewport`) and scroll the focused field into view; a row swipe starting at Safari's left edge is left to Safari's Back; Settings > Appearance has *Week starts on* (Automatic, Sunday, Monday, Saturday) for Plan's week, and browsers without week information know the Saturday regions | 5.9, 6.1, 18.1, 18.2, 18.3, DECISIONS, QA |
 
 ## 18. Web app for iPhone (after v1)
 
@@ -1417,6 +1418,12 @@ live. The Android app does not change.
   banner of 6.7 shows above the web app's root too. Only `src/data` raises it (`toAppError`). Development builds let
   the browser tests refuse every server listener with a Firestore code (`window.spoilnotTest.refuseListens`), since
   the emulator has no quota; release builds don't have it.
+- **Week starts on** (after v1, 2026-11-12): Android takes the first day of Plan's week from the phone, including
+  Android 14's own First day of week setting; a web app can't read the iPhone's, and the browser's language only
+  gives the region's day. So the web's Settings > Appearance has *Week starts on*: Automatic (the region's day, named:
+  "Automatic (Sunday)"), Sunday, Monday or Saturday, kept on the phone like the theme. Browsers without week
+  information use CLDR's lists of Sunday and Saturday regions. Home's Today card still takes the region's day for the
+  week it listens to; it shows only today's meals, which every week containing today has.
 - **Installed from Safari** with Share > Add to Home Screen (iOS 16.4 or later, needed for notifications). It opens
   full screen with the Spoil Not icon. It also works in any current browser, but it is designed and tested for iPhone.
 
@@ -1439,6 +1446,14 @@ live. The Android app does not change.
   pinned top app bar, the 80 dp navigation bar with a pill indicator and filled or outlined icons, outlined cards,
   buttons, icon buttons, the extended FAB, outlined text fields, filter chips with a check, checkboxes, radio buttons,
   switches, menus, dialogs, modal bottom sheets with a drag handle, snackbars with Undo and state layers on press.
+  After v1 (2026-11-12, WEB-14) sheets stay above the on-screen keyboard like `imePadding` in the app: an iPhone
+  doesn't resize the page for the keyboard, it shrinks the visual viewport, so `BottomSheet` follows
+  `window.visualViewport` (`resize` and `scroll`), lifts the sheet by the part of the page the keyboard covers
+  (`--sn-keyboard`), caps its height at what is left, and scrolls the focused field into view (`block: 'nearest'`),
+  so Save, pinned below the fields, stays visible while typing. Nothing changes while pinch-zoomed.
+- **Swipes**: rows swipe like `SwipeToDismissBox`. In a Safari tab a swipe from the screen's left edge is Safari's
+  Back, so after v1 (2026-11-12, WEB-15) a row swipe that starts within 24 px of the left edge is left to Safari;
+  the Home Screen app has no edge gesture and keeps every swipe.
   They use native elements (`button`, `input`, `dialog`) so VoiceOver reads them like TalkBack reads the app.
 - **Words**: `web/src/strings.generated.ts` is generated from `app/src/main/res/values/strings.xml`
   (`web/scripts/gen-strings.mjs`, plurals with `Intl.PluralRules`), so both apps say the same thing. Web-only text
@@ -1458,11 +1473,21 @@ live. The Android app does not change.
   (`POINTER_SETTLE_MS`), because the web SDK can raise the server's older copy of the profile, without the pointer,
   between the acknowledgement of the phone's own write and the newer version; acting on it showed the gate and
   cleared the cache right after creating a household.
-- Settings > Appearance and whether the notification explainer was shown live in `localStorage` (`AppPreferences` in
+- Settings > Appearance (with *Week starts on*, 18.1) and whether the notification explainer was shown live in `localStorage` (`AppPreferences` in
   `web/src/core/preferences.ts`), like the app's DataStore: per phone, not household data. Export downloads the JSON file (Safari asks, then keeps it in
   Files > Downloads), in the app's format with `appVersion` "web <commit>". About lists the open source licenses of
   every run-time package in `package-lock.json` with the text each ships (`public/licenses.json`, written by
   `npm run gen`, like the app's AboutLibraries data).
+- Sheet drafts (after v1, 2026-11-12): iOS discards a page left in the background and loads it again when the person
+  comes back, which on Android is process death. Add to pantry and Plan's Add meal and meal sheets keep their open
+  state and what was picked in `sessionStorage` (`spoilnot.draft.*`, `useSessionDraft` in `web/src/core/drafts.ts`),
+  like the app's saved state: written on each change, read when the screen mounts, removed when the sheet closes, the
+  screen leaves (a tab switch closes its sheets, as before) or nobody is signed in. Add to pantry keeps edits by item
+  id apart from the cart (`ui/grocery/addToPantryDrafts.ts`, as `AddToPantryDrafts` in the app), so another phone's
+  check-off adds a row and keeps the edited ones; a restored sheet brings back its list and Plan its week. The other
+  sheets already keep their picks by key when data changes under them and are not kept through a reload: the pantry's
+  Add item and Edit window, the grocery Edit sheet, quick add's text, a recipe's Add to grocery list, I cooked this,
+  cook mode's ticks, the week's ingredients and the dialogs.
 - Firestore's persistent cache (IndexedDB) keeps the household on the phone, so the app opens and edits offline and
   syncs later, like 9.5. Safari may clear a web app's storage if it is not opened for weeks; the next open reads it
   again (the daily full read).

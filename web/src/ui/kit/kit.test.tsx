@@ -12,6 +12,7 @@ import {
   UNDO_WINDOW_MS,
   useSnackbars,
 } from '.';
+import { keyboardInset } from './BottomSheet';
 
 describe('kit', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -146,5 +147,20 @@ describe('kit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(undo).toHaveBeenCalledOnce();
     expect(screen.getByRole('status')).toHaveTextContent('Saved');
+  });
+});
+
+describe('keyboardInset (WEB-14)', () => {
+  it('is the part of the page under the keyboard', () => {
+    // iPhone 15 portrait: 844 px tall, the keyboard leaves 508.
+    expect(keyboardInset({ height: 844, offsetTop: 0, scale: 1 }, 844)).toBe(0);
+    expect(keyboardInset({ height: 508, offsetTop: 0, scale: 1 }, 844)).toBe(336);
+    // Safari scrolled the visual viewport down to the field: the keyboard still covers the bottom 336 px.
+    expect(keyboardInset({ height: 508, offsetTop: 100, scale: 1 }, 844)).toBe(236);
+  });
+
+  it('is 0 while pinch-zoomed and never negative', () => {
+    expect(keyboardInset({ height: 422, offsetTop: 0, scale: 2 }, 844)).toBe(0);
+    expect(keyboardInset({ height: 900, offsetTop: 0, scale: 1 }, 844)).toBe(0);
   });
 });

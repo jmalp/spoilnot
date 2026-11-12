@@ -1,41 +1,31 @@
 import { useState } from 'react';
 import { plural, str } from '../../core/i18n';
 import { GroceryRules, type GroceryItem } from '../../domain/grocery/models';
-import { AddToPantryRules, type PantryEntry } from '../../domain/grocery/service';
-import { CATEGORIES, unitMenu, type Category, type Location, type PantryData } from '../../domain/pantry/models';
+import type { PantryEntry } from '../../domain/grocery/service';
+import { CATEGORIES, unitMenu, type Category, type PantryData } from '../../domain/pantry/models';
 import type { QuantityUnit } from '../../domain/pantry/models';
 import type { LocalDate } from '../../domain/time';
 import { BottomSheet, Button, Icon, SelectField, Switch, TextField } from '../kit';
 import { DateChips, FormSheetColumn, largeText, LocationChoice, parseQuantity } from '../pantry/ItemForm';
 import { amountText, categoryLabel, formatDate, formatQuantity, locationLabel, unitLabel } from '../pantry/labels';
+import { AddToPantryDrafts, type AddToPantryDraft, type EntryEdit, type EntryLine } from './addToPantryDrafts';
 import './grocery.css';
 
-/** One editable line of the Add to pantry sheet. */
-type EntryDraft = {
-  item: GroceryItem;
-  quantity: string;
-  unit: QuantityUnit;
-  expiry: LocalDate | null;
-  location: Location;
-  skip: boolean;
-  /** Showing the full editor instead of the one-line summary (after v1). */
-  expanded: boolean;
-  /** The product has stock, so the unit is its own (DESIGN 2; after v1, LOGIC-04). */
-  unitLocked: boolean;
-};
-
-const valid = (d: EntryDraft) => d.skip || (parseQuantity(d.quantity) ?? 0) > 0;
+const valid = (line: EntryLine) => line.value.skip || (parseQuantity(line.value.quantity) ?? 0) > 0;
 
 /**
  * Done shopping (DESIGN 5.3): one line per checked item summing up what will be added (amount, location, date from
  * the product's typical shelf life). Tapping a line opens its editor: quantity, unit, quick dates, location and Skip,
- * which removes the item without adding stock. Add all adds them in one write.
+ * which removes the item without adding stock. Add all adds them in one write. What the person sets is kept in
+ * [draft] by item id, so the current [items] can change under it (after v1, REL-08).
  */
 export function AddToPantrySheet({
   items,
   pantry,
   today,
   imperialFirst,
+  draft,
+  onDraft,
   onConfirm,
   onDismiss,
 }: {
@@ -43,52 +33,39 @@ export function AddToPantrySheet({
   pantry: PantryData;
   today: LocalDate;
   imperialFirst: boolean;
+  draft: AddToPantryDraft;
+  onDraft: (change: (draft: AddToPantryDraft) => AddToPantryDraft) => void;
   onConfirm: (entries: PantryEntry[], skipped: GroceryItem[]) => void;
   onDismiss: () => void;
 }) {
-  const [drafts, setDrafts] = useState<EntryDraft[]>(() =>
-    items.map((item) => {
-      // The linked product, its unit while it has stock, and the item's amount only in that unit (LOGIC-03, 04).
-      const d = AddToPantryRules.defaults(item, pantry, today);
-      return {
-        item,
-        quantity: d.quantity === null ? '' : formatQuantity(d.quantity),
-        unit: d.unit,
-        expiry: d.expiry,
-        location: d.location,
-        skip: false,
-        expanded: false,
-        unitLocked: d.unitLocked,
-      };
-    }),
-  );
-  const update = (id: string, change: Partial<EntryDraft>) =>
-    setDrafts((all) => all.map((d) => (d.item.id === id ? { ...d, ...change } : d)));
-  const count = drafts.filter((d) => !d.skip).length;
+  // The current items with the edits kept for them: a check-off elsewhere adds a line and keeps the others.
+  const lines = AddToPantryDrafts.lines(items, pantry, today, draft);
+  const count = lines.filter((l) => !l.value.skip).length;
   const label =
     count === 0
       ? str('grocery_remove_skipped')
-      : count === drafts.length && count > 1
+      : count === lines.length && count > 1
         ? plural('grocery_add_all_to_pantry', count, count)
         : plural('grocery_add_to_pantry', count, count);
   const confirm = () => {
-    if (!drafts.every(valid)) {
+    if (!lines.every(valid)) {
       // Show what needs fixing.
-      setDrafts((all) => all.map((d) => (valid(d) ? d : { ...d, expanded: true })));
+      const wrong = lines.filter((l) => !valid(l)).map((l) => l.item.id);
+      onDraft((d) => AddToPantryDrafts.setExpanded(d, wrong, true));
       return;
     }
     onConfirm(
-      drafts
-        .filter((d) => !d.skip)
-        .map((d) => ({
-          item: d.item,
-          quantity: parseQuantity(d.quantity)!,
-          unit: d.unit,
-          expiryDate: d.expiry,
-          location: d.location,
+      lines
+        .filter((l) => !l.value.skip)
+        .map((l) => ({
+          item: l.item,
+          quantity: parseQuantity(l.value.quantity)!,
+          unit: l.value.unit,
+          expiryDate: l.value.expiry,
+          location: l.value.location,
           dateType: 'use_by',
         })),
-      drafts.filter((d) => d.skip).map((d) => d.item),
+      lines.filter((l) => l.value.skip).map((l) => l.item),
     );
   };
   return (
@@ -102,13 +79,16 @@ export function AddToPantrySheet({
         }
       >
         <div className="sn-entries">
-          {drafts.map((d) => (
+          {lines.map((line) => (
             <EntryRow
-              key={d.item.id}
-              draft={d}
+              key={line.item.id}
+              line={line}
               today={today}
               imperialFirst={imperialFirst}
-              onChange={(change) => update(d.item.id, change)}
+              onChange={(change) =>
+                onDraft((d) => AddToPantryDrafts.setEdit(d, line.item.id, { ...line.value, ...change }))
+              }
+              onToggle={() => onDraft((d) => AddToPantryDrafts.setExpanded(d, [line.item.id], !line.expanded))}
             />
           ))}
         </div>
@@ -118,7 +98,7 @@ export function AddToPantrySheet({
 }
 
 /** "2 · Fridge · Oct 26", "Skipped" or the problem, for one line of the sheet. */
-function summary(d: EntryDraft, today: LocalDate): string {
+function summary(d: EntryEdit, today: LocalDate): string {
   if (d.skip) return str('grocery_entry_skipped');
   const quantity = parseQuantity(d.quantity);
   if (quantity === null || quantity <= 0) return str('error_quantity');
@@ -127,17 +107,20 @@ function summary(d: EntryDraft, today: LocalDate): string {
 }
 
 function EntryRow({
-  draft,
+  line,
   today,
   imperialFirst,
   onChange,
+  onToggle,
 }: {
-  draft: EntryDraft;
+  line: EntryLine;
   today: LocalDate;
   imperialFirst: boolean;
-  onChange: (change: Partial<EntryDraft>) => void;
+  onChange: (change: Partial<EntryEdit>) => void;
+  onToggle: () => void;
 }) {
-  const id = draft.item.id;
+  const id = line.item.id;
+  const draft = { ...line.value, item: line.item, expanded: line.expanded, unitLocked: line.unitLocked };
   const quantity = parseQuantity(draft.quantity);
   return (
     <div className="sn-entry" data-testid={`entry_${id}`}>
@@ -146,11 +129,11 @@ function EntryRow({
         className="sn-entry__summary m3-state"
         aria-expanded={draft.expanded}
         aria-label={`${draft.item.name}, ${summary(draft, today)}. ${str(draft.expanded ? 'grocery_entry_done' : 'grocery_entry_edit')}`}
-        onClick={() => onChange({ expanded: !draft.expanded })}
+        onClick={onToggle}
       >
         <span className="sn-entry__text">
           <span className="t-title-medium">{draft.item.name}</span>
-          <span className={`t-body-medium ${valid(draft) ? 'c-on-surface-variant' : 'c-error'}`}>
+          <span className={`t-body-medium ${valid(line) ? 'c-on-surface-variant' : 'c-error'}`}>
             {summary(draft, today)}
           </span>
         </span>
