@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.ui.rememberSaveableMap
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
@@ -51,8 +52,8 @@ fun CookedSheet(
     onDismiss: () -> Unit,
     markCooked: Boolean = false,
 ) {
-    val chosen = remember { mutableStateMapOf<String, Boolean>() }
-    val amounts = remember { mutableStateMapOf<String, String>() }
+    val chosen = rememberSaveableMap<String, Boolean>()
+    val amounts = rememberSaveableMap<String, String>()
     fun isChosen(line: CookLine) = chosen[line.product.id] ?: line.selectedByDefault
     fun amountText(line: CookLine) = amounts[line.product.id] ?: formatQuantity(line.defaultAmount)
     val use = lines.filter(::isChosen).mapNotNull { line ->

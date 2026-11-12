@@ -8,7 +8,7 @@ import { useHouseholdSession, useServices } from '../../core/services';
 import { ShoppingTrip, StoreOrder } from '../../domain/grocery/aisles';
 import { GroceryRules, type GroceryItem, type GroceryList } from '../../domain/grocery/models';
 import { RestockEngine } from '../../domain/grocery/restock';
-import { GroceryLayout, type QuickAddResult } from '../../domain/grocery/service';
+import { canIncrease, GroceryLayout, type QuickAdd, type QuickAddResult } from '../../domain/grocery/service';
 import type { PantryData } from '../../domain/pantry/models';
 import type { Undo } from '../../domain/write';
 import {
@@ -24,7 +24,7 @@ import {
   TextField,
   useSnackbars,
 } from '../kit';
-import { categoryLabel } from '../pantry/labels';
+import { amountText, categoryLabel, unitLabel } from '../pantry/labels';
 import { EmptyState, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { AddToPantrySheet, EditGroceryItemSheet } from './GroceryForms';
 import { GroceryRow } from './GroceryRow';
@@ -249,26 +249,28 @@ export function GroceriesScreen({
               >
                 {str('grocery_add_anyway')}
               </Button>
-              <Button
-                variant="text"
-                data-testid="button_increase"
-                onClick={() => {
-                  const { existing, request } = duplicate.result;
-                  setDuplicate(null);
-                  if (list)
-                    act(async () => {
-                      await groceryService.increase(hid, actor, list.id, existing, request);
-                      setText('');
-                    });
-                }}
-              >
-                {str('grocery_increase')}
-              </Button>
+              {canIncrease(duplicate.result.request, duplicate.result.existing) && (
+                <Button
+                  variant="text"
+                  data-testid="button_increase"
+                  onClick={() => {
+                    const { existing, request } = duplicate.result;
+                    setDuplicate(null);
+                    if (list)
+                      act(async () => {
+                        await groceryService.increase(hid, actor, list.id, existing, request);
+                        setText('');
+                      });
+                  }}
+                >
+                  {str('grocery_increase')}
+                </Button>
+              )}
             </>
           }
         >
           <p className="t-body-medium c-on-surface-variant">
-            {str('grocery_already_body', duplicate.result.existing.name)}
+            {alreadyBody(duplicate.result.request, duplicate.result.existing)}
           </p>
         </Dialog>
       )}
@@ -280,11 +282,15 @@ export function GroceriesScreen({
           imperialFirst={me.units === 'imperial'}
           onDismiss={() => setShopping(false)}
           onConfirm={(entries, skipped) =>
-            act(async () => {
-              await groceryService.addToPantry(hid, actor, list.id, entries, skipped, pantryData);
-              setShopping(false);
-              if (entries.length > 0) snackbars.show(str('grocery_added_to_pantry'));
-            })
+            // Undo removes what was added and puts the items back (after v1, LOGIC-10).
+            actUndo(
+              async () => {
+                const undo = await groceryService.addToPantry(hid, actor, list.id, entries, skipped, pantryData);
+                setShopping(false);
+                return undo;
+              },
+              str(entries.length > 0 ? 'grocery_added_to_pantry' : 'grocery_skipped_removed'),
+            )
           }
         />
       )}
@@ -322,6 +328,13 @@ export function GroceriesScreen({
       )}
     </TabScaffold>
   );
+}
+
+/** Already on the list; amounts in another unit aren't added together (no conversion, DESIGN 2; LOGIC-08). */
+function alreadyBody(request: QuickAdd, existing: GroceryItem): string {
+  if (canIncrease(request, existing) || existing.unit === null) return str('grocery_already_body', existing.name);
+  const amount = existing.quantity === null ? unitLabel(existing.unit) : amountText(existing.quantity, existing.unit);
+  return str('grocery_already_other_unit', existing.name, amount);
 }
 
 function GroceryListView({

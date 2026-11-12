@@ -7,7 +7,14 @@ import { PantryService } from '../pantry/service';
 import { addDays } from '../time';
 import type { HouseholdChange, HouseholdWriter } from '../write';
 import type { GroceryChange, GroceryItem, GroceryRepository } from './models';
-import { GroceryLayout, GroceryService, parseQuickAdd, type PantryEntry } from './service';
+import {
+  AddToPantryRules,
+  canIncrease,
+  GroceryLayout,
+  GroceryService,
+  parseQuickAdd,
+  type PantryEntry,
+} from './service';
 
 class RecordingWriter implements HouseholdWriter {
   last: HouseholdChange[] = [];
@@ -257,6 +264,108 @@ describe('GroceryService', () => {
     expect(new Set(ofType(changes, 'grocery.deleteItem').map((c) => c.itemId))).toEqual(
       new Set(['i1', 'i2', 'i3', 'i4']),
     );
+  });
+
+  it("quick add reads the recipe parser's unit words, units after the number, and no amount for zero", () => {
+    // After v1, LOGIC-08.
+    expect(parseQuickAdd('3 lbs apples')).toEqual({ name: 'apples', quantity: 3, unit: 'lb' });
+    expect(parseQuickAdd('3 lbs. apples')).toEqual({ name: 'apples', quantity: 3, unit: 'lb' });
+    expect(parseQuickAdd('2l milk')).toEqual({ name: 'milk', quantity: 2, unit: 'l' });
+    expect(parseQuickAdd('500g rice')).toEqual({ name: 'rice', quantity: 500, unit: 'g' });
+    expect(parseQuickAdd('2 Litres milk')).toEqual({ name: 'milk', quantity: 2, unit: 'l' });
+    expect(parseQuickAdd('1 kilo flour')).toEqual({ name: 'flour', quantity: 1, unit: 'kg' });
+    expect(parseQuickAdd('2 fl oz milk')).toEqual({ name: 'milk', quantity: 2, unit: 'fl_oz' });
+    expect(parseQuickAdd('0 eggs')).toEqual({ name: 'eggs', quantity: null, unit: null });
+    expect(parseQuickAdd('2 lemons')).toEqual({ name: 'lemons', quantity: 2, unit: null });
+    expect(parseQuickAdd('2 gherkins')).toEqual({ name: 'gherkins', quantity: 2, unit: null });
+    expect(parseQuickAdd('7up')).toEqual({ name: '7up', quantity: null, unit: null });
+    expect(parseQuickAdd('2 kg')).toEqual({ name: 'kg', quantity: 2, unit: null });
+    expect(parseQuickAdd('2 cups flour')).toEqual({ name: 'cups flour', quantity: 2, unit: null });
+  });
+
+  it('increase quantity only adds in the same unit or when one side has none', async () => {
+    const rice = { ...item('i1', 'Rice'), quantity: 500, unit: 'g' as const };
+    const kilos = parseQuickAdd('2 kg rice');
+    expect(canIncrease(kilos, rice)).toBe(false);
+    expect(canIncrease(parseQuickAdd('200 g rice'), rice)).toBe(true);
+    expect(canIncrease(parseQuickAdd('2 rice'), rice)).toBe(true);
+    expect(canIncrease(kilos, { ...rice, unit: null })).toBe(true);
+    await expect(service.increase('h', actor, 'g1', rice, kilos)).rejects.toThrow();
+    expect(writer.calls).toBe(0);
+    await service.increase('h', actor, 'g1', rice, parseQuickAdd('200 g rice'));
+    expect(writer.last).toEqual([{ type: 'grocery.addToItem', listId: 'g1', itemId: 'i1', delta: 200 }]);
+  });
+
+  it("add to pantry adds to the item's linked product after it was renamed", async () => {
+    // After v1, LOGIC-03: "Milk" on the list, the product renamed "Whole milk" since.
+    const data = pantry([product('p1', { name: 'Whole milk' })]);
+    const low: GroceryItem = { ...item('low_p1', 'Milk'), productId: 'p1', source: 'low_stock' };
+    await service.addToPantry('h', actor, 'g1', [entry(low, 2, 7, 'fridge')], [], data);
+    expect(ofType(writer.last, 'pantry.createProduct')).toEqual([]);
+    const [created] = ofType(writer.last, 'pantry.createBatch');
+    expect(created!.batch.productId).toBe('p1');
+    expect(created!.batch.productName).toBe('Whole milk');
+    // A link to a product that is gone falls back to the name.
+    const gone: GroceryItem = { ...item('i2', 'Whole milk'), productId: 'deleted' };
+    await service.addToPantry('h', actor, 'g1', [entry(gone, 1, 7, 'fridge')], [], data);
+    expect(ofType(writer.last, 'pantry.createBatch')[0]!.batch.productId).toBe('p1');
+  });
+
+  it("a product with stock fixes the line's unit, and an amount in another unit isn't used", () => {
+    // After v1, LOGIC-04: "2 kg rice" on the list, Rice kept in grams with 500 g in stock.
+    const rice = { ...product('rice', { unit: 'g' }), lastAddedQuantity: 1000 };
+    const data = pantry([rice], [batch('r1', 'rice', { quantity: 500 })]);
+    const kilos: GroceryItem = { ...item('i1', 'Rice'), productId: 'rice', quantity: 2, unit: 'kg' };
+    const locked = AddToPantryRules.defaults(kilos, data, TODAY);
+    expect(locked).toMatchObject({ unit: 'g', unitLocked: true, quantity: 1000 });
+    const noLast = pantry([{ ...rice, lastAddedQuantity: null }], data.batches);
+    expect(AddToPantryRules.defaults(kilos, noLast, TODAY).quantity).toBeNull();
+    expect(AddToPantryRules.defaults({ ...kilos, quantity: 250, unit: 'g' }, data, TODAY).quantity).toBe(250);
+    expect(AddToPantryRules.defaults({ ...kilos, quantity: 3, unit: null }, data, TODAY).quantity).toBe(3);
+    const free = AddToPantryRules.defaults(kilos, pantry([rice]), TODAY);
+    expect(free).toMatchObject({ unit: 'kg', unitLocked: false, quantity: 2 });
+  });
+
+  it('undo of add to pantry removes what it added and puts the items back', async () => {
+    // After v1, LOGIC-10.
+    const milk = product('milk', { recent: [7] });
+    const existing = batch('m1', 'milk', { quantity: 1, inDays: 7 });
+    const data = pantry([milk], [existing]);
+    const milkItem: GroceryItem = { ...item('i1', 'Milk', { checked: true }), productId: 'milk' };
+    const bread1 = item('i2', 'Bread', { checked: true });
+    const bread2 = item('i3', 'bread', { checked: true });
+    const skipped = item('i4', 'Batteries', { checked: true });
+    const undo = await service.addToPantry(
+      'h',
+      actor,
+      'g1',
+      [entry(milkItem, 2, 7, 'fridge'), entry(bread1, 1, 3, 'pantry'), entry(bread2, 1, 3, 'pantry')],
+      [skipped],
+      data,
+    );
+    const written = writer.last;
+    const bread = ofType(written, 'pantry.createProduct')[0]!.product;
+    const breadBatch = ofType(written, 'pantry.createBatch')[0]!.batch;
+    const updated = ofType(written, 'pantry.updateProduct')[0]!;
+    const events = ofType(written, 'pantry.logEvent').map((e) => e.eventId);
+    const changes = undo!.changes;
+    expect(ofType(changes, 'pantry.deleteBatch').map((c) => c.batchId)).toEqual([breadBatch.id]);
+    expect(ofType(changes, 'pantry.addToBatch')).toEqual([{ type: 'pantry.addToBatch', batchId: 'm1', delta: -2 }]);
+    expect(ofType(changes, 'pantry.deleteProduct')).toEqual([{ type: 'pantry.deleteProduct', productId: bread.id }]);
+    expect(ofType(changes, 'pantry.updateProduct')).toEqual([
+      { type: 'pantry.updateProduct', product: milk, before: updated.product },
+    ]);
+    expect(ofType(changes, 'pantry.deleteEvent').map((c) => c.eventId)).toEqual(events);
+    expect(ofType(changes, 'grocery.restoreItem')).toEqual(
+      [milkItem, bread1, bread2, skipped].map((i) => ({ type: 'grocery.restoreItem', listId: 'g1', item: i })),
+    );
+    expect(changes).toHaveLength(4 + events.length + 4);
+
+    const removed = await service.addToPantry('h', actor, 'g1', [], [skipped], data);
+    expect(removed!.changes).toEqual([{ type: 'grocery.restoreItem', listId: 'g1', item: skipped }]);
+    const calls = writer.calls;
+    expect(await service.addToPantry('h', actor, 'g1', [], [], data)).toBeNull();
+    expect(writer.calls).toBe(calls);
   });
 
   it('deleting a list deletes the list first, then its items for real', async () => {

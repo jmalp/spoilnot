@@ -17,7 +17,7 @@ import io.mockk.mockk
 class FakeServer {
     val docs = mutableMapOf<String, MutableMap<String, Any?>>()
 
-    /** Each write's path, kind ("set", "merge" or "update") and fields, in order. */
+    /** Each write's path, kind ("set", "merge", "update" or "delete") and fields, in order. */
     val writes = mutableListOf<Triple<String, String, Map<String, Any?>>>()
 
     val db: FirebaseFirestore = mockk {
@@ -32,6 +32,12 @@ class FakeServer {
         every { set(any<DocumentReference>(), any<Any>(), any<SetOptions>()) } answers {
             check(thirdArg<SetOptions>() == SetOptions.merge()) { "only merge is used" }
             write(firstArg<DocumentReference>().path, "merge", fields(secondArg()))
+            self as WriteBatch
+        }
+        every { delete(any<DocumentReference>()) } answers {
+            val path = firstArg<DocumentReference>().path
+            writes += Triple(path, "delete", emptyMap())
+            docs.remove(path)
             self as WriteBatch
         }
         every { update(any<DocumentReference>(), any<Map<String, Any>>()) } answers {

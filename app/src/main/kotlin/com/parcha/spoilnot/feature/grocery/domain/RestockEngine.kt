@@ -55,6 +55,7 @@ object RestockEngine {
     fun movesStock(changes: List<HouseholdChange>): Boolean = changes.any {
         it is PantryChange.CreateProduct ||
             it is PantryChange.UpdateProduct ||
+            it is PantryChange.DeleteProduct ||
             it is PantryChange.CreateBatch ||
             it is PantryChange.AddToBatch ||
             it is PantryChange.UpdateBatch ||

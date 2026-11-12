@@ -1446,6 +1446,88 @@ describe('edits and Undo keep what someone else changed', () => {
   });
 });
 
+describe('Add to pantry and its Undo', () => {
+  // After v1 (2026-11-11, LOGIC-10): the Undo is tombstones, increments and merges the rules on main accept.
+  const h = (path) => `households/${HID}/${path}`;
+  const tombstone = (uid) => ({ deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid });
+  const restore = (uid) => ({ deletedAt: deleteField(), updatedAt: serverTimestamp(), updatedBy: uid });
+  const stamped = (uid, extra) => ({ ...extra, updatedAt: serverTimestamp(), updatedBy: uid });
+  const seed = async () => env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, h('groceryLists/g1')), { name: 'Groceries', isDefault: true });
+    await setDoc(doc(db, h('products/p1')), product('alice', { recentShelfLifeDays: [7] }));
+    await setDoc(doc(db, h('stock/s1')), stock('alice', { quantity: 1 }));
+    await setDoc(doc(db, h('groceryLists/g1/items/i1')), groceryItem('alice', { checked: true, checkedBy: 'alice' }));
+    await setDoc(doc(db, h('groceryLists/g1/items/i2')), groceryItem('alice', { name: 'Bread', nameKey: 'bread' }));
+  });
+  const addToPantry = (uid) => {
+    const db = as(uid);
+    const batch = writeBatch(db);
+    batch.update(doc(db, h('stock/s1')), stamped(uid, { quantity: increment(2) }));
+    batch.set(doc(db, h('products/p1')), stamped(uid, { recentShelfLifeDays: [7, 7], lastAddedQuantity: 2 }), {
+      merge: true,
+    });
+    batch.set(doc(db, h('products/p2')), { ...product(uid, { name: 'Bread', nameKey: 'bread' }), aliases: [] });
+    batch.set(doc(db, h('stock/s2')), stock(uid, { productId: 'p2', productName: 'Bread', quantity: 1 }));
+    batch.set(doc(db, h('activity/e1')), {
+      type: 'stock_added', actorUid: uid, actorName: 'Bob', productId: 'p2', params: { name: 'Bread', quantity: 1 },
+      createdAt: serverTimestamp(),
+    });
+    batch.set(doc(db, h('groceryLists/g1/items/i1')), tombstone(uid), { merge: true });
+    batch.set(doc(db, h('groceryLists/g1/items/i2')), tombstone(uid), { merge: true });
+    return batch.commit();
+  };
+  const undo = (uid) => {
+    const db = as(uid);
+    const batch = writeBatch(db);
+    batch.set(doc(db, h('stock/s2')), tombstone(uid), { merge: true });
+    batch.update(doc(db, h('stock/s1')), stamped(uid, { quantity: increment(-2) }));
+    batch.set(doc(db, h('products/p1')), stamped(uid, { recentShelfLifeDays: [7], lastAddedQuantity: null }), {
+      merge: true,
+    });
+    batch.set(doc(db, h('products/p2')), tombstone(uid), { merge: true });
+    batch.delete(doc(db, h('activity/e1')));
+    batch.set(doc(db, h('groceryLists/g1/items/i1')), restore(uid), { merge: true });
+    batch.set(doc(db, h('groceryLists/g1/items/i2')), restore(uid), { merge: true });
+    return batch.commit();
+  };
+
+  it('a member undoes their Add to pantry in one write, and the items can be added again', async () => {
+    await seed();
+    await assertSucceeds(addToPantry('bob'));
+    await assertSucceeds(undo('bob'));
+    const read = async (path) => {
+      let data;
+      await env.withSecurityRulesDisabled(async (ctx) => { data = (await getDoc(doc(ctx.firestore(), h(path)))).data(); });
+      return data;
+    };
+    const item = await read('groceryLists/g1/items/i1');
+    if (item.deletedAt !== undefined || item.checked !== true || item.createdBy !== 'alice') {
+      throw new Error('the item did not come back as it was');
+    }
+    if ((await read('products/p2')).deletedAt === undefined) throw new Error('the new product is not a tombstone');
+    if ((await read('stock/s1')).quantity !== 1) throw new Error('the amount did not come off');
+    // Restored items are live again, so the next Add to pantry may remove them (one tombstone at a time).
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, h('products/p2')), { deletedAt: deleteField() }, { merge: true });
+    });
+    await assertSucceeds(addToPantry('bob'));
+  });
+
+  it('a member who is not the owner cannot undo someone else\'s Add to pantry (its activity is theirs)', async () => {
+    await seed();
+    await assertSucceeds(addToPantry('alice'));
+    await assertFails(undo('bob'));
+  });
+
+  it('a product is deleted by a tombstone only, never for real by a member', async () => {
+    await seed();
+    await assertFails(deleteDoc(doc(as('bob'), h('products/p1'))));
+    await assertSucceeds(setDoc(doc(as('bob'), h('products/p1')), tombstone('bob'), { merge: true }));
+  });
+});
+
 describe('one phone wins', () => {
   const t0 = new Date('2026-10-01T00:00:00Z');
   const h = (path) => `households/${HID}/${path}`;

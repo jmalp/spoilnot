@@ -82,7 +82,14 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     MessageEffect(viewModel.messages, snackbar, viewModel::undo)
-    var adding by remember { mutableStateOf<Pair<LocalDate, MealSlot>?>(null) }
+    // The day and slot of the add-meal sheet, saved so it stays open with what was typed (after v1, REL-09).
+    var addingDay by rememberSaveable { mutableStateOf<String?>(null) }
+    var addingSlot by rememberSaveable { mutableStateOf<MealSlot?>(null) }
+    val adding = addingDay?.let(LocalDate::parse)?.let { day -> addingSlot?.let { day to it } }
+    val stopAdding = {
+        addingDay = null
+        addingSlot = null
+    }
     var openMealId by rememberSaveable { mutableStateOf<String?>(null) }
     var shopping by rememberSaveable { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -136,7 +143,10 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
                     onPrevious = viewModel::previousWeek,
                     onNext = viewModel::nextWeek,
                     onThisWeek = viewModel::thisWeek,
-                    onAdd = { date, slot -> adding = date to slot },
+                    onAdd = { date, slot ->
+                        addingDay = date.toString()
+                        addingSlot = slot
+                    },
                     onOpen = { openMealId = it.id },
                 )
             }
@@ -179,13 +189,13 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
             myUid = state.myUid,
             onAddRecipe = { recipe, cooks ->
                 viewModel.addRecipe(date, slot, recipe, cooks)
-                adding = null
+                stopAdding()
             },
             onAddOther = { title, cooks ->
                 viewModel.addOther(date, slot, title, cooks)
-                adding = null
+                stopAdding()
             },
-            onDismiss = { adding = null },
+            onDismiss = stopAdding,
         )
     }
     val openMeal = openMealId?.let { id ->

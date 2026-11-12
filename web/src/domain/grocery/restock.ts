@@ -103,6 +103,7 @@ export const RestockEngine = {
 const STOCK_CHANGES = new Set<string>([
   'pantry.createProduct',
   'pantry.updateProduct',
+  'pantry.deleteProduct',
   'pantry.createBatch',
   'pantry.addToBatch',
   'pantry.updateBatch',

@@ -164,6 +164,11 @@ export type PantryChange =
   | { type: 'pantry.syncBatchProduct'; batchId: string; name: string; unit: QuantityUnit; category: Category }
   | { type: 'pantry.deleteBatch'; batchId: string }
   /**
+   * A product's tombstone (after v1): only the Undo of an addition that created it writes one (LOGIC-10), so a
+   * product nobody meant to make goes again.
+   */
+  | { type: 'pantry.deleteProduct'; productId: string }
+  /**
    * Puts a deleted batch back (Undo): removes the tombstone and changes nothing else, so what the document holds
    * stays, another member's change and fields a newer app added included (after v1, DESIGN 8.6). `batch` is this
    * phone's copy, for planning.
