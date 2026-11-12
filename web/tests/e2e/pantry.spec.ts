@@ -89,7 +89,8 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   // Swipe right: used up, with Undo.
   const milk = page.getByTestId('pantry_item_milk');
   const box = (await milk.boundingBox())!;
-  await page.mouse.move(box.x + 20, box.y + box.height / 2);
+  // From a finger's width in: a swipe from the screen's left edge is Safari's Back (after v1, WEB-15).
+  await page.mouse.move(box.x + 40, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2, { steps: 8 });
   await page.mouse.up();

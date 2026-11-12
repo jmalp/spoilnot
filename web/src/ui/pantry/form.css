@@ -2,6 +2,7 @@
 .sn-form-sheet {
   display: flex;
   flex-direction: column;
+  flex: 0 1 auto;
   min-height: 0;
   max-height: 100%;
 }
@@ -20,7 +21,8 @@
   padding: 12px 24px;
   flex: none;
 }
-.sn-name-field {
+/* Two classes, so it wins over .sn-anchor's inline-flex whichever stylesheet loads last. */
+.sn-anchor.sn-name-field {
   display: block;
 }
 .sn-name-field .m3-menu {

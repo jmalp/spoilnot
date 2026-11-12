@@ -615,6 +615,11 @@
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
+  /* A column, so a form sheet's fields shrink and scroll above its pinned button instead of pushing the button out of
+     the sheet (after v1, WEB-14: seen with every Add to pantry row open). */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 @keyframes m3-sheet-in {
   from {
