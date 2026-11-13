@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { batch, product, TODAY } from '../pantry/fixtures';
 import type { GroceryItem } from '../grocery/models';
+import { NeedsAttention } from '../pantry/items';
 import type { PantryData } from '../pantry/models';
 import { ActivityFeed, HomeDashboard, type ActivityEvent, type ActivityType } from './models';
 
@@ -26,10 +27,43 @@ const pantry: PantryData = {
 };
 
 describe('HomeDashboard', () => {
-  it('needs attention is expired and expiring within 3 days, soonest first', () => {
+  it('needs attention lists what can still be used first and counts the expired apart (UX-01)', () => {
     const s = HomeDashboard.summary(pantry, [], [], TODAY);
-    expect(s.attention.map((r) => r.name)).toEqual(['Yogurt', 'Milk', 'Cheese']);
-    expect(s.expiredCount).toBe(1);
+    expect(s.attention.usable.map((i) => i.name)).toEqual(['Milk', 'Cheese']);
+    expect(s.attention.expired.map((i) => i.name)).toEqual(['Yogurt']);
+    expect(NeedsAttention.size(s.attention)).toBe(3);
+  });
+
+  it('a backlog of expired food does not push out what can still be used', () => {
+    const backlog: PantryData = {
+      ...pantry,
+      products: [...pantry.products, ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => product(`old${n}`))],
+      batches: [...pantry.batches, ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => batch(`o${n}`, `old${n}`, { inDays: -n }))],
+    };
+    const s = HomeDashboard.summary(backlog, [], [], TODAY);
+    expect(s.attention.usable.map((i) => i.name)).toEqual(['Milk', 'Cheese']);
+    expect(s.attention.expired).toHaveLength(9);
+  });
+
+  it('a new household is told how to start, not that all is done (UX-07)', () => {
+    const empty = HomeDashboard.summary({ products: [], batches: [], fromCache: false }, [], [], TODAY);
+    expect(empty.pantryEmpty).toBe(true);
+    expect(empty.noStaples).toBe(true);
+    const s = HomeDashboard.summary(pantry, [], [], TODAY);
+    expect(s.pantryEmpty).toBe(false);
+    expect(s.noStaples).toBe(false);
+  });
+
+  it('an out-of-stock staple alone is not food in the pantry', () => {
+    const s = HomeDashboard.summary(
+      { products: [product('oil', { name: 'Olive oil', min: 1 })], batches: [], fromCache: false },
+      [],
+      [],
+      TODAY,
+    );
+    expect(s.pantryEmpty).toBe(true);
+    expect(s.noStaples).toBe(false);
+    expect(s.lowStock.map((r) => r.name)).toEqual(['Olive oil']);
   });
 
   it('low stock lists staples below Keep at least, out of stock first', () => {

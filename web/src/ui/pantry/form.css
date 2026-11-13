@@ -117,6 +117,10 @@
   min-height: 48px;
   cursor: pointer;
 }
+.sn-switch-row__text {
+  display: flex;
+  flex-direction: column;
+}
 
 /* "Sam changed this item. Review" in the Edit window (after v1, DESIGN 9.2). */
 .sn-form__notice {

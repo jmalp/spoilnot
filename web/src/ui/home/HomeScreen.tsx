@@ -7,14 +7,13 @@ import { useHouseholdSession, useServices } from '../../core/services';
 import type { GroceryItem } from '../../domain/grocery/models';
 import { ActivityFeed, HomeDashboard, type ActivityEvent, type HomeSummary } from '../../domain/home/models';
 import { MonthTotals, type InsightsSummary } from '../../domain/insights/insights';
-import type { PantryFilter } from '../../domain/pantry/items';
+import { NeedsAttention, type PantryFilter, type PurchaseItem } from '../../domain/pantry/items';
 import type { PantryData } from '../../domain/pantry/models';
-import type { PantryRow } from '../../domain/pantry/rows';
 import type { Member } from '../../domain/household';
 import type { PlannedMeal } from '../../domain/plan/models';
 import { MealWeek, PlanDays } from '../../domain/plan/week';
 import { UseItUp, type UseItUpSuggestion } from '../../domain/recipes/cooking';
-import { CookChip, CookedLabel, cookNames, phoneFirstDay, slotLabel } from '../plan/components';
+import { CookChip, CookedLabel, cookNames, slotLabel, useFirstDay } from '../plan/components';
 import { yearMonthOf, type LocalDate } from '../../domain/time';
 import { Button, Card, Icon, type IconName } from '../kit';
 import { insights$, MonthRing } from '../insights/InsightsScreen';
@@ -42,9 +41,13 @@ export type HomeNavigation = {
   reviewJoinRequests: () => void;
 };
 
+/** Today's meals, breakfast first, and the recipes planned from today on (Use it up leaves them out, UX-05). */
+type PlanToday = { meals: PlannedMeal[]; planned: Set<string> };
+const NO_PLAN: PlanToday = { meals: [], planned: new Set() };
+
 /**
- * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), Use it up, low stock, the grocery list, this
- * month's kitchen (5.7) and recent activity.
+ * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), Use it up, the grocery list with what is
+ * running low, this month's kitchen (5.7) and recent activity.
  */
 export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavigation; joinRequests: number }) {
   const me = useHouseholdSession();
@@ -82,18 +85,21 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
     null,
   );
   const box = useObservable(recipes.box$, null);
-  // The same week window as the Plan tab, so both share one full read (DESIGN 9.8).
-  const weekStart = MealWeek.start(today, phoneFirstDay());
-  const todayMeals = useObservable<PlannedMeal[]>(
+  // The same week window as the Plan tab, Week starts on included, so both share one full read (DESIGN 9.8).
+  const weekStart = MealWeek.start(today, useFirstDay());
+  const week = useObservable<PlanToday>(
     useMemo(
       () =>
         mealPlan.observe(hid, weekStart, MealWeek.end(weekStart)).pipe(
-          map((plan) => PlanDays.meals(MealWeek.build(weekStart, plan.meals, today).find((d) => d.isToday)!)),
+          map((plan) => ({
+            meals: PlanDays.meals(MealWeek.build(weekStart, plan.meals, today).find((d) => d.isToday)!),
+            planned: MealWeek.plannedFrom(plan.meals, today),
+          })),
           retryLoading(load),
         ),
       [mealPlan, hid, weekStart, today, load],
     ),
-    [],
+    NO_PLAN,
   );
   const members = useObservable<Member[]>(
     useMemo(() => households.observeMembers(hid).pipe(retryLoading<Member[]>(undefined, [])), [households, hid]),
@@ -105,8 +111,8 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
     [recent, members],
   );
   const summary = data ? HomeDashboard.summary(data, groceryItems, named, today) : null;
-  // Saved recipes that use food expiring soon (DESIGN 5.6).
-  const useItUp = data && box ? UseItUp.suggestions(box.recipes, data, today) : [];
+  // Saved recipes that use food expiring soon, but not those already planned this week (DESIGN 5.6).
+  const useItUp = data && box ? UseItUp.suggestions(box.recipes, data, today, week.planned) : [];
   return (
     <TabScaffold
       title={str('tab_home')}
@@ -128,7 +134,7 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
             navigation={navigation}
             insights={insights}
             useItUp={useItUp}
-            todayMeals={todayMeals}
+            todayMeals={week.meals}
             members={members}
           />
         )}
@@ -158,66 +164,37 @@ function HomeCards({
 }) {
   const { clock } = useServices();
   const now = useNow(clock);
-  // Expired only: the Expiring soon filter would hide them.
-  // The filter holds the expired too since R8; the card itself is ported in the next PR.
-  const attentionFilter: PantryFilter = 'needsAttention';
+  const attention = summary.attention;
+  const attentionSize = NeedsAttention.size(attention);
   return (
     <>
       <HomeCard
         title={str('home_attention')}
         icon="round/warning_amber"
         testId="card_home_attention"
+        // The same set and count as Pantry's Needs attention filter (after v1, R8).
         action={
-          summary.attention.length > 0
-            ? [
-                plural('home_see_all', summary.attention.length, summary.attention.length),
-                () => navigation.openPantry(attentionFilter),
-              ]
+          attentionSize > 0
+            ? [plural('home_see_all', attentionSize, attentionSize), () => navigation.openPantry('needsAttention')]
             : undefined
         }
-        calm={summary.attention.length === 0 ? str('home_attention_none') : undefined}
+        calm={
+          attentionSize > 0 ? undefined : summary.pantryEmpty ? str('home_attention_start') : str('home_attention_none')
+        }
+        // A new household has nothing done yet: no check mark (after v1, UX-07).
+        calmIcon={summary.pantryEmpty ? 'round/kitchen' : 'round/check_circle'}
       >
-        {summary.attention.slice(0, CARD_ROWS).map((row) => (
-          <AttentionRow key={row.productId} row={row} today={today} />
+        {/* What can still be used comes first; the expired are one line, as in Pantry (after v1, UX-01). */}
+        {attention.usable.slice(0, CARD_ROWS).map((item) => (
+          <AttentionRow key={item.key} item={item} today={today} />
         ))}
+        {attention.expired.length > 0 && <ExpiredLine count={attention.expired.length} />}
       </HomeCard>
       {todayMeals.length > 0 && (
         <TodayCard meals={todayMeals} members={members} myUid={myUid} onOpen={navigation.openPlan} />
       )}
       {useItUp.length > 0 && <UseItUpCard suggestions={useItUp} today={today} onOpen={navigation.openRecipe} />}
-      <HomeCard
-        title={str('home_low_stock')}
-        icon="round/inventory_2"
-        testId="card_home_low_stock"
-        action={
-          summary.lowStock.length > 0
-            ? [
-                plural('home_see_all', summary.lowStock.length, summary.lowStock.length),
-                () => navigation.openPantry('lowStock'),
-              ]
-            : undefined
-        }
-        calm={summary.lowStock.length === 0 ? str('home_low_stock_none') : undefined}
-      >
-        {summary.lowStock.slice(0, CARD_ROWS).map((row) => (
-          <div key={row.productId} className="sn-home-row">
-            <span className="t-body-large sn-home-row__name">{row.name}</span>
-            <Badge text={str(row.isOut ? 'badge_out' : 'badge_low')} />
-          </div>
-        ))}
-      </HomeCard>
-      <HomeCard
-        title={str('home_grocery_list')}
-        icon="round/list_alt"
-        testId="card_home_groceries"
-        action={[str('home_open_list'), navigation.openGroceries]}
-      >
-        <span className="t-body-large">
-          {summary.groceryCount === 0
-            ? str('home_grocery_empty')
-            : plural('home_grocery_count', summary.groceryCount, summary.groceryCount)}
-        </span>
-      </HomeCard>
+      <GroceryCard summary={summary} onOpen={navigation.openGroceries} />
       {insights && <InsightsCard insights={insights} onOpen={navigation.openInsights} />}
       <HomeCard
         title={str('home_recent_activity')}
@@ -235,6 +212,48 @@ function HomeCards({
         ))}
       </HomeCard>
     </>
+  );
+}
+
+/**
+ * The grocery list: what is left to buy, and what is running low (after v1, R1 and R2: Low stock was its own card,
+ * though every low product is already on the list). A household with no Keep some in stock yet is told how to start.
+ */
+function GroceryCard({ summary, onOpen }: { summary: HomeSummary; onOpen: () => void }) {
+  const more = summary.lowStock.length - CARD_ROWS;
+  return (
+    <HomeCard
+      title={str('home_grocery_list')}
+      icon="round/list_alt"
+      testId="card_home_groceries"
+      action={[str('home_open_list'), onOpen]}
+    >
+      <span className="t-body-large">
+        {summary.groceryCount === 0
+          ? str('home_grocery_empty')
+          : plural('home_grocery_count', summary.groceryCount, summary.groceryCount)}
+      </span>
+      {summary.lowStock.length > 0 ? (
+        <div className="sn-home-low" data-testid="home_running_low">
+          <h3 className="t-label-large c-on-surface-variant">{str('home_running_low')}</h3>
+          {summary.lowStock.slice(0, CARD_ROWS).map((row) => (
+            <div key={row.productId} className="sn-home-row">
+              <span className="t-body-large sn-home-row__name">{row.name}</span>
+              <Badge text={str(row.isOut ? 'badge_out' : 'badge_low')} />
+            </div>
+          ))}
+          {more > 0 && (
+            <span className="t-body-medium c-on-surface-variant">{plural('home_running_low_more', more, more)}</span>
+          )}
+        </div>
+      ) : (
+        summary.noStaples && (
+          <span className="t-body-medium c-on-surface-variant" data-testid="home_grocery_start">
+            {str('home_grocery_start')}
+          </span>
+        )
+      )}
+    </HomeCard>
   );
 }
 
@@ -342,7 +361,8 @@ function InsightsCard({ insights, onOpen }: { insights: InsightsSummary; onOpen:
 
 /**
  * An outlined card with an icon, a title and an optional button. With nothing to show ([calm]) it is one compact row
- * with a check instead (after v1). Solid buttons: tonal ones on tonal cards were hard to see in light mode.
+ * with a check instead (after v1), or [calmIcon] where nothing is done yet. Solid buttons: tonal ones on tonal cards
+ * were hard to see in light mode.
  */
 function HomeCard({
   title,
@@ -350,6 +370,7 @@ function HomeCard({
   testId,
   action,
   calm,
+  calmIcon = 'round/check_circle',
   children,
 }: {
   title: string;
@@ -357,6 +378,7 @@ function HomeCard({
   testId: string;
   action?: [string, () => void];
   calm?: string;
+  calmIcon?: IconName;
   children?: ReactNode;
 }) {
   if (calm !== undefined) {
@@ -364,7 +386,7 @@ function HomeCard({
       <Card data-testid={testId}>
         <div className="sn-home-calm">
           <span className="c-primary">
-            <Icon name="round/check_circle" />
+            <Icon name={calmIcon} />
           </span>
           <div className="sn-home-calm__text">
             <h2 className="t-title-small">{title}</h2>
@@ -394,11 +416,24 @@ function HomeCard({
   );
 }
 
-function AttentionRow({ row, today }: { row: PantryRow; today: LocalDate }) {
+/** One purchase that can still be used, as Pantry shows it: name and status chip. */
+function AttentionRow({ item, today }: { item: PurchaseItem; today: LocalDate }) {
   return (
     <div className="sn-home-row">
-      <span className="t-body-large sn-home-row__name">{row.name}</span>
-      {row.soonest && <StatusChip expiry={row.soonest.expiryDate} dateType={row.soonest.dateType} today={today} />}
+      <span className="t-body-large sn-home-row__name">{item.name}</span>
+      <StatusChip expiry={item.batch.expiryDate} dateType={item.batch.dateType} today={today} />
+    </div>
+  );
+}
+
+/** "3 expired items to throw away or check": the expired folded into one line (after v1, UX-01). */
+function ExpiredLine({ count }: { count: number }) {
+  return (
+    <div className="sn-home-row" data-testid="home_attention_expired">
+      <span className="sn-home-expired__icon">
+        <Icon name="round/delete_outline" />
+      </span>
+      <span className="t-body-large sn-home-row__name">{plural('home_attention_expired', count, count)}</span>
     </div>
   );
 }
