@@ -357,6 +357,7 @@ function ItemFields({
   onChooseProduct: (p: Product) => void;
   allowZero: boolean;
 }) {
+  const id = useId();
   const set = (patch: Partial<FormState>) => setForm({ ...form, ...patch });
   const name = cleanName(form);
   const nameError = !form.submitted
@@ -407,9 +408,24 @@ function ItemFields({
         onPick={(category) => set({ category })}
         testId="field_category"
       />
+      {/* Keep some in stock (after v1, UX-07): while off it says what it does; the whole row toggles. */}
       <label className="sn-switch-row" data-testid="switch_auto_add">
-        <span className="t-body-large">{str('field_auto_add')}</span>
-        <Switch checked={form.autoAdd} onCheckedChange={(autoAdd) => set({ autoAdd })} />
+        <span className="sn-switch-row__text">
+          <span className="t-body-large" id={`${id}-auto-add`}>
+            {str('field_auto_add')}
+          </span>
+          {!form.autoAdd && (
+            <span className="t-body-medium c-on-surface-variant" id={`${id}-auto-add-help`}>
+              {str('field_auto_add_help')}
+            </span>
+          )}
+        </span>
+        <Switch
+          checked={form.autoAdd}
+          aria-labelledby={`${id}-auto-add`}
+          aria-describedby={form.autoAdd ? undefined : `${id}-auto-add-help`}
+          onCheckedChange={(autoAdd) => set({ autoAdd })}
+        />
       </label>
       {form.autoAdd && (
         <>

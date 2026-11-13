@@ -122,3 +122,18 @@
     opacity: 0.6;
   }
 }
+/* The expired, folded into one line under what can still be used (after v1, UX-01); the icon is the Expired color. */
+.sn-home-expired__icon {
+  display: flex;
+  color: var(--sn-status-expired);
+}
+/* Running low, inside the Grocery list card (after v1, R1). */
+.sn-home-low {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+.sn-home-low h3 {
+  margin: 0;
+}

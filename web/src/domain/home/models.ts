@@ -1,11 +1,10 @@
 // The Home tab (DESIGN 5.6), ported from feature/home/domain: Recent activity and what the cards show.
 import type { Observable } from 'rxjs';
 import type { GroceryItem } from '../grocery/models';
-import { NeedsAttention } from '../pantry/items';
-import { Expiry } from '../pantry/rules';
+import { NeedsAttention, PantryItems, type NeedsAttentionSet } from '../pantry/items';
 import { PantryRows, type PantryRow } from '../pantry/rows';
-import type { DiscardReason, PantryData } from '../pantry/models';
-import { compareStrings, nullsLast, sortedWith, type LocalDate } from '../time';
+import { isStaple, type DiscardReason, type PantryData } from '../pantry/models';
+import { compareStrings, sortedWith, type LocalDate } from '../time';
 
 /** households/{hid}/activity types (DESIGN 8.2). */
 export const ACTIVITY_TYPES = [
@@ -71,32 +70,33 @@ export interface ActivityRepository {
 
 /** What the Home tab shows (DESIGN 5.6). */
 export type HomeSummary = {
-  /** Expired and expiring within 3 days, soonest first. */
-  attention: PantryRow[];
-  expiredCount: number;
-  /** Staples below Keep at least, out of stock first. */
+  /** The one Needs attention set (after v1, R8): Home lists its usable part and folds the expired. */
+  attention: NeedsAttentionSet;
+  /** Products below Keep at least, out of stock first; shown in the Grocery list card (after v1, R1). */
   lowStock: PantryRow[];
   /** Items still to buy on the default list. */
   groceryCount: number;
+  /** No product has Keep some in stock on yet, so the Grocery list card says how to start (after v1, UX-07). */
+  noStaples: boolean;
+  /** Nothing is in the pantry yet, so Needs attention says how to start instead of "all clear" (after v1, UX-07). */
+  pantryEmpty: boolean;
   recent: ActivityEvent[];
 };
 
 export const HomeDashboard = {
   summary(pantry: PantryData, groceryItems: GroceryItem[], recent: ActivityEvent[], today: LocalDate): HomeSummary {
+    const items = PantryItems.all(pantry.products, pantry.batches, today);
     const rows = PantryRows.rows(pantry.products, pantry.batches, today);
-    const attention = sortedWith(
-      rows.filter((r) => r.batches.some((b) => NeedsAttention.includes(Expiry.of(b.expiryDate, today)))),
-      (a, b) => nullsLast(compareStrings)(a.soonest?.expiryDate, b.soonest?.expiryDate),
-    );
     return {
-      attention,
-      expiredCount: attention.filter((r) => r.status === 'expired').length,
+      attention: NeedsAttention.of(items),
       lowStock: sortedWith(
         rows.filter((r) => r.isLow || r.isOut),
         (a, b) => Number(b.isOut) - Number(a.isOut),
         (a, b) => compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
       ),
       groceryCount: groceryItems.filter((i) => !i.checked).length,
+      noStaples: !pantry.products.some(isStaple),
+      pantryEmpty: !items.some((i) => i.kind === 'purchase'),
       recent,
     };
   },

@@ -425,8 +425,6 @@ export const STRINGS = {
   "home_attention": "Needs attention",
   "home_attention_none": "Nothing expires in the next 3 days.",
   "home_attention_start": "Add food with its date, and what to use first shows here.",
-  "home_low_stock": "Low stock",
-  "home_low_stock_none": "Nothing is running low.",
   "home_grocery_list": "Grocery list",
   "home_grocery_empty": "Nothing to buy right now.",
   "home_open_list": "Open list",
