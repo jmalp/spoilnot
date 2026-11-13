@@ -9,11 +9,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.home.domain.HomeDashboard
@@ -160,5 +163,50 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_calm_$suffix.png")
+    }
+
+    /**
+     * This phone blocks reminders the member wants (after v1, review UX-02): one line with Turn on in Needs attention,
+     * with food to list and calm, under the offline banner rather than as another banner.
+     */
+    @Test
+    fun remindersOff() {
+        val pantry = PantryData(
+            listOf(product("milk"), product("rice")),
+            listOf(batch("m1", "milk", inDays = 1), batch("y1", "milk", inDays = -2)),
+            fromCache = true,
+        )
+        val calm = PantryData(listOf(product("rice")), listOf(batch("r1", "rice", inDays = 90)), fromCache = false)
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
+                    Surface {
+                        Column(Modifier.verticalScroll(rememberScrollState())) {
+                            OfflineBanner()
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                HomeCards(
+                                    HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY),
+                                    TODAY,
+                                    "me",
+                                    HomeNavigation({}, {}, {}, {}),
+                                    remindersOff = true,
+                                )
+                                HomeCards(
+                                    HomeDashboard.summary(calm, emptyList(), emptyList(), TODAY),
+                                    TODAY,
+                                    "me",
+                                    HomeNavigation({}, {}, {}, {}),
+                                    remindersOff = true,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        compose.onAllNodesWithTag("home_reminders_turn_on").assertCountEquals(2)
+        val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
+        compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_reminders_off_$suffix.png")
     }
 }

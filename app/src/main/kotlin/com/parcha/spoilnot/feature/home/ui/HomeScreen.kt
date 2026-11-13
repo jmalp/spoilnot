@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.DonutLarge
 import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Kitchen
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.RestaurantMenu
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
@@ -43,6 +44,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -101,6 +103,8 @@ class HomeNavigation(
     val openInsights: () -> Unit = {},
     val openRecipe: (String) -> Unit = {},
     val openPlan: () -> Unit = {},
+    /** Asks for notifications, or opens the system's settings for them (after v1, review UX-02). */
+    val turnOnReminders: () -> Unit = {},
 )
 
 /** How many rows a card lists before "See all". */
@@ -111,6 +115,7 @@ fun HomeScreen(
     navigation: HomeNavigation,
     pendingJoinRequests: Int,
     modifier: Modifier = Modifier,
+    remindersOff: Boolean = false,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -143,6 +148,7 @@ fun HomeScreen(
                         state.useItUp,
                         state.todayMeals,
                         state.members,
+                        remindersOff,
                     )
                 }
             }
@@ -160,6 +166,7 @@ internal fun HomeCards(
     useItUp: List<UseItUpSuggestion> = emptyList(),
     todayMeals: List<PlannedMeal> = emptyList(),
     members: List<Member> = emptyList(),
+    remindersOff: Boolean = false,
 ) {
     val attention = summary.attention
     HomeCard(
@@ -182,6 +189,12 @@ internal fun HomeCards(
         calmIcon = if (summary.pantryEmpty) Icons.Rounded.Kitchen else Icons.Rounded.CheckCircle,
         // The tour's Home step points at the first card (DESIGN 5.8).
         modifier = Modifier.coachMark(TourTarget.HomeCards.key),
+        // What reminders would tell, and the phone that blocks them, belong together: a line, not another banner.
+        footer = if (remindersOff) {
+            { RemindersOffLine(navigation.turnOnReminders) }
+        } else {
+            null
+        },
     ) {
         // What can still be used comes first; the expired are one line, as in Pantry (after v1, UX-01).
         attention.usable.take(CARD_ROWS).forEach { item -> AttentionRow(item, today) }
@@ -360,6 +373,8 @@ private fun HomeCard(
     /** Nothing to show: one compact row with a check instead of a full card (after v1). */
     calm: String? = null,
     calmIcon: ImageVector = Icons.Rounded.CheckCircle,
+    /** A last line under the card's content or its calm row. */
+    footer: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     if (calm != null) {
@@ -385,6 +400,7 @@ private fun HomeCard(
                     )
                 }
             }
+            footer?.let { Box(Modifier.padding(start = 16.dp, end = 8.dp, bottom = 4.dp)) { it() } }
         }
         return
     }
@@ -400,6 +416,7 @@ private fun HomeCard(
                 )
             }
             content()
+            footer?.invoke()
             action?.let { (label, onClick) ->
                 Button(
                     onClick = onClick,
@@ -407,6 +424,34 @@ private fun HomeCard(
                 ) { Text(label) }
             }
         }
+    }
+}
+
+/**
+ * "Reminders are off on this phone · Turn on" (after v1, review UX-02): the member wants reminders and this phone blocks
+ * them. Said in words with an icon, not by color.
+ */
+@Composable
+private fun RemindersOffLine(onTurnOn: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().testTag("home_reminders_off"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            Icons.Rounded.NotificationsOff,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.home_reminders_off),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = onTurnOn,
+            modifier = Modifier.heightIn(min = 48.dp).testTag("home_reminders_turn_on"),
+        ) { Text(stringResource(R.string.home_reminders_turn_on)) }
     }
 }
 
