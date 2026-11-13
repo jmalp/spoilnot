@@ -121,7 +121,7 @@ fun RecipeEditScreen(
 }
 
 @Composable
-private fun RecipeFormFields(
+internal fun RecipeFormFields(
     form: RecipeForm,
     problems: Set<Problem>,
     saving: Boolean,

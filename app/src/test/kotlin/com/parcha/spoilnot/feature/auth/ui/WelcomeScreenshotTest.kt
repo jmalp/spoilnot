@@ -39,6 +39,6 @@ class WelcomeScreenshotTest(private val dark: Boolean, private val fontScale: Fl
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/welcome_$suffix.png")
+        compose.onRoot().captureRoboImage("welcome_$suffix.png")
     }
 }

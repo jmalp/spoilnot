@@ -78,7 +78,9 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
@@ -94,6 +96,7 @@ import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
+import com.parcha.spoilnot.core.designsystem.component.listBottomPadding
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.core.ui.rememberRemoteChanges
 import com.parcha.spoilnot.core.ui.remoteHighlight
@@ -103,6 +106,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.grocery.domain.RestockEngine
+import com.parcha.spoilnot.feature.pantry.ui.amountDescription
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
@@ -176,7 +180,7 @@ fun GroceriesScreen(
                         content = { it.copy(pendingSync = false) },
                     )
                     LazyColumn(
-                        contentPadding = PaddingValues(bottom = 96.dp),
+                        contentPadding = PaddingValues(bottom = listBottomPadding()),
                         modifier = Modifier.testTag("grocery_list"),
                     ) {
                         state.view.aisles.forEachIndexed { index, (category, items) ->
@@ -324,6 +328,23 @@ internal fun GroceryRow(
         haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
         onToggle(item)
     }
+    val backInStock = item.id in state.backInStock
+    val by = addedBy(item, state)
+    // One sentence for TalkBack, as Pantry's rows (review A11Y-07): "Bananas, 6 pieces, added automatically, added by
+    // Sam, ripe ones". The checkbox state is read with it; Remove and ⋮ stay their own stops.
+    val description = listOfNotNull(
+        item.name,
+        item.quantity?.let { amountDescription(it, item.unit) },
+        when (item.source) {
+            ItemSource.LowStock -> if (backInStock) null else stringResource(R.string.grocery_source_low_stock)
+            ItemSource.Recipe -> stringResource(R.string.grocery_source_recipe_description)
+            ItemSource.MealPlan -> stringResource(R.string.grocery_source_meal_plan_description)
+            ItemSource.Manual -> null
+        },
+        if (backInStock) stringResource(R.string.grocery_back_in_stock) else null,
+        by?.let { stringResource(R.string.grocery_added_by, it) },
+        item.note,
+    ).joinToString(", ")
     SwipeToDismissBox(
         state = swipe,
         modifier = modifier.testTag("grocery_item_${item.id}"),
@@ -348,14 +369,16 @@ internal fun GroceryRow(
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
                     .toggleable(value = item.checked, role = Role.Checkbox, onValueChange = { toggle() })
+                    .semantics { contentDescription = description }
                     .padding(start = 8.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Checkbox(checked = item.checked, onCheckedChange = null, modifier = Modifier.padding(8.dp))
                 Column(Modifier.weight(1f).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    // The amount wraps under a long name instead of being squeezed out (review A11Y-04).
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             item.name,
@@ -384,7 +407,6 @@ internal fun GroceryRow(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val backInStock = item.id in state.backInStock
                         // Each source has its own icon, so the two look different without relying on color.
                         when (item.source) {
                             // What the app did by itself says so (after v1, UX-08; it said "Low stock", which read
@@ -410,7 +432,6 @@ internal fun GroceryRow(
                             ItemSource.Manual -> Unit
                         }
                         if (backInStock) BackInStockLine(item.name) { onDelete(item) }
-                        val by = addedBy(item, state)
                         if (by != null) {
                             Text(
                                 stringResource(R.string.grocery_added_by, by),
@@ -576,7 +597,9 @@ private fun SectionHeader(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.fillMaxWidth().background(
             MaterialTheme.colorScheme.surface,
-        ).padding(horizontal = 16.dp, vertical = 8.dp),
+        ).padding(horizontal = 16.dp, vertical = 8.dp)
+            // TalkBack's headings navigation jumps from aisle to aisle in the shop (review A11Y-09).
+            .semantics { heading() },
     )
 }
 
@@ -584,10 +607,14 @@ private fun SectionHeader(text: String) {
 private fun CartHeader(count: Int, open: Boolean, onToggle: () -> Unit, onClear: () -> Unit) {
     Column {
         HorizontalDivider()
+        val state = stringResource(if (open) R.string.state_expanded else R.string.state_collapsed)
         Row(
             Modifier.fillMaxWidth().clickable(
                 onClick = onToggle,
-            ).heightIn(min = 48.dp).padding(start = 16.dp, end = 8.dp),
+            ).semantics {
+                heading()
+                stateDescription = state
+            }.heightIn(min = 48.dp).padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

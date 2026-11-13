@@ -56,34 +56,15 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier, viewModel: Se
             modifier = Modifier.padding(padding).fillMaxSize(),
             header = {
                 item {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.clickable(
-                                interactionSource = null,
-                                indication = null,
-                                onClickLabel = null,
-                            ) {
-                                versionTaps++
-                                if (versionTaps >= 7 && device.crashReports) {
-                                    versionTaps = 0
-                                    confirmCrash = true
-                                }
-                            },
-                        )
-                        Text(
-                            stringResource(R.string.about_privacy_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.semantics { heading() },
-                        )
-                        Text(stringResource(R.string.about_privacy_body), style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            stringResource(R.string.about_licenses),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 8.dp).semantics { heading() },
-                        )
-                    }
+                    AboutHeader(
+                        onVersionTap = {
+                            versionTaps++
+                            if (versionTaps >= 7 && device.crashReports) {
+                                versionTaps = 0
+                                confirmCrash = true
+                            }
+                        },
+                    )
                 }
             },
         )
@@ -99,6 +80,31 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier, viewModel: Se
             dismissButton = {
                 TextButton(onClick = { confirmCrash = false }) { Text(stringResource(R.string.action_cancel)) }
             },
+        )
+    }
+}
+
+/** About's text above the licenses: the version (seven taps offer a test crash), privacy and the licenses title. */
+@Composable
+internal fun AboutHeader(onVersionTap: () -> Unit) {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.clickable(interactionSource = null, indication = null, onClickLabel = null) {
+                onVersionTap()
+            },
+        )
+        Text(
+            stringResource(R.string.about_privacy_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(stringResource(R.string.about_privacy_body), style = MaterialTheme.typography.bodyLarge)
+        Text(
+            stringResource(R.string.about_licenses),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 8.dp).semantics { heading() },
         )
     }
 }

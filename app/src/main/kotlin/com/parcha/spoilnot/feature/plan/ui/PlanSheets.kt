@@ -30,7 +30,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.core.ui.rememberSaveableList
 import com.parcha.spoilnot.feature.household.domain.Member
@@ -92,7 +92,7 @@ fun AddMealSheet(
     var other by rememberSaveable { mutableStateOf("") }
     val key = NameKey.of(search)
     val shown = recipes.filter { key.isEmpty() || NameKey.of(it.title).contains(key) }
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,
@@ -226,7 +226,7 @@ fun MealSheet(
             onDismiss = { moving = false },
         )
     }
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,
@@ -343,7 +343,7 @@ fun MealSheet(
 /** Move a meal to another day of its week or another slot (DESIGN 5.9); the choices are chips with a check. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MoveDialog(
+internal fun MoveDialog(
     meal: PlannedMeal,
     days: List<LocalDate>,
     onMove: (LocalDate, MealSlot) -> Unit,

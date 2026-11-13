@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAddCheck
@@ -24,7 +25,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,10 +42,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.core.ui.rememberSaveableMap
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
@@ -96,7 +98,7 @@ fun AddToGrocerySheet(
             )
         }
     }
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,
@@ -154,8 +156,9 @@ fun AddToGrocerySheet(
 @Composable
 internal fun ListChips(lists: List<GroceryList>, listId: String?, onChoose: (String) -> Unit) {
     if (lists.size <= 1) return
+    // One list at a time: radio buttons in a group for screen readers (review A11Y-08: they were checkboxes).
     Row(
-        Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp),
+        Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         lists.forEach { list ->
@@ -164,6 +167,7 @@ internal fun ListChips(lists: List<GroceryList>, listId: String?, onChoose: (Str
                 selected = isSelected,
                 onClick = { onChoose(list.id) },
                 label = { Text(list.name) },
+                modifier = Modifier.semantics { role = Role.RadioButton },
                 leadingIcon = if (isSelected) {
                     { Icon(Icons.Rounded.Check, contentDescription = null) }
                 } else {

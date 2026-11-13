@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -36,6 +37,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
 import com.parcha.spoilnot.feature.insights.domain.MonthStats
 import com.parcha.spoilnot.feature.insights.domain.Mood
@@ -69,9 +71,9 @@ internal fun InsightsContent(summary: InsightsSummary, modifier: Modifier = Modi
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Section(stringResource(R.string.insights_card_title), "card_insights_month") {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                MonthRing(summary.current)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // The ring's description already says both counts; the legend isn't read again (review A11Y-07).
+            val legend = @Composable {
+                Column(Modifier.clearAndSetSemantics { }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LegendItem(
                         stringResource(R.string.insights_legend_used) + " " + summary.current.used,
                         thrown = false,
@@ -80,6 +82,21 @@ internal fun InsightsContent(summary: InsightsSummary, modifier: Modifier = Modi
                         stringResource(R.string.insights_legend_thrown) + " " + summary.current.thrownTotal,
                         thrown = true,
                     )
+                }
+            }
+            // From 1.5× text the legend goes under the ring.
+            if (isLargeText()) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    MonthRing(summary.current)
+                    legend()
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    MonthRing(summary.current)
+                    legend()
                 }
             }
             Text(moodText(summary.mood), style = MaterialTheme.typography.bodyLarge)

@@ -35,8 +35,6 @@ import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SoupKitchen
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -79,6 +77,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
+import com.parcha.spoilnot.core.designsystem.component.NameWithTrailing
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
@@ -118,14 +117,12 @@ fun RecipeDetailScreen(
         },
         actions = {
             if (recipe != null) {
-                IconButton(onClick = viewModel::toggleFavorite, modifier = Modifier.testTag("recipe_favorite")) {
-                    Icon(
-                        if (recipe.favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                        contentDescription = stringResource(
-                            if (recipe.favorite) R.string.recipe_unfavorite else R.string.recipe_favorite,
-                        ),
-                    )
-                }
+                // The same toggle as on the cards (review A11Y-08: here it was a plain button).
+                FavoriteToggle(
+                    recipe.favorite,
+                    viewModel::toggleFavorite,
+                    Modifier.testTag("recipe_favorite"),
+                )
                 IconButton(onClick = onEdit, modifier = Modifier.testTag("recipe_edit")) {
                     Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.recipe_edit))
                 }
@@ -236,10 +233,12 @@ internal fun RecipeBody(
             }
             c.description?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             if (c.ingredients.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SectionTitle(stringResource(R.string.recipe_ingredients), Modifier.weight(1f))
-                    if (c.servings != null && servings != null) ServingsStepper(servings, onServings)
-                }
+                // From 1.5× text the stepper goes under the title; beside it, "Ingredients" broke mid-word at 200%.
+                NameWithTrailing(
+                    spacing = 8.dp,
+                    name = { SectionTitle(stringResource(R.string.recipe_ingredients), it) },
+                    trailing = { if (c.servings != null && servings != null) ServingsStepper(servings, onServings) },
+                )
                 IngredientChecklist(c.ingredients.map { it.group to Scaling.line(it.raw, factor) }, checked)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onAddToList, modifier = Modifier.testTag("recipe_add_to_list")) {

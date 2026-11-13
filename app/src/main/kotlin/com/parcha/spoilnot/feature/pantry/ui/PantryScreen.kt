@@ -61,6 +61,8 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -74,6 +76,7 @@ import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
+import com.parcha.spoilnot.core.designsystem.component.listBottomPadding
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
 import com.parcha.spoilnot.core.ui.MessageEffect
@@ -264,7 +267,7 @@ private fun PantryList(
     var showExpired by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(bottom = 96.dp),
+        contentPadding = PaddingValues(bottom = listBottomPadding()),
         modifier = Modifier.fillMaxSize().testTag("pantry_list").coachMark(TourTarget.PantryList.key),
     ) {
         fold?.let { f ->
@@ -300,7 +303,9 @@ private fun PantryList(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.surface)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            // TalkBack's headings navigation jumps from Fridge to Freezer (review A11Y-09).
+                            .semantics { heading() },
                     )
                 }
             }

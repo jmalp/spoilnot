@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.settings.ui
 
 import android.os.Build
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.Segmented
@@ -42,7 +45,11 @@ private val transparent @Composable get() = ListItemDefaults.colors(containerCol
 
 @Composable
 private fun CardTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 16.dp, top = 16.dp))
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp).semantics { heading() },
+    )
 }
 
 /** System, Light or Dark; the color theme (DESIGN 6.4); metric or imperial (DESIGN 5.6). */
@@ -155,7 +162,8 @@ fun PrivacyAndAboutCard(
             supportingContent = { Text(stringResource(R.string.settings_take_tour_summary)) },
             leadingContent = { Icon(Icons.Rounded.School, contentDescription = null) },
             colors = transparent,
-            modifier = Modifier.toggleable(false, role = Role.Button) { onTakeTour() }.testTag("row_take_tour"),
+            // Plain buttons: toggleable made TalkBack say "not checked" on both (review A11Y-08).
+            modifier = Modifier.clickable(role = Role.Button) { onTakeTour() }.testTag("row_take_tour"),
         )
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_about)) },
@@ -163,7 +171,7 @@ fun PrivacyAndAboutCard(
             leadingContent = { Icon(Icons.Rounded.Info, contentDescription = null) },
             trailingContent = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null) },
             colors = transparent,
-            modifier = Modifier.toggleable(false, role = Role.Button) { onOpenAbout() }.testTag("row_about"),
+            modifier = Modifier.clickable(role = Role.Button) { onOpenAbout() }.testTag("row_about"),
         )
     }
 }

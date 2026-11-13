@@ -389,6 +389,22 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     I cooked this fully visible; ⋮ > Delete goes at once with Undo; Recipes has no All chip. Plan > ⋮ > Clear this
     week goes at once with Undo. With VoiceOver on, swipe to an Undo snackbar: it stays while focused, and goes about
     8 seconds after focus leaves.
+60. Large text, screen readers and keyboard (Android, after v1, 2026-11-13, DESIGN 6.2, 6.4, 6.8): **TalkBack on**
+    (Settings > Accessibility > TalkBack), swipe through Home from the top: each Needs attention row is one stop with
+    the name and its status ("Milk, Expires tomorrow"), each Today meal one stop ("Dinner: Tacos, cooking: You,
+    Alex"), and the avatar says "Open settings, 1 join request waiting" once. Groceries: each row is one stop with the
+    amount in words ("Bananas, 2 pieces, from a recipe, checkbox, not checked"); TalkBack's Headings navigation
+    (swipe up then down to choose Headings) jumps from aisle to aisle, and in Pantry from Fridge to Freezer. Add item:
+    the date tiles say "radio button, 1 of 4". A recipe card's star says "Favorite, checkbox, checked" or "not
+    checked", the same on the recipe. Cook mode's Back says "Back to the previous step". Settings > Take the app tour:
+    while the card shows, swiping right never leaves it, and double-tap Next moves on; finish or skip, then Home reads
+    normally again. **TalkBack off, a Bluetooth keyboard** (or the emulator's): press Tab on Home: focus goes to
+    Settings, then the cards' buttons, and only then the five tabs, with a green ring around each; tapping the screen
+    hides the ring. **Font size and Display size at the largest** (Settings > Display): Home's names are whole with
+    the chip under them, the join requests card has Review under its sentence, the tab labels are on one line, a
+    recipe's "Ingredients" is whole with the servings stepper under it, cook mode's Ingredients button is on its own
+    line, and in Pantry, Groceries and Recipes the last row scrolls fully above the floating button. Any sheet's drag
+    handle can be dragged from a little beside the bar.
 
 ## 3. Conditions
 

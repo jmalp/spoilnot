@@ -64,6 +64,6 @@ class NotificationsRowScreenshotTest(private val dark: Boolean, private val font
         assertEquals(1, compose.onAllNodesWithText("Off on this phone").fetchSemanticsNodes().size)
         assertEquals(1, compose.onAllNodesWithText("Off").fetchSemanticsNodes().size)
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/settings_notifications_row_$suffix.png")
+        compose.onRoot().captureRoboImage("settings_notifications_row_$suffix.png")
     }
 }

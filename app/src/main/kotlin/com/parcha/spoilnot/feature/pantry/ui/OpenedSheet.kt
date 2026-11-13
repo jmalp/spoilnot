@@ -16,7 +16,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
@@ -60,7 +60,7 @@ fun OpenedSheet(
     val byDays = today.plusDays(days.toLong())
     val keepsDate = batch.expiryDate != null && batch.expiryDate.isBefore(byDays)
     val sheet = rememberFormSheet()
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,

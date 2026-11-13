@@ -214,7 +214,13 @@ tasks.withType<Test>().configureEach {
     )
 }
 
-// Screenshots are written here by ./gradlew recordRoborazziDevDebug for review; a plain test run only renders.
+// Screenshot references are committed (after v1, review CODE-07, DECISIONS): ./gradlew recordRoborazziDevDebug writes
+// them here, and ./gradlew verifyRoborazziDevDebug compares against them on the Mac, writing differences to
+// build/outputs/roborazzi. A plain test run (CI) only renders. Tests name files relative to this folder
+// (roborazzi.record.filePathStrategy in gradle.properties).
 roborazzi {
-    outputDir.set(layout.buildDirectory.dir("outputs/roborazzi"))
+    outputDir.set(file("src/test/screenshots"))
+    compare {
+        outputDir.set(layout.buildDirectory.dir("outputs/roborazzi"))
+    }
 }

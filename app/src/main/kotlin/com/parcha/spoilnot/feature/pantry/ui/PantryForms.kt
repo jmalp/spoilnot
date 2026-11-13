@@ -40,7 +40,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -81,8 +80,9 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
-import com.parcha.spoilnot.core.designsystem.component.SEGMENTED_STACK_FONT_SCALE
 import com.parcha.spoilnot.core.designsystem.component.Segmented
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.grocery.domain.AisleGuess
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -121,7 +121,7 @@ fun AddItemSheet(
     prefill: Product? = null,
 ) {
     val sheet = rememberFormSheet()
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,
@@ -302,7 +302,7 @@ fun EditItemSheet(
             buyQuantity = product?.buyQuantity?.let(::formatQuantity).orEmpty(),
         )
     }
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,
@@ -448,7 +448,7 @@ private fun ItemFields(
             )
         }
     }
-    if (LocalDensity.current.fontScale >= SEGMENTED_STACK_FONT_SCALE) {
+    if (isLargeText()) {
         QuantityRow(form.quantity, { form.quantity = it }, qtyError, compact = false)
         unitField(Modifier.fillMaxWidth())
     } else {
@@ -685,7 +685,8 @@ internal fun DateChips(value: LocalDate?, today: LocalDate, onChange: (LocalDate
         R.string.chip_plus_1_month to today.plusMonths(1),
     )
     val perRow = if (LocalDensity.current.fontScale >= DATE_CHIPS_TWO_ROWS_FONT_SCALE) 2 else options.size
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // One date at a time: radio buttons in a group, so TalkBack says "1 of 4" (review A11Y-08: they were checkboxes).
+    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.chunked(perRow).forEach { line ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 line.forEach { (label, date) ->
@@ -703,8 +704,9 @@ internal fun DateChips(value: LocalDate?, today: LocalDate, onChange: (LocalDate
 }
 
 /**
- * A compact on/off tile for equal-width rows (the date chips): Material chips' fixed padding cut "+2 weeks" short in
- * a quarter of the row. Chosen: border, fill and a bold label, so it never depends on color alone.
+ * A compact tile for equal-width rows (the date chips): Material chips' fixed padding cut "+2 weeks" short in a
+ * quarter of the row. Chosen: border, fill and a bold label, so it never depends on color alone. A radio button for
+ * screen readers; tapping the chosen one again still clears it.
  */
 @Composable
 private fun ToggleTile(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -718,7 +720,7 @@ private fun ToggleTile(text: String, selected: Boolean, onClick: () -> Unit, mod
                 if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                 shape,
             )
-            .toggleable(selected, role = Role.Checkbox, onValueChange = { onClick() })
+            .selectable(selected, role = Role.RadioButton, onClick = onClick)
             .heightIn(min = 48.dp)
             .padding(horizontal = 4.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
@@ -749,7 +751,7 @@ private const val DATE_CHIPS_TWO_ROWS_FONT_SCALE = 1.3f
 internal fun LocationChoice(selected: Location, onPick: (Location) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.field_location), style = MaterialTheme.typography.labelLarge)
-        val rows = if (LocalDensity.current.fontScale >= SEGMENTED_STACK_FONT_SCALE) 2 else 1
+        val rows = if (isLargeText()) 2 else 1
         Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Location.entries.chunked(Location.entries.size / rows).forEach { line ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

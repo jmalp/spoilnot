@@ -71,7 +71,7 @@ class SpoilNotFabTest(private val dark: Boolean, private val fontScale: Float) {
             .assertHasClickAction()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Text, listOf(AnnotatedString("Add item"))))
             .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/spoilnot_fab_$suffix.png")
+        compose.onRoot().captureRoboImage("spoilnot_fab_$suffix.png")
     }
 
     /** What the four buttons were before (A11Y-01): Material hides the text, so nothing names the button. */

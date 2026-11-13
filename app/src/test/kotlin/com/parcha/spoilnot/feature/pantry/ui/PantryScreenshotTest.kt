@@ -63,7 +63,7 @@ class PantryScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                 }
             }
         }
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/${name}_$suffix.png")
+        compose.onRoot().captureRoboImage("${name}_$suffix.png")
     }
 
     @Test

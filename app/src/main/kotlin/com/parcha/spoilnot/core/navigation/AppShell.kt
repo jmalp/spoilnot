@@ -7,18 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -46,6 +41,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.CoachMarks
 import com.parcha.spoilnot.core.designsystem.component.LocalCoachMarks
 import com.parcha.spoilnot.core.designsystem.component.coachMark
+import com.parcha.spoilnot.core.designsystem.component.rememberScreenReaderOn
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
@@ -289,51 +285,56 @@ fun AppShell(
         LocalUnits provides session.units,
         LocalCoachMarks provides coachMarks,
     ) {
-        Box(modifier) {
-            Scaffold(
-                contentWindowInsets = WindowInsets(0),
-                // Refused writes from any screen (after v1, REL-13), above the navigation bar.
-                snackbarHost = { SnackbarHost(shellSnackbar) },
-                bottomBar = {
-                    NavigationBar {
-                        TopLevelDestination.entries.forEach { tab ->
-                            val selected = tab == currentTab
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    navigator.selectTab(tab)
-                                    tourViewModel.on(TourEvent.TabOpened(tab.tourTab()))
-                                },
-                                modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
-                                icon = {
-                                    Icon(
-                                        if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                        contentDescription = null,
-                                    )
-                                },
-                                label = { Text(stringResource(tab.label)) },
-                            )
-                        }
-                    }
-                },
-            ) { padding ->
-                val reduceMotion = rememberReduceMotion()
-                // The quota banner is above the root (SpoilNotRoot), so it shows on every screen (after v1, REL-02).
-                Column(Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    NavDisplay(
-                        entries = visibleEntries,
-                        onBack = { navigator.goBack() },
-                        modifier = Modifier.weight(1f),
-                        transitionSpec = { sharedAxis(forward = true, reduceMotion) },
-                        popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
-                        predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
-                    )
+        val reduceMotion = rememberReduceMotion()
+        // TalkBack stays on the tour's card while it shows (review A11Y-10). Only with a screen reader on: a finger
+        // still follows the tour by tapping the highlighted tab, and UI tests do the same through the tree.
+        val screenReader = rememberScreenReaderOn()
+        ShellLayout(
+            modifier = modifier,
+            hideBehindOverlay = tourStep != null && screenReader,
+            bar = { barModifier ->
+                TabBar(currentTab, barModifier) { tab ->
+                    navigator.selectTab(tab)
+                    tourViewModel.on(TourEvent.TabOpened(tab.tourTab()))
                 }
-            }
-            tourStep?.let { TourOverlay(it, coachMarks, tourViewModel::on) }
-            if (reminders.ask && tourStep == null) {
-                NotificationExplainer(reminders.hour, onTurnOn = turnOnReminders, onLater = remindersViewModel::later)
-            }
+            },
+            overlay = { tourStep?.let { TourOverlay(it, coachMarks, tourViewModel::on) } },
+        ) {
+            // The quota banner is above the root (SpoilNotRoot), so it shows on every screen (after v1, REL-02).
+            NavDisplay(
+                entries = visibleEntries,
+                onBack = { navigator.goBack() },
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = { sharedAxis(forward = true, reduceMotion) },
+                popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+            )
+            // Refused writes from any screen (after v1, REL-13), above the navigation bar.
+            SnackbarHost(shellSnackbar, Modifier.align(Alignment.BottomCenter))
+        }
+        if (reminders.ask && tourStep == null) {
+            NotificationExplainer(reminders.hour, onTurnOn = turnOnReminders, onLater = remindersViewModel::later)
+        }
+    }
+}
+
+/** The five tabs (DESIGN 6.2), each label on one line (review UX-14). */
+@Composable
+internal fun TabBar(
+    currentTab: TopLevelDestination,
+    modifier: Modifier = Modifier,
+    onSelect: (TopLevelDestination) -> Unit,
+) {
+    NavigationBar(modifier) {
+        TopLevelDestination.entries.forEach { tab ->
+            val selected = tab == currentTab
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onSelect(tab) },
+                modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
+                icon = { Icon(if (selected) tab.selectedIcon else tab.unselectedIcon, contentDescription = null) },
+                label = { TabLabel(stringResource(tab.label)) },
+            )
         }
     }
 }

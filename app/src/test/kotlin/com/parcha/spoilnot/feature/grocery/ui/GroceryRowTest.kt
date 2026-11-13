@@ -197,7 +197,7 @@ class GroceryRowTest {
             variant = next
             compose.waitForIdle()
             val name = "grocery_rows_${if (next.first) "dark" else "light"}_font${next.second.toInt()}"
-            compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name.png")
+            compose.onRoot().captureRoboImage("$name.png")
         }
     }
 }

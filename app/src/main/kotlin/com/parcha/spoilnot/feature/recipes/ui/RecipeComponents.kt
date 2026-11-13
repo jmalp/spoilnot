@@ -54,7 +54,13 @@ fun RecipeImage(url: String?, modifier: Modifier = Modifier, title: String? = nu
     val placeholder = @Composable {
         Box(Modifier.fillMaxSize().background(background), contentAlignment = Alignment.Center) {
             if (initial != null) {
-                Text(initial.toString(), style = MaterialTheme.typography.displayMedium, color = foreground)
+                // A picture, not a word: TalkBack read "S, Spinach omelette" (review A11Y-07).
+                Text(
+                    initial.toString(),
+                    style = MaterialTheme.typography.displayMedium,
+                    color = foreground,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
             } else {
                 Icon(
                     Icons.AutoMirrored.Outlined.MenuBook,
@@ -99,26 +105,14 @@ fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onToggleFavorite: () -> Unit,
     Card(onClick = onOpen, modifier = modifier.testTag("recipe_card")) {
         Box {
             RecipeImage(recipe.content.imageUrl, Modifier.fillMaxWidth().aspectRatio(4f / 3f), recipe.title)
-            IconToggleButton(
-                checked = recipe.favorite,
-                onCheckedChange = { onToggleFavorite() },
+            FavoriteToggle(
+                favorite = recipe.favorite,
+                onToggle = onToggleFavorite,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(4.dp)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), MaterialTheme.shapes.extraLarge),
-            ) {
-                Icon(
-                    if (recipe.favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                    contentDescription = stringResource(
-                        if (recipe.favorite) R.string.recipe_unfavorite else R.string.recipe_favorite,
-                    ),
-                    tint = if (recipe.favorite) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
-            }
+            )
         }
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -130,7 +124,11 @@ fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onToggleFavorite: () -> Unit,
                 overflow = TextOverflow.Ellipsis,
             )
             if (time == null) {
-                Text(" ", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+                Text(
+                    " ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { },
+                )
             } else {
                 val description = stringResource(R.string.recipe_total_time, time)
                 Row(
@@ -152,6 +150,21 @@ fun RecipeCard(recipe: Recipe, onOpen: () -> Unit, onToggleFavorite: () -> Unit,
                 }
             }
         }
+    }
+}
+
+/**
+ * The favorite star, on recipe cards and recipe detail (review A11Y-08): one name, "Favorite", with its on or off
+ * state, so TalkBack says "Favorite, checked" instead of a label that flips with the state and the state again.
+ */
+@Composable
+fun FavoriteToggle(favorite: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    IconToggleButton(checked = favorite, onCheckedChange = { onToggle() }, modifier = modifier) {
+        Icon(
+            if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+            contentDescription = stringResource(R.string.recipe_favorite_toggle),
+            tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
