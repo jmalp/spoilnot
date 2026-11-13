@@ -194,9 +194,16 @@ class AccessibilityChecksTest {
         compose.waitForIdle()
     }
 
-    /** Back until only the screen's own window is left (sheets animate out). */
+    /**
+     * Back until only the screen's own window is left (sheets animate out). A sheet that opened the keyboard (Add
+     * item focuses Name, after v1) takes a second Back: the first one closes the keyboard.
+     */
     private fun closeWindows() {
-        back()
+        repeat(3) {
+            back()
+            val closed = runCatching { compose.waitUntil(5_000) { windows() == 1 } }.isSuccess
+            if (closed) return
+        }
         compose.waitUntil(20_000) { windows() == 1 }
     }
 
