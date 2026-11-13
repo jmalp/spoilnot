@@ -4,13 +4,13 @@ import { messageId } from '../../core/errors';
 import { useAction, useObservable } from '../../core/hooks';
 import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, usePreferences, useServices } from '../../core/services';
-import { NotificationRules } from '../../domain/notifications';
+import { NotificationPrompt, NotificationRules } from '../../domain/notifications';
 import { ExportFormat } from '../../domain/settings/export';
 import { today } from '../../domain/time';
 import { Button, Card, Dialog, ErrorText, Icon, ListItem, useSnackbars } from '../kit';
 import { PasswordField } from '../forms';
 import { DetailScaffold } from '../Scaffold';
-import { formatHour, useNotificationPrefs } from '../notifications/NotificationSettingsScreen';
+import { formatHour, useNotificationPrefs, usePushStatus } from '../notifications/reminders';
 import { AboutCard, AppearanceCard, DataCard } from './SettingsSections';
 import { useDeleteAccount } from './DeleteAccount';
 import { UnsyncedSignOutDialog } from '../household/UnsyncedSignOut';
@@ -63,6 +63,7 @@ export function SettingsScreen({
       if (!(await session.signOut(evenIfUnsynced))) setAskUnsynced(true);
     });
   const notifications = useNotificationPrefs();
+  const blocked = NotificationPrompt.blockedHere(usePushStatus(), notifications?.enabled ?? null);
   const household = useObservable(
     useMemo(
       () =>
@@ -130,13 +131,16 @@ export function SettingsScreen({
         <Card>
           <ListItem
             headline={str('settings_notifications')}
+            // "Off on this phone" when the reminder is on but this phone can't show it (after v1, review UX-02).
             supporting={
               notifications &&
-              (notifications.enabled
-                ? str('settings_notifications_on', formatHour(NotificationRules.hour(notifications)))
-                : str('settings_notifications_off'))
+              (!notifications.enabled
+                ? str('settings_notifications_off')
+                : blocked
+                  ? str('settings_notifications_blocked')
+                  : str('settings_notifications_on', formatHour(NotificationRules.hour(notifications))))
             }
-            leading={<Icon name="round/notifications" />}
+            leading={<Icon name={blocked ? 'round/notifications_off' : 'round/notifications'} />}
             trailing={<Icon name="round/keyboard_arrow_right" />}
             onClick={onOpenNotifications}
             testId="row_notifications"

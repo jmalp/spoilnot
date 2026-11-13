@@ -11,6 +11,7 @@ import {
   type QuantityUnit,
   type StockBatch,
 } from '../../domain/pantry/models';
+import { guessCategoryForNewProduct } from '../../domain/grocery/aisles';
 import { NameKey, ShelfLife } from '../../domain/pantry/rules';
 import { itemEditOf, rebaseEdit, type ItemEditBase } from '../../domain/pantry/edit-watch';
 import type { ItemEdit, StockDraft } from '../../domain/pantry/service';
@@ -54,6 +55,8 @@ type FormState = {
   quantity: string;
   unit: QuantityUnit;
   category: Category;
+  /** Category was picked by hand, so the aisle guess no longer changes it (after v1, UX-09). */
+  categoryChosen?: boolean;
   expiry: LocalDate | null;
   location: Location;
   autoAdd: boolean;
@@ -122,6 +125,14 @@ export function AddItemSheet({
   });
   const match = products.find((p) => p.nameKey === NameKey.of(form.name));
   const unitLockedTo = match && productsWithStock.has(match.id) ? match.unit : null;
+  // A new name takes the aisle Groceries would guess (after v1, UX-09), until a category is picked by hand; a product
+  // chosen from the suggestions brings its own.
+  const setGuessing = (next: FormState) =>
+    setForm(
+      next.name !== form.name && !next.categoryChosen && !products.some((p) => p.nameKey === NameKey.of(next.name))
+        ? { ...next, category: guessCategoryForNewProduct(next.name, products) }
+        : next,
+    );
   const save = () => {
     const qty = parseQuantity(form.quantity);
     setForm({ ...form, submitted: true });
@@ -153,13 +164,15 @@ export function AddItemSheet({
       >
         <ItemFields
           form={form}
-          setForm={setForm}
+          setForm={setGuessing}
           products={products}
           today={today}
           imperialFirst={imperialFirst}
           unitLockedTo={unitLockedTo}
           onChooseProduct={(p) => setForm(fillFrom(form, p, today))}
           allowZero={false}
+          // The keyboard opens on Name (after v1, UX-09), except for a product chosen beforehand (an Out row).
+          focusName={prefill === null}
         />
       </FormSheetColumn>
     </BottomSheet>
@@ -347,6 +360,7 @@ function ItemFields({
   unitLockedTo,
   onChooseProduct,
   allowZero,
+  focusName = false,
 }: {
   form: FormState;
   setForm: (f: FormState) => void;
@@ -356,6 +370,7 @@ function ItemFields({
   unitLockedTo: QuantityUnit | null;
   onChooseProduct: (p: Product) => void;
   allowZero: boolean;
+  focusName?: boolean;
 }) {
   const id = useId();
   const set = (patch: Partial<FormState>) => setForm({ ...form, ...patch });
@@ -378,6 +393,7 @@ function ItemFields({
         products={products}
         error={nameError}
         onChoose={onChooseProduct}
+        focus={focusName}
       />
       <div className={large ? 'sn-form-stack' : 'sn-form-row'}>
         <QuantityRow
@@ -405,7 +421,7 @@ function ItemFields({
         value={form.category}
         options={CATEGORIES}
         optionLabel={categoryLabel}
-        onPick={(category) => set({ category })}
+        onPick={(category) => set({ category, categoryChosen: true })}
         testId="field_category"
       />
       {/* Keep some in stock (after v1, UX-07): while off it says what it does; the whole row toggles. */}
@@ -459,12 +475,15 @@ function NameField({
   products,
   error,
   onChoose,
+  focus = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   products: Product[];
   error?: string;
   onChoose: (p: Product) => void;
+  /** Takes the focus when the sheet opens (BottomSheet's data-autofocus). */
+  focus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const key = NameKey.of(value);
@@ -488,6 +507,7 @@ function NameField({
         autoComplete="off"
         error={error}
         data-testid="field_name"
+        data-autofocus={focus || undefined}
       />
       <Menu open={open && suggestions.length > 0} onDismiss={() => setOpen(false)} align="start" focusFirst={false}>
         {suggestions.map((p) => (

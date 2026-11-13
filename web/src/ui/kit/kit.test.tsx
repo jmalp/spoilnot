@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTextScale } from '../../theme/textScale';
 import {
@@ -16,7 +16,10 @@ import { keyboardInset } from './BottomSheet';
 
 describe('kit', () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it('a selected filter chip says so and shows a check, never color alone', () => {
     const { container } = render(<FilterChip label="Expiring soon" selected onClick={() => {}} />);
@@ -147,6 +150,68 @@ describe('kit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(undo).toHaveBeenCalledOnce();
     expect(screen.getByRole('status')).toHaveTextContent('Saved');
+  });
+
+  /** One Undo snackbar, then 'Saved' queued after it. */
+  function undoThenSaved() {
+    function Trigger() {
+      const snackbars = useSnackbars();
+      return (
+        <button
+          onClick={() => {
+            snackbars.showUndo('Recipe deleted', () => {});
+            snackbars.show('Saved');
+          }}
+        >
+          delete
+        </button>
+      );
+    }
+    const { container } = render(
+      <SnackbarProvider>
+        <Trigger />
+      </SnackbarProvider>,
+    );
+    fireEvent.click(within(container).getByText('delete'));
+    return () => within(container).getByRole('status');
+  }
+
+  it('the Undo timer waits while the snackbar has focus, then goes on with the time that was left (A11Y-02)', () => {
+    const status = undoThenSaved();
+    act(() => vi.advanceTimersByTime(3_000));
+    act(() => screen.getByRole('button', { name: 'Undo' }).focus());
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(status()).toHaveTextContent('Recipe deleted');
+    expect(status()).toHaveAttribute('data-held', 'true');
+    act(() => screen.getByRole('button', { name: 'Undo' }).blur());
+    // 5 of the 8 seconds were left.
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS - 3_000 - 1));
+    expect(status()).toHaveTextContent('Recipe deleted');
+    act(() => vi.advanceTimersByTime(1));
+    expect(status()).toHaveTextContent('Saved');
+  });
+
+  it('the Undo timer waits while the pointer is over the snackbar', () => {
+    const status = undoThenSaved();
+    act(() => vi.advanceTimersByTime(6_000));
+    fireEvent.pointerEnter(status());
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(status()).toHaveTextContent('Recipe deleted');
+    fireEvent.pointerLeave(status());
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS - 6_000 - 1));
+    expect(status()).toHaveTextContent('Recipe deleted');
+    act(() => vi.advanceTimersByTime(1));
+    expect(status()).toHaveTextContent('Saved');
+  });
+
+  it('a held snackbar that goes away does not hold the next one', () => {
+    const status = undoThenSaved();
+    act(() => screen.getByRole('button', { name: 'Undo' }).focus());
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(status()).toHaveTextContent('Saved');
+    expect(status()).not.toHaveAttribute('data-held');
+    act(() => vi.advanceTimersByTime(4_000));
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });
 

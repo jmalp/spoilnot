@@ -49,6 +49,8 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
     favorite: true,
     ingredients: ['3 apples'],
     steps: ['Bake.'],
+    sourceUrl: 'https://www.seriouseats.com/apple-pie',
+    sourceName: 'Serious Eats',
     createdSecondsAgo: 600,
   });
 
@@ -66,13 +68,30 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
   await page.getByTestId('recipe_search').fill('rice');
   await expect(cards(page)).toHaveCount(1);
   await page.getByRole('button', { name: 'Clear search' }).click();
-  await page.getByRole('button', { name: 'Favorites', exact: true }).click();
+  // No All chip (after v1, R16): tapping the chosen chip again shows everything.
+  await expect(page.getByRole('button', { name: 'All', exact: true })).toHaveCount(0);
+  const favorites = page.getByRole('button', { name: 'Favorites', exact: true });
+  await favorites.click();
   await expect(cards(page)).toHaveText([/Apple pie/]);
-  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await favorites.click();
+  await expect(favorites).toHaveAttribute('aria-pressed', 'false');
+  await expect(cards(page)).toHaveCount(2);
+
+  // An imported recipe whose By name is only the site: one source line, the site chip (after v1, R10).
+  await cards(page).filter({ hasText: 'Apple pie' }).getByRole('button', { name: 'Apple pie' }).click();
+  await expect(page.getByRole('link', { name: 'seriouseats.com' })).toBeVisible();
+  await expect(page.getByTestId('screen_recipe_detail')).not.toContainText('By Serious Eats');
+  await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
 
   // Detail: the stepper scales only what it can.
   await cards(page).filter({ hasText: 'Green curry' }).getByRole('button', { name: 'Green curry' }).click();
   await expect(page.getByTestId('recipe_servings')).toHaveText('2 servings');
+  // One servings control (after v1, R9): no chip repeating the stepper's number.
+  await expect(page.locator('.sn-info-chips')).not.toContainText('servings');
+  // Start cooking is a bar under the content and covers nothing (after v1, UX-12).
+  const bar = (await page.getByTestId('recipe_cook').boundingBox())!;
+  const cookedThis = (await page.getByTestId('recipe_cooked').boundingBox())!;
+  expect(cookedThis.y + cookedThis.height).toBeLessThanOrEqual(bar.y);
   await page.getByRole('button', { name: 'More servings' }).click();
   await expect(page.getByTestId('recipe_servings')).toHaveText('3 servings');
   const lines = page.locator('.sn-checklist__line');
@@ -84,6 +103,15 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
   const sheet = page.getByTestId('sheet_add_to_list');
   await expect(sheet.getByTestId('candidate')).toHaveCount(4);
   await expect(sheet.getByTestId('candidate').first()).toContainText('Probably in pantry');
+  await expect(sheet.getByTestId('recipe_add_items')).toHaveText('Add 2 items');
+  // Nothing selected: the button says what to do instead of "Add 0 items" (after v1, UX-18).
+  const chosen = sheet.getByRole('checkbox', { checked: true });
+  await chosen.first().click();
+  await chosen.first().click();
+  await expect(sheet.getByTestId('recipe_add_items')).toHaveText('Select items to add');
+  await expect(sheet.getByTestId('recipe_add_items')).toBeDisabled();
+  await sheet.getByRole('checkbox', { name: '1 onion, diced' }).click();
+  await sheet.getByRole('checkbox', { name: '2 tbsp soy sauce' }).click();
   await expect(sheet.getByTestId('recipe_add_items')).toHaveText('Add 2 items');
   await sheet.getByTestId('recipe_add_items').click();
   await expect(page.getByRole('status').filter({ hasText: 'Added to Groceries' })).toBeVisible();
@@ -98,7 +126,9 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
     page.getByRole('status').filter({ hasText: 'Cooked Green curry. The pantry is updated.' }),
   ).toBeVisible();
 
-  // Cook mode: one step at a time.
+  // Cook mode: one step at a time. The snackbar goes first: it waits while the pointer rests on it (A11Y-02), and in
+  // Cook mode it sits over Next.
+  await expect(page.getByRole('status')).toHaveCount(0, { timeout: 15_000 });
   await page.getByTestId('recipe_cook').click();
   await expect(page.getByTestId('cook_step')).toHaveText('Boil the rice.');
   await page.getByTestId('cook_next').click();
@@ -114,8 +144,9 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
   await expect(page.getByTestId('recipe_title')).toHaveText('Green curry with rice');
   await expect(page.locator('.sn-recipe-step')).toHaveCount(3);
   await page.getByTestId('recipe_more').click();
+  // No dialog: it goes at once, with Undo (after v1, one rule for confirmations, R13).
   await page.getByTestId('recipe_delete').click();
-  await page.getByTestId('recipe_delete_confirm').click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByTestId('screen_recipes')).toBeVisible();
   await expect(cards(page)).toHaveCount(1);
   // Snackbars come one at a time: the Undo of this one, not I cooked this's.

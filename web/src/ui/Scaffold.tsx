@@ -77,12 +77,16 @@ export function TabScaffold({
   );
 }
 
-/** A pushed screen (DetailScaffold): a titleLarge title with a back button, and an optional extended FAB. */
+/**
+ * A pushed screen (DetailScaffold): a titleLarge title with a back button, and an optional extended FAB or a bar under
+ * the content (after v1, UX-12: a bar never covers what scrolls above it).
+ */
 export function DetailScaffold({
   title,
   onBack,
   actions,
   fab,
+  bottomBar,
   testId,
   children,
 }: {
@@ -91,17 +95,20 @@ export function DetailScaffold({
   actions?: ReactNode;
   /** Stays in place while the content scrolls under it. */
   fab?: ReactNode;
+  /** Across the bottom, under the content, which scrolls clear of it. */
+  bottomBar?: ReactNode;
   testId?: string;
   children: ReactNode;
 }) {
   const [scrolled, setScrolled] = useState(false);
-  // Snackbars show above the FAB; screens before sign-in have neither.
+  // Snackbars show above the FAB or the bar; screens before sign-in have neither.
   const snackbars = useOptionalSnackbars();
+  const inset = bottomBar ? BOTTOM_BAR_PX : fab ? 56 + 16 : 0;
   useEffect(() => {
-    if (!fab || !snackbars) return;
-    snackbars.setBottomInset(56 + 16);
+    if (!inset || !snackbars) return;
+    snackbars.setBottomInset(inset);
     return () => snackbars.setBottomInset(0);
-  }, [fab, snackbars]);
+  }, [inset, snackbars]);
   const screen = (
     <div className="sn-screen" data-testid={testId} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
       <TopAppBar
@@ -113,6 +120,14 @@ export function DetailScaffold({
       <main className="sn-screen__content">{children}</main>
     </div>
   );
+  if (bottomBar) {
+    return (
+      <div className="sn-screen-frame sn-screen-frame--bar">
+        <div className="sn-screen-frame__main">{screen}</div>
+        <div className="sn-bottom-bar">{bottomBar}</div>
+      </div>
+    );
+  }
   if (!fab) return screen;
   return (
     <div className="sn-screen-frame">
@@ -121,6 +136,9 @@ export function DetailScaffold({
     </div>
   );
 }
+
+/** A bottom bar's height: a 48 px button with 12 px above and below. */
+const BOTTOM_BAR_PX = 72;
 
 /** A one-line explanation with an icon, and ways to start under it (EmptyState, DESIGN 6.7). */
 export function EmptyState({ icon, message, children }: { icon: IconName; message: string; children?: ReactNode }) {

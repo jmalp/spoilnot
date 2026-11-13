@@ -45,4 +45,13 @@ describe('SourceUrl', () => {
     expect(SourceUrl.siteName('https://www.SeriousEats.com/pie')).toBe('seriouseats.com');
     expect(SourceUrl.siteName(null)).toBeNull();
   });
+
+  it('a By name that is only the site is recognized (R10)', () => {
+    expect(SourceUrl.namesSite('recipes.example.test', 'recipes.example.test')).toBe(true);
+    expect(SourceUrl.namesSite('BBC Good Food', 'bbcgoodfood.com')).toBe(true);
+    expect(SourceUrl.namesSite('Serious Eats', 'seriouseats.com')).toBe(true);
+    expect(SourceUrl.namesSite('Kenji López-Alt', 'seriouseats.com')).toBe(false);
+    expect(SourceUrl.namesSite('Grandma', null)).toBe(false);
+    expect(SourceUrl.namesSite('—', 'example.com')).toBe(false);
+  });
 });

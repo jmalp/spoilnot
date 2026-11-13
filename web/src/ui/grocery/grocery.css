@@ -49,17 +49,23 @@
   overflow: hidden;
   touch-action: pan-y;
 }
+/* What a swipe does (after v1, UX-10): right checks off or puts back, left deletes; an icon and a word. */
 .sn-grocery-swipe {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 0 20px;
+}
+.sn-grocery-swipe--check {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.sn-grocery-swipe--delete {
+  justify-content: flex-end;
   background: var(--md-sys-color-error-container);
   color: var(--md-sys-color-on-error-container);
-}
-.sn-grocery-swipe--end {
-  justify-content: flex-end;
 }
 .sn-grocery-row__front {
   position: relative;
@@ -103,7 +109,15 @@
   align-items: center;
   gap: 4px 8px;
 }
+/* "Back in stock · Remove" (after v1, UX-08): one line, wrapping as whole words at large text sizes. */
+.sn-grocery-row__back {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
 .sn-grocery-row__remove {
+  white-space: nowrap;
   min-height: 48px;
   padding: 0 8px;
   border: none;
@@ -148,7 +162,27 @@
   flex: 1;
   color: var(--md-sys-color-primary);
   text-align: start;
-  text-transform: uppercase;
+}
+/* Aisle headers in sentence case, as everywhere else (DESIGN 6.9; after v1 they were in capitals, UX-18). Pantry's
+   group headers keep theirs, as in the app. */
+.sn-group-header.sn-aisle-header {
+  text-transform: none;
+}
+
+/* "Aisles follow the order you shop in…" with Got it, once per phone (after v1, UX-08). */
+.sn-aisle-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 16px;
+  padding: 4px 4px 4px 16px;
+  border-radius: 12px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-aisle-hint__text {
+  flex: 1;
+  min-width: 0;
 }
 
 .sn-entries {
@@ -202,4 +236,8 @@
 .sn-entry__unit {
   flex: 1;
   min-width: 0;
+}
+
+.sn-grocery-reason {
+  margin: 0;
 }

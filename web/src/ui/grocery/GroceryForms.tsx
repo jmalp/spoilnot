@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { plural, str } from '../../core/i18n';
 import { GroceryRules, type GroceryItem } from '../../domain/grocery/models';
+import type { RestockReason } from '../../domain/grocery/restock';
 import type { PantryEntry } from '../../domain/grocery/service';
 import { CATEGORIES, unitMenu, type Category, type PantryData } from '../../domain/pantry/models';
 import type { QuantityUnit } from '../../domain/pantry/models';
@@ -199,11 +200,14 @@ function EntryRow({
 /** Name (after v1), quantity, unit, note and aisle of one item. */
 export function EditGroceryItemSheet({
   item,
+  reason = null,
   imperialFirst,
   onSave,
   onDismiss,
 }: {
   item: GroceryItem;
+  /** Why the app put it here (after v1, UX-08): the row says only "Added automatically". */
+  reason?: RestockReason | null;
   imperialFirst: boolean;
   onSave: (edit: {
     name: string;
@@ -239,6 +243,11 @@ export function EditGroceryItemSheet({
           </Button>
         }
       >
+        {reason && (
+          <p className="t-body-medium c-on-surface-variant sn-grocery-reason" data-testid="grocery_auto_reason">
+            {reasonText(reason)}
+          </p>
+        )}
         <TextField
           label={str('field_name')}
           value={name}
@@ -278,4 +287,11 @@ export function EditGroceryItemSheet({
       </FormSheetColumn>
     </BottomSheet>
   );
+}
+
+/** "Added automatically: you have 0 and keep at least 2." (after v1, UX-08) */
+function reasonText(reason: RestockReason): string {
+  return reason.kind === 'low'
+    ? str('grocery_auto_reason', amountText(reason.have, reason.unit), amountText(reason.keepAtLeast, reason.unit))
+    : str('grocery_auto_reason_gone');
 }

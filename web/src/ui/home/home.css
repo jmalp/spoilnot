@@ -36,6 +36,21 @@
   display: flex;
   flex-direction: column;
 }
+.sn-home-calm__footer {
+  padding: 0 8px 4px 16px;
+}
+
+/* "Reminders are off on this phone · Turn on" (DESIGN 5.6): the last line of Needs attention. */
+.sn-home-reminders {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sn-home-reminders__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
 .sn-home-row {
   display: flex;
   align-items: center;

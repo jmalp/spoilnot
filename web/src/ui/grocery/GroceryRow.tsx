@@ -7,8 +7,10 @@ import { useSwipe } from '../swipe';
 import './grocery.css';
 
 /**
- * One item (GroceryRow in the app). A tap checks it off and it moves to In cart; a swipe either way deletes it, with
- * Undo. Each source has its own icon, so Low stock and Recipe look different without relying on color.
+ * One item (GroceryRow in the app). A tap checks it off and it moves to In cart. After v1 (UX-10) a swipe right checks
+ * it off too (or puts it back from the cart) and a swipe left deletes it with Undo, each shown under the row as it
+ * moves; the tap and the ⋮ menu do the same (DESIGN 6.8). Each source has its own icon, so Added automatically and
+ * Recipe look different without relying on color.
  */
 export function GroceryRow({
   item,
@@ -28,9 +30,10 @@ export function GroceryRow({
   onDelete: (item: GroceryItem) => void;
   onEdit: (item: GroceryItem) => void;
 }) {
-  const swipe = useSwipe(() => onDelete(item));
+  const swipe = useSwipe((direction) => (direction === 'right' ? onToggle(item) : onDelete(item)));
+  // What the app did by itself says so (after v1, UX-08); Back in stock replaces it: one line, "Back in stock · Remove".
   const source =
-    item.source === 'low_stock'
+    item.source === 'low_stock' && !backInStock
       ? (['grocery_source_low_stock', 'round/trending_down'] as const)
       : item.source === 'recipe'
         ? (['grocery_source_recipe', 'round/restaurant_menu'] as const)
@@ -43,11 +46,7 @@ export function GroceryRow({
       data-testid={`grocery_item_${item.id}`}
       data-remote={highlight || undefined}
     >
-      {swipe.dx !== 0 && (
-        <div className={`sn-grocery-swipe ${swipe.dx > 0 ? '' : 'sn-grocery-swipe--end'}`} aria-hidden>
-          <Icon name="round/delete_outline" />
-        </div>
-      )}
+      {swipe.dx !== 0 && <GrocerySwipeBackground right={swipe.dx > 0} checked={item.checked} />}
       <div
         className="sn-grocery-row__front"
         style={swipe.style}
@@ -74,18 +73,21 @@ export function GroceryRow({
             {(source || backInStock || addedBy || item.note) && (
               <span className="sn-grocery-row__details">
                 {source && <SourceBadge text={str(source[0])} icon={source[1]} />}
-                {/* On the same line (after v1): it used to add a tall second line under the badge. */}
                 {backInStock && (
-                  <>
+                  <span className="sn-grocery-row__back">
                     <SourceBadge text={str('grocery_back_in_stock')} icon="round/check_circle" good />
+                    <span className="t-label-large c-on-surface-variant" aria-hidden>
+                      ·
+                    </span>
                     <button
                       type="button"
                       className="sn-grocery-row__remove t-label-large m3-state"
+                      aria-label={str('grocery_back_in_stock_remove', item.name)}
                       onClick={() => onDelete(item)}
                     >
                       {str('grocery_remove')}
                     </button>
-                  </>
+                  </span>
                 )}
                 {addedBy && (
                   <span className="t-body-small c-on-surface-variant">{str('grocery_added_by', addedBy)}</span>
@@ -97,6 +99,28 @@ export function GroceryRow({
         </label>
         <ItemMenu item={item} onEdit={onEdit} onDelete={onDelete} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * What a swipe does, under the row as it moves (after v1, UX-10): right checks off (or puts back), left deletes. Icon
+ * and word, never color alone (DESIGN 6.1).
+ */
+function GrocerySwipeBackground({ right, checked }: { right: boolean; checked: boolean }) {
+  const [icon, label]: [IconName, string] = !right
+    ? ['round/delete_outline', str('action_delete')]
+    : checked
+      ? ['round/undo', str('grocery_swipe_uncheck')]
+      : ['round/check', str('grocery_swipe_check')];
+  return (
+    <div
+      className={`sn-grocery-swipe ${right ? 'sn-grocery-swipe--check' : 'sn-grocery-swipe--delete'}`}
+      data-testid="grocery_swipe"
+      aria-hidden
+    >
+      <Icon name={icon} />
+      <span className="t-label-large">{label}</span>
     </div>
   );
 }
