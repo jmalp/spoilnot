@@ -9,6 +9,7 @@ describe('AppPreferences', () => {
       weekStart: 'auto',
       notificationExplainerShown: false,
       installHelpDismissed: false,
+      aisleHintDone: false,
     });
   });
 
@@ -22,7 +23,8 @@ describe('AppPreferences', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(prefs.get()).not.toBe(before);
     expect(localStorage.getItem(PREFERENCE_KEYS.colorTheme)).toBe('fiery');
-    prefs.set({ notificationExplainerShown: true, weekStart: 'monday' });
+    prefs.set({ notificationExplainerShown: true, weekStart: 'monday', aisleHintDone: true });
+    expect(localStorage.getItem(PREFERENCE_KEYS.aisleHintDone)).toBe('true');
     expect(localStorage.getItem(PREFERENCE_KEYS.weekStart)).toBe('monday');
     expect(new AppPreferences(localStorage).get()).toEqual({
       themeMode: 'dark',
@@ -30,6 +32,7 @@ describe('AppPreferences', () => {
       weekStart: 'monday',
       notificationExplainerShown: true,
       installHelpDismissed: false,
+      aisleHintDone: true,
     });
   });
 

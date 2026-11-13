@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { catchError, firstValueFrom, map, of, timeout } from 'rxjs';
 import { messageId } from '../../core/errors';
-import { pushStatus } from '../../core/push';
 import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
 import { retryLoading } from '../../domain/load';
 import { useRemoteChanges } from '../../core/remoteChanges';
@@ -19,8 +18,6 @@ import {
 import { checkEdit, itemEditOf, type ItemEditBase } from '../../domain/pantry/edit-watch';
 import type { PantryData, Product, StockBatch } from '../../domain/pantry/models';
 import type { Undo } from '../../domain/write';
-import { NotificationRules } from '../../domain/notifications';
-import { NotificationExplainer } from '../notifications/NotificationExplainer';
 import { Button, Fab, FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
 import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { categoryLabel, locationLabel } from './labels';
@@ -56,7 +53,7 @@ export function PantryScreen({
   onQueryChange: (query: PantryQuery) => void;
 }) {
   const me = useHouseholdSession();
-  const { pantry, pantryService, clock, preferences, households } = useServices();
+  const { pantry, pantryService, clock, households } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
   // The household's shared pantry listeners (after v1, DESIGN 9.1).
@@ -73,17 +70,6 @@ export function PantryScreen({
   const [editing, setEditing] = useState<ItemEditBase | null>(null);
   // An Out staple opens Add item for that product.
   const [adding, setAdding] = useState<{ prefill: Product | null } | null>(null);
-  const [explaining, setExplaining] = useState(false);
-  /**
-   * After the third dated item, explain notifications once (DESIGN 5.4): already allowed or refused, it is not
-   * needed; in Safari outside the Home Screen it waits until the app is installed.
-   */
-  const askForNotifications = (hasDate: boolean, datedBefore: number) => {
-    if (!NotificationRules.shouldExplain(hasDate, datedBefore, preferences.get().notificationExplainerShown)) return;
-    const status = pushStatus();
-    if (status === 'default') setExplaining(true);
-    else if (status === 'granted' || status === 'denied') preferences.set({ notificationExplainerShown: true });
-  };
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
 
   // Invariant 1: delete batches that reached 0, whoever notices first.
@@ -264,23 +250,13 @@ export function PantryScreen({
           prefill={adding.prefill}
           onDismiss={() => setAdding(null)}
           onSave={(draft) => {
-            const datedBefore = data.batches.filter((b) => b.expiryDate !== null).length;
             void pantryService.add(hid, actor, draft, data).then(
               (result) => {
                 setAdding(null);
                 snackbars.show(str(result.merged ? 'added_merged_message' : 'added_message', draft.name.trim()));
-                askForNotifications(draft.expiryDate !== null, datedBefore);
               },
               (e: unknown) => snackbars.show(str(messageId(e))),
             );
-          }}
-        />
-      )}
-      {explaining && (
-        <NotificationExplainer
-          onDone={() => {
-            setExplaining(false);
-            preferences.set({ notificationExplainerShown: true });
           }}
         />
       )}

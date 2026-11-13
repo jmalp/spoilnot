@@ -82,8 +82,10 @@ export function BottomSheet({
   useEffect(() => {
     const sheet = ref.current;
     // The sheet itself takes focus, as in the app: VoiceOver starts at its name, and the handle shows no focus ring.
+    // A field marked data-autofocus takes it instead, so the keyboard opens there (Add item's Name, after v1, UX-09).
     if (sheet) sheet.autofocus = true;
     if (sheet && !sheet.open) sheet.showModal();
+    sheet?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
     return () => sheet?.close();
   }, []);
   useFollowKeyboard(ref);

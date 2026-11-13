@@ -55,9 +55,11 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   await expect(list(page).getByRole('heading')).toHaveText(['Produce', 'Dairy and eggs', 'Other']);
   await expect(row(page, 'bananas')).toContainText('× 2');
 
-  // The same name again asks first; Increase adds to it.
+  // The same name again asks first, saying how much (after v1, UX-18); Add more adds to it.
   await add(page, 'BANANAS').catch(() => undefined);
-  await expect(page.getByRole('dialog')).toContainText('bananas is already on the list.');
+  await expect(page.getByRole('dialog')).toContainText(
+    'Add 1 more to the 2 on the list, or add it as a separate item?',
+  );
   await page.getByTestId('button_increase').click();
   await expect(row(page, 'bananas')).toContainText('× 3');
 
@@ -67,7 +69,20 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   await expect(page.getByTestId('cart_header')).toContainText('In cart (2)');
   await add(page, 'milk');
   await add(page, 'apples');
+  // Aisle headers in sentence case, as written (after v1, UX-18).
   await expect(list(page).getByRole('heading')).toHaveText(['Dairy and eggs', 'Produce', 'Other']);
+  await expect(list(page).getByRole('heading').first()).toHaveCSS('text-transform', 'none');
+  await expect(page.getByTestId('cart_header').locator('.sn-cart-header__label')).toHaveCSS('text-transform', 'none');
+
+  // The list has learned an order: once, under the first aisle, why the aisles move (after v1, UX-08).
+  const hint = page.getByTestId('grocery_aisle_hint');
+  await expect(hint).toContainText('Aisles follow the order you shop in.');
+  await expect(list(page).locator('section').first().getByTestId('grocery_aisle_hint')).toBeVisible();
+  await page.getByTestId('grocery_aisle_hint_ok').click();
+  await expect(hint).toHaveCount(0);
+  await page.reload();
+  await expect(row(page, 'milk')).toBeVisible();
+  await expect(hint).toHaveCount(0);
 
   // Add to pantry: one line each; skip the batteries.
   await row(page, 'batteries').getByRole('checkbox').click();
@@ -139,7 +154,7 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
   await page.getByRole('menuitem', { name: 'Groceries' }).click();
   await expect(page.getByText('Your list is empty.', { exact: false })).toBeVisible();
 
-  // Edit renames and sets a note; swipe deletes with Undo; Clear checked has Undo too.
+  // Edit renames and sets a note; a left swipe deletes with Undo; Clear cart has Undo too.
   await add(page, 'beans');
   await row(page, 'beans').getByRole('button', { name: 'Options for beans' }).click();
   await page.getByRole('menuitem', { name: 'Edit' }).click();
@@ -149,17 +164,35 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
   await edit.getByTestId('button_save_grocery_item').click();
   await expect(row(page, 'Black beans')).toContainText('the big can');
 
-  const beans = row(page, 'Black beans');
-  const box = (await beans.boundingBox())!;
-  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 10, box.y + box.height / 2, { steps: 8 });
-  await page.mouse.up();
-  await expect(page.getByRole('status').filter({ hasText: 'Black beans removed' })).toBeVisible();
+  // Swipes (after v1, UX-10): what each does shows under the row while it moves.
+  const swipe = async (name: string, from: number, to: number, label: string) => {
+    const box = (await row(page, name).boundingBox())!;
+    await page.mouse.move(box.x + box.width * from, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * to, box.y + box.height / 2, { steps: 8 });
+    await expect(row(page, name).getByTestId('grocery_swipe')).toHaveText(label);
+    await page.mouse.up();
+  };
+  // Left deletes, with Undo.
+  await swipe('Black beans', 0.8, 0.05, 'Delete');
+  const removed = page.getByRole('status').filter({ hasText: 'Black beans removed' });
+  await expect(removed).toBeVisible();
+  // The 8-second Undo waits while the snackbar has focus (after v1, A11Y-02), as for someone tabbing to it.
+  await removed.getByRole('button', { name: 'Undo' }).focus();
+  await page.waitForTimeout(9_000);
+  await expect(removed).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(row(page, 'Black beans')).toBeVisible();
+  // Right checks off, and in the cart puts it back.
+  await swipe('Black beans', 0.15, 0.9, 'Check off');
+  await expect(page.getByTestId('cart_header')).toContainText('In cart (1)');
+  await expect(row(page, 'Black beans').getByRole('checkbox')).toBeChecked();
+  await swipe('Black beans', 0.15, 0.9, 'Back to list');
+  await expect(page.getByTestId('cart_header')).toHaveCount(0);
+  await expect(row(page, 'Black beans').getByRole('checkbox')).not.toBeChecked();
 
   await row(page, 'Black beans').getByRole('checkbox').click();
+  await expect(page.getByTestId('button_clear_checked')).toHaveText('Clear cart');
   await page.getByTestId('button_clear_checked').click();
   await expect(row(page, 'Black beans')).toHaveCount(0);
   await page.getByRole('button', { name: 'Undo' }).click();
@@ -171,10 +204,21 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
   await seedPantry(hid, uid, [{ id: 'oil', name: 'Olive oil', quantity: 0, min: 1, location: 'pantry' }]);
   // Seeded as another phone would write it, so this page's engine waits 5 s before adding it (DESIGN 9.6).
   await expect(row(page, 'Olive oil')).toContainText('Added automatically', { timeout: 15_000 });
-  // Stock coming back shows Back in stock with a one-tap remove.
+  // Edit says why (after v1, UX-08).
+  await row(page, 'Olive oil').getByRole('button', { name: 'Options for Olive oil' }).click();
+  await page.getByRole('menuitem', { name: 'Edit' }).click();
+  await expect(page.getByTestId('grocery_auto_reason')).toHaveText(
+    'Added automatically: you have 0 and keep at least 1.',
+  );
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('sheet_edit_grocery_item')).toHaveCount(0);
+  // Stock coming back shows one line, "Back in stock · Remove", instead of two badges.
   await seedPantry(hid, uid, [{ id: 'oil', name: 'Olive oil', quantity: 2, min: 1, location: 'pantry' }]);
   await expect(row(page, 'Olive oil')).toContainText('Back in stock');
-  await row(page, 'Olive oil').getByRole('button', { name: 'Remove' }).click();
+  await expect(row(page, 'Olive oil')).not.toContainText('Added automatically');
+  await row(page, 'Olive oil')
+    .getByRole('button', { name: "Remove Olive oil from the list, it's back in stock" })
+    .click();
   await expect(row(page, 'Olive oil')).toHaveCount(0);
 
   // Another phone on the account adds an item: it shows here with a short highlight.

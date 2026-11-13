@@ -27,6 +27,21 @@
   position: absolute;
   inset: 0;
 }
+.sn-screen-frame--bar {
+  display: flex;
+  flex-direction: column;
+}
+.sn-screen-frame__main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+/* A bar under the content (DetailScaffold's bottomBar; Recipe detail's Start cooking, after v1, UX-12). */
+.sn-bottom-bar {
+  padding: 12px calc(16px + var(--sn-safe-right)) 12px calc(16px + var(--sn-safe-left));
+  background: var(--md-sys-color-surface-container);
+  box-shadow: 0 -1px 3px rgb(0 0 0 / 0.12);
+}
 .sn-screen__fab {
   position: absolute;
   right: calc(16px + var(--sn-safe-right));

@@ -21,7 +21,9 @@ import { RecipeDetailScreen } from './recipes/RecipeDetailScreen';
 import { RecipeEditScreen } from './recipes/RecipeEditScreen';
 import { RecipesScreen } from './recipes/RecipesScreen';
 import { PantryScreen } from './pantry/PantryScreen';
+import { NotificationExplainer } from './notifications/NotificationExplainer';
 import { NotificationSettingsScreen } from './notifications/NotificationSettingsScreen';
+import { useReminders, useTurnOnReminders } from './notifications/reminders';
 import { AboutScreen } from './settings/AboutScreen';
 import { SettingsScreen } from './settings/SettingsScreen';
 import { top, type Route, type Tab } from '../core/navigation';
@@ -64,11 +66,23 @@ export function AppShell() {
     restock.start();
     return () => restock.stop();
   }, [restock]);
+  // Reminders are explained on whichever tab is open (after v1, review UX-02), and Home says when they are off.
+  const reminders = useReminders();
+  const turnOn = useTurnOnReminders();
+  // When the system no longer asks, Settings > Notifications says where to turn them on.
+  const turnOnReminders = () => void turnOn(() => nav.navigate({ name: 'notifications' }));
   return (
     <div className="sn-shell">
       <div className="sn-shell__main">
         <SnackbarProvider>
-          <Screen tab={nav.state.tab} route={route} />
+          <Screen
+            tab={nav.state.tab}
+            route={route}
+            reminders={{ off: reminders.offOnThisPhone, turnOn: turnOnReminders }}
+          />
+          {reminders.ask && (
+            <NotificationExplainer hour={reminders.hour} onTurnOn={turnOnReminders} onLater={reminders.later} />
+          )}
           <UpdatePrompt />
           <WriteRefusals />
         </SnackbarProvider>
@@ -148,7 +162,15 @@ function UpdatePrompt() {
   return null;
 }
 
-function Screen({ tab, route }: { tab: Tab; route: Route }) {
+function Screen({
+  tab,
+  route,
+  reminders,
+}: {
+  tab: Tab;
+  route: Route;
+  reminders: { off: boolean; turnOn: () => void };
+}) {
   const nav = useNav();
   const me = useHouseholdSession();
   const { households } = useServices();
@@ -227,8 +249,10 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
     return (
       <HomeScreen
         joinRequests={joinRequests}
+        remindersOff={reminders.off}
         navigation={{
           openSettings,
+          turnOnReminders: reminders.turnOn,
           // A Home card opens the Pantry tab at its root with its filter (DeepLink.Pantry in the app).
           openPantry: (filter) => {
             setPantryQuery((q) => ({ ...q, filter }));

@@ -410,8 +410,15 @@ export function WeekGrocerySheet({
         <FormSheetColumn
           title={str('plan_shop_title')}
           button={
-            <Button full large data-testid="plan_add_items" onClick={() => count > 0 && onAdd(chosen)}>
-              {plural('recipe_add_items', count, count)}
+            <Button
+              full
+              large
+              data-testid="plan_add_items"
+              // A button for nothing says what to do instead (after v1, UX-18: it read "Add 0 items").
+              disabled={count === 0}
+              onClick={() => count > 0 && onAdd(chosen)}
+            >
+              {count > 0 ? plural('recipe_add_items', count, count) : str('recipe_add_none')}
             </Button>
           }
         >

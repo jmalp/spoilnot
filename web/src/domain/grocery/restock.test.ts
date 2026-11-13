@@ -239,6 +239,43 @@ describe('RestockEngine', () => {
     expect(RestockEngine.isBackInStock({ ...item, checked: true }, back)).toBe(false);
     expect(RestockEngine.isBackInStock({ ...item, source: 'manual' }, back)).toBe(false);
   });
+
+  it('says why it added an item: what is left and Keep at least, as they are now (UX-08)', () => {
+    const item: GroceryItem = {
+      id: 'low_milk',
+      name: 'Milk',
+      nameKey: 'milk',
+      quantity: 1,
+      unit: null,
+      note: null,
+      category: null,
+      checked: false,
+      checkedBy: null,
+      source: 'low_stock',
+      productId: 'milk',
+      recipeId: null,
+      createdBy: null,
+      createdAt: null,
+      pendingSync: false,
+      aliasOf: null,
+    };
+    expect(RestockEngine.reason(item, data([milk()], [batch('b1', 'milk', { quantity: 1 })]))).toEqual({
+      kind: 'low',
+      have: 1,
+      keepAtLeast: 2,
+      unit: 'pcs',
+    });
+    // Used-up purchases don't count.
+    expect(RestockEngine.reason(item, data([milk()], [batch('b1', 'milk', { quantity: 0 })]))).toMatchObject({
+      have: 0,
+    });
+    // The product was deleted, or no longer has Keep at least.
+    expect(RestockEngine.reason(item, data([], []))).toEqual({ kind: 'productGone' });
+    expect(RestockEngine.reason(item, data([milk({ min: null })], []))).toEqual({ kind: 'productGone' });
+    // Something a person added has no reason to give.
+    expect(RestockEngine.reason({ ...item, source: 'manual' }, data([milk()], []))).toBeNull();
+    expect(RestockEngine.reason({ ...item, source: 'recipe' }, data([milk()], []))).toBeNull();
+  });
 });
 
 describe('RestockRunner', () => {

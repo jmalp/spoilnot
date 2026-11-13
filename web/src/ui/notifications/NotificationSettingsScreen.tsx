@@ -1,37 +1,12 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { useObservable } from '../../core/hooks';
+import { useId } from 'react';
 import { str, type StringId } from '../../core/i18n';
-import { pushStatus, requestPushPermission, showTestNotification, type PushStatus } from '../../core/push';
+import { pushStatus, showTestNotification, type PushStatus } from '../../core/push';
 import { useHouseholdSession, useServices } from '../../core/services';
 import { EXPIRED_MODES, NotificationRules, type NotificationPrefs } from '../../domain/notifications';
 import { Button, Card, Checkbox, Progress, Radio, SelectField, Switch, useSnackbars } from '../kit';
 import { DetailScaffold } from '../Scaffold';
+import { formatHour, useNotificationPrefs, usePushStatus, useTurnOnReminders } from './reminders';
 import './notifications.css';
-
-/** "9:00 AM" in the phone's language (FormatStyle.SHORT in the app). */
-export const formatHour = (hour: number): string =>
-  new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(2000, 0, 1, hour));
-
-/** The system's notification permission, checked again when the user comes back from the iPhone's Settings. */
-export function usePushStatus(): [PushStatus, () => void] {
-  const [status, setStatus] = useState(pushStatus);
-  const refresh = useCallback(() => setStatus(pushStatus()), []);
-  useEffect(() => {
-    document.addEventListener('visibilitychange', refresh);
-    return () => document.removeEventListener('visibilitychange', refresh);
-  }, [refresh]);
-  return [status, refresh];
-}
-
-/** This phone's notification settings, as a store shared with Settings' row (NotificationSettingsViewModel). */
-export function useNotificationPrefs(): NotificationPrefs | null {
-  const me = useHouseholdSession();
-  const { notificationPrefs } = useServices();
-  return useObservable<NotificationPrefs | null>(
-    useMemo(() => notificationPrefs.observe(me.user.uid), [notificationPrefs, me.user.uid]),
-    null,
-  );
-}
 
 const STAGES: [number, StringId][] = [
   [3, 'stage_3'],
@@ -43,18 +18,15 @@ const STAGES: [number, StringId][] = [
 /** Settings > Notifications (DESIGN 10.2): on or off, the hour, meals, stages and expired food. */
 export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
   const me = useHouseholdSession();
-  const { notificationPrefs, deviceSync } = useServices();
+  const { notificationPrefs } = useServices();
   const snackbars = useSnackbars();
   const prefs = useNotificationPrefs();
-  const [status, refresh] = usePushStatus();
+  const status = usePushStatus();
   const update = (change: (p: NotificationPrefs) => NotificationPrefs) => {
     if (prefs) void notificationPrefs.save(me.user.uid, change(prefs)).catch(() => undefined);
   };
-  const turnOn = async () => {
-    const answer = await requestPushPermission();
-    refresh();
-    if (answer === 'granted') await deviceSync.permissionGranted();
-  };
+  // A Turn on that works says "You're set" here too (DESIGN 5.4).
+  const turnOn = useTurnOnReminders();
   return (
     <DetailScaffold title={str('settings_notifications')} onBack={onBack} testId="screen_notifications">
       {prefs === null ? (

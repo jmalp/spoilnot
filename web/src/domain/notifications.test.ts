@@ -2,7 +2,17 @@ import { BehaviorSubject } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 import type { DeviceRegistry } from './household';
 import { AppError } from '../core/errors';
-import { DeviceSync, NotificationRules, type PushIdentity, type StoredFlag } from './notifications';
+import {
+  DeviceSync,
+  NotificationPrompt,
+  NotificationRules,
+  YoureSet,
+  type PushIdentity,
+  type ReminderAccess,
+  type StoredFlag,
+} from './notifications';
+import { batch, FIXED_CLOCK, TODAY } from './pantry/fixtures';
+import { addDays, today } from './time';
 import { LOADING, SIGNED_OUT, type Session } from './session';
 
 const user = (uid: string) => ({ uid, email: `${uid}@example.com`, displayName: uid, emailVerified: true });
@@ -38,13 +48,135 @@ describe('NotificationRules', () => {
     expect(NotificationRules.HOURS.at(-1)).toBe(21);
     expect(NotificationRules.hour({ ...NotificationRules.read({}), digestMinutes: 9 * 60 + 30 })).toBe(9);
   });
+});
 
-  it('explains notifications when the third dated item is saved, once (PantryViewModel)', () => {
-    expect(NotificationRules.shouldExplain(true, 2, false)).toBe(true);
-    expect(NotificationRules.shouldExplain(true, 5, false)).toBe(true);
-    expect(NotificationRules.shouldExplain(true, 1, false)).toBe(false);
-    expect(NotificationRules.shouldExplain(false, 4, false)).toBe(false);
-    expect(NotificationRules.shouldExplain(true, 4, true)).toBe(false);
+/** DESIGN 5.4 after v1 (review UX-02, CODE-10): when this phone explains reminders and asks (NotificationPromptTest). */
+describe('NotificationPrompt', () => {
+  const blocked: ReminderAccess = { permission: 'default', remindersOn: true, explained: false };
+
+  it('a household that opens with dated food asks at once', () => {
+    // A member who joined, or a new phone: one dated item is enough.
+    expect(NotificationPrompt.shouldAsk(blocked, 1, 1)).toBe(true);
+    // It still asks if the food was used up since the household opened.
+    expect(NotificationPrompt.shouldAsk(blocked, 2, 0)).toBe(true);
+  });
+
+  it('a household that opens with none asks at the third dated item, whoever adds it', () => {
+    expect(NotificationPrompt.shouldAsk(blocked, 0, 0)).toBe(false);
+    expect(NotificationPrompt.shouldAsk(blocked, 0, 1)).toBe(false);
+    expect(NotificationPrompt.shouldAsk(blocked, 0, 2)).toBe(false);
+    expect(NotificationPrompt.shouldAsk(blocked, 0, NotificationPrompt.DATED_TO_ASK)).toBe(true);
+    expect(NotificationPrompt.shouldAsk(blocked, 0, 7)).toBe(true);
+  });
+
+  it('nothing is asked before the household has loaded from the server', () => {
+    // A new phone's cache is empty at first: that is not a new household.
+    expect(NotificationPrompt.shouldAsk(blocked, null, 5)).toBe(false);
+  });
+
+  it('it asks once, only while the system can still ask and only when the member wants reminders', () => {
+    expect(NotificationPrompt.shouldAsk({ ...blocked, explained: true }, 3, 3)).toBe(false);
+    expect(NotificationPrompt.shouldAsk({ ...blocked, permission: 'granted' }, 3, 3)).toBe(false);
+    // A web app can't show the system's question again once refused.
+    expect(NotificationPrompt.shouldAsk({ ...blocked, permission: 'denied' }, 3, 3)).toBe(false);
+    // Safari outside the Home Screen waits for the installed app; a browser without web push never asks.
+    expect(NotificationPrompt.shouldAsk({ ...blocked, permission: 'install' }, 3, 3)).toBe(false);
+    expect(NotificationPrompt.shouldAsk({ ...blocked, permission: 'unsupported' }, 3, 3)).toBe(false);
+    expect(NotificationPrompt.shouldAsk({ ...blocked, remindersOn: false }, 3, 3)).toBe(false);
+    // The member's settings have not loaded yet: wait rather than ask someone who turned reminders off.
+    expect(NotificationPrompt.shouldAsk({ ...blocked, remindersOn: null }, 3, 3)).toBe(false);
+  });
+
+  it('a phone whose answer is already in is marked explained without asking', () => {
+    expect(NotificationPrompt.explainedWithoutAsking({ ...blocked, permission: 'granted' })).toBe(true);
+    expect(NotificationPrompt.explainedWithoutAsking({ ...blocked, permission: 'denied' })).toBe(true);
+    expect(NotificationPrompt.explainedWithoutAsking(blocked)).toBe(false);
+    expect(NotificationPrompt.explainedWithoutAsking({ ...blocked, permission: 'install' })).toBe(false);
+    expect(NotificationPrompt.explainedWithoutAsking({ ...blocked, permission: 'granted', explained: true })).toBe(
+      false,
+    );
+  });
+
+  it('Home says reminders are off once the explanation was answered and the phone still blocks them', () => {
+    const answered = { ...blocked, explained: true };
+    expect(NotificationPrompt.offOnThisPhone(answered)).toBe(true);
+    expect(NotificationPrompt.offOnThisPhone({ ...answered, permission: 'denied' })).toBe(true);
+    // Before the explanation, the explanation itself asks.
+    expect(NotificationPrompt.offOnThisPhone(blocked)).toBe(false);
+    expect(NotificationPrompt.offOnThisPhone({ ...answered, permission: 'granted' })).toBe(false);
+    // Safari has its Add to Home Screen card; a browser without web push has nothing to turn on.
+    expect(NotificationPrompt.offOnThisPhone({ ...answered, permission: 'install' })).toBe(false);
+    expect(NotificationPrompt.offOnThisPhone({ ...answered, permission: 'unsupported' })).toBe(false);
+    // Turned off in Settings on purpose: Settings already says Off.
+    expect(NotificationPrompt.offOnThisPhone({ ...answered, remindersOn: false })).toBe(false);
+    expect(NotificationPrompt.offOnThisPhone({ ...answered, remindersOn: null })).toBe(false);
+  });
+
+  it('Settings says Off on this phone when the reminder is on but this phone cannot show it', () => {
+    expect(NotificationPrompt.blockedHere('default', true)).toBe(true);
+    expect(NotificationPrompt.blockedHere('denied', true)).toBe(true);
+    expect(NotificationPrompt.blockedHere('install', true)).toBe(true);
+    expect(NotificationPrompt.blockedHere('granted', true)).toBe(false);
+    expect(NotificationPrompt.blockedHere('denied', false)).toBe(false);
+    expect(NotificationPrompt.blockedHere('denied', null)).toBe(false);
+  });
+
+  it("dated food is what is in stock and not yet expired, on the clock's day", () => {
+    const batches = [
+      batch('a', 'milk', { inDays: 0 }),
+      batch('b', 'eggs', { inDays: 3 }),
+      batch('c', 'yogurt', { inDays: -1 }),
+      batch('d', 'rice', { inDays: null }),
+      batch('e', 'cheese', { inDays: 5, quantity: 0 }),
+    ];
+    expect(NotificationPrompt.datedFood(batches, TODAY)).toBe(2);
+    // The next day, today's milk has expired.
+    expect(NotificationPrompt.datedFood(batches, addDays(TODAY, 1))).toBe(1);
+    // Callers pass today from the injected clock, in the phone's zone.
+    expect(NotificationPrompt.datedFood(batches, today(FIXED_CLOCK))).toBe(2);
+  });
+});
+
+/** "You're set" after Turn on (DESIGN 5.4; owner's decision 2): the time and tomorrow's reminder (YoureSetTest). */
+describe('YoureSet', () => {
+  const prefs = NotificationRules.read(undefined);
+
+  it("names what tomorrow's reminder picks, soonest first, one name per product", () => {
+    const batches = [
+      // Tomorrow is 2026-10-13: these are 0, 1 and 3 days from it.
+      batch('s', 'spinach', { inDays: 2 }),
+      batch('c', 'chicken', { inDays: 1 }),
+      batch('c2', 'chicken', { inDays: 3 }),
+      batch('y', 'yogurt', { inDays: 4 }),
+      // Expires today: expired tomorrow, left out. Too far, undated or used up: left out.
+      batch('m', 'milk', { inDays: 0 }),
+      batch('r', 'rice', { inDays: 5 }),
+      batch('f', 'flour', { inDays: null }),
+      batch('e', 'eggs', { inDays: 1, quantity: 0 }),
+    ];
+    expect(YoureSet.of(prefs, batches, TODAY)).toEqual({
+      hour: 9,
+      tomorrow: ['Chicken', 'Spinach', 'Yogurt'],
+      more: 0,
+    });
+  });
+
+  it("the member's own stages and hour", () => {
+    const batches = [batch('c', 'chicken', { inDays: 1 }), batch('s', 'spinach', { inDays: 2 })];
+    // Only "the day it expires" and "1 day before": tomorrow names the chicken (0) and the spinach (1).
+    const content = YoureSet.of({ ...prefs, digestMinutes: 18 * 60, stages: [1, 0] }, batches, TODAY);
+    expect(content).toEqual({ hour: 18, tomorrow: ['Chicken', 'Spinach'], more: 0 });
+    // Only 3 days before: neither.
+    expect(YoureSet.of({ ...prefs, stages: [3] }, batches, TODAY).tomorrow).toEqual([]);
+  });
+
+  it('more than three products are counted', () => {
+    const batches = [1, 2, 3, 4, 5].map((i) => batch(`b${i}`, `p${i}`, { inDays: 1, name: `Item ${i}` }));
+    expect(YoureSet.of(prefs, batches, TODAY)).toEqual({ hour: 9, tomorrow: ['Item 1', 'Item 2', 'Item 3'], more: 2 });
+  });
+
+  it('nothing due tomorrow', () => {
+    expect(YoureSet.of(prefs, [batch('r', 'rice', { inDays: 30 })], TODAY)).toEqual({ hour: 9, tomorrow: [], more: 0 });
   });
 });
 

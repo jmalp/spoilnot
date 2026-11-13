@@ -17,7 +17,7 @@ import { Cooking, UseItUp } from '../../domain/recipes/cooking';
 import type { Recipe } from '../../domain/recipes/models';
 import { addDays, daysBetween, sortedWith, type LocalDate } from '../../domain/time';
 import type { Undo } from '../../domain/write';
-import { Button, Card, Dialog, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
+import { Button, Card, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
 import { CookedSheet } from '../recipes/RecipeSheets';
 import { LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
 import { CookChip, CookedLabel, cookNames, dayTitle, shortDate, slotLabel, useFirstDay } from './components';
@@ -111,7 +111,6 @@ export function PlanScreen({
   }, [sheet, firstDay, start, thisWeek, onWeekOffset]);
   const [cookingId, setCookingId] = useState<string | null>(null);
   const [shopping, setShopping] = useState(false);
-  const [confirmClear, setConfirmClear] = useState(false);
   const findMeal = (id: string | null) => (id === null ? null : (weekMeals.find((m) => m.id === id) ?? null));
   const openMeal = findMeal(openMealId);
   const recipeOf = (meal: PlannedMeal) => recipeList.find((r) => r.id === meal.recipeId) ?? null;
@@ -138,7 +137,11 @@ export function PlanScreen({
       );
       const copied = await mealPlanService.copyWeek(hid, actor, previous.meals, from, start, weekMeals);
       if (!copied) snackbars.show(str(previous.meals.length === 0 ? 'plan_copy_none' : 'plan_copy_already'));
-      else snackbars.showUndo(str('plan_copied', copied[0]), () => void mealPlanService.undo(hid, actor, copied[1]));
+      else
+        snackbars.showUndo(
+          plural('plan_copied_meals', copied[0], copied[0]),
+          () => void mealPlanService.undo(hid, actor, copied[1]),
+        );
     });
   };
 
@@ -169,7 +172,12 @@ export function PlanScreen({
               onClick={() => setShopping(true)}
             />
           )}
-          <PlanMenu canClear={weekMeals.length > 0} onCopy={copyLastWeek} onClear={() => setConfirmClear(true)} />
+          <PlanMenu
+            canClear={weekMeals.length > 0}
+            onCopy={copyLastWeek}
+            // Undo, no dialog (after v1, R13 and DESIGN 6.1).
+            onClear={() => withUndo(() => mealPlanService.clear(hid, actor, weekMeals), str('plan_cleared'))}
+          />
         </>
       }
     >
@@ -195,38 +203,6 @@ export function PlanScreen({
           loaded={plan.start === start}
           onCopyLastWeek={copyLastWeek}
         />
-      )}
-      {confirmClear && (
-        <Dialog
-          title={str('plan_clear_title')}
-          onDismiss={() => setConfirmClear(false)}
-          actions={
-            <>
-              <Button variant="text" onClick={() => setConfirmClear(false)}>
-                {str('action_cancel')}
-              </Button>
-              <Button
-                variant="text"
-                data-testid="plan_clear_confirm"
-                onClick={() => {
-                  setConfirmClear(false);
-                  withUndo(() => mealPlanService.clear(hid, actor, weekMeals), str('plan_cleared'));
-                }}
-              >
-                {str('plan_clear_confirm')}
-              </Button>
-            </>
-          }
-        >
-          <p className="t-body-medium c-on-surface-variant">
-            {plural(
-              'plan_clear_text',
-              weekMeals.length,
-              weekMeals.length,
-              str('plan_week_range', shortDate(start), shortDate(MealWeek.end(start))),
-            )}
-          </p>
-        </Dialog>
       )}
       {adding && (
         <AddMealSheetFor

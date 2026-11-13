@@ -96,7 +96,7 @@ test('plan meals, change and cook one, move with Undo, copy and clear weeks, sho
   await expect(page.getByTestId('plan_this_week')).toBeVisible();
   await page.getByTestId('plan_menu').click();
   await page.getByTestId('plan_copy_last_week').click();
-  await expect(status(page, "Copied last week's meals (2)")).toBeVisible();
+  await expect(status(page, 'Copied 2 meals from last week')).toBeVisible();
   const nextWeek = page.getByTestId('plan_days');
   await expect(nextWeek).toContainText('Tacos');
   await expect(nextWeek).not.toContainText('Cooked');
@@ -111,9 +111,9 @@ test('plan meals, change and cook one, move with Undo, copy and clear weeks, sho
   await expect(shop).toHaveCount(0);
 
   await page.getByTestId('plan_menu').click();
+  // No dialog: it clears at once, with Undo (after v1, one rule for confirmations, R13).
   await page.getByTestId('plan_clear_week').click();
-  await expect(page.getByRole('dialog')).toContainText('Removes all 2 meals');
-  await page.getByTestId('plan_clear_confirm').click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(nextWeek).not.toContainText('Tacos');
   await status(page, 'Cleared this week').getByRole('button', { name: 'Undo' }).click();
   await expect(nextWeek).toContainText('Tacos');
@@ -156,10 +156,10 @@ test("an empty week says how to fill it, and its Copy last week copies or says t
   await page.getByTestId('plan_next_week').click();
   await expect(empty).toBeVisible();
   await page.getByTestId('plan_empty_copy').click();
-  await expect(status(page, "Copied last week's meals (1)")).toBeVisible();
+  await expect(status(page, 'Copied 1 meal from last week')).toBeVisible();
   await expect(page.getByTestId('plan_days')).toContainText('Soup');
   await expect(empty).toHaveCount(0);
-  await status(page, "Copied last week's meals (1)").getByRole('button', { name: 'Undo' }).click();
+  await status(page, 'Copied 1 meal from last week').getByRole('button', { name: 'Undo' }).click();
   await expect(empty).toBeVisible();
 
   // Back on this week, which has a meal: no sentence.
