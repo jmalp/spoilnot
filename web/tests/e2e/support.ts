@@ -371,6 +371,8 @@ export type SeedRecipe = {
   tags?: string[];
   favorite?: boolean;
   sourceUrl?: string | null;
+  /** The recipe's "By" name, as an import keeps it. */
+  sourceName?: string | null;
   /** Seconds before now, for the box's Recent order. */
   createdSecondsAgo?: number;
 };
@@ -381,7 +383,7 @@ export async function seedRecipe(hid: string, uid: string, r: SeedRecipe) {
   await put(`households/${hid}/recipes/${r.id}`, {
     title: r.title,
     sourceUrl: r.sourceUrl ?? null,
-    sourceName: null,
+    sourceName: r.sourceName ?? null,
     imageUrl: null,
     description: null,
     servings: r.servings ?? null,

@@ -192,16 +192,16 @@ test("in a Safari tab, a swipe from the screen's left edge is left to Safari", a
   };
   const width = page.viewportSize()!.width;
 
-  // From 4 px, all the way across: Safari's Back, not the row's delete (WEB-15).
+  // From 4 px, all the way across: Safari's Back, not the row's check-off (WEB-15; right checks off since UX-10).
   await swipe('Bread', 4, width - 10);
   await expect(page.getByTestId('screen_groceries')).toBeVisible();
   await expect(row(page, 'Bread')).toBeVisible();
-  await expect(page.getByRole('status').filter({ hasText: 'Bread removed' })).toHaveCount(0);
+  await expect(page.getByTestId('cart_header')).toHaveCount(0);
 
-  // From inside the row, the same swipe deletes it.
+  // From inside the row, the same swipe checks it off.
   await swipe('Bread', 40, width - 10);
-  await expect(page.getByRole('status').filter({ hasText: 'Bread removed' })).toBeVisible();
-  await expect(row(page, 'Bread')).toHaveCount(0);
+  await expect(page.getByTestId('cart_header')).toContainText('In cart (1)');
+  await expect(row(page, 'Bread').getByRole('checkbox')).toBeChecked();
 });
 
 test('a sheet stays above the keyboard and scrolls the focused field into view', async ({ page }) => {

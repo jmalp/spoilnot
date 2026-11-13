@@ -72,4 +72,19 @@ export const SourceUrl = {
     parseUrl(url)
       ?.hostname.toLowerCase()
       .replace(/^www\./, '') ?? null,
+
+  /**
+   * The recipe's "By" name is only the site again (after v1, R10): "recipes.example.test", "BBC Good Food" for
+   * bbcgoodfood.com, "Serious Eats" for seriouseats.com. Letters and digits are compared, ignoring case, with the
+   * site's name with or without its last part (".com").
+   */
+  namesSite(name: string, site: string | null): boolean {
+    if (site === null) return false;
+    const key = lettersAndDigits(name);
+    if (key === '') return false;
+    const dot = site.lastIndexOf('.');
+    return key === lettersAndDigits(site) || key === lettersAndDigits(dot < 0 ? site : site.slice(0, dot));
+  },
 };
+
+const lettersAndDigits = (text: string): string => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');

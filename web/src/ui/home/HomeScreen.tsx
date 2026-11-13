@@ -39,6 +39,8 @@ export type HomeNavigation = {
   openRecipe: (id: string) => void;
   openPlan: () => void;
   reviewJoinRequests: () => void;
+  /** Asks for notifications, or opens Settings > Notifications when the system no longer asks (after v1, UX-02). */
+  turnOnReminders: () => void;
 };
 
 /** Today's meals, breakfast first, and the recipes planned from today on (Use it up leaves them out, UX-05). */
@@ -49,7 +51,16 @@ const NO_PLAN: PlanToday = { meals: [], planned: new Set() };
  * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), Use it up, the grocery list with what is
  * running low, this month's kitchen (5.7) and recent activity.
  */
-export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavigation; joinRequests: number }) {
+export function HomeScreen({
+  navigation,
+  joinRequests,
+  remindersOff = false,
+}: {
+  navigation: HomeNavigation;
+  joinRequests: number;
+  /** The member wants reminders and this phone blocks them (DESIGN 5.4, 5.6). */
+  remindersOff?: boolean;
+}) {
   const me = useHouseholdSession();
   const { pantry, grocery, activity, stats, recipes, mealPlan, households, clock } = useServices();
   const today = useToday(clock);
@@ -136,6 +147,7 @@ export function HomeScreen({ navigation, joinRequests }: { navigation: HomeNavig
             useItUp={useItUp}
             todayMeals={week.meals}
             members={members}
+            remindersOff={remindersOff}
           />
         )}
       </div>
@@ -152,6 +164,7 @@ function HomeCards({
   useItUp,
   todayMeals,
   members,
+  remindersOff,
 }: {
   summary: HomeSummary;
   today: LocalDate;
@@ -161,6 +174,7 @@ function HomeCards({
   useItUp: UseItUpSuggestion[];
   todayMeals: PlannedMeal[];
   members: Member[];
+  remindersOff: boolean;
 }) {
   const { clock } = useServices();
   const now = useNow(clock);
@@ -173,9 +187,15 @@ function HomeCards({
         icon="round/warning_amber"
         testId="card_home_attention"
         // The same set and count as Pantry's Needs attention filter (after v1, R8).
+        // "See 1 in Pantry" next to the one item already shown led to the same thing (after v1, UX-18).
         action={
           attentionSize > 0
-            ? [plural('home_see_all', attentionSize, attentionSize), () => navigation.openPantry('needsAttention')]
+            ? [
+                attention.expired.length === 0 && attention.usable.length <= CARD_ROWS
+                  ? str('home_open_pantry')
+                  : plural('home_see_all', attentionSize, attentionSize),
+                () => navigation.openPantry('needsAttention'),
+              ]
             : undefined
         }
         calm={
@@ -183,6 +203,8 @@ function HomeCards({
         }
         // A new household has nothing done yet: no check mark (after v1, UX-07).
         calmIcon={summary.pantryEmpty ? 'round/kitchen' : 'round/check_circle'}
+        // What reminders would tell, and the phone that blocks them, belong together: a line, not another banner.
+        footer={remindersOff ? <RemindersOffLine onTurnOn={navigation.turnOnReminders} /> : undefined}
       >
         {/* What can still be used comes first; the expired are one line, as in Pantry (after v1, UX-01). */}
         {attention.usable.slice(0, CARD_ROWS).map((item) => (
@@ -371,6 +393,7 @@ function HomeCard({
   action,
   calm,
   calmIcon = 'round/check_circle',
+  footer,
   children,
 }: {
   title: string;
@@ -379,6 +402,8 @@ function HomeCard({
   action?: [string, () => void];
   calm?: string;
   calmIcon?: IconName;
+  /** A last line under the card's content or its calm row. */
+  footer?: ReactNode;
   children?: ReactNode;
 }) {
   if (calm !== undefined) {
@@ -393,6 +418,7 @@ function HomeCard({
             <span className="t-body-medium c-on-surface-variant">{calm}</span>
           </div>
         </div>
+        {footer && <div className="sn-home-calm__footer">{footer}</div>}
       </Card>
     );
   }
@@ -406,6 +432,7 @@ function HomeCard({
           <h2 className="t-title-medium">{title}</h2>
         </div>
         {children}
+        {footer}
         {action && (
           <Button large className="sn-home-card__action" onClick={action[1]}>
             {action[0]}
@@ -413,6 +440,24 @@ function HomeCard({
         )}
       </div>
     </Card>
+  );
+}
+
+/**
+ * "Reminders are off on this phone · Turn on" (after v1, review UX-02): the member wants reminders and this phone
+ * blocks them. Said in words with an icon, not by color.
+ */
+function RemindersOffLine({ onTurnOn }: { onTurnOn: () => void }) {
+  return (
+    <div className="sn-home-reminders" data-testid="home_reminders_off">
+      <span className="c-on-surface-variant">
+        <Icon name="round/notifications_off" />
+      </span>
+      <span className="t-body-medium sn-home-reminders__text">{str('home_reminders_off')}</span>
+      <Button variant="text" large onClick={onTurnOn} data-testid="home_reminders_turn_on">
+        {str('home_reminders_turn_on')}
+      </Button>
+    </div>
   );
 }
 

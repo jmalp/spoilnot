@@ -372,7 +372,24 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     chip; tapping Favorites twice shows everything. Settings > Notifications > Expired reminder offers "Every day for
     two weeks". Settings > Household as the owner: New code, and no Pause joining, on both apps; on a household an
     older build paused, after the 2026-11-13 rules, a new phone can still ask to join and the owner approves it.
-59. Large text, screen readers and keyboard (Android, after v1, 2026-11-13, DESIGN 6.2, 6.4, 6.8): **TalkBack on**
+59. Reminders, clear words and confirmations on the iPhone (iPhone web app, after v1, 2026-11-13, DESIGN 5.2, 5.3,
+    5.4, 5.5, 5.9, 18.4): on an iPhone with Spoil Not on the Home Screen and its website data cleared (or a new
+    install), sign in as a **member** of a household that has dated food. Without opening Pantry, Home asks "Get a
+    heads-up before food expires", naming the time. Tap Not now: Needs attention ends with "Reminders are off on this
+    phone · Turn on", and Settings says Notifications "Off on this phone". Tap Turn on and Allow: a "You're set"
+    notification says "Spoil Not reminds you once a day, around 9:00 AM…" and names tomorrow's items (or "Nothing is
+    due tomorrow"); tapping it opens Pantry on Needs attention. Turn notifications off for Spoil Not in the iPhone's
+    Settings and come back: the line is back, and Turn on opens Settings > Notifications, which says where to turn
+    them on. In Safari (not the Home Screen app) nothing asks, and Settings says Off on this phone. On Groceries,
+    swipe Eggs right: "Check off" shows under the row and Eggs goes into the cart; right again in the cart: "Back to
+    list"; swipe Milk left: "Delete", then Undo. Aisle headers read "Dairy and eggs"; after a trip that changed the
+    order, "Aisles follow the order you shop in…" shows once until Got it. A restocked item says Added automatically,
+    Edit gives the reason, and stock coming back leaves one line "Back in stock · Remove". Pantry > Add item: the
+    keyboard opens on Name; "Greek yogurt" lands under Dairy and eggs. A recipe: Start cooking in a bar at the bottom,
+    I cooked this fully visible; ⋮ > Delete goes at once with Undo; Recipes has no All chip. Plan > ⋮ > Clear this
+    week goes at once with Undo. With VoiceOver on, swipe to an Undo snackbar: it stays while focused, and goes about
+    8 seconds after focus leaves.
+60. Large text, screen readers and keyboard (Android, after v1, 2026-11-13, DESIGN 6.2, 6.4, 6.8): **TalkBack on**
     (Settings > Accessibility > TalkBack), swipe through Home from the top: each Needs attention row is one stop with
     the name and its status ("Milk, Expires tomorrow"), each Today meal one stop ("Dinner: Tacos, cooking: You,
     Alex"), and the avatar says "Open settings, 1 join request waiting" once. Groceries: each row is one stop with the

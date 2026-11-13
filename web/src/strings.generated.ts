@@ -272,7 +272,6 @@ export const STRINGS = {
   "grocery_remove": "Remove",
   "grocery_item_options": "Options for %1$s",
   "grocery_already_title": "Already on the list",
-  "grocery_already_body": "%1$s is already on the list.",
   "grocery_already_more": "Add %1$s more to the %2$s on the list, or add it as a separate item?",
   "grocery_already_other_unit": "%1$s is already on the list as %2$s. Amounts in different units aren't added together.",
   "grocery_increase": "Add more",
@@ -349,7 +348,6 @@ export const STRINGS = {
   "recipe_link_invalid": "Enter a web link that starts with https://.",
   "recipe_import": "Import",
   "recipe_search": "Search by title, ingredient or tag",
-  "recipe_filter_all": "All",
   "recipe_filter_favorites": "Favorites",
   "recipe_no_matches": "No recipes match. Try another search or chip.",
   "recipe_sort": "Sort",
@@ -374,7 +372,6 @@ export const STRINGS = {
   "recipe_share": "Share",
   "recipe_gone": "This recipe was deleted.",
   "recipe_delete_title": "Delete recipe?",
-  "recipe_delete_body": "%1$s will be removed from the recipe box for everyone in the household.",
   "recipe_deleted": "Deleted %1$s",
   "recipe_add_to_list": "Add to grocery list",
   "recipe_pantry_hint": "Items that look like they're in your pantry start unchecked.",
@@ -600,12 +597,10 @@ export const STRINGS = {
   "plan_more_actions": "More plan actions",
   "plan_copy_last_week": "Copy last week",
   "plan_week_empty": "Nothing planned this week. Tap + on a meal, or copy last week's meals.",
-  "plan_copied": "Copied last week's meals (%1$s)",
   "plan_copy_none": "Last week has no meals to copy",
   "plan_copy_already": "Last week's meals are already in this week",
   "plan_clear_week": "Clear this week",
   "plan_clear_title": "Clear this week?",
-  "plan_clear_confirm": "Clear",
   "plan_cleared": "Cleared this week",
   "plan_move": "Move",
   "plan_move_title": "Move %1$s",
@@ -760,9 +755,5 @@ export const PLURALS = {
   "plan_copied_meals": {
     "one": "Copied %d meal from last week",
     "other": "Copied %d meals from last week"
-  },
-  "plan_clear_text": {
-    "one": "Removes the %1$d meal planned for %2$s. You can undo it right after.",
-    "other": "Removes all %1$d meals planned for %2$s. You can undo it right after."
   }
 } as const;

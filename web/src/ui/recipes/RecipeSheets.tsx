@@ -144,11 +144,13 @@ export function AddToGrocerySheet({
               full
               large
               data-testid="recipe_add_items"
+              // A button for nothing says what to do instead (after v1, UX-18: it read "Add 0 items").
+              disabled={count === 0}
               onClick={() => {
                 if (count > 0) onAdd(candidates.filter((_, i) => selected(i)));
               }}
             >
-              {plural('recipe_add_items', count, count)}
+              {count > 0 ? plural('recipe_add_items', count, count) : str('recipe_add_none')}
             </Button>
           }
         >

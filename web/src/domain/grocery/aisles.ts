@@ -107,6 +107,13 @@ export function guessAisle(name: string, products: Product[] = []): Category | n
 }
 
 /**
+ * The category Add item gives a new product (after v1, UX-09; AisleGuess.forNewProduct): the same guess as a typed
+ * grocery item, so Milk is Dairy and eggs in both places; Other when nothing matches.
+ */
+export const guessCategoryForNewProduct = (name: string, products: Product[]): Category =>
+  guessAisle(name, products) ?? 'other';
+
+/**
  * Aisles in the order the household walks its store, learned from check-offs; each list keeps its own. When the
  * first item of an aisle is checked off on a trip, and the saved order puts that aisle before one already visited,
  * it moves to just after the last visited one. The first aisle of a trip changes nothing.

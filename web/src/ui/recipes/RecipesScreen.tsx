@@ -13,7 +13,7 @@ import '../pantry/pantry.css';
 import './recipes.css';
 
 /**
- * The recipe box (DESIGN 5.5): search, All, Favorites and tag chips, sort, and the cards. Recipes are added in the
+ * The recipe box (DESIGN 5.5): search, Favorites and tag chips, sort, and the cards. Recipes are added in the
  * Android app (DESIGN 18.1), so there is no Add recipe button.
  */
 export function RecipesScreen({
@@ -120,7 +120,10 @@ export function RecipesScreen({
 const sameFilter = (a: RecipeFilter, b: RecipeFilter) =>
   a.kind === b.kind && (a.kind !== 'tag' || (b.kind === 'tag' && a.tag === b.tag));
 
-/** All, Favorites, then the user's tags. */
+/**
+ * Favorites, then the user's tags (DESIGN 5.5). No All chip (after v1, R16), as on Pantry: everything is the default,
+ * and tapping the chosen chip again goes back to it.
+ */
 function FilterRow({
   selected,
   tags,
@@ -131,7 +134,6 @@ function FilterRow({
   onSelect: (filter: RecipeFilter) => void;
 }) {
   const chips: [RecipeFilter, string][] = [
-    [{ kind: 'all' }, str('recipe_filter_all')],
     [{ kind: 'favorites' }, str('recipe_filter_favorites')],
     ...tags.map((tag): [RecipeFilter, string] => [{ kind: 'tag', tag }, tag]),
   ];
@@ -142,7 +144,7 @@ function FilterRow({
           key={label + filter.kind}
           label={label}
           selected={sameFilter(filter, selected)}
-          onClick={() => onSelect(filter)}
+          onClick={() => onSelect(sameFilter(filter, selected) ? { kind: 'all' } : filter)}
         />
       ))}
     </div>

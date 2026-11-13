@@ -352,8 +352,7 @@
     <string name="grocery_remove">Remove</string>
     <string name="grocery_item_options">Options for %1$s</string>
     <string name="grocery_already_title">Already on the list</string>
-    <string name="grocery_already_body">%1$s is already on the list.</string>
-    <!-- After v1 (UX-18): says how much; grocery_already_body stays for the web until its port. -->
+    <!-- After v1 (UX-18): says how much. -->
     <string name="grocery_already_more">Add %1$s more to the %2$s on the list, or add it as a separate item?</string>
     <string name="grocery_already_other_unit">%1$s is already on the list as %2$s. Amounts in different units aren\'t added together.</string>
     <string name="grocery_increase">Add more</string>
@@ -444,7 +443,6 @@
     <string name="recipe_link_invalid">Enter a web link that starts with https://.</string>
     <string name="recipe_import">Import</string>
     <string name="recipe_search">Search by title, ingredient or tag</string>
-    <string name="recipe_filter_all">All</string>
     <string name="recipe_filter_favorites">Favorites</string>
     <string name="recipe_no_matches">No recipes match. Try another search or chip.</string>
     <string name="recipe_sort">Sort</string>
@@ -474,7 +472,6 @@
     <string name="recipe_share">Share</string>
     <string name="recipe_gone">This recipe was deleted.</string>
     <string name="recipe_delete_title">Delete recipe?</string>
-    <string name="recipe_delete_body">%1$s will be removed from the recipe box for everyone in the household.</string>
     <string name="recipe_deleted">Deleted %1$s</string>
     <string name="recipe_add_to_list">Add to grocery list</string>
     <string name="recipe_pantry_hint">Items that look like they\'re in your pantry start unchecked.</string>
@@ -758,7 +755,6 @@
     <string name="plan_more_actions">More plan actions</string>
     <string name="plan_copy_last_week">Copy last week</string>
     <string name="plan_week_empty">Nothing planned this week. Tap + on a meal, or copy last week\'s meals.</string>
-    <string name="plan_copied">Copied last week\'s meals (%1$s)</string>
     <plurals name="plan_copied_meals">
         <item quantity="one">Copied %d meal from last week</item>
         <item quantity="other">Copied %d meals from last week</item>
@@ -767,11 +763,6 @@
     <string name="plan_copy_already">Last week\'s meals are already in this week</string>
     <string name="plan_clear_week">Clear this week</string>
     <string name="plan_clear_title">Clear this week?</string>
-    <plurals name="plan_clear_text">
-        <item quantity="one">Removes the %1$d meal planned for %2$s. You can undo it right after.</item>
-        <item quantity="other">Removes all %1$d meals planned for %2$s. You can undo it right after.</item>
-    </plurals>
-    <string name="plan_clear_confirm">Clear</string>
     <string name="plan_cleared">Cleared this week</string>
     <string name="plan_move">Move</string>
     <string name="plan_move_title">Move %1$s</string>

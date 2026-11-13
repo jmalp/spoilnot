@@ -6,7 +6,7 @@ import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
 import { retryLoading } from '../../domain/load';
 import { plural, str } from '../../core/i18n';
 import { useRemoteChanges } from '../../core/remoteChanges';
-import { useHouseholdSession, useServices } from '../../core/services';
+import { useHouseholdSession, usePreferences, useServices } from '../../core/services';
 import { ShoppingTrip, StoreOrder } from '../../domain/grocery/aisles';
 import { GroceryRules, type GroceryItem, type GroceryList } from '../../domain/grocery/models';
 import { RestockEngine } from '../../domain/grocery/restock';
@@ -55,7 +55,7 @@ export function GroceriesScreen({
   onSelectList: (id: string | null) => void;
 }) {
   const me = useHouseholdSession();
-  const { grocery, groceryService, pantry, households, clock } = useServices();
+  const { grocery, groceryService, pantry, households, clock, preferences } = useServices();
   const snackbars = useSnackbars();
   const today = useToday(clock);
   const hid = me.householdId;
@@ -126,6 +126,8 @@ export function GroceriesScreen({
     const layout = GroceryLayout.of(shown);
     return { ...layout, aisles: StoreOrder.sort(layout.aisles, aisleOrder ?? []) };
   }, [shown, aisleOrder]);
+  // Why the aisles move, once per phone (after v1, UX-08): once this list has learned an order and has two aisles.
+  const aisleHint = !usePreferences().aisleHintDone && (aisleOrder ?? []).length > 0 && view.aisles.length >= 2;
   const remote = useRemoteChanges(
     shown,
     (i) => i.id,
@@ -242,6 +244,8 @@ export function GroceriesScreen({
             list && actUndo(() => groceryService.clearChecked(hid, actor, list.id, shown), str('grocery_cleared'))
           }
           row={rowProps}
+          aisleHint={aisleHint}
+          onAisleHintDone={() => preferences.set({ aisleHintDone: true })}
         />
       )}
       {duplicate && (
@@ -313,6 +317,7 @@ export function GroceriesScreen({
       {editing && list && (
         <EditGroceryItemSheet
           item={editing}
+          reason={RestockEngine.reason(editing, pantryData)}
           imperialFirst={me.units === 'imperial'}
           onDismiss={() => setEditing(null)}
           onSave={(edit) => {
@@ -346,9 +351,18 @@ export function GroceriesScreen({
   );
 }
 
-/** Already on the list; amounts in another unit aren't added together (no conversion, DESIGN 2; LOGIC-08). */
+/**
+ * Already on the list: "Add 2 more to the 6 on the list…" (after v1, UX-18); amounts in another unit aren't added
+ * together (no conversion, DESIGN 2; LOGIC-08). An item without an amount counts as 1.
+ */
 function alreadyBody(request: QuickAdd, existing: GroceryItem): string {
-  if (canIncrease(request, existing) || existing.unit === null) return str('grocery_already_body', existing.name);
+  if (canIncrease(request, existing) || existing.unit === null) {
+    return str(
+      'grocery_already_more',
+      amountText(request.quantity ?? 1, request.unit ?? existing.unit),
+      amountText(existing.quantity ?? 1, existing.unit),
+    );
+  }
   const amount = existing.quantity === null ? unitLabel(existing.unit) : amountText(existing.quantity, existing.unit);
   return str('grocery_already_other_unit', existing.name, amount);
 }
@@ -360,6 +374,8 @@ function GroceryListView({
   onToggleCart,
   onClear,
   row,
+  aisleHint,
+  onAisleHintDone,
 }: {
   aisles: [string, string, GroceryItem[]][];
   inCart: GroceryItem[];
@@ -367,13 +383,17 @@ function GroceryListView({
   onToggleCart: () => void;
   onClear: () => void;
   row: (item: GroceryItem) => Parameters<typeof GroceryRow>[0];
+  aisleHint: boolean;
+  onAisleHintDone: () => void;
 }) {
   const onScroll = useOnInnerScroll();
   return (
     <div className="sn-pantry-list" data-testid="grocery_list" onScroll={onScroll}>
-      {aisles.map(([label, key, rows]) => (
+      {aisles.map(([label, key, rows], index) => (
         <section key={key} aria-label={label}>
-          <h2 className="sn-group-header t-label-large">{label}</h2>
+          <h2 className="sn-group-header sn-aisle-header t-label-large">{label}</h2>
+          {/* Under the first aisle, once: why the aisles move (after v1, UX-08). */}
+          {index === 0 && aisleHint && <AisleHint onDone={onAisleHintDone} />}
           {rows.map((item) => (
             <GroceryRow key={item.id} {...row(item)} />
           ))}
@@ -400,6 +420,19 @@ function GroceryListView({
           {cartOpen && inCart.map((item) => <GroceryRow key={item.id} {...row(item)} />)}
         </section>
       )}
+    </div>
+  );
+}
+
+/** "Aisles follow the order you shop in…" with Got it, shown once per phone (after v1, UX-08). */
+function AisleHint({ onDone }: { onDone: () => void }) {
+  return (
+    <div className="sn-aisle-hint" data-testid="grocery_aisle_hint">
+      <Icon name="round/swap_vert" size={20} />
+      <span className="t-body-medium sn-aisle-hint__text">{str('grocery_aisle_hint')}</span>
+      <Button variant="text" onClick={onDone} data-testid="grocery_aisle_hint_ok">
+        {str('grocery_aisle_hint_ok')}
+      </Button>
     </div>
   );
 }

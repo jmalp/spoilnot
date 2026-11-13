@@ -13,7 +13,7 @@ import type { Recipe } from '../../domain/recipes/models';
 import { Scaling } from '../../domain/recipes/parser';
 import { RecipeGrocery, type GroceryCandidate } from '../../domain/recipes/service';
 import { SourceUrl } from '../../domain/recipes/text';
-import { Button, Dialog, Fab, Icon, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
+import { Button, Icon, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
 import { DetailScaffold, EmptyState } from '../Scaffold';
 import {
   durationText,
@@ -48,7 +48,6 @@ export function RecipeDetailScreen({
   const recipe = box?.recipes.find((r) => r.id === recipeId) ?? null;
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
   const hid = me.householdId;
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [addingToList, setAddingToList] = useState(false);
   const [cookFactor, setCookFactor] = useState<number | null>(null);
   // The stepper starts at the recipe's servings and follows them when they change (rememberSaveable(servings)).
@@ -61,20 +60,24 @@ export function RecipeDetailScreen({
 
   const failed = (e: unknown) => snackbars.show(str(messageId(e)));
   const share = (r: Recipe) => void shareRecipe(r).then((copied) => copied && snackbars.show(str('web_recipe_copied')));
+  // Undo, no dialog (after v1, R13 and DESIGN 6.1): it leaves the screen and offers Undo where the user lands.
+  const remove = (r: Recipe) =>
+    recipeService.delete(hid, actor, r).then((undo) => {
+      onBack();
+      snackbars.showUndo(str('recipe_deleted', r.content.title), () => void recipeService.undo(hid, actor, undo));
+    }, failed);
 
   return (
     <DetailScaffold
       title=""
       onBack={onBack}
       testId="screen_recipe_detail"
-      fab={
+      // In a bar under the content, not floating (after v1, UX-12): the floating Cook button covered I cooked this.
+      bottomBar={
         recipe && recipe.content.steps.length > 0 ? (
-          <Fab
-            icon="round/play_arrow"
-            label={str('recipe_cook')}
-            data-testid="recipe_cook"
-            onClick={() => onCook(servings)}
-          />
+          <Button full large icon="round/play_arrow" data-testid="recipe_cook" onClick={() => onCook(servings)}>
+            {str('recipe_cook')}
+          </Button>
         ) : undefined
       }
       actions={
@@ -88,7 +91,7 @@ export function RecipeDetailScreen({
               onClick={() => void recipeService.setFavorite(hid, actor, recipe, !recipe.favorite).catch(failed)}
             />
             <IconButton icon="round/edit" label={str('recipe_edit')} onClick={onEdit} data-testid="recipe_edit" />
-            <OverflowMenu onShare={() => share(recipe)} onDelete={() => setConfirmDelete(true)} />
+            <OverflowMenu onShare={() => share(recipe)} onDelete={() => void remove(recipe)} />
           </>
         )
       }
@@ -107,38 +110,6 @@ export function RecipeDetailScreen({
           onAddToList={() => setAddingToList(true)}
           onCooked={setCookFactor}
         />
-      )}
-      {confirmDelete && recipe && (
-        <Dialog
-          title={str('recipe_delete_title')}
-          onDismiss={() => setConfirmDelete(false)}
-          actions={
-            <>
-              <Button variant="text" onClick={() => setConfirmDelete(false)}>
-                {str('action_cancel')}
-              </Button>
-              <Button
-                variant="text"
-                data-testid="recipe_delete_confirm"
-                onClick={() => {
-                  setConfirmDelete(false);
-                  // Deletes and leaves the screen; the snackbar offers Undo where the user lands.
-                  recipeService.delete(hid, actor, recipe).then((undo) => {
-                    onBack();
-                    snackbars.showUndo(
-                      str('recipe_deleted', recipe.content.title),
-                      () => void recipeService.undo(hid, actor, undo),
-                    );
-                  }, failed);
-                }}
-              >
-                {str('action_delete')}
-              </Button>
-            </>
-          }
-        >
-          <p className="t-body-medium c-on-surface-variant">{str('recipe_delete_body', recipe.content.title)}</p>
-        </Dialog>
       )}
       {cookFactor !== null && recipe && (
         <CookedSheetFor
@@ -189,7 +160,9 @@ function RecipeBody({
   const factor = Scaling.factor(c.servings, servings);
   const [checked, setChecked] = useState<ReadonlySet<number>>(new Set());
   const time = durationText(c.totalMinutes);
-  const people = servingsLabel(c.servings, c.servingsText);
+  // One servings control (after v1, R9): the chip only when there is no stepper to show the number.
+  const stepper = c.ingredients.length > 0 && c.servings !== null && servings !== null;
+  const people = stepper ? null : servingsLabel(c.servings, c.servingsText);
   // Only http(s) links open (DESIGN 12.2): a stored link is data another phone wrote.
   const link = SourceUrl.isWebUrl(c.sourceUrl) ? c.sourceUrl : null;
   const site = SourceUrl.siteName(link);
@@ -210,14 +183,15 @@ function RecipeBody({
             </a>
           )}
         </div>
-        {c.sourceName && <p className="t-body-medium c-on-surface-variant">{str('recipe_by', c.sourceName)}</p>}
+        {/* One source line (after v1, R10): "By …" only when it names someone other than the site. */}
+        {c.sourceName && !SourceUrl.namesSite(c.sourceName, SourceUrl.siteName(c.sourceUrl)) && (
+          <p className="t-body-medium c-on-surface-variant">{str('recipe_by', c.sourceName)}</p>
+        )}
         {c.description && <p className="t-body-large">{c.description}</p>}
         {c.ingredients.length > 0 && (
           <>
             <SectionTitle text={str('recipe_ingredients')}>
-              {c.servings !== null && servings !== null && (
-                <ServingsStepper servings={servings} onChange={onServings} />
-              )}
+              {stepper && <ServingsStepper servings={servings} onChange={onServings} />}
             </SectionTitle>
             <IngredientChecklist
               lines={c.ingredients.map((i) => [i.group, Scaling.line(i.raw, factor)])}

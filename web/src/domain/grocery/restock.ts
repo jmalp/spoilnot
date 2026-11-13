@@ -12,7 +12,7 @@ import {
   type Observable,
   type Subscription,
 } from 'rxjs';
-import type { PantryChange, PantryData, Product } from '../pantry/models';
+import type { PantryChange, PantryData, Product, QuantityUnit } from '../pantry/models';
 import type { PantryRepository } from '../pantry/repository';
 import type { SessionManager } from '../session';
 import type { Clock } from '../time';
@@ -90,6 +90,23 @@ export const RestockEngine = {
   totalOf: (product: Product, data: PantryData): number =>
     data.batches.filter((b) => b.productId === product.id && b.quantity > 0).reduce((sum, b) => sum + b.quantity, 0),
 
+  /**
+   * Why the app put [item] on the list (after v1, UX-08): how much is left and the product's Keep at least, as they
+   * are now. Null for an item a person added, and `productGone` when its product was deleted or no longer has Keep
+   * at least.
+   */
+  reason(item: GroceryItem, data: PantryData): RestockReason | null {
+    if (item.source !== 'low_stock') return null;
+    const product = data.products.find((p) => p.id === item.productId);
+    if (!product || product.minQuantity === null) return { kind: 'productGone' };
+    return {
+      kind: 'low',
+      have: RestockEngine.totalOf(product, data),
+      keepAtLeast: product.minQuantity,
+      unit: product.unit,
+    };
+  },
+
   /** A low-stock item whose product is back at Keep at least shows "Back in stock" with a one-tap remove. */
   isBackInStock(item: GroceryItem, data: PantryData): boolean {
     if (item.source !== 'low_stock' || item.checked) return false;
@@ -98,6 +115,10 @@ export const RestockEngine = {
     return RestockEngine.totalOf(product, data) >= product.minQuantity;
   },
 };
+
+/** What RestockEngine.reason tells the person about an item the app added. */
+export type RestockReason =
+  { kind: 'low'; have: number; keepAtLeast: number; unit: QuantityUnit } | { kind: 'productGone' };
 
 /** The changes that move stock or a product's settings (RestockEngine.movesStock). */
 const STOCK_CHANGES = new Set<string>([

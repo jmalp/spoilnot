@@ -1,5 +1,5 @@
 // Small settings kept on this phone, not in the household (AppPreferences in the app, DESIGN 7.3): System, Light or
-// Dark, the color theme, the first day of Plan's week, whether notifications were explained and whether the Add to Home Screen card was put away. Stored in localStorage; without it (private browsing)
+// Dark, the color theme, the first day of Plan's week, whether notifications were explained, whether the Add to Home Screen card was put away and whether Groceries' aisle hint was answered. Stored in localStorage; without it (private browsing)
 // they last until the app closes.
 import { isWeekStart, type WeekStart } from '../domain/plan/week';
 import { DEFAULT_THEME, isThemeId, type ThemeId } from '../theme/theme';
@@ -18,6 +18,8 @@ export type Preferences = {
   notificationExplainerShown: boolean;
   /** Home's Add to Home Screen card (DESIGN 18.1) was answered Not now. */
   installHelpDismissed: boolean;
+  /** Groceries' "Aisles follow the order you shop in" was answered Got it (after v1, UX-08; aisle_hint_done). */
+  aisleHintDone: boolean;
 };
 
 export const PREFERENCE_KEYS = {
@@ -26,6 +28,7 @@ export const PREFERENCE_KEYS = {
   weekStart: 'spoilnot.weekStart',
   notificationExplainerShown: 'spoilnot.notificationExplainerShown',
   installHelpDismissed: 'spoilnot.installHelpDismissed',
+  aisleHintDone: 'spoilnot.aisleHintDone',
 } as const;
 
 function defaultStorage(): Storage | null {
@@ -59,6 +62,7 @@ export class AppPreferences {
       weekStart: isWeekStart(weekStart) ? weekStart : 'auto',
       notificationExplainerShown: read(PREFERENCE_KEYS.notificationExplainerShown) === 'true',
       installHelpDismissed: read(PREFERENCE_KEYS.installHelpDismissed) === 'true',
+      aisleHintDone: read(PREFERENCE_KEYS.aisleHintDone) === 'true',
     };
   }
 
