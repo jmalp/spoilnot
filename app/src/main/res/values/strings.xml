@@ -522,8 +522,6 @@
         <item quantity="one">%d expired item to throw away or check</item>
         <item quantity="other">%d expired items to throw away or check</item>
     </plurals>
-    <string name="home_low_stock">Low stock</string>
-    <string name="home_low_stock_none">Nothing is running low.</string>
     <string name="home_grocery_list">Grocery list</string>
     <string name="home_grocery_empty">Nothing to buy right now.</string>
     <plurals name="home_grocery_count">

@@ -127,3 +127,43 @@ test('plan meals, change and cook one, move with Undo, copy and clear weeks, sho
   await tab(page, 'Pantry');
   await expect(page.getByTestId('pantry_item_eggs')).toContainText('× 3');
 });
+
+test("an empty week says how to fill it, and its Copy last week copies or says there's nothing", async ({ page }) => {
+  await openApp(page);
+  await signUp(page, 'Sam');
+  await createHousehold(page, `Empty week ${Date.now()}`);
+
+  // This week, empty: the sentence and its button come first, and the list opens there, not on today (UX-15).
+  await tab(page, 'Plan');
+  const empty = page.getByTestId('plan_week_empty');
+  await expect(empty).toHaveText(/Nothing planned this week\. Tap \+ on a meal, or copy last week's meals\./);
+  await expect(empty.getByTestId('plan_empty_copy')).toHaveText('Copy last week');
+  await expect(page.getByTestId('plan_days')).toHaveJSProperty('scrollTop', 0);
+
+  // Last week has nothing: the button says so.
+  await page.getByTestId('plan_empty_copy').click();
+  await expect(status(page, 'Last week has no meals to copy')).toBeVisible();
+
+  // The first meal: the sentence goes.
+  const today = inDays(0);
+  await page.getByTestId(`plan_add_${today}_dinner`).click();
+  await page.getByTestId('plan_other_field').fill('Soup');
+  await page.getByTestId('plan_add_other').click();
+  await expect(page.getByTestId(`plan_day_${today}`)).toContainText('Soup');
+  await expect(empty).toHaveCount(0);
+
+  // Next week is empty: Copy last week brings Soup over, with Undo.
+  await page.getByTestId('plan_next_week').click();
+  await expect(empty).toBeVisible();
+  await page.getByTestId('plan_empty_copy').click();
+  await expect(status(page, "Copied last week's meals (1)")).toBeVisible();
+  await expect(page.getByTestId('plan_days')).toContainText('Soup');
+  await expect(empty).toHaveCount(0);
+  await status(page, "Copied last week's meals (1)").getByRole('button', { name: 'Undo' }).click();
+  await expect(empty).toBeVisible();
+
+  // Back on this week, which has a meal: no sentence.
+  await page.getByTestId('plan_this_week').click();
+  await expect(page.getByTestId(`plan_day_${today}`)).toContainText('Soup');
+  await expect(empty).toHaveCount(0);
+});

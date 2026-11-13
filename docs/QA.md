@@ -122,8 +122,8 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     "Greek yogurt added". Add greek YOGURT with the same date: the row becomes × 7. Type the start of a product the
     household has used: it fills unit, place and category; pick a day in the date picker. Tap a row, set the quantity
     to 0, Save: it disappears; Undo brings it back. Tap an Out staple: Add item opens for it. Home: Needs attention and
-    Low stock list the same items as the Android Home and their buttons open Pantry filtered; This month shows the
-    same counts; throwing something away on Android appears in Recent activity within seconds. See insights: tap last
+    the Grocery list card's Running low list the same items as the Android Home (after v1, flow 56); See all opens
+    Pantry's Needs attention filter and Open list opens Groceries; This month shows the same counts; throwing something away on Android appears in Recent activity within seconds. See insights: tap last
     month's bars for its details. Larger Text at the largest size: headlines grow less than body text, the ring's
     percentage stays inside it.
 31. Web app W3 (iPhone, same household as an Android phone): on Groceries type "2 bananas", "Greek yogurt" and
@@ -332,6 +332,19 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Grocery list card "Turn on Keep some in stock…", with no green checks; Add item's switch reads Keep some in stock
     with "Puts it on the grocery list when it runs low". Go to next week on Plan: "Nothing planned this week…" with
     Copy last week, which copies this week's meals (or says last week has no meals to copy).
+56. Home tells the truth on the iPhone (iPhone web app, after v1, 2026-11-12, DESIGN 5.6, 5.9, 18.1): flow 55's
+    household, on the iPhone next to the Android phone. Home > Needs attention lists Milk and Yogurt, then "8 expired
+    items to throw away or check" with a trash icon in the Expired color; See all 10 in Pantry opens Needs attention
+    with the same 10. With Olive oil out there is no Low stock card: the Grocery list card shows Running low with
+    Olive oil and an Out badge (with five or more low, "and 1 more"), as on Android. In Settings > Appearance choose
+    Week starts on: Monday, plan Tacos (which uses Milk) for Sunday dinner from the iPhone's Plan: Use it up on Home no
+    longer suggests Tacos, and Plan's Add meal sheet doesn't either for this week but does for next week. Create a
+    new household on the iPhone: Needs attention says "Add food with its date…" with a fridge icon, the Grocery list
+    card says "Turn on Keep some in stock…", and no green checks; Add item's switch reads Keep some in stock with
+    "Puts it on the grocery list when it runs low" under it, gone once it's on (VoiceOver reads it as the switch's
+    hint). Plan opens this empty week at "Nothing planned this week…" with Copy last week ("Last week has no meals to
+    copy"); add a meal and the sentence goes; next week's Copy last week copies it, with Undo. Larger Text at the
+    largest size: the expired line and Running low wrap without cutting words.
 
 ## 3. Conditions
 
