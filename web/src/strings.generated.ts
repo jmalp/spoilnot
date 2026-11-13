@@ -319,6 +319,14 @@ export const STRINGS = {
   "notif_explainer_title": "Get a heads-up before food expires",
   "notif_explainer_body": "Spoil Not sends one notification a day when something is about to expire. You can change the time or turn it off in Settings.",
   "notif_explainer_later": "Not now",
+  "notif_explainer_body_time": "Spoil Not sends one notification a day, around %1$s, when something is about to expire. You can change the time or turn it off in Settings.",
+  "notif_youre_set_title": "You're set",
+  "notif_youre_set_time": "Spoil Not reminds you once a day, around %1$s, when food is about to expire.",
+  "notif_youre_set_tomorrow": "Tomorrow's reminder: %1$s.",
+  "notif_youre_set_nothing": "Nothing is due tomorrow.",
+  "settings_notifications_blocked": "Off on this phone",
+  "home_reminders_off": "Reminders are off on this phone",
+  "home_reminders_turn_on": "Turn on",
   "action_open": "Open",
   "action_paste": "Paste",
   "action_try_again": "Try again",
@@ -677,6 +685,10 @@ export const PLURALS = {
   "grocery_add_all_to_pantry": {
     "one": "Add all %d to pantry",
     "other": "Add all %d to pantry"
+  },
+  "notif_youre_set_more": {
+    "one": "%1$s and %2$d more",
+    "other": "%1$s and %2$d more"
   },
   "recipe_servings": {
     "one": "%d serving",

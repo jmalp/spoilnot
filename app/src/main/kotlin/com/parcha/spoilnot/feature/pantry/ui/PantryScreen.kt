@@ -58,7 +58,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -80,8 +79,6 @@ import com.parcha.spoilnot.core.designsystem.theme.StatusTone
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.core.ui.rememberRemoteChanges
 import com.parcha.spoilnot.core.ui.remoteHighlight
-import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
-import com.parcha.spoilnot.feature.notifications.ui.Notifications
 import com.parcha.spoilnot.feature.pantry.domain.ExpiredFold
 import com.parcha.spoilnot.feature.pantry.domain.PantryFilter
 import com.parcha.spoilnot.feature.pantry.domain.PantryGrouping
@@ -101,8 +98,6 @@ fun PantryScreen(
     viewModel: PantryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val askForNotifications by viewModel.askForNotifications.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var adding by rememberSaveable { mutableStateOf(false) }
     // An Out staple opens Add item for that product.
@@ -178,13 +173,6 @@ fun PantryScreen(
         }
     }
 
-    if (askForNotifications) {
-        if (Notifications.permissionGranted(context)) {
-            LaunchedEffect(Unit) { viewModel.notificationExplainerDone() }
-        } else {
-            NotificationExplainer(onDone = viewModel::notificationExplainerDone)
-        }
-    }
     if (adding) {
         AddItemSheet(
             products = state.data.products,

@@ -8,7 +8,6 @@ import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.navigation.DeepLink
 import com.parcha.spoilnot.core.navigation.DeepLinkRouter
-import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
@@ -83,14 +82,7 @@ class PantryViewModel @Inject constructor(
     private val service: PantryService,
     clock: Clock,
     private val deepLinks: DeepLinkRouter,
-    private val appPreferences: AppPreferences,
 ) : ViewModel() {
-    /**
-     * True once the third dated item is saved and the notification explanation has not been shown (DESIGN 5.4): by
-     * then reminders have something to remind about (after v1; it was the first).
-     */
-    val askForNotifications = MutableStateFlow(false)
-
     data class UiState(
         val loading: Boolean = true,
         /** One row per purchase (beta feedback). */
@@ -249,15 +241,8 @@ class PantryViewModel @Inject constructor(
 
     /** Saves the Add item sheet; returns false when it could not be saved. */
     fun add(draft: StockDraft, onDone: () -> Unit) = act { hid, actor ->
-        val before = currentData()
-        val result = service.add(hid, actor, draft, before)
+        val result = service.add(hid, actor, draft, currentData())
         onDone()
-        if (draft.expiryDate != null &&
-            before.batches.count { it.expiryDate != null } + 1 >= NOTIFICATION_PROMPT_DATED &&
-            !appPreferences.hasShownNotificationExplainer()
-        ) {
-            askForNotifications.value = true
-        }
         val text = if (result.merged) R.string.added_merged_message else R.string.added_message
         _messages.send(UiMessage(text, draft.name.trim()))
     }
@@ -311,12 +296,6 @@ class PantryViewModel @Inject constructor(
 
     fun move(batch: StockBatch, location: Location) = act { hid, actor -> service.move(hid, actor, batch, location) }
 
-    /** The explanation was answered (or not needed): never ask again from here. */
-    fun notificationExplainerDone() {
-        askForNotifications.value = false
-        viewModelScope.launch { appPreferences.markNotificationExplainerShown() }
-    }
-
     fun undo(undo: Undo) = act { hid, actor -> service.undo(hid, actor, undo) }
 
     /** Invariant 1: delete batches that reached 0, whoever notices first; one clean-up at a time. */
@@ -346,6 +325,3 @@ class PantryViewModel @Inject constructor(
 
 /** How long the Edit window waits for the member list to name who removed its item. */
 internal const val MEMBER_NAME_WAIT_MS = 3_000L
-
-/** Dated items in the pantry before the app explains notifications and asks for permission (after v1). */
-internal const val NOTIFICATION_PROMPT_DATED = 3

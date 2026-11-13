@@ -119,7 +119,11 @@ class JoinAndSignOutUiTest {
         awaitTag("card_join")
         compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("card_join"))).performTextInput(code)
         button(R.string.action_continue).performScrollTo().performClick()
-        compose.waitUntilAtLeastOneExists(hasText(str(R.string.action_send_request)) and hasAnyAncestor(isDialog()))
+        // The confirm dialog waits on a read of the invite; the default 1 s timed out on a busy emulator.
+        compose.waitUntilAtLeastOneExists(
+            hasText(str(R.string.action_send_request)) and hasAnyAncestor(isDialog()),
+            10_000,
+        )
         compose.onNode(hasText(str(R.string.action_send_request)) and hasAnyAncestor(isDialog())).performClick()
 
         awaitTag("card_join_status")

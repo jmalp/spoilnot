@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
@@ -54,7 +55,10 @@ import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
 import com.parcha.spoilnot.feature.insights.ui.InsightsScreen
+import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
+import com.parcha.spoilnot.feature.notifications.ui.RemindersViewModel
+import com.parcha.spoilnot.feature.notifications.ui.rememberTurnOnNotifications
 import com.parcha.spoilnot.feature.pantry.ui.LocalUnits
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
 import com.parcha.spoilnot.feature.plan.ui.PlanNavigation
@@ -85,8 +89,20 @@ fun AppShell(
     modifier: Modifier = Modifier,
     shellViewModel: ShellViewModel = hiltViewModel(),
     tourViewModel: TourViewModel = hiltViewModel(),
+    remindersViewModel: RemindersViewModel = hiltViewModel(),
 ) {
     val tourStep by tourViewModel.step.collectAsStateWithLifecycle()
+    // Reminders on this phone (after v1, review UX-02): asked on any tab, and Home says when they are off.
+    val reminders by remindersViewModel.state.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        remindersViewModel.refresh()
+        onPauseOrDispose { }
+    }
+    val askSystem = rememberTurnOnNotifications(onFinished = remindersViewModel::turnOnFinished)
+    val turnOnReminders = {
+        remindersViewModel.turnOnStarted()
+        askSystem()
+    }
     // A tap on a marked element can move a follow-along step on (DESIGN 5.8).
     val coachMarks = remember {
         CoachMarks { key ->
@@ -146,8 +162,10 @@ fun AppShell(
                     openInsights = { navigator.navigate(InsightsRoute(navigator.currentTab)) },
                     openRecipe = openRecipe,
                     openPlan = { navigator.showRoot(TopLevelDestination.Plan) },
+                    turnOnReminders = turnOnReminders,
                 ),
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
+                remindersOff = reminders.offOnThisPhone,
             )
         }
         entry<PantryRoute> { PantryScreen(onOpenSettings = openSettings) }
@@ -313,6 +331,9 @@ fun AppShell(
                 }
             }
             tourStep?.let { TourOverlay(it, coachMarks, tourViewModel::on) }
+            if (reminders.ask && tourStep == null) {
+                NotificationExplainer(reminders.hour, onTurnOn = turnOnReminders, onLater = remindersViewModel::later)
+            }
         }
     }
 }

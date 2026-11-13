@@ -77,6 +77,11 @@ fun NotificationSettingsScreen(
     }
     val allowed = remember(checks) { Notifications.enabled(context) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { checks++ }
+    // Turn on, then "You're set" with the time and tomorrow's items (after v1, owner's decision 2).
+    val turnOn = rememberTurnOnNotifications {
+        checks++
+        viewModel.turnOnFinished()
+    }
 
     DetailScaffold(
         title = stringResource(R.string.settings_notifications),
@@ -97,17 +102,7 @@ fun NotificationSettingsScreen(
                         val canAsk =
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 !Notifications.permissionGranted(context)
-                        TextButton(onClick = {
-                            if (canAsk) {
-                                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                context.startActivity(
-                                    Intent(
-                                        Settings.ACTION_APP_NOTIFICATION_SETTINGS,
-                                    ).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
-                                )
-                            }
-                        }) {
+                        TextButton(onClick = turnOn) {
                             Text(stringResource(if (canAsk) R.string.notif_turn_on else R.string.notif_open_settings))
                         }
                     }

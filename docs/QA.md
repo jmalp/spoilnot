@@ -345,6 +345,17 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     hint). Plan opens this empty week at "Nothing planned this week…" with Copy last week ("Last week has no meals to
     copy"); add a meal and the sentence goes; next week's Copy last week copies it, with Undo. Larger Text at the
     largest size: the expired line and Running low wrap without cutting words.
+57. Reminders people can count on (Android, after v1, 2026-11-13, DESIGN 1, 5.4, 5.6, 10.2): on a phone that never
+    ran the app (or after clearing its storage), sign in as a **member** of a household that has dated food, and
+    finish or skip the tour. Without opening Pantry, Home asks "Get a heads-up before food expires" and names the time
+    ("around 9:00 AM"). Tap Not now: Needs attention ends with "Reminders are off on this phone · Turn on", and Settings
+    says Notifications "Off on this phone". Tap Turn on and Allow: within seconds a "You're set" notification says
+    "Spoil Not reminds you once a day, around 9:00 AM…" and names tomorrow's items (or "Nothing is due tomorrow"); the
+    Home line goes away and Settings says "Daily, shortly after 9:00 AM". Tapping it opens Pantry on Needs attention.
+    Turn notifications off for Spoil Not in the system settings and come back: the line is back; Turn on now opens the
+    system settings, and turning them on there and coming back shows "You're set". Turn the daily reminder off in
+    Settings > Notifications: Home has no line and Settings says Off. On a new household as **owner**: no question
+    for the first two dated items (an undated one doesn't count), then it asks after the third, on any tab.
 
 ## 3. Conditions
 
