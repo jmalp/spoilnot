@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -49,7 +50,10 @@ import com.parcha.spoilnot.core.designsystem.component.PasswordField
 import com.parcha.spoilnot.feature.household.domain.ResetOutcome
 import com.parcha.spoilnot.feature.household.ui.DeleteAccountDialog
 import com.parcha.spoilnot.feature.household.ui.UnsyncedSignOutDialog
+import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
+import com.parcha.spoilnot.feature.notifications.domain.NotificationPrompt
 import com.parcha.spoilnot.feature.notifications.ui.formatHour
+import com.parcha.spoilnot.feature.notifications.ui.rememberNotificationsAllowed
 
 @Composable
 fun SettingsScreen(
@@ -174,28 +178,7 @@ fun SettingsScreen(
                     modifier = Modifier.clickable(onClick = onOpenHousehold).testTag("row_household"),
                 )
             }
-            OutlinedCard(Modifier.fillMaxWidth()) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_notifications)) },
-                    supportingContent = notifications?.let { prefs ->
-                        {
-                            Text(
-                                if (prefs.enabled) {
-                                    stringResource(R.string.settings_notifications_on, formatHour(prefs.hour))
-                                } else {
-                                    stringResource(R.string.settings_notifications_off)
-                                },
-                            )
-                        }
-                    },
-                    leadingContent = { Icon(Icons.Rounded.Notifications, contentDescription = null) },
-                    trailingContent = {
-                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
-                    },
-                    colors = transparent,
-                    modifier = Modifier.clickable(onClick = onOpenNotifications).testTag("row_notifications"),
-                )
-            }
+            NotificationsRow(notifications, rememberNotificationsAllowed(), onOpenNotifications)
             AppearanceCard(
                 device = device,
                 units = units,
@@ -327,4 +310,44 @@ private fun PasswordConfirmDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
+}
+
+/**
+ * Settings' Notifications row: the reminder time, "Off", or after v1 (review UX-02) "Off on this phone" when the
+ * member's reminder is on but this phone blocks notifications, which used to read as on.
+ */
+@Composable
+internal fun NotificationsRow(prefs: NotificationPrefs?, allowed: Boolean, onOpen: () -> Unit) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_notifications)) },
+            supportingContent = prefs?.let {
+                {
+                    Text(
+                        when {
+                            !prefs.enabled -> stringResource(R.string.settings_notifications_off)
+
+                            NotificationPrompt.blockedHere(allowed, prefs.enabled) ->
+                                stringResource(R.string.settings_notifications_blocked)
+
+                            else -> stringResource(R.string.settings_notifications_on, formatHour(prefs.hour))
+                        },
+                    )
+                }
+            },
+            leadingContent = {
+                Icon(
+                    if (NotificationPrompt.blockedHere(allowed, prefs?.enabled)) {
+                        Icons.Rounded.NotificationsOff
+                    } else {
+                        Icons.Rounded.Notifications
+                    },
+                    contentDescription = null,
+                )
+            },
+            trailingContent = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null) },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable(onClick = onOpen).testTag("row_notifications"),
+        )
+    }
 }

@@ -213,6 +213,12 @@ for (const dark of [false, true]) {
       // Next week, so the layout does not change with the weekday; the dates are masked.
       await page.getByRole('navigation').getByRole('button', { name: 'Plan' }).click();
       await page.getByTestId('plan_next_week').click();
+      // An empty week first: its sentence and Copy last week (after v1, UX-15).
+      await expect(page.getByTestId('plan_week_empty')).toBeVisible();
+      await shot(page, `plan_empty_week_${suffix}`, [
+        page.getByTestId('plan_week_range'),
+        page.locator('.sn-day-card__header h2'),
+      ]);
       const first = (await page.locator('[data-testid^="plan_day_"]').first().getAttribute('data-testid'))!.slice(9);
       const second = (await page.locator('[data-testid^="plan_day_"]').nth(1).getAttribute('data-testid'))!.slice(9);
       const meals = [
@@ -240,6 +246,7 @@ for (const dark of [false, true]) {
       ] as const;
       for (const m of meals) await seedMeal(hid, uid, { ...m, cooks: 'cooks' in m ? [...m.cooks] : [] });
       await expect(page.getByTestId('plan_days')).toContainText('Old soup');
+      await expect(page.getByTestId('plan_week_empty')).toHaveCount(0);
       await expect(page.locator('[data-remote]')).toHaveCount(0);
       const planDates = [page.getByTestId('plan_week_range'), page.locator('.sn-day-card__header h2')];
       await shot(page, `plan_${suffix}`, planDates);

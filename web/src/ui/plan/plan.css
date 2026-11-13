@@ -170,3 +170,13 @@
 .sn-week-section h3 {
   margin: 0;
 }
+/* An empty week: a sentence and Copy last week, above the days (after v1, UX-15). */
+.sn-plan-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.sn-plan-empty p {
+  margin: 0;
+}

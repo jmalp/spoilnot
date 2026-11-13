@@ -10,7 +10,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "app_preferences")
@@ -61,10 +60,12 @@ class AppPreferences @Inject constructor(@param:ApplicationContext private val c
 
     val notificationExplainerShown: Flow<Boolean> = context.dataStore.data.map { it[explainerShown] == true }
 
-    suspend fun hasShownNotificationExplainer(): Boolean = notificationExplainerShown.first()
+    /** The notification explanation was answered on this phone, or not needed (DESIGN 5.4; once per phone). */
+    suspend fun markNotificationExplainerShown() = setNotificationExplainerShown(true)
 
-    suspend fun markNotificationExplainerShown() {
-        context.dataStore.edit { it[explainerShown] = true }
+    /** Tests start a phone that has not explained reminders yet. */
+    internal suspend fun setNotificationExplainerShown(shown: Boolean) {
+        context.dataStore.edit { it[explainerShown] = shown }
     }
 
     /** The app tour (DESIGN 5.8) was finished or skipped on this phone; false starts it on the next Home. */

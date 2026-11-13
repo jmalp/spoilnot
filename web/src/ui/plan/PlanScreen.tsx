@@ -61,9 +61,14 @@ export function PlanScreen({
 
   // "Couldn't load. Retry" (DESIGN 6.7): the week listens again instead of spinning (after v1, WEB-10).
   const { load, failed: loadFailed } = useLoadRetry();
-  const plan = useObservable<MealPlanData | null>(
+  // Tagged with its week: the last week's data stays on screen until the new week's first answer.
+  const plan = useObservable<(MealPlanData & { start: LocalDate }) | null>(
     useMemo(
-      () => mealPlan.observe(hid, start, MealWeek.end(start)).pipe(retryLoading(load)),
+      () =>
+        mealPlan.observe(hid, start, MealWeek.end(start)).pipe(
+          map((data) => ({ ...data, start })),
+          retryLoading(load),
+        ),
       [mealPlan, hid, start, load],
     ),
     null,
@@ -187,6 +192,8 @@ export function PlanScreen({
           recipeIds={new Set(recipeList.map((r) => r.id))}
           onAdd={(date, slot) => setSheet(PlanDrafts.addMeal(date, slot))}
           onOpen={(meal) => setSheet(PlanDrafts.meal(meal))}
+          loaded={plan.start === start}
+          onCopyLastWeek={copyLastWeek}
         />
       )}
       {confirmClear && (
@@ -223,6 +230,7 @@ export function PlanScreen({
       )}
       {adding && (
         <AddMealSheetFor
+          planned={MealWeek.plannedFrom(weekMeals, today)}
           draft={adding}
           onDraft={editSheet}
           recipes={recipeList}
@@ -409,6 +417,8 @@ function PlanDaysList({
   recipeIds,
   onAdd,
   onOpen,
+  loaded,
+  onCopyLastWeek,
 }: {
   days: PlanDay[];
   members: Member[];
@@ -416,19 +426,27 @@ function PlanDaysList({
   recipeIds: Set<string>;
   onAdd: (date: LocalDate, slot: MealSlot) => void;
   onOpen: (meal: PlannedMeal) => void;
+  /** The meals are the shown week's, not the last week's while the new one loads. */
+  loaded: boolean;
+  onCopyLastWeek: () => void;
 }) {
   const onScroll = useOnInnerScroll();
   const list = useRef<HTMLDivElement>(null);
   const firstDate = days[0]?.date;
-  // This week opens on today, not on the first day.
+  // An empty week says how to fill it, with Copy last week out of the ⋮ menu too (after v1, UX-15).
+  const empty = loaded && days.every(PlanDays.isEmpty);
+  // This week opens on today, not on the first day; an empty one at its sentence.
   useEffect(() => {
     const node = list.current;
-    if (!node) return;
-    const today = node.querySelector<HTMLElement>('[data-today]');
+    if (!node || !loaded) return;
+    const today = empty ? null : node.querySelector<HTMLElement>('[data-today]');
     node.scrollTop = today ? today.offsetTop - node.offsetTop - 16 : 0;
-  }, [firstDate]);
+    // Once per week, when its meals arrive: the first meal added to an empty week must not move the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstDate, loaded]);
   return (
     <div className="sn-plan-days" data-testid="plan_days" ref={list} onScroll={onScroll}>
+      {empty && <EmptyWeek onCopyLastWeek={onCopyLastWeek} />}
       {days.map((day) => (
         <DayCard
           key={day.date}
@@ -440,6 +458,18 @@ function PlanDaysList({
           onOpen={onOpen}
         />
       ))}
+    </div>
+  );
+}
+
+/** "Nothing planned this week…" with Copy last week (after v1, UX-15). */
+function EmptyWeek({ onCopyLastWeek }: { onCopyLastWeek: () => void }) {
+  return (
+    <div className="sn-plan-empty" data-testid="plan_week_empty">
+      <p className="t-body-large">{str('plan_week_empty')}</p>
+      <Button large data-testid="plan_empty_copy" onClick={onCopyLastWeek}>
+        {str('plan_copy_last_week')}
+      </Button>
     </div>
   );
 }
@@ -533,8 +563,14 @@ function MealRow({
   );
 }
 
-/** The add sheet with the pantry for Use it up; shown once it has loaded, so it opens at its full height. */
-function AddMealSheetFor(props: Omit<Parameters<typeof AddMealSheet>[0], 'useItUp'>) {
+/**
+ * The add sheet with the pantry for Use it up, leaving out the recipes the shown week already plans from today on
+ * ([planned], UX-05); shown once the pantry has loaded, so it opens at its full height.
+ */
+function AddMealSheetFor({
+  planned,
+  ...props
+}: Omit<Parameters<typeof AddMealSheet>[0], 'useItUp'> & { planned: ReadonlySet<string> }) {
   const me = useHouseholdSession();
   const { pantry, clock } = useServices();
   const today = useToday(clock);
@@ -543,7 +579,7 @@ function AddMealSheetFor(props: Omit<Parameters<typeof AddMealSheet>[0], 'useItU
     null,
   );
   if (data === null) return null;
-  return <AddMealSheet {...props} useItUp={UseItUp.suggestions(props.recipes, data, today)} />;
+  return <AddMealSheet {...props} useItUp={UseItUp.suggestions(props.recipes, data, today, planned)} />;
 }
 
 /** The Cooked sheet for a recipe meal: the pantry products it uses, at the meal's servings. */

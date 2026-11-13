@@ -411,6 +411,20 @@
     <string name="notif_explainer_title">Get a heads-up before food expires</string>
     <string name="notif_explainer_body">Spoil Not sends one notification a day when something is about to expire. You can change the time or turn it off in Settings.</string>
     <string name="notif_explainer_later">Not now</string>
+    <!-- After v1 (2026-11-12, review UX-02, UX-03): the explanation names the time; "You're set" after Turn on;
+         Home and Settings say when this phone blocks reminders. -->
+    <string name="notif_explainer_body_time">Spoil Not sends one notification a day, around %1$s, when something is about to expire. You can change the time or turn it off in Settings.</string>
+    <string name="notif_youre_set_title">You\'re set</string>
+    <string name="notif_youre_set_time">Spoil Not reminds you once a day, around %1$s, when food is about to expire.</string>
+    <string name="notif_youre_set_tomorrow">Tomorrow\'s reminder: %1$s.</string>
+    <plurals name="notif_youre_set_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
+    <string name="notif_youre_set_nothing">Nothing is due tomorrow.</string>
+    <string name="settings_notifications_blocked">Off on this phone</string>
+    <string name="home_reminders_off">Reminders are off on this phone</string>
+    <string name="home_reminders_turn_on">Turn on</string>
 
     <!-- Recipes (DESIGN 5.5, 11) -->
     <string name="action_open">Open</string>
@@ -530,8 +544,6 @@
         <item quantity="one">%d expired item to throw away or check</item>
         <item quantity="other">%d expired items to throw away or check</item>
     </plurals>
-    <string name="home_low_stock">Low stock</string>
-    <string name="home_low_stock_none">Nothing is running low.</string>
     <string name="home_grocery_list">Grocery list</string>
     <string name="home_grocery_empty">Nothing to buy right now.</string>
     <plurals name="home_grocery_count">
