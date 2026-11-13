@@ -184,13 +184,17 @@ describe('non-members', () => {
     await assertSucceeds(setDoc(doc(as('carol'), `households/${HID}/joinRequests/carol`), joinRequest()));
   });
 
-  it('cannot create a join request with a wrong code, a paused code or a code for another household', async () => {
+  it('cannot create a join request with a wrong code or a code for another household', async () => {
     const db = as('carol');
     const ref = doc(db, `households/${HID}/joinRequests/carol`);
     await assertFails(setDoc(ref, joinRequest('ZZZZZ23456')));
-    await assertFails(setDoc(ref, joinRequest(PAUSED)));
     await assertFails(setDoc(ref, joinRequest(OTHER_CODE)));
     await assertFails(setDoc(ref, joinRequest('bad')));
+  });
+
+  // After v1 (R12): Pause joining is gone, so a code an older build paused still takes requests the owner approves.
+  it('can create a join request with a code an older build paused', async () => {
+    await assertSucceeds(setDoc(doc(as('carol'), `households/${HID}/joinRequests/carol`), joinRequest(PAUSED)));
   });
 
   it('a join request may carry the masked email of the sign-in that sends it, and no other', async () => {
@@ -473,7 +477,8 @@ describe('owner', () => {
     await assertSucceeds(b.commit());
   });
 
-  it('can pause and resume the code', async () => {
+  // Older builds still pause and resume (R12): the rules accept the field until they are gone.
+  it('can pause and resume the code from an older build', async () => {
     const ref = doc(as('alice'), `inviteCodes/${CODE}`);
     await assertSucceeds(updateDoc(ref, { active: false }));
     await assertSucceeds(updateDoc(ref, { active: true }));

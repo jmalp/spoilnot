@@ -148,7 +148,13 @@ fun WeekGrocerySheet(
                 }
             }
             PrimaryButton(
-                text = pluralStringResource(R.plurals.recipe_add_items, count, count),
+                // A button for nothing says what to do instead (after v1, UX-18: it read "Add 0 items").
+                text = if (count > 0) {
+                    pluralStringResource(R.plurals.recipe_add_items, count, count)
+                } else {
+                    stringResource(R.string.recipe_add_none)
+                },
+                enabled = count > 0,
                 onClick = { if (count > 0) onAdd(chosen) },
                 modifier = Modifier.padding(top = 12.dp).testTag("plan_add_items"),
             )

@@ -71,6 +71,12 @@ object AisleGuess {
         return LONGEST_FIRST.firstOrNull { text.contains(" $it ") }?.let { PHRASES.getValue(it) }
     }
 
+    /**
+     * The category Add item gives a new product (after v1, UX-09): the same guess as a typed grocery item, so Milk is
+     * Dairy and eggs on both; Other when nothing matches.
+     */
+    fun forNewProduct(name: String, products: List<Product>): Category = of(name, products) ?: Category.Other
+
     /** In order, singular the same way as recipe matching, so phrases can be found. */
     private fun words(text: String): List<String> =
         NameKey.of(text).split(WORD).filter { it.isNotEmpty() }.map(PantryMatch::singular)

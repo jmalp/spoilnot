@@ -211,8 +211,10 @@ service cloud.firestore {
           && request.resource.data.status == 'pending'
           && request.resource.data.requestedAt == request.time
           && codeOk(request.resource.data.joinCode)
-          && get(codePath(request.resource.data.joinCode)).data.householdId == hid
-          && get(codePath(request.resource.data.joinCode)).data.active == true;
+          // After v1 (2026-11-12, R12) a code's `active` is no longer checked: there is no Pause joining, the owner
+          // approves every request, and New code replaces a leaked code. Codes keep the field until older builds,
+          // which still write and read it, are gone.
+          && get(codePath(request.resource.data.joinCode)).data.householdId == hid;
         allow update: if isOwner(hid) && onlyChanges(['status'])
           && resource.data.status == 'pending'
           && request.resource.data.status in ['approved', 'declined'];

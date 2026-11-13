@@ -52,7 +52,8 @@ class GateViewModel @Inject constructor(
         val code = InviteCodes.normalize(input)
         if (!InviteCodes.isWellFormed(code)) throw AppError.InviteCodeInactive()
         val invite = households.findInviteCode(code)
-        if (invite == null || !invite.active) throw AppError.InviteCodeInactive()
+        // A code's `active` is not read (after v1, R12): approval guards joining, and New code replaces a leaked one.
+        if (invite == null) throw AppError.InviteCodeInactive()
         _state.update { it.copy(confirm = invite) }
     }
 

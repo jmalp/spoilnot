@@ -88,7 +88,6 @@ export function toInviteCode(s: DocumentSnapshot): InviteCode {
     code: s.id,
     householdId: text(s, 'householdId'),
     householdName: capTo(text(s, 'householdName'), ReadCaps.LIST_NAME),
-    active: s.get('active') === true,
   };
 }
 
@@ -112,10 +111,12 @@ const profilePointer = (householdId: string | null) => ({
   [UserFields.UPDATED_AT]: serverTimestamp(),
 });
 
-const codeDoc = (householdId: string, householdName: string, uid: string, active: boolean) => ({
+// `active` is always true (after v1, R12 removed Pause joining): builds before it still refuse a code without it.
+// Nothing reads it any more.
+const codeDoc = (householdId: string, householdName: string, uid: string) => ({
   householdId,
   householdName,
-  active,
+  active: true,
   createdBy: uid,
   createdAt: serverTimestamp(),
 });
@@ -183,13 +184,6 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     );
   }
 
-  observeInviteCode(code: string): Observable<InviteCode | null> {
-    return this.follow((db) => docSnapshots(doc(db, codePath(code))).pipe(retryAfterOwnWrites(db))).pipe(
-      map((s) => (s.exists() ? toInviteCode(s) : null)),
-      distinctUntilChanged(same),
-    );
-  }
-
   async createHousehold(uid: string, displayName: string, name: string, inviteCode: string): Promise<string> {
     const db = this.sdk.current;
     const household = doc(collection(db, 'households'));
@@ -204,7 +198,7 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
       updatedAt: serverTimestamp(),
     });
     batch.set(doc(db, memberPath(household.id, uid)), { role: 'owner', displayName, joinedAt: serverTimestamp() });
-    batch.set(doc(db, codePath(inviteCode)), codeDoc(household.id, name.trim(), uid, true));
+    batch.set(doc(db, codePath(inviteCode)), codeDoc(household.id, name.trim(), uid));
     batch.set(defaultList, {
       name: HouseholdRules.DEFAULT_GROCERY_LIST_NAME,
       isDefault: true,
@@ -311,19 +305,12 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     await commitQueued(batch);
   }
 
-  async regenerateInviteCode(household: Household, uid: string, newCode: string, active: boolean): Promise<void> {
+  async regenerateInviteCode(household: Household, uid: string, newCode: string): Promise<void> {
     const db = this.sdk.current;
     const batch = writeBatch(db);
-    batch.set(doc(db, codePath(newCode)), codeDoc(household.id, household.name, uid, active));
+    batch.set(doc(db, codePath(newCode)), codeDoc(household.id, household.name, uid));
     batch.update(doc(db, householdPath(household.id)), { inviteCode: newCode, updatedAt: serverTimestamp() });
     batch.delete(doc(db, codePath(household.inviteCode)));
-    await commitQueued(batch);
-  }
-
-  async setJoiningPaused(code: string, paused: boolean): Promise<void> {
-    const db = this.sdk.current;
-    const batch = writeBatch(db);
-    batch.update(doc(db, codePath(code)), { active: !paused });
     await commitQueued(batch);
   }
 

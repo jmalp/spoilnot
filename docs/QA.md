@@ -332,6 +332,22 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Grocery list card "Turn on Keep some in stock…", with no green checks; Add item's switch reads Keep some in stock
     with "Puts it on the grocery list when it runs low". Go to next week on Plan: "Nothing planned this week…" with
     Copy last week, which copies this week's meals (or says last week has no meals to copy).
+56. Clear words and one rule for confirmations (Android, and the copy and joining on the iPhone web app; after v1,
+    2026-11-13, DESIGN 5.1, 5.2, 5.3, 5.5, 5.9, 6.1): on Groceries, swipe Eggs to the right: "Check off" shows under
+    the row and Eggs goes into the cart; swipe it right again in the cart: "Back to list". Swipe Milk to the left:
+    "Delete" shows, then "Milk removed · Undo". The aisle headers read "Dairy and eggs", not capitals, and the cart
+    button says Clear cart. With a product on Keep some in stock that runs low, its item says Added automatically,
+    and Edit says "Added automatically: you have 0 and keep at least 2."; add stock back: the row shows one line,
+    "Back in stock · Remove". After a trip that changed the aisle order, "Aisles follow the order you shop in…"
+    shows under the first aisle until Got it, and not again on that phone. Type "bananas" with "Bananas × 6" on the
+    list: "Add 1 more to the 6 on the list, or add it as a separate item?". Pantry > Add item: the keyboard is up
+    on Name; type "Greek yogurt" and save: it is under Dairy and eggs (Group by category). Open a recipe imported from
+    a site: no servings chip next to the stepper, no "By site" line under the site chip, Start cooking in a bar at
+    the bottom with I cooked this fully visible above it. ⋮ > Delete: no dialog, the recipe box says "Deleted …" with
+    Undo, which brings it back. Plan > ⋮ > Clear this week: no dialog, Undo brings the meals back. Recipes has no All
+    chip; tapping Favorites twice shows everything. Settings > Notifications > Expired reminder offers "Every day for
+    two weeks". Settings > Household as the owner: New code, and no Pause joining, on both apps; on a household an
+    older build paused, after the 2026-11-13 rules, a new phone can still ask to join and the owner approves it.
 
 ## 3. Conditions
 

@@ -76,6 +76,20 @@ object SourceUrl {
     /** "www.seriouseats.com" becomes "seriouseats.com", for the source chip. */
     fun siteName(url: String?): String? = parse(url)?.host?.lowercase()?.removePrefix("www.")
 
+    /**
+     * The recipe's "By" name is only the site again (after v1, R10): "recipes.example.test", "BBC Good Food" for
+     * bbcgoodfood.com, "Serious Eats" for seriouseats.com. Letters and digits are compared, ignoring case, with the
+     * site's name with or without its last part (".com").
+     */
+    fun namesSite(name: String, site: String?): Boolean {
+        if (site == null) return false
+        val key = name.lowercase().filter { it.isLetterOrDigit() }
+        if (key.isEmpty()) return false
+        val siteKey = site.lowercase().filter { it.isLetterOrDigit() }
+        val withoutEnding = site.lowercase().substringBeforeLast('.').filter { it.isLetterOrDigit() }
+        return key == siteKey || key == withoutEnding
+    }
+
     /** [link] resolved against [base], for relative image URLs. */
     fun resolve(base: String?, link: String?): String? {
         val l = link?.trim()?.takeIf { it.isNotEmpty() } ?: return null

@@ -325,7 +325,7 @@ class PlanViewModel @Inject constructor(
                     UiMessage(if (previous.isEmpty()) R.string.plan_copy_none else R.string.plan_copy_already),
                 )
             } else {
-                _messages.send(UiMessage(R.string.plan_copied, listOf(copied.first.toString()), copied.second))
+                _messages.send(UiMessage.plural(R.plurals.plan_copied_meals, copied.first, copied.second))
             }
         }
     }

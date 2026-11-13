@@ -69,7 +69,7 @@ test('a write made while the list is not showing does not skip the other members
 
   // Alex opens Groceries: Blake's changes are there, not only Alex's own write.
   await tab(page, 'Groceries');
-  await expect(row(page, 'Milk')).toContainText('Low stock');
+  await expect(row(page, 'Milk')).toContainText('Added automatically');
   await expect(row(page, 'P01 eggs')).toBeVisible();
   await expect(page.getByTestId('cart_header')).toContainText('In cart (1)');
   await expect(list(page).locator('[data-testid^="grocery_item_"]')).toHaveCount(3);

@@ -98,7 +98,7 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('card_home_activity')).toContainText('Greek yogurt');
       await page.waitForTimeout(800); // the ring's grow animation
       await shot(page, `home_cards_${suffix}`);
-      await page.getByTestId('card_home_insights').getByRole('button', { name: 'See insights' }).click();
+      await page.getByTestId('card_home_insights').getByRole('button', { name: 'See your kitchen' }).click();
       await expect(page.getByTestId('insights_month_details')).toContainText('3 used');
       await page.waitForTimeout(800);
       const monthNames = [
@@ -168,7 +168,9 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('grocery_item_low_p-rice')).toContainText('Back in stock');
       // The restock engine adds the out-of-stock olive oil (seeded as another phone would, so after its 5 s wait,
       // DESIGN 9.6); rows from the server are highlighted for a moment as another phone's changes (DESIGN 6.4).
-      await expect(page.getByTestId('grocery_item_low_p-oil')).toContainText('Low stock', { timeout: 15_000 });
+      await expect(page.getByTestId('grocery_item_low_p-oil')).toContainText('Added automatically', {
+        timeout: 15_000,
+      });
       await expect(page.locator('[data-remote]')).toHaveCount(0);
       await shot(page, `groceries_${suffix}`);
       await page.getByTestId('fab_add_to_pantry').click();

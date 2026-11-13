@@ -104,8 +104,14 @@ fun PasswordField(
 
 /** Full-width primary button that shows a spinner while [busy]. */
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, busy: Boolean = false) {
-    Button(onClick = onClick, enabled = !busy, modifier = modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+fun PrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    busy: Boolean = false,
+    enabled: Boolean = true,
+) {
+    Button(onClick = onClick, enabled = enabled && !busy, modifier = modifier.fillMaxWidth().heightIn(min = 48.dp)) {
         Box(contentAlignment = Alignment.Center) {
             if (busy) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)

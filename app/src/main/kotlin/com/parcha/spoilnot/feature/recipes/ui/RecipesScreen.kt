@@ -313,22 +313,23 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
     )
 }
 
-/** All, Favorites, then the user's tags (DESIGN 5.5). */
+/**
+ * Favorites, then the user's tags (DESIGN 5.5). No All chip (after v1, R16), as on Pantry: everything is the default,
+ * and tapping the chosen chip again goes back to it.
+ */
 @Composable
 private fun FilterRow(selected: RecipeFilter, tags: List<String>, onSelect: (RecipeFilter) -> Unit) {
     Row(
         Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        val chips = listOf(
-            RecipeFilter.All to stringResource(R.string.recipe_filter_all),
-            RecipeFilter.Favorites to stringResource(R.string.recipe_filter_favorites),
-        ) + tags.map { RecipeFilter.Tag(it) to it }
+        val chips = listOf(RecipeFilter.Favorites to stringResource(R.string.recipe_filter_favorites)) +
+            tags.map { RecipeFilter.Tag(it) to it }
         chips.forEach { (filter, label) ->
             val isSelected = filter == selected
             FilterChip(
                 selected = isSelected,
-                onClick = { onSelect(filter) },
+                onClick = { onSelect(if (isSelected) RecipeFilter.All else filter) },
                 label = { Text(label) },
                 leadingIcon = if (isSelected) {
                     { Icon(Icons.Rounded.Check, contentDescription = null) }

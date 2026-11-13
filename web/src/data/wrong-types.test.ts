@@ -67,7 +67,11 @@ describe('reading wrong types', () => {
       ownerUid: 'u1',
       inviteCode: '',
     });
-    expect(toInviteCode(snapshot('ABC', { active: 'true' })).active).toBe(false);
+    expect(toInviteCode(snapshot('ABC', { householdId: 'h1', householdName: 3 }))).toEqual({
+      code: 'ABC',
+      householdId: 'h1',
+      householdName: '',
+    });
     const request = toJoinRequest(snapshot('u2', { status: 'pending', displayName: 3, joinCode: 1234 }));
     expect([request?.displayName, request?.code]).toEqual(['', '']);
   });

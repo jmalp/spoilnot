@@ -50,6 +50,7 @@ import com.parcha.spoilnot.feature.grocery.domain.EntryDefaults
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.PantryEntry
+import com.parcha.spoilnot.feature.grocery.domain.RestockReason
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
@@ -304,6 +305,7 @@ fun EditItemSheet(
     item: GroceryItem,
     onSave: (name: String, quantity: Double?, unit: QuantityUnit?, note: String?, category: Category?) -> Unit,
     onDismiss: () -> Unit,
+    reason: RestockReason? = null,
 ) {
     val sheet = rememberFormSheet()
     var name by rememberSaveable { mutableStateOf(item.name) }
@@ -331,6 +333,15 @@ fun EditItemSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.grocery_edit_item, item.name), style = MaterialTheme.typography.headlineSmall)
+            // Why the app put it here (after v1, UX-08): the row's badge says only "Added automatically".
+            reason?.let {
+                Text(
+                    reasonText(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("grocery_auto_reason"),
+                )
+            }
             FormTextField(
                 value = name,
                 onValueChange = { name = it.take(GroceryRules.MAX_NAME_LENGTH) },
@@ -369,4 +380,16 @@ fun EditItemSheet(
             }, modifier = Modifier.heightIn(min = 48.dp))
         }
     }
+}
+
+/** "Added automatically: you have 0 and keep at least 2." */
+@Composable
+private fun reasonText(reason: RestockReason): String = when (reason) {
+    is RestockReason.Low -> stringResource(
+        R.string.grocery_auto_reason,
+        amountText(reason.have, reason.unit),
+        amountText(reason.keepAtLeast, reason.unit),
+    )
+
+    RestockReason.ProductGone -> stringResource(R.string.grocery_auto_reason_gone)
 }

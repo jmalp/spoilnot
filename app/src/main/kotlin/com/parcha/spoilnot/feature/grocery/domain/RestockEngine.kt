@@ -4,6 +4,7 @@ import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.Product
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import kotlin.math.max
 
 /**
@@ -86,4 +87,23 @@ object RestockEngine {
         val min = product.minQuantity ?: return false
         return totalOf(product, data) >= min
     }
+
+    /**
+     * Why the app put [item] on the list (after v1, UX-08): how much is left and the product's Keep at least, as they
+     * are now. Null for an item a person added, and [RestockReason.ProductGone] when its product was deleted or no
+     * longer has Keep at least.
+     */
+    fun reason(item: GroceryItem, data: PantryData): RestockReason? {
+        if (item.source != ItemSource.LowStock) return null
+        val product = data.products.firstOrNull { it.id == item.productId } ?: return RestockReason.ProductGone
+        val min = product.minQuantity ?: return RestockReason.ProductGone
+        return RestockReason.Low(have = totalOf(product, data), keepAtLeast = min, unit = product.unit)
+    }
+}
+
+/** What [RestockEngine.reason] tells the person about an item the app added. */
+sealed interface RestockReason {
+    data class Low(val have: Double, val keepAtLeast: Double, val unit: QuantityUnit) : RestockReason
+
+    data object ProductGone : RestockReason
 }

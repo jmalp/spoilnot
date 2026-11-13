@@ -101,11 +101,6 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         }
         .distinctUntilChanged()
 
-    override fun observeInviteCode(code: String): Flow<InviteCode?> = firestore.instance
-        .flatMapLatest { db -> db.document(codePath(code)).snapshotFlow().retryAfterOwnWrites(db) }
-        .map { if (it.exists()) it.toInviteCode() else null }
-        .distinctUntilChanged()
-
     override suspend fun createHousehold(uid: String, displayName: String, name: String, inviteCode: String): String {
         val db = firestore.current
         val household = db.collection("households").document()
@@ -126,7 +121,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
                 db.document(memberPath(household.id, uid)),
                 mapOf("role" to ROLE_OWNER, "displayName" to displayName, "joinedAt" to FieldValue.serverTimestamp()),
             )
-            .set(db.document(codePath(inviteCode)), codeDoc(household.id, name.trim(), uid, active = true))
+            .set(db.document(codePath(inviteCode)), codeDoc(household.id, name.trim(), uid))
             .set(
                 defaultList,
                 mapOf(
@@ -243,21 +238,16 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             .commitQueued()
     }
 
-    override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String, active: Boolean) {
+    override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String) {
         val db = firestore.current
         db.batch()
-            .set(db.document(codePath(newCode)), codeDoc(household.id, household.name, uid, active))
+            .set(db.document(codePath(newCode)), codeDoc(household.id, household.name, uid))
             .update(
                 db.document(householdPath(household.id)),
                 mapOf("inviteCode" to newCode, "updatedAt" to FieldValue.serverTimestamp()),
             )
             .delete(db.document(codePath(household.inviteCode)))
             .commitQueued()
-    }
-
-    override suspend fun setJoiningPaused(code: String, paused: Boolean) {
-        val db = firestore.current
-        db.batch().update(db.document(codePath(code)), "active", !paused).commitQueued()
     }
 
     override suspend fun removeMember(householdId: String, memberUid: String) {
@@ -391,10 +381,14 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         UserFields.UPDATED_AT to FieldValue.serverTimestamp(),
     )
 
-    private fun codeDoc(householdId: String, householdName: String, uid: String, active: Boolean) = mapOf(
+    /**
+     * `active` is always true (after v1, R12 removed Pause joining): builds before it still refuse a code without it.
+     * Nothing reads it any more.
+     */
+    private fun codeDoc(householdId: String, householdName: String, uid: String) = mapOf(
         "householdId" to householdId,
         "householdName" to householdName,
-        "active" to active,
+        "active" to true,
         "createdBy" to uid,
         "createdAt" to FieldValue.serverTimestamp(),
     )
@@ -443,7 +437,6 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             code = id,
             householdId = string("householdId").orEmpty(),
             householdName = string("householdName").orEmpty().capTo(ReadCaps.LIST_NAME),
-            active = boolean("active") == true,
         )
 
         fun DocumentSnapshot.toJoinRequest(): JoinRequest? {

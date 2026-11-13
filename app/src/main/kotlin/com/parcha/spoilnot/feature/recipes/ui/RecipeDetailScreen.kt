@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -36,8 +37,8 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SoupKitchen
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -78,7 +79,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
-import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
@@ -100,7 +100,6 @@ fun RecipeDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var addingToList by rememberSaveable { mutableStateOf(false) }
     val recipe = state.recipe
     var servings by rememberSaveable(recipe?.content?.servings) { mutableStateOf(recipe?.content?.servings) }
@@ -113,15 +112,9 @@ fun RecipeDetailScreen(
         onBack = onBack,
         modifier = modifier.testTag("screen_recipe_detail"),
         snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            if (recipe != null && recipe.content.steps.isNotEmpty()) {
-                SpoilNotFab(
-                    text = stringResource(R.string.recipe_cook),
-                    icon = Icons.Rounded.PlayArrow,
-                    onClick = { onCook(servings) },
-                    modifier = Modifier.testTag("recipe_cook"),
-                )
-            }
+        // In a bar under the content, not floating (after v1, UX-12): the floating Cook button covered I cooked this.
+        bottomBar = {
+            if (recipe != null && recipe.content.steps.isNotEmpty()) StartCookingBar { onCook(servings) }
         },
         actions = {
             if (recipe != null) {
@@ -136,9 +129,10 @@ fun RecipeDetailScreen(
                 IconButton(onClick = onEdit, modifier = Modifier.testTag("recipe_edit")) {
                     Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.recipe_edit))
                 }
+                // Undo, no dialog (after v1, R13 and DESIGN 6.1): the recipe box offers it after leaving.
                 OverflowMenu(
                     onShare = { share(context, recipe) },
-                    onDelete = { confirmDelete = true },
+                    onDelete = { viewModel.delete(onDeleted = onBack) },
                 )
             }
         },
@@ -169,25 +163,6 @@ fun RecipeDetailScreen(
         }
     }
 
-    if (confirmDelete && recipe != null) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(stringResource(R.string.recipe_delete_title)) },
-            text = { Text(stringResource(R.string.recipe_delete_body, recipe.title)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmDelete = false
-                        viewModel.delete(onDeleted = onBack)
-                    },
-                    modifier = Modifier.testTag("recipe_delete_confirm"),
-                ) { Text(stringResource(R.string.action_delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) }
-            },
-        )
-    }
     val cook by viewModel.cook.collectAsStateWithLifecycle()
     if (!cook.loading && recipe != null) {
         CookedSheet(
@@ -212,7 +187,7 @@ fun RecipeDetailScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RecipeBody(
+internal fun RecipeBody(
     recipe: Recipe,
     servings: Int?,
     onServings: (Int) -> Unit,
@@ -224,7 +199,7 @@ private fun RecipeBody(
     val c = recipe.content
     val factor = Scaling.factor(c.servings, servings)
     val checked = remember(recipe.id) { mutableStateListOf<Int>() }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 96.dp)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         if (c.imageUrl != null) RecipeImage(c.imageUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
@@ -239,7 +214,9 @@ private fun RecipeBody(
                 durationText(c.totalMinutes)?.let { time ->
                     InfoChip(stringResource(R.string.recipe_total_time, time), Icons.Rounded.Schedule)
                 }
-                servingsLabel(c.servings, c.servingsText)?.let { InfoChip(it, Icons.Rounded.People) }
+                // One servings control (after v1, R9): the chip only when there is no stepper to show the number.
+                val stepper = c.ingredients.isNotEmpty() && c.servings != null && servings != null
+                if (!stepper) servingsLabel(c.servings, c.servingsText)?.let { InfoChip(it, Icons.Rounded.People) }
                 val site = SourceUrl.siteName(c.sourceUrl)
                 if (site != null && c.sourceUrl != null) {
                     AssistChip(
@@ -249,7 +226,8 @@ private fun RecipeBody(
                     )
                 }
             }
-            c.sourceName?.let {
+            // One source line (after v1, R10): "By …" only when it names someone other than the site.
+            c.sourceName?.takeUnless { SourceUrl.namesSite(it, SourceUrl.siteName(c.sourceUrl)) }?.let {
                 Text(
                     stringResource(R.string.recipe_by, it),
                     style = MaterialTheme.typography.bodyMedium,
@@ -355,6 +333,25 @@ private fun ServingsStepper(servings: Int, onChange: (Int) -> Unit) {
         )
         FilledTonalIconButton(onClick = { onChange(servings + 1) }, enabled = servings < 100) {
             Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.recipe_more_servings))
+        }
+    }
+}
+
+/** "Start cooking" across the bottom, above the navigation bar; the content scrolls clear of it. */
+@Composable
+internal fun StartCookingBar(onClick: () -> Unit) {
+    Surface(tonalElevation = 3.dp, shadowElevation = 3.dp) {
+        Button(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .heightIn(min = 48.dp)
+                .testTag("recipe_cook"),
+        ) {
+            Icon(Icons.Rounded.PlayArrow, contentDescription = null)
+            Text(stringResource(R.string.recipe_cook), Modifier.padding(start = 8.dp))
         }
     }
 }

@@ -131,11 +131,9 @@ fun HouseholdSettingsScreen(
                 code = household.inviteCode,
                 householdName = household.name,
                 isOwner = c.isOwner,
-                paused = c.joiningPaused,
                 busy = actions.busy,
                 snackbar = snackbar,
                 onRegenerate = { confirm = Confirm.Regenerate },
-                onPause = viewModel::setJoiningPaused,
             )
             MembersCard(
                 members = c.members,
@@ -264,11 +262,9 @@ private fun InviteCard(
     code: String,
     householdName: String,
     isOwner: Boolean,
-    paused: Boolean,
     busy: Boolean,
     snackbar: SnackbarHostState,
     onRegenerate: () -> Unit,
-    onPause: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboard.current
@@ -291,13 +287,6 @@ private fun InviteCard(
                 style = MaterialTheme.typography.displaySmall,
                 modifier = Modifier.semantics { contentDescription = codeDescription }.testTag("invite_code"),
             )
-            if (paused) {
-                Text(
-                    stringResource(R.string.invite_paused),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -327,20 +316,10 @@ private fun InviteCard(
                     Text(stringResource(R.string.action_share), Modifier.padding(start = 8.dp))
                 }
             }
+            // New code only (after v1, R12 removed Pause joining): approval already guards joining.
             if (isOwner) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onRegenerate, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text(stringResource(R.string.action_regenerate))
-                    }
-                    TextButton(onClick = {
-                        onPause(!paused)
-                    }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text(
-                            stringResource(
-                                if (paused) R.string.action_resume_joining else R.string.action_pause_joining,
-                            ),
-                        )
-                    }
+                TextButton(onClick = onRegenerate, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.action_regenerate))
                 }
             }
         }

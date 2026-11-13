@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +62,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -81,6 +84,7 @@ import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.SEGMENTED_STACK_FONT_SCALE
 import com.parcha.spoilnot.core.designsystem.component.Segmented
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.feature.grocery.domain.AisleGuess
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.ItemEdit
@@ -150,6 +154,9 @@ private class ItemFormState(
     var buyQuantity by mutableStateOf(buyQuantity)
     var submitted by mutableStateOf(false)
 
+    /** Category was picked by hand, so the aisle guess no longer changes it (after v1, UX-09). */
+    var categoryChosen by mutableStateOf(false)
+
     fun fillFrom(product: Product, today: LocalDate) {
         name = product.name
         unit = product.unit
@@ -178,7 +185,7 @@ private class ItemFormState(
             save = {
                 listOf(
                     it.name, it.quantity, it.unit.name, it.category.name, it.expiry?.toString(), it.location.name,
-                    it.autoAdd, it.keepAtLeast, it.buyQuantity, it.submitted,
+                    it.autoAdd, it.keepAtLeast, it.buyQuantity, it.submitted, it.categoryChosen,
                 )
             },
             restore = { v ->
@@ -186,7 +193,10 @@ private class ItemFormState(
                     v[0] as String, v[1] as String, QuantityUnit.valueOf(v[2] as String),
                     Category.valueOf(v[3] as String), (v[4] as String?)?.let(LocalDate::parse),
                     Location.valueOf(v[5] as String), v[6] as Boolean, v[7] as String, v[8] as String,
-                ).also { it.submitted = v[9] as Boolean }
+                ).also {
+                    it.submitted = v[9] as Boolean
+                    it.categoryChosen = v[10] as Boolean
+                }
             },
         )
     }
@@ -207,6 +217,11 @@ fun AddItemForm(
     }
     val match = products.firstOrNull { it.nameKey == NameKey.of(form.name) }
     val unitLocked = match != null && match.id in productsWithStock
+    // A new name takes the aisle Groceries would guess (after v1, UX-09), until a category is picked by hand; a
+    // product chosen from the suggestions brings its own.
+    LaunchedEffect(form.name, match == null) {
+        if (match == null && !form.categoryChosen) form.category = AisleGuess.forNewProduct(form.name, products)
+    }
     FormSheetColumn(
         stringResource(R.string.add_item_title),
         button = {
@@ -245,6 +260,8 @@ fun AddItemForm(
             unitLockedTo = if (unitLocked) match!!.unit else null,
             onChooseProduct = { form.fillFrom(it, today) },
             allowZero = false,
+            // The keyboard opens on Name (after v1, UX-09), except for a product chosen beforehand (an Out row).
+            focusName = prefill == null,
         )
     }
 }
@@ -405,6 +422,7 @@ private fun ItemFields(
     unitLockedTo: QuantityUnit?,
     onChooseProduct: (Product) -> Unit,
     allowZero: Boolean,
+    focusName: Boolean = false,
 ) {
     val nameError = when {
         !form.submitted -> null
@@ -415,7 +433,7 @@ private fun ItemFields(
     val qty = form.qty
     val qtyBad = qty == null || if (allowZero) qty < 0 else qty <= 0
     val qtyError = if (form.submitted && qtyBad) stringResource(R.string.error_quantity) else null
-    NameField(form.name, { form.name = it }, products, nameError, onChoose = onChooseProduct)
+    NameField(form.name, { form.name = it }, products, nameError, onChoose = onChooseProduct, focus = focusName)
     // A compact stepper next to the unit (after v1): the amount needs a few digits, not the full width.
     val unitField = @Composable { modifier: Modifier ->
         Box(modifier) {
@@ -447,7 +465,10 @@ private fun ItemFields(
         value = form.category,
         options = Category.entries,
         optionLabel = { stringResource(it.label()) },
-        onPick = { form.category = it },
+        onPick = {
+            form.category = it
+            form.categoryChosen = true
+        },
     )
     AutoAddFields(form)
 }
@@ -529,8 +550,18 @@ private fun NameField(
     products: List<Product>,
     error: String?,
     onChoose: (Product) -> Unit,
+    focus: Boolean = false,
 ) {
     var open by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    // Once per sheet, not again after rotation (the field keeps its own focus then).
+    var focused by rememberSaveable { mutableStateOf(false) }
+    if (focus && !focused) {
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+            focused = true
+        }
+    }
     val key = NameKey.of(name)
     val suggestions = if (key.isEmpty()) {
         emptyList()
@@ -556,7 +587,7 @@ private fun NameField(
             ),
             modifier = Modifier.fillMaxWidth().menuAnchor(
                 ExposedDropdownMenuAnchorType.PrimaryEditable,
-            ).testTag("field_name"),
+            ).focusRequester(focusRequester).testTag("field_name"),
         )
         ExposedDropdownMenu(expanded = open && suggestions.isNotEmpty(), onDismissRequest = { open = false }) {
             suggestions.forEach { product ->

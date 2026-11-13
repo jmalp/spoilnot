@@ -132,14 +132,17 @@ Android first (then raise `minSupportedBuild`), the web app next (then raise `mi
 `WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
 Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
 
-### The 2026-11-08, 2026-11-09 and 2026-11-10 rules (DESIGN 8.1, 8.5 and 5.1)
+### The 2026-11-08, 2026-11-09, 2026-11-10 and 2026-11-13 rules (DESIGN 8.1, 8.5 and 5.1)
 
 None is deployed yet; they go out together, in one deploy, with the order below. 2026-11-08's: allowed fields,
 authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery item is tombstoned once, a
 meal is marked cooked once, and items are created only under a list that exists. 2026-11-10's: a join request may
 carry `emailMasked`, the sender's sign-in email masked as the rules compute it (`ro***@example.com`), and a batch's
 quantity may be below 0 (8.5 invariant 1), which refuses nothing any build writes; until it is deployed, builds from
-2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once.
+2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once. 2026-11-13's: a join
+request no longer needs the code's `active` to be true (Pause joining was removed, DESIGN 5.1), which also refuses
+nothing; until it is deployed, a new build asking to join with a code an older build paused gets "You don't have
+permission to do that." (the owner can press New code meanwhile).
 
 What the released builds (Android 1.0.0-beta.9, versionCode 10, and web build 55edcc5) do that these rules refuse:
 
@@ -405,7 +408,8 @@ the old one. If that is not possible, in the Firebase console → Firestore:
 
 1. Choose a new code: 10 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0 or 1).
 2. `inviteCodes` → **Add document** with that code as the document ID and fields `householdId` (string),
-   `householdName` (string), `active` (boolean, true), `createdBy` (the owner's uid), `createdAt` (timestamp).
+   `householdName` (string), `active` (boolean, true; builds before 2026-11-13 refuse a code without it),
+   `createdBy` (the owner's uid), `createdAt` (timestamp).
 3. `households/<id>`: set `inviteCode` to the new code.
 4. Delete the old `inviteCodes/<old code>` document.
 

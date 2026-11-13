@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { combineLatest, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+import { combineLatest, map, of } from 'rxjs';
 import { useAction, useNow, useObservable } from '../../core/hooks';
 import { str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
@@ -26,7 +26,6 @@ type Content = {
   members: Member[];
   /** Waiting requests; always empty for members. */
   requests: JoinRequest[];
-  joiningPaused: boolean;
 };
 
 type Confirm =
@@ -50,21 +49,11 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
   const content = useObservable<Content | null>(
     useMemo(() => {
       const household$ = households.observeHousehold(hid);
-      const code$ = household$.pipe(
-        map((h) => h?.inviteCode ?? ''),
-        distinctUntilChanged(),
-        switchMap((code) => (code ? households.observeInviteCode(code) : of(null))),
-      );
       const requests$ = isOwner
         ? households.observeJoinRequests(hid).pipe(map((all) => all.filter((r) => r.status === 'pending')))
         : of([]);
-      return combineLatest([household$, households.observeMembers(hid), requests$, code$]).pipe(
-        map(([household, members, requests, invite]) => ({
-          household,
-          members,
-          requests,
-          joiningPaused: invite?.active === false,
-        })),
+      return combineLatest([household$, households.observeMembers(hid), requests$]).pipe(
+        map(([household, members, requests]) => ({ household, members, requests })),
       );
     }, [households, hid, isOwner]),
     null,
@@ -101,11 +90,9 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
           <InviteCard
             household={household}
             isOwner={isOwner}
-            paused={content.joiningPaused}
             busy={action.busy}
             onCopied={() => snackbars.show(str('code_copied'))}
             onRegenerate={() => setConfirm({ kind: 'regenerate' })}
-            onPause={(paused) => void action.run(() => households.setJoiningPaused(household.inviteCode, paused))}
           />
           <MembersCard
             members={content.members}
@@ -142,9 +129,7 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
             const uid = me.user.uid;
             switch (confirm.kind) {
               case 'regenerate':
-                return void action.run(() =>
-                  households.regenerateInviteCode(household, uid, InviteCodes.generate(), !content?.joiningPaused),
-                );
+                return void action.run(() => households.regenerateInviteCode(household, uid, InviteCodes.generate()));
               case 'remove':
                 return void action.run(() => households.removeMember(hid, confirm.member.uid));
               case 'transfer':
@@ -220,19 +205,15 @@ function JoinRequestsCard({
 function InviteCard({
   household,
   isOwner,
-  paused,
   busy,
   onCopied,
   onRegenerate,
-  onPause,
 }: {
   household: Household;
   isOwner: boolean;
-  paused: boolean;
   busy: boolean;
   onCopied: () => void;
   onRegenerate: () => void;
-  onPause: (paused: boolean) => void;
 }) {
   const formatted = InviteCodes.format(household.inviteCode);
   const shareText = str('share_message', household.name, formatted);
@@ -247,7 +228,6 @@ function InviteCard({
         >
           {formatted}
         </p>
-        {paused && <p className="t-body-medium c-error">{str('invite_paused')}</p>}
         <div className="sn-row">
           <Button
             variant="tonal"
@@ -274,9 +254,6 @@ function InviteCard({
           <div className="sn-row">
             <Button variant="text" large disabled={busy} onClick={onRegenerate}>
               {str('action_regenerate')}
-            </Button>
-            <Button variant="text" large disabled={busy} onClick={() => onPause(!paused)}>
-              {str(paused ? 'action_resume_joining' : 'action_pause_joining')}
             </Button>
           </div>
         )}

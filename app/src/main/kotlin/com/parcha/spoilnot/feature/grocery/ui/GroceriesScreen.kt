@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.automirrored.rounded.TrendingDown
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.RestaurantMenu
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -100,6 +102,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryLayout
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
+import com.parcha.spoilnot.feature.grocery.domain.RestockEngine
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
@@ -115,6 +118,7 @@ fun GroceriesScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val duplicate by viewModel.duplicate.collectAsStateWithLifecycle()
+    val aisleHint by viewModel.aisleHint.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var text by rememberSaveable { mutableStateOf("") }
     var cartOpen by rememberSaveable { mutableStateOf(true) }
@@ -175,10 +179,15 @@ fun GroceriesScreen(
                         contentPadding = PaddingValues(bottom = 96.dp),
                         modifier = Modifier.testTag("grocery_list"),
                     ) {
-                        state.view.aisles.forEach { (category, items) ->
-                            stickyHeader(
-                                key = "aisle-$category",
-                            ) { SectionHeader(stringResource(category.label()).uppercase()) }
+                        state.view.aisles.forEachIndexed { index, (category, items) ->
+                            // Sentence case, as everywhere else (DESIGN 6.9; after v1 it was in capitals, UX-18).
+                            stickyHeader(key = "aisle-$category") { SectionHeader(stringResource(category.label())) }
+                            // Under the first aisle, once: why the aisles move (after v1, UX-08).
+                            if (index == 0 && aisleHint) {
+                                item(key = "aisle-hint") {
+                                    AisleHint(viewModel::dismissAisleHint, Modifier.animateItem())
+                                }
+                            }
                             items(items, key = { it.id }) { item ->
                                 GroceryRow(
                                     item,
@@ -227,7 +236,11 @@ fun GroceriesScreen(
                 // Amounts in another unit aren't added together (no conversion, DESIGN 2; after v1, LOGIC-08).
                 val existing = pending.existing
                 val body = if (canIncrease) {
-                    stringResource(R.string.grocery_already_body, existing.name)
+                    stringResource(
+                        R.string.grocery_already_more,
+                        amountText(pending.request.quantity ?: 1.0, pending.request.unit ?: existing.unit),
+                        existingAmount(existing),
+                    )
                 } else {
                     val unit = checkNotNull(existing.unit)
                     val amount = existing.quantity?.let { amountText(it, unit) } ?: stringResource(unit.label())
@@ -266,10 +279,15 @@ fun GroceriesScreen(
         )
     }
     editing?.let { item ->
-        EditItemSheet(item, onSave = { name, q, u, n, c ->
-            viewModel.edit(item, q, u, n, c, name)
-            editing = null
-        }, onDismiss = { editing = null })
+        EditItemSheet(
+            item,
+            onSave = { name, q, u, n, c ->
+                viewModel.edit(item, q, u, n, c, name)
+                editing = null
+            },
+            onDismiss = { editing = null },
+            reason = RestockEngine.reason(item, state.pantry),
+        )
     }
     listDialog?.let { dialog ->
         ListDialogs(
@@ -283,7 +301,11 @@ fun GroceriesScreen(
     }
 }
 
-/** A tap checks the item off; it moves to the In cart section (DESIGN 5.3). Swipe either way deletes, with Undo. */
+/**
+ * A tap checks the item off; it moves to the In cart section (DESIGN 5.3). After v1 (UX-10) a swipe right checks it
+ * off too (or puts it back from the cart) and a swipe left deletes it with Undo, each shown under the row as it moves;
+ * the tap and the ⋮ menu do the same (DESIGN 6.8).
+ */
 @Composable
 internal fun GroceryRow(
     item: GroceryItem,
@@ -296,29 +318,27 @@ internal fun GroceryRow(
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val swipe = rememberSwipeToDismissBoxState()
-    LaunchedEffect(item.id) { swipe.reset() }
+    LaunchedEffect(item.id, item.checked) { swipe.reset() }
+    val toggle = {
+        // Light haptic on check-off (DESIGN 6.4).
+        haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
+        onToggle(item)
+    }
     SwipeToDismissBox(
         state = swipe,
         modifier = modifier.testTag("grocery_item_${item.id}"),
-        backgroundContent = {
-            if (swipe.dismissDirection != SwipeToDismissBoxValue.Settled) {
-                Box(
-                    Modifier.fillMaxSize().background(
-                        MaterialTheme.colorScheme.errorContainer,
-                    ).padding(horizontal = 20.dp),
-                    contentAlignment = swipeAlignment(swipe.dismissDirection),
-                ) {
-                    Icon(
-                        Icons.Rounded.DeleteOutline,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                    )
+        backgroundContent = { GrocerySwipeBackground(swipe.dismissDirection, item.checked) },
+        onDismiss = { direction ->
+            when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> toggle()
+
+                SwipeToDismissBoxValue.EndToStart -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onDelete(item)
                 }
+
+                SwipeToDismissBoxValue.Settled -> Unit
             }
-        },
-        onDismiss = {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            onDelete(item)
             scope.launch { swipe.reset() }
         },
     ) {
@@ -327,11 +347,7 @@ internal fun GroceryRow(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
-                    .toggleable(value = item.checked, role = Role.Checkbox, onValueChange = {
-                        // Light haptic on check-off (DESIGN 6.4).
-                        haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
-                        onToggle(item)
-                    })
+                    .toggleable(value = item.checked, role = Role.Checkbox, onValueChange = { toggle() })
                     .padding(start = 8.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -368,12 +384,17 @@ internal fun GroceryRow(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
+                        val backInStock = item.id in state.backInStock
                         // Each source has its own icon, so the two look different without relying on color.
                         when (item.source) {
-                            ItemSource.LowStock -> SourceBadge(
-                                stringResource(R.string.grocery_source_low_stock),
-                                Icons.AutoMirrored.Rounded.TrendingDown,
-                            )
+                            // What the app did by itself says so (after v1, UX-08; it said "Low stock", which read
+                            // as a status). Back in stock replaces it: one line, "Back in stock · Remove".
+                            ItemSource.LowStock -> if (!backInStock) {
+                                SourceBadge(
+                                    stringResource(R.string.grocery_source_low_stock),
+                                    Icons.AutoMirrored.Rounded.TrendingDown,
+                                )
+                            }
 
                             ItemSource.Recipe -> SourceBadge(
                                 stringResource(R.string.grocery_source_recipe),
@@ -388,25 +409,7 @@ internal fun GroceryRow(
 
                             ItemSource.Manual -> Unit
                         }
-                        // On the same line (after v1): it used to add a tall second line under the badge.
-                        if (item.id in state.backInStock) {
-                            SourceBadge(
-                                stringResource(R.string.grocery_back_in_stock),
-                                Icons.Rounded.CheckCircle,
-                                good = true,
-                            )
-                            Text(
-                                stringResource(R.string.grocery_remove),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .clip(MaterialTheme.shapes.small)
-                                    .clickable(role = Role.Button) { onDelete(item) }
-                                    .heightIn(min = 48.dp)
-                                    .wrapContentHeight()
-                                    .padding(horizontal = 8.dp),
-                            )
-                        }
+                        if (backInStock) BackInStockLine(item.name) { onDelete(item) }
                         val by = addedBy(item, state)
                         if (by != null) {
                             Text(
@@ -430,12 +433,97 @@ internal fun GroceryRow(
     }
 }
 
+/** "Back in stock · Remove" (after v1, UX-08): one line instead of a Low stock badge beside a Back in stock one. */
+@Composable
+private fun BackInStockLine(name: String, onRemove: () -> Unit) {
+    // Wraps as whole words at large text sizes instead of breaking Remove mid-word.
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        SourceBadge(stringResource(R.string.grocery_back_in_stock), Icons.Rounded.CheckCircle, good = true)
+        Text("·", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val description = stringResource(R.string.grocery_back_in_stock_remove, name)
+        Text(
+            stringResource(R.string.grocery_remove),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            softWrap = false,
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.small)
+                .clickable(role = Role.Button) { onRemove() }
+                .semantics { contentDescription = description }
+                .heightIn(min = 48.dp)
+                .wrapContentHeight()
+                .padding(horizontal = 8.dp),
+        )
+    }
+}
+
+/**
+ * What a swipe does, under the row as it moves (after v1, UX-10): right checks off (or puts back), left deletes.
+ * Icon and word, never color alone (DESIGN 6.1).
+ */
+@Composable
+private fun GrocerySwipeBackground(direction: SwipeToDismissBoxValue, checked: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val (container, content) = when (direction) {
+        SwipeToDismissBoxValue.StartToEnd -> colors.primaryContainer to colors.onPrimaryContainer
+        SwipeToDismissBoxValue.EndToStart -> colors.errorContainer to colors.onErrorContainer
+        SwipeToDismissBoxValue.Settled -> return
+    }
+    val (icon, label) = when {
+        direction == SwipeToDismissBoxValue.EndToStart -> Icons.Rounded.DeleteOutline to R.string.action_delete
+        checked -> Icons.AutoMirrored.Rounded.Undo to R.string.grocery_swipe_uncheck
+        else -> Icons.Rounded.Check to R.string.grocery_swipe_check
+    }
+    Box(
+        Modifier.fillMaxSize().background(container).padding(horizontal = 20.dp),
+        contentAlignment = swipeAlignment(direction),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(icon, contentDescription = null, tint = content)
+            Text(stringResource(label), color = content, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/** "Aisles follow the order you shop in…" with Got it, shown once per phone (after v1, UX-08). */
+@Composable
+private fun AisleHint(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).testTag("grocery_aisle_hint"),
+    ) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.Rounded.SwapVert, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(
+                stringResource(R.string.grocery_aisle_hint),
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("grocery_aisle_hint_ok")) {
+                Text(stringResource(R.string.grocery_aisle_hint_ok))
+            }
+        }
+    }
+}
+
 @Composable
 private fun nameColor(checked: Boolean) =
     if (checked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
 
 private fun swipeAlignment(direction: SwipeToDismissBoxValue) =
     if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+
+/** "6", "500 g": what is on the list now; an item without an amount counts as 1. */
+@Composable
+private fun existingAmount(existing: GroceryItem): String = amountText(existing.quantity ?: 1.0, existing.unit)
 
 /** "added by Sam" for items someone else typed in. */
 private fun addedBy(item: GroceryItem, state: GroceriesViewModel.UiState): String? = item.createdBy
@@ -503,7 +591,7 @@ private fun CartHeader(count: Int, open: Boolean, onToggle: () -> Unit, onClear:
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                pluralStringResource(R.plurals.grocery_in_cart, count, count).uppercase(),
+                pluralStringResource(R.plurals.grocery_in_cart, count, count),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),

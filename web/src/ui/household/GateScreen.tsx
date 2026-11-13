@@ -38,7 +38,8 @@ export function GateScreen({ session }: { session: NoHousehold }) {
       const code = InviteCodes.normalize(input);
       if (!InviteCodes.isWellFormed(code)) throw new AppError('inviteCodeInactive');
       const invite = await households.findInviteCode(code);
-      if (!invite?.active) throw new AppError('inviteCodeInactive');
+      // A code's `active` is not read (after v1, R12): approval guards joining, and New code replaces a leaked one.
+      if (!invite) throw new AppError('inviteCodeInactive');
       setConfirm(invite);
     });
 

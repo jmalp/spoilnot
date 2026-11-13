@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.coroutines.LoadRetry
 import com.parcha.spoilnot.core.coroutines.retryLoading
+import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
@@ -68,6 +69,7 @@ class GroceriesViewModel @Inject constructor(
     private val service: GroceryService,
     clock: Clock,
     savedState: SavedStateHandle,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
     /** What was typed in the Add to pantry sheet, by item id (after v1, REL-08). */
     val pantryDrafts = AddToPantryDrafts(savedState)
@@ -159,6 +161,18 @@ class GroceriesViewModel @Inject constructor(
         .onEach(::announceOthersAdditions)
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), UiState())
+
+    /**
+     * The one-time hint that aisles follow the store order (after v1, UX-08): shown once this list has learned an
+     * order and has two aisles or more, until "Got it" on this phone.
+     */
+    val aisleHint: StateFlow<Boolean> = combine(preferences.aisleHintDone, state) { done, s ->
+        !done && s.list?.aisleOrder.orEmpty().isNotEmpty() && s.view.aisles.size >= 2
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), false)
+
+    fun dismissAisleHint() {
+        viewModelScope.launch { preferences.setAisleHintDone() }
+    }
 
     /** "Already on the list" waiting for an answer, and the text that was typed. */
     val duplicate = MutableStateFlow<QuickAddResult.AlreadyOnList?>(null)

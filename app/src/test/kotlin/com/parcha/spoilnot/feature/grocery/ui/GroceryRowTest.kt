@@ -14,9 +14,13 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.Density
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
@@ -77,6 +81,7 @@ class GroceryRowTest {
         item("flour", "Flour", ItemSource.Recipe, by = "u1"),
         item("tortillas", "Tortillas", ItemSource.MealPlan, by = null),
         item("bread", "Bread", checked = true, by = "u1"),
+        item("low_butter", "Butter", ItemSource.LowStock, by = null),
     )
 
     private fun show(dark: Boolean = false, fontScale: Float = 1f, content: @Composable () -> Unit) =
@@ -90,11 +95,65 @@ class GroceryRowTest {
     @Test
     fun rowShowsQuantitySourceAndWhoAddedIt() {
         show { rows.forEach { GroceryRow(it, state, {}, {}, {}) } }
-        compose.onNodeWithText("Low stock", useUnmergedTree = true).assertIsDisplayed()
+        // What the app did by itself says so (after v1, UX-08).
+        compose.onNodeWithText("Added automatically", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Recipe", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Meal plan", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("added by Sam", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Back in stock", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    /** One line, "Back in stock · Remove", instead of a Low stock badge next to a Back in stock one (UX-08). */
+    @Test
+    fun backInStockReplacesTheAutomaticBadge() {
+        show { GroceryRow(rows[0], state, {}, {}, {}) }
+        compose.onNodeWithText("Back in stock", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithText("Added automatically", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Remove Milk from the list, it's back in stock").assertIsDisplayed()
+    }
+
+    /** After v1 (UX-10): right checks off, left deletes; each says so under the row while it moves. */
+    @Test
+    fun swipeRightChecksOffAndSwipeLeftDeletes() {
+        val toggled = mutableListOf<String>()
+        val deleted = mutableListOf<String>()
+        show { GroceryRow(item("eggs", "Eggs"), state, { toggled += it.id }, { deleted += it.id }, {}) }
+        compose.onNodeWithTag("grocery_item_eggs").performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        assertEquals(listOf("eggs"), toggled)
+        assertEquals(emptyList<String>(), deleted)
+
+        compose.onNodeWithTag("grocery_item_eggs").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        assertEquals(listOf("eggs"), toggled)
+        assertEquals(listOf("eggs"), deleted)
+    }
+
+    @Test
+    fun swipeRightPutsACheckedItemBack() {
+        val toggled = mutableListOf<Boolean>()
+        show { GroceryRow(item("bread", "Bread", checked = true), state, { toggled += it.checked }, {}, {}) }
+        compose.onNodeWithTag("grocery_item_bread").performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        assertEquals(listOf(true), toggled)
+    }
+
+    @Test
+    fun swipeBackgroundsNameTheirAction() {
+        show { GroceryRow(item("eggs", "Eggs"), state, {}, {}, {}) }
+        compose.onNodeWithTag("grocery_item_eggs").performTouchInput {
+            down(center)
+            moveBy(androidx.compose.ui.geometry.Offset(width * 0.3f, 0f))
+        }
+        compose.onNodeWithText("Check off", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("grocery_item_eggs").performTouchInput {
+            moveBy(androidx.compose.ui.geometry.Offset(-width * 0.6f, 0f))
+        }
+        compose.onNodeWithText("Delete", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("grocery_item_eggs").performTouchInput {
+            moveBy(androidx.compose.ui.geometry.Offset(width * 0.3f, 0f))
+            up()
+        }
     }
 
     @Test
