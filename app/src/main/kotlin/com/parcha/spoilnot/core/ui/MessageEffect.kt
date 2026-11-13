@@ -38,7 +38,8 @@ fun MessageEffect(messages: Flow<UiMessage>, snackbar: SnackbarHostState, onUndo
     val accessibility = LocalAccessibilityManager.current
     LaunchedEffect(messages) {
         messages.collect { message ->
-            val text = resources.getString(message.text, *message.args.toTypedArray())
+            val text = message.count?.let { resources.getQuantityString(message.text, it, it) }
+                ?: resources.getString(message.text, *message.args.toTypedArray())
             val undo = message.undo
             if (undo == null) {
                 snackbar.showSnackbar(text)

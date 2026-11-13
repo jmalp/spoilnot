@@ -20,8 +20,6 @@ interface HouseholdRepository {
     /** The current user's own request, or null once the server confirms there is none. */
     fun observeOwnJoinRequest(householdId: String, uid: String): Flow<JoinRequest?>
 
-    fun observeInviteCode(code: String): Flow<InviteCode?>
-
     /** Writes the household, owner membership, invite code, default list and profile together. Returns its id. */
     suspend fun createHousehold(uid: String, displayName: String, name: String, inviteCode: String): String
 
@@ -43,9 +41,8 @@ interface HouseholdRepository {
 
     suspend fun rename(household: Household, newName: String)
 
-    suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String, active: Boolean)
-
-    suspend fun setJoiningPaused(code: String, paused: Boolean)
+    /** A new code for the household; the old one stops working (after v1 there is no Pause joining, R12). */
+    suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String)
 
     suspend fun removeMember(householdId: String, memberUid: String)
 

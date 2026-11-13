@@ -177,8 +177,14 @@ internal fun HomeCards(
         action = if (attention.isEmpty()) {
             null
         } else {
-            pluralStringResource(R.plurals.home_see_all, attention.size, attention.size) to
-                { navigation.openPantry(PantryFilter.NeedsAttention) }
+            // "See 1 in Pantry" next to the one item already shown led to the same thing (after v1, UX-18).
+            val allShown = attention.expired.isEmpty() && attention.usable.size <= CARD_ROWS
+            val label = if (allShown) {
+                stringResource(R.string.home_open_pantry)
+            } else {
+                pluralStringResource(R.plurals.home_see_all, attention.size, attention.size)
+            }
+            label to { navigation.openPantry(PantryFilter.NeedsAttention) }
         },
         calm = when {
             !attention.isEmpty() -> null

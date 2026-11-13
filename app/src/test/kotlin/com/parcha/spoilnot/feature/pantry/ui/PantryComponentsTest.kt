@@ -3,6 +3,8 @@ package com.parcha.spoilnot.feature.pantry.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
+import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
@@ -186,6 +189,40 @@ class PantryComponentsTest {
         assertEquals(TODAY.plusWeeks(1), saved!!.expiryDate)
     }
 
+    /** After v1 (UX-09): the keyboard opens on Name, and a new name takes the aisle Groceries would guess. */
+    @Test
+    fun addFormFocusesNameAndGuessesTheCategoryUntilOneIsPicked() {
+        var saved: StockDraft? = null
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                AddItemForm(emptyList(), emptySet(), TODAY) { saved = it }
+            }
+        }
+        compose.onNodeWithTag("field_name").assertIsFocused()
+        compose.onNodeWithTag("field_name").performTextInput("Greek yogurt")
+        compose.onNodeWithTag("button_save_item").performClick()
+        assertEquals(Category.Dairy, saved?.category)
+
+        // A category picked by hand stays, whatever the name becomes.
+        compose.onNodeWithText("Dairy and eggs").performScrollTo().performClick()
+        compose.onNodeWithText("Snacks").performClick()
+        compose.onNodeWithTag("field_name").performTextClearance()
+        compose.onNodeWithTag("field_name").performTextInput("Spinach")
+        compose.onNodeWithTag("button_save_item").performClick()
+        assertEquals(Category.Snacks, saved?.category)
+    }
+
+    @Test
+    fun addFormForAChosenProductDoesNotTakeTheFocus() {
+        val rice = product("rice", unit = QuantityUnit.Kilograms)
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                AddItemForm(listOf(rice), emptySet(), TODAY, prefill = rice) {}
+            }
+        }
+        compose.onNodeWithTag("field_name").assertIsNotFocused()
+    }
+
     @Test
     fun choosingAnExistingProductFillsItsDefaultsAndLocksItsUnit() {
         val rice = product("rice", unit = QuantityUnit.Kilograms, recent = listOf(30))
@@ -200,7 +237,7 @@ class PantryComponentsTest {
         }
         compose.onNodeWithTag("field_name").performTextInput("ri")
         compose.onNode(hasText("Rice")).performClick()
-        compose.onNodeWithText("Set while in stock").assertIsDisplayed()
+        compose.onNodeWithText("Can't change while you have some").assertIsDisplayed()
         compose.onNodeWithTag("button_save_item").performClick()
         assertEquals(QuantityUnit.Kilograms, saved?.unit)
         assertEquals(TODAY.plusDays(30), saved?.expiryDate)

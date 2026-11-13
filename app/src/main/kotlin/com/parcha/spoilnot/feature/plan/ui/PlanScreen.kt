@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.AddShoppingCart
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -95,7 +94,6 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
     var openMealId by rememberSaveable { mutableStateOf<String?>(null) }
     var shopping by rememberSaveable { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var confirmClear by rememberSaveable { mutableStateOf(false) }
     val weekMeals = state.days.sumOf { it.meals.size }
 
     TabScaffold(
@@ -122,9 +120,10 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.plan_clear_week)) },
+                    // Undo, no dialog (after v1, R13 and DESIGN 6.1).
                     onClick = {
                         menuOpen = false
-                        confirmClear = true
+                        viewModel.clearWeek()
                     },
                     enabled = weekMeals > 0,
                     modifier = Modifier.testTag("plan_clear_week"),
@@ -160,30 +159,6 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
         }
     }
 
-    if (confirmClear) {
-        val range = stringResource(
-            R.string.plan_week_range,
-            shortDate(state.weekStart),
-            shortDate(MealWeek.end(state.weekStart)),
-        )
-        AlertDialog(
-            onDismissRequest = { confirmClear = false },
-            title = { Text(stringResource(R.string.plan_clear_title)) },
-            text = { Text(pluralStringResource(R.plurals.plan_clear_text, weekMeals, weekMeals, range)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmClear = false
-                        viewModel.clearWeek()
-                    },
-                    modifier = Modifier.testTag("plan_clear_confirm"),
-                ) { Text(stringResource(R.string.plan_clear_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) }
-            },
-        )
-    }
     adding?.let { (date, slot) ->
         // Collected only while the sheet is open, so the pantry is listened to only then; shown once loaded.
         val useItUp = viewModel.useItUp.collectAsStateWithLifecycle().value ?: return@let

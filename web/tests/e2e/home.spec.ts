@@ -106,7 +106,7 @@ test('Needs attention, the Grocery list card, Insights and Recent activity, from
   const card = page.getByTestId('card_home_insights');
   await expect(card).toContainText('3 used · 1 thrown away');
   await expect(card.getByRole('img')).toHaveAccessibleName('This month: 3 used, 1 thrown away, 75% used.');
-  await card.getByRole('button', { name: 'See insights' }).click();
+  await card.getByRole('button', { name: 'See your kitchen' }).click();
   await expect(page.getByTestId('screen_insights')).toBeVisible();
   const details = page.getByTestId('insights_month_details');
   await expect(details).toContainText('3 used · 1 thrown away · 75% used');

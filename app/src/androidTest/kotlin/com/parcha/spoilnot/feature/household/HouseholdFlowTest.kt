@@ -33,6 +33,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -174,18 +175,56 @@ class HouseholdFlowTest {
         assertFalse(remaining.any { it.status == JoinRequestStatus.Pending })
     }
 
+    /**
+     * After v1 (R12) there is no Pause joining: a code an older build paused (`active: false`) still takes requests,
+     * since the owner approves each one, and New code replaces it with an active one.
+     */
     @Test
-    fun pausedCodeIsInactive_rotatedCodeReplacesIt() = runBlocking {
+    fun codePausedByAnOlderBuildStillTakesRequests_rotatedCodeReplacesIt() = runBlocking {
         val (householdId, code) = aliceCreatesHousehold()
-        alice.households.setJoiningPaused(code, paused = true)
-        assertFalse(checkNotNull(bob.households.findInviteCode(code)).active)
+        withContext(Dispatchers.IO) {
+            EmulatorAdmin.putDocument(
+                "inviteCodes/$code",
+                mapOf(
+                    "householdId" to householdId,
+                    "householdName" to "Test home",
+                    "active" to false,
+                    "createdBy" to alice.uid,
+                    "createdAt" to java.time.Instant.now(),
+                ),
+            )
+        }
+        assertNotNull(bob.households.findInviteCode(code))
 
         val household = alice.households.observeHousehold(householdId).first { it?.inviteCode == code }!!
         val newCode = InviteCodes.generate()
-        alice.households.regenerateInviteCode(household, alice.uid, newCode, active = true)
+        alice.households.regenerateInviteCode(household, alice.uid, newCode)
 
         assertNull(bob.households.findInviteCode(code))
+        withContext(Dispatchers.IO) {
+            assertTrue(EmulatorAdmin.documentExists("inviteCodes/$newCode"))
+        }
         bobRequestsToJoin(newCode)
+        Unit
+    }
+
+    @Test
+    fun codePausedByAnOlderBuild_requestGoesThrough() = runBlocking {
+        val (householdId, code) = aliceCreatesHousehold()
+        withContext(Dispatchers.IO) {
+            EmulatorAdmin.putDocument(
+                "inviteCodes/$code",
+                mapOf(
+                    "householdId" to householdId,
+                    "householdName" to "Test home",
+                    "active" to false,
+                    "createdBy" to alice.uid,
+                    "createdAt" to java.time.Instant.now(),
+                ),
+            )
+        }
+        bobRequestsToJoin(code)
+        awaitRequestFromBob(householdId)
         Unit
     }
 
@@ -299,7 +338,6 @@ class HouseholdFlowTest {
 
     private suspend fun bobRequestsToJoin(code: String): JoinState {
         val invite = checkNotNull(bob.households.findInviteCode(code))
-        assertTrue(invite.active)
         assertEquals("Test home", invite.householdName)
         bob.households.requestToJoin(bob.uid, "Bob", invite, bobEmail)
         val waiting = bob.awaitSession { (it as? Session.NoHousehold)?.join is JoinState.Waiting }

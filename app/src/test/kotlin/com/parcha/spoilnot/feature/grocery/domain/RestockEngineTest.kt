@@ -6,6 +6,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.pantry.domain.Product
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -78,6 +79,25 @@ class RestockEngineTest {
         world.stock("b1", 0.5)
         world.run()
         assertEquals("no nagging while disarmed", writes, world.writes)
+    }
+
+    /** After v1 (UX-08): the Edit sheet of an item the app added says why. */
+    @Test
+    fun `the reason gives what is left and Keep at least, and nothing for an item a person added`() {
+        fun item(source: ItemSource, productId: String? = "milk") = GroceryItem(
+            id = "low_milk", name = "Milk", nameKey = "milk", quantity = 1.0, unit = null, note = null,
+            category = null, checked = false, checkedBy = null, source = source, productId = productId,
+            recipeId = null, createdBy = null, createdAt = null,
+        )
+        val data = PantryData(listOf(milk(min = 2.0)), listOf(batch("b1", "milk", quantity = 0.5)), fromCache = false)
+        assertEquals(
+            RestockReason.Low(have = 0.5, keepAtLeast = 2.0, unit = QuantityUnit.Pieces),
+            RestockEngine.reason(item(ItemSource.LowStock), data),
+        )
+        assertEquals(null, RestockEngine.reason(item(ItemSource.Manual), data))
+        assertEquals(RestockReason.ProductGone, RestockEngine.reason(item(ItemSource.LowStock, "gone"), data))
+        val noMinimum = data.copy(products = listOf(milk(min = null)))
+        assertEquals(RestockReason.ProductGone, RestockEngine.reason(item(ItemSource.LowStock), noMinimum))
     }
 
     @Test

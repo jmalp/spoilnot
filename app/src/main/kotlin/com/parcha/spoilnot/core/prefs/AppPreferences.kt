@@ -74,4 +74,13 @@ class AppPreferences @Inject constructor(@param:ApplicationContext private val c
     suspend fun setTourDone(done: Boolean) {
         context.dataStore.edit { it[tourDoneKey] = done }
     }
+
+    private val aisleHintDoneKey = booleanPreferencesKey("aisle_hint_done")
+
+    /** Groceries' one-time hint that aisles follow the store order (DESIGN 5.3, after v1) was dismissed here. */
+    val aisleHintDone: Flow<Boolean> = context.dataStore.data.map { it[aisleHintDoneKey] == true }
+
+    suspend fun setAisleHintDone() {
+        context.dataStore.edit { it[aisleHintDoneKey] = true }
+    }
 }

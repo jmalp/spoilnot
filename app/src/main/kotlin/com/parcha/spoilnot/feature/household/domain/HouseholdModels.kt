@@ -21,7 +21,7 @@ data class JoinRequest(
 )
 
 /** inviteCodes/{code}: what a person sees after typing a code. */
-data class InviteCode(val code: String, val householdId: String, val householdName: String, val active: Boolean)
+data class InviteCode(val code: String, val householdId: String, val householdName: String)
 
 /** The current user's own membership document, as watched by the membership watcher (DESIGN 9.1). */
 sealed interface Membership {

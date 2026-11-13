@@ -161,8 +161,9 @@ class WrongTypeReadTest {
         assertEquals("u1", household.ownerUid)
         assertEquals("", household.inviteCode)
 
-        val code = fakeSnapshot("ABC", mapOf("householdId" to "h1", "active" to "true")).toInviteCode()
-        assertFalse(code.active)
+        val code = fakeSnapshot("ABC", mapOf("householdId" to "h1", "householdName" to 3)).toInviteCode()
+        assertEquals("h1", code.householdId)
+        assertEquals("", code.householdName)
 
         val request = fakeSnapshot(
             "u2",

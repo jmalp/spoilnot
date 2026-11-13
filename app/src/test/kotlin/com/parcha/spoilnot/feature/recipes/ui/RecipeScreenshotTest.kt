@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.recipes.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Surface
@@ -22,9 +23,11 @@ import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
+import com.parcha.spoilnot.feature.recipes.domain.Ingredient
 import com.parcha.spoilnot.feature.recipes.domain.IngredientParser
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
+import com.parcha.spoilnot.feature.recipes.domain.Step
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,6 +83,31 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                 onToggleFavorite = {},
                 modifier = Modifier.width(180.dp),
             )
+        }
+    }
+
+    /**
+     * The top of a recipe (after v1, UX-12, R9, R10): one servings control (the stepper, no chip), one source line
+     * (no "By recipes.example.test"), and Start cooking in a bar that covers nothing.
+     */
+    @Test
+    fun recipeDetail() = snap("recipe_detail") {
+        val recipe = Recipe(
+            "r",
+            RecipeContent(
+                title = "Test pancakes",
+                sourceUrl = "https://recipes.example.test/pancakes",
+                sourceName = "recipes.example.test",
+                servings = 4,
+                totalMinutes = 25,
+                ingredients = listOf(Ingredient("2 cups flour"), Ingredient("2 eggs"), Ingredient("1 cup milk")),
+                steps = listOf(Step("Mix."), Step("Cook.")),
+            ),
+        )
+        Column(Modifier.height(640.dp)) {
+            RecipeBody(recipe, servings = 4, onServings = {
+            }, onAddToList = {}, onOpenOriginal = {}, modifier = Modifier.weight(1f))
+            StartCookingBar {}
         }
     }
 

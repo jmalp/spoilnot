@@ -41,7 +41,7 @@ export function maskEmail(email: string | null | undefined): string | null {
 export type ResetOutcome = 'cleared' | 'finishesWhenOnline';
 
 /** inviteCodes/{code}: what a person sees after typing a code. */
-export type InviteCode = { code: string; householdId: string; householdName: string; active: boolean };
+export type InviteCode = { code: string; householdId: string; householdName: string };
 
 /** The current user's own membership; Gone is confirmed by the server (removed, left, or deleted). */
 export type Membership = { kind: 'active'; role: Role } | { kind: 'gone' };
@@ -102,7 +102,6 @@ export interface HouseholdRepository {
   observeJoinRequests(householdId: string): Observable<JoinRequest[]>;
   /** The user's own request, or null once the server confirms there is none. */
   observeOwnJoinRequest(householdId: string, uid: string): Observable<JoinRequest | null>;
-  observeInviteCode(code: string): Observable<InviteCode | null>;
   /** Writes the household, owner membership, invite code, default list and profile together; returns its id. */
   createHousehold(uid: string, displayName: string, name: string, inviteCode: string): Promise<string>;
   /** Null when no household uses this code; the code must be well-formed. */
@@ -116,8 +115,8 @@ export interface HouseholdRepository {
   approve(householdId: string, request: JoinRequest): Promise<void>;
   decline(householdId: string, requesterUid: string): Promise<void>;
   rename(household: Household, newName: string): Promise<void>;
-  regenerateInviteCode(household: Household, uid: string, newCode: string, active: boolean): Promise<void>;
-  setJoiningPaused(code: string, paused: boolean): Promise<void>;
+  /** A new code for the household; the old one stops working (after v1 there is no Pause joining, R12). */
+  regenerateInviteCode(household: Household, uid: string, newCode: string): Promise<void>;
   removeMember(householdId: string, memberUid: string): Promise<void>;
   transferOwnership(householdId: string, fromUid: string, toUid: string): Promise<void>;
   /** Requires a connection: the cache is cleared right after. */

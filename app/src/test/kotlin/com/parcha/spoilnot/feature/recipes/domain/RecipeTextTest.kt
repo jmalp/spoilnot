@@ -77,6 +77,17 @@ class YieldTest {
 }
 
 class SourceUrlTest {
+    /** After v1 (R10): "By …" shows only when it names someone other than the site. */
+    @Test
+    fun `a By name that is only the site is recognized`() {
+        assertEquals(true, SourceUrl.namesSite("recipes.example.test", "recipes.example.test"))
+        assertEquals(true, SourceUrl.namesSite("BBC Good Food", "bbcgoodfood.com"))
+        assertEquals(true, SourceUrl.namesSite("Serious Eats", "seriouseats.com"))
+        assertEquals(false, SourceUrl.namesSite("Kenji López-Alt", "seriouseats.com"))
+        assertEquals(false, SourceUrl.namesSite("Grandma", null))
+        assertEquals(false, SourceUrl.namesSite("—", "example.com"))
+    }
+
     @Test
     fun `canonical drops tracking parameters, the fragment and default ports`() {
         assertEquals(

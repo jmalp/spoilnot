@@ -153,7 +153,7 @@ class AddToPantryTest {
         }
         compose.onNodeWithText("Add 1 to pantry").performClick()
         assertEquals("nothing is added until the amount is typed", null, confirmed)
-        compose.onNodeWithText("Set while in stock").assertIsDisplayed()
+        compose.onNodeWithText("Can't change while you have some").assertIsDisplayed()
         compose.onNodeWithTag("entry_quantity_i1").performTextReplacement("2000")
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/add_to_pantry_unit_locked_light_font1.png")
         compose.onNodeWithText("Add 1 to pantry").performClick()

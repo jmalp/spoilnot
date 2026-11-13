@@ -143,8 +143,6 @@ internal class FakeHouseholds(private val users: FakeUsers) : HouseholdRepositor
 
     override fun observeJoinRequests(householdId: String): Flow<List<JoinRequest>> = error("unused")
 
-    override fun observeInviteCode(code: String): Flow<InviteCode?> = error("unused")
-
     override suspend fun createHousehold(uid: String, displayName: String, name: String, inviteCode: String) =
         error("unused")
 
@@ -159,10 +157,7 @@ internal class FakeHouseholds(private val users: FakeUsers) : HouseholdRepositor
 
     override suspend fun rename(household: Household, newName: String) = error("unused")
 
-    override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String, active: Boolean) =
-        error("unused")
-
-    override suspend fun setJoiningPaused(code: String, paused: Boolean) = error("unused")
+    override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String) = error("unused")
 
     override suspend fun removeMember(householdId: String, memberUid: String) = error("unused")
 

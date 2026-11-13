@@ -89,12 +89,14 @@ fun DetailScaffold(
     actions: @Composable RowScope.() -> Unit = {},
     snackbarHost: @Composable () -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
+    bottomBar: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
         modifier = modifier,
         snackbarHost = snackbarHost,
         floatingActionButton = floatingActionButton,
+        bottomBar = bottomBar,
         topBar = {
             TopAppBar(
                 title = { Text(title) },
