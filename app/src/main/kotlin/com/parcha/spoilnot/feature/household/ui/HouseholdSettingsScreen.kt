@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -62,6 +63,7 @@ import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.ui.sensitiveClip
+import com.parcha.spoilnot.feature.household.domain.Household
 import com.parcha.spoilnot.feature.household.domain.HouseholdRules
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.JoinRequest
@@ -73,7 +75,7 @@ import java.time.format.FormatStyle
 import kotlinx.coroutines.launch
 
 /** A confirmation the screen is showing, if any. */
-private sealed interface Confirm {
+internal sealed interface Confirm {
     data object Rename : Confirm
 
     data object Regenerate : Confirm
@@ -119,42 +121,16 @@ fun HouseholdSettingsScreen(
             }
             return@DetailScaffold
         }
-        Column(
-            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            ErrorText(actions.error?.let { stringResource(it) })
-            if (c.isOwner && c.requests.isNotEmpty()) {
-                JoinRequestsCard(c.requests, actions.busy, viewModel::approve, viewModel::decline)
-            }
-            InviteCard(
-                code = household.inviteCode,
-                householdName = household.name,
-                isOwner = c.isOwner,
-                busy = actions.busy,
-                snackbar = snackbar,
-                onRegenerate = { confirm = Confirm.Regenerate },
-            )
-            MembersCard(
-                members = c.members,
-                myUid = c.myUid,
-                isOwner = c.isOwner,
-                onRemove = { confirm = Confirm.Remove(it) },
-                onMakeOwner = { confirm = Confirm.Transfer(it) },
-            )
-            if (c.isOwner) {
-                Text(
-                    stringResource(R.string.owner_cannot_leave),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                DangerButton(stringResource(R.string.action_delete_household), actions.busy) {
-                    confirm = Confirm.Delete
-                }
-            } else {
-                DangerButton(stringResource(R.string.action_leave), actions.busy) { confirm = Confirm.Leave }
-            }
-        }
+        HouseholdCards(
+            c,
+            household,
+            actions,
+            snackbar,
+            onApprove = viewModel::approve,
+            onDecline = viewModel::decline,
+            onConfirm = { confirm = it },
+            modifier = Modifier.padding(padding),
+        )
     }
 
     val name = household?.name.orEmpty()
@@ -203,6 +179,56 @@ fun HouseholdSettingsScreen(
     }
 }
 
+/** Household settings' cards (DESIGN 5.1), from the screen's content: join requests, invite, members, leave or delete. */
+@Composable
+internal fun HouseholdCards(
+    c: HouseholdViewModel.Content,
+    household: Household,
+    actions: HouseholdViewModel.Actions,
+    snackbar: SnackbarHostState,
+    onApprove: (JoinRequest) -> Unit,
+    onDecline: (JoinRequest) -> Unit,
+    onConfirm: (Confirm) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        ErrorText(actions.error?.let { stringResource(it) })
+        if (c.isOwner && c.requests.isNotEmpty()) {
+            JoinRequestsCard(c.requests, actions.busy, onApprove, onDecline)
+        }
+        InviteCard(
+            code = household.inviteCode,
+            householdName = household.name,
+            isOwner = c.isOwner,
+            busy = actions.busy,
+            snackbar = snackbar,
+            onRegenerate = { onConfirm(Confirm.Regenerate) },
+        )
+        MembersCard(
+            members = c.members,
+            myUid = c.myUid,
+            isOwner = c.isOwner,
+            onRemove = { onConfirm(Confirm.Remove(it)) },
+            onMakeOwner = { onConfirm(Confirm.Transfer(it)) },
+        )
+        if (c.isOwner) {
+            Text(
+                stringResource(R.string.owner_cannot_leave),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            DangerButton(stringResource(R.string.action_delete_household), actions.busy) {
+                onConfirm(Confirm.Delete)
+            }
+        } else {
+            DangerButton(stringResource(R.string.action_leave), actions.busy) { onConfirm(Confirm.Leave) }
+        }
+    }
+}
+
 @Composable
 private fun JoinRequestsCard(
     requests: List<JoinRequest>,
@@ -240,15 +266,35 @@ private fun JoinRequestsCard(
                         Text(stringResource(R.string.join_request_sent, sent), style = detail, color = detailColor)
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = {
-                        onApprove(request)
-                    }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                // Out of context TalkBack says whom (review A11Y-08): "Approve Robin Lee", "Decline Robin Lee".
+                val approve = stringResource(R.string.join_request_approve_description, request.displayName)
+                val decline = stringResource(R.string.join_request_decline_description, request.displayName)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilledTonalButton(
+                        onClick = {
+                            onApprove(request)
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.heightIn(min = 48.dp).semantics {
+                            contentDescription =
+                                approve
+                        },
+                    ) {
                         Text(stringResource(R.string.action_approve))
                     }
-                    OutlinedButton(onClick = {
-                        onDecline(request)
-                    }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            onDecline(request)
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.heightIn(min = 48.dp).semantics {
+                            contentDescription =
+                                decline
+                        },
+                    ) {
                         Text(stringResource(R.string.action_decline))
                     }
                 }
@@ -402,7 +448,11 @@ private fun MemberMenu(member: Member, onRemove: (Member) -> Unit, onMakeOwner: 
 private fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     OutlinedCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp).semantics { heading() },
+            )
             content()
         }
     }

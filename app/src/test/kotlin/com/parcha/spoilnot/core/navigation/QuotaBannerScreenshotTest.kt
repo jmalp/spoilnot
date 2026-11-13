@@ -54,7 +54,7 @@ class QuotaBannerScreenshotTest(private val dark: Boolean, private val fontScale
         compose.onNodeWithText("Spoil Not has reached its free daily limit and will work again tomorrow.")
             .assertIsDisplayed()
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/quota_banner_$suffix.png")
+        compose.onRoot().captureRoboImage("quota_banner_$suffix.png")
 
         reached.value = false
         compose.onNodeWithTag("quota_banner").assertDoesNotExist()

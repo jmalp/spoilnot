@@ -24,7 +24,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,12 +37,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.grocery.domain.AddToPantryRules
 import com.parcha.spoilnot.feature.grocery.domain.EntryDefaults
@@ -58,6 +61,7 @@ import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.ui.DateChips
 import com.parcha.spoilnot.feature.pantry.ui.EnumDropdown
 import com.parcha.spoilnot.feature.pantry.ui.LocationChoice
+import com.parcha.spoilnot.feature.pantry.ui.amountDescription
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatDate
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
@@ -100,7 +104,7 @@ fun AddToPantrySheet(
     onDismiss: () -> Unit,
 ) {
     val sheet = rememberFormSheet()
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,
@@ -199,9 +203,30 @@ private fun entrySummary(line: EntryLine, today: LocalDate): String {
     )
 }
 
+/**
+ * The line for TalkBack, one sentence (review A11Y-07): "Apples, 6 pieces, Fridge, expires Nov 23", or with
+ * "Skipped" or the problem in place of the details.
+ */
+@Composable
+private fun entryDescription(line: EntryLine, today: LocalDate, summary: String): String {
+    val value = line.value
+    val quantity = parseQuantity(value.quantity)?.takeIf { it > 0 }
+    if (value.skip || quantity == null) return listOf(line.item.name, summary).joinToString(", ")
+    return stringResource(
+        R.string.row_description,
+        line.item.name,
+        amountDescription(quantity, value.unit),
+        stringResource(value.location.label()),
+        value.expiry?.let { stringResource(R.string.grocery_entry_expires, formatDate(it, today)) }
+            ?: stringResource(R.string.status_no_date),
+    )
+}
+
 @Composable
 private fun EntryRow(line: EntryLine, today: LocalDate, onChange: (EntryEdit) -> Unit, onToggle: () -> Unit) {
     val summary = entrySummary(line, today)
+    val description = entryDescription(line, today, summary)
+    val state = stringResource(if (line.expanded) R.string.state_expanded else R.string.state_collapsed)
     Column(Modifier.fillMaxWidth().testTag("entry_${line.item.id}")) {
         Row(
             Modifier
@@ -212,6 +237,11 @@ private fun EntryRow(line: EntryLine, today: LocalDate, onChange: (EntryEdit) ->
                     ),
                     onClick = onToggle,
                 )
+                // TalkBack reads the sentence instead of the two lines, as on Pantry's rows.
+                .semantics {
+                    contentDescription = description
+                    stateDescription = state
+                }
                 .heightIn(min = 56.dp)
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -322,7 +352,7 @@ fun EditItemSheet(
         null
     }
 
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         modifier = sheet.modifier,

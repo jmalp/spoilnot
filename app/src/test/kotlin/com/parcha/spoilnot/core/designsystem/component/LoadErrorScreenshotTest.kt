@@ -58,6 +58,6 @@ class LoadErrorScreenshotTest(private val dark: Boolean, private val fontScale: 
         compose.onNodeWithTag("load_error_retry").assertHasClickAction().performClick()
         assertEquals(1, retries)
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/load_error_$suffix.png")
+        compose.onRoot().captureRoboImage("load_error_$suffix.png")
     }
 }

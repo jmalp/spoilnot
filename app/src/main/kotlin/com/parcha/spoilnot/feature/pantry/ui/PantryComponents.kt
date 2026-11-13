@@ -61,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.theme.STATUS_TINT_ALPHA
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
@@ -161,6 +162,12 @@ private fun PurchaseRow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        // From 1.5× text the amount joins the line under the name, so the name and the chip keep
+                        // the row's width (review A11Y-04: "Tomorro / w").
+                        val large = isLargeText()
+                        val amountText = @Composable { text: String ->
+                            Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        }
                         // The chip carries the status (icon, text, color); a second icon here only repeated it.
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             NameLine(item.name, low = item.isLow, out = false, pending = batch.pendingSync)
@@ -173,15 +180,10 @@ private fun PurchaseRow(
                                 StatusChip(batch.expiryDate, batch.dateType, today)
                                 LocationLabel(batch.location, location)
                                 if (batch.openedOn != null) OpenedLabel()
+                                if (large) amount?.let { amountText(it) }
                             }
                         }
-                        amount?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
+                        if (!large) amount?.let { amountText(it) }
                     }
                     PurchaseMenu(batch, actions)
                 }
@@ -217,16 +219,10 @@ private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier:
     }
 }
 
+/** The name with its Low or Out badge and the pending icon beside it, or under it from 1.5× text (review A11Y-04). */
 @Composable
 private fun NameLine(name: String, low: Boolean, out: Boolean, pending: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            name,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
+    val marks = @Composable {
         if (out) {
             Badge(stringResource(R.string.badge_out))
         } else if (low) {
@@ -239,6 +235,28 @@ private fun NameLine(name: String, low: Boolean, out: Boolean, pending: Boolean)
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+    val nameText = @Composable { modifier: Modifier ->
+        Text(
+            name,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = modifier,
+        )
+    }
+    if (isLargeText() && (out || low)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            nameText(Modifier)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                marks()
+            }
+        }
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            nameText(Modifier.weight(1f, fill = false))
+            marks()
         }
     }
 }

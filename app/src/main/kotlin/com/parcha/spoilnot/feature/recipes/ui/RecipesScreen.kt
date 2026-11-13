@@ -41,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
@@ -71,8 +70,10 @@ import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
+import com.parcha.spoilnot.core.designsystem.component.listBottomPadding
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.RecipeFilter
 import com.parcha.spoilnot.feature.recipes.domain.RecipeSort
@@ -162,7 +163,12 @@ fun RecipesScreen(
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(160.dp),
                         state = gridState,
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = listBottomPadding(),
+                        ),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize().testTag("recipe_grid"),
@@ -213,7 +219,7 @@ fun RecipesScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddRecipeSheet(onPaste: () -> Unit, onBrowse: () -> Unit, onManual: () -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    SpoilNotSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 24.dp)) {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.recipe_add_paste)) },

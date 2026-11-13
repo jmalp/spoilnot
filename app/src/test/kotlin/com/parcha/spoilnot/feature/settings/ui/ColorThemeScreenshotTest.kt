@@ -82,7 +82,7 @@ class ColorThemeScreenshotTest(private val dark: Boolean, private val fontScale:
             }
         }
         compose.onNodeWithTag("color_theme_fiery").assertIsSelected()
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/settings_colors_$suffix.png")
+        compose.onRoot().captureRoboImage("settings_colors_$suffix.png")
         compose.onNodeWithTag("color_theme_summer_fun").performClick()
         compose.onNodeWithTag("color_theme_summer_fun").assertIsSelected()
     }
@@ -113,7 +113,7 @@ class ColorThemeScreenshotTest(private val dark: Boolean, private val fontScale:
         ColorTheme.entries.filter { it != ColorTheme.Wallpaper }.forEach {
             theme = it
             compose.waitForIdle()
-            compose.onRoot().captureRoboImage("build/outputs/roborazzi/theme_${it.id}_$suffix.png")
+            compose.onRoot().captureRoboImage("theme_${it.id}_$suffix.png")
         }
     }
 }

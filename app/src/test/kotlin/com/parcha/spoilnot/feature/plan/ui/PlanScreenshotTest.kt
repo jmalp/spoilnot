@@ -86,7 +86,7 @@ class PlanScreenshotTest(private val dark: Boolean, private val fontScale: Float
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/plan_week_$suffix.png")
+        compose.onRoot().captureRoboImage("plan_week_$suffix.png")
     }
 
     /** An empty week says how to fill it, with Copy last week (after v1, UX-15). */
@@ -110,6 +110,6 @@ class PlanScreenshotTest(private val dark: Boolean, private val fontScale: Float
         compose.onNodeWithTag("plan_week_empty").assertIsDisplayed()
         compose.onNodeWithTag("plan_empty_copy").assertIsDisplayed()
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/plan_empty_week_$suffix.png")
+        compose.onRoot().captureRoboImage("plan_empty_week_$suffix.png")
     }
 }

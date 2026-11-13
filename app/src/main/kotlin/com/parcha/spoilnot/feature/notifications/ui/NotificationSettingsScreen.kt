@@ -41,6 +41,8 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -90,104 +92,130 @@ fun NotificationSettingsScreen(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         val p = prefs ?: return@DetailScaffold
-        Column(
-            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (!allowed) {
-                // DESIGN 5.4: if denied, a banner with a button that opens the system settings.
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.notif_blocked), color = MaterialTheme.colorScheme.onErrorContainer)
-                        val canAsk =
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                !Notifications.permissionGranted(context)
-                        TextButton(onClick = turnOn) {
-                            Text(stringResource(if (canAsk) R.string.notif_turn_on else R.string.notif_open_settings))
-                        }
+        val canAsk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notifications.permissionGranted(context)
+        NotificationSettingsContent(
+            p,
+            allowed = allowed,
+            canAsk = canAsk,
+            onUpdate = viewModel::update,
+            onTurnOn = turnOn,
+            onTest = {
+                if (Notifications.sendTest(context)) {
+                    scope.launch { snackbar.showSnackbar(resources.getString(R.string.notif_test_sent)) }
+                } else if (canAsk) {
+                    permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            onBattery = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) },
+            modifier = Modifier.padding(padding),
+        )
+    }
+}
+
+/** Settings > Notifications (DESIGN 5.4, 10): the reminder, its time, stages and expired mode, and a test. */
+@Composable
+internal fun NotificationSettingsContent(
+    p: NotificationPrefs,
+    allowed: Boolean,
+    canAsk: Boolean,
+    onUpdate: ((NotificationPrefs) -> NotificationPrefs) -> Unit,
+    onTurnOn: () -> Unit,
+    onTest: () -> Unit,
+    onBattery: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        if (!allowed) {
+            // DESIGN 5.4: if denied, a banner with a button that opens the system settings.
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.notif_blocked), color = MaterialTheme.colorScheme.onErrorContainer)
+                    TextButton(onClick = onTurnOn) {
+                        Text(stringResource(if (canAsk) R.string.notif_turn_on else R.string.notif_open_settings))
                     }
                 }
             }
-            ToggleRow(
-                stringResource(R.string.notif_enabled),
-                stringResource(R.string.notif_enabled_help),
-                p.enabled,
-            ) { on ->
-                viewModel.update { it.copy(enabled = on) }
-            }
-            if (p.enabled) {
-                EnumDropdown(
-                    label = stringResource(R.string.notif_time),
-                    value = p.hour,
-                    options = NotificationPrefs.HOURS.toList(),
-                    optionLabel = { formatHour(it) },
-                    onPick = { hour -> viewModel.update { it.copy(digestMinutes = hour * 60) } },
-                    helper = stringResource(R.string.notif_time_help),
-                )
-                ToggleRow(
-                    stringResource(R.string.notif_cooking),
-                    stringResource(R.string.notif_cooking_help),
-                    p.cooking,
-                ) { on ->
-                    viewModel.update { it.copy(cooking = on) }
-                }
-                Text(stringResource(R.string.notif_stages), style = MaterialTheme.typography.titleMedium)
-                listOf(
-                    3 to R.string.stage_3,
-                    2 to R.string.stage_2,
-                    1 to R.string.stage_1,
-                    0 to R.string.stage_0,
-                ).forEach { (stage, label) ->
-                    CheckRow(stringResource(label), stage in p.stages) { on ->
-                        viewModel.update { it.copy(stages = if (on) it.stages + stage else it.stages - stage) }
-                    }
-                }
-                Text(stringResource(R.string.notif_expired), style = MaterialTheme.typography.titleMedium)
-                Column(Modifier.selectableGroup()) {
-                    listOf(
-                        ExpiredMode.Once to R.string.expired_once,
-                        ExpiredMode.Daily to R.string.expired_daily,
-                        ExpiredMode.Never to R.string.expired_never,
-                    )
-                        .forEach { (mode, label) ->
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 48.dp)
-                                    .selectable(p.expiredMode == mode, role = Role.RadioButton) {
-                                        viewModel.update { it.copy(expiredMode = mode) }
-                                    },
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                RadioButton(selected = p.expiredMode == mode, onClick = null)
-                                Text(stringResource(label), Modifier.padding(start = 12.dp))
-                            }
-                        }
-                }
-            }
-            OutlinedButton(
-                onClick = {
-                    if (Notifications.sendTest(context)) {
-                        scope.launch { snackbar.showSnackbar(resources.getString(R.string.notif_test_sent)) }
-                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        !Notifications.permissionGranted(context)
-                    ) {
-                        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("button_test_notification"),
-            ) { Text(stringResource(R.string.notif_test)) }
-            // DESIGN 15: an in-app tip about battery settings; no exact-alarm or exemption permission is requested.
-            Text(
-                stringResource(R.string.notif_battery),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        }
+        ToggleRow(
+            stringResource(R.string.notif_enabled),
+            stringResource(R.string.notif_enabled_help),
+            p.enabled,
+        ) { on ->
+            onUpdate { it.copy(enabled = on) }
+        }
+        if (p.enabled) {
+            EnumDropdown(
+                label = stringResource(R.string.notif_time),
+                value = p.hour,
+                options = NotificationPrefs.HOURS.toList(),
+                optionLabel = { formatHour(it) },
+                onPick = { hour -> onUpdate { it.copy(digestMinutes = hour * 60) } },
+                helper = stringResource(R.string.notif_time_help),
             )
-            TextButton(onClick = {
-                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            }) {
-                Text(stringResource(R.string.notif_battery_action))
+            ToggleRow(
+                stringResource(R.string.notif_cooking),
+                stringResource(R.string.notif_cooking_help),
+                p.cooking,
+            ) { on ->
+                onUpdate { it.copy(cooking = on) }
             }
+            Text(
+                stringResource(R.string.notif_stages),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
+            listOf(
+                3 to R.string.stage_3,
+                2 to R.string.stage_2,
+                1 to R.string.stage_1,
+                0 to R.string.stage_0,
+            ).forEach { (stage, label) ->
+                CheckRow(stringResource(label), stage in p.stages) { on ->
+                    onUpdate { it.copy(stages = if (on) it.stages + stage else it.stages - stage) }
+                }
+            }
+            Text(
+                stringResource(R.string.notif_expired),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
+            Column(Modifier.selectableGroup()) {
+                listOf(
+                    ExpiredMode.Once to R.string.expired_once,
+                    ExpiredMode.Daily to R.string.expired_daily,
+                    ExpiredMode.Never to R.string.expired_never,
+                )
+                    .forEach { (mode, label) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .selectable(p.expiredMode == mode, role = Role.RadioButton) {
+                                    onUpdate { it.copy(expiredMode = mode) }
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = p.expiredMode == mode, onClick = null)
+                            Text(stringResource(label), Modifier.padding(start = 12.dp))
+                        }
+                    }
+            }
+        }
+        OutlinedButton(
+            onClick = onTest,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("button_test_notification"),
+        ) { Text(stringResource(R.string.notif_test)) }
+        // DESIGN 15: an in-app tip about battery settings; no exact-alarm or exemption permission is requested.
+        Text(
+            stringResource(R.string.notif_battery),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onBattery) {
+            Text(stringResource(R.string.notif_battery_action))
         }
     }
 }

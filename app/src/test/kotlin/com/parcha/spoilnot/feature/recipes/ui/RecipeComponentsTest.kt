@@ -38,8 +38,20 @@ class RecipeComponentsTest {
         }
         compose.onNodeWithText("Chili").assertExists()
         compose.onNodeWithContentDescription("Total 1 hr 15 min").assertExists()
-        compose.onNodeWithContentDescription("Add to favorites").performClick()
+        // One name with an on or off state, not a label that flips (after v1, review A11Y-08).
+        compose.onNodeWithContentDescription("Favorite").assertIsOff().performClick()
         assertEquals(1, toggles)
+    }
+
+    @Test
+    fun `a favorite card's star says Favorite, checked, and the placeholder letter isn't read`() {
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                RecipeCard(Recipe("a", RecipeContent(title = "Spinach omelette"), favorite = true), {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("Favorite").assertIsOn()
+        compose.onNodeWithText("S").assertDoesNotExist()
     }
 
     @Test

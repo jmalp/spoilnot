@@ -50,6 +50,7 @@ import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.MaxContentWidth
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.household.domain.HouseholdRules
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.JoinState
@@ -103,21 +104,13 @@ fun HouseholdGateScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                when (val join = session.join) {
-                    null -> {
-                        Text(
-                            stringResource(R.string.gate_intro),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        CreateCard(state.busy, state.createError, viewModel::createHousehold)
-                        JoinCard(state.busy, state.joinError, viewModel::lookUpCode)
-                    }
-
-                    else -> JoinStatusCard(join, state.busy, state.requestError) {
-                        viewModel.abandonRequest(join.pending)
-                    }
-                }
+                GateCards(
+                    session.join,
+                    state,
+                    onCreate = viewModel::createHousehold,
+                    onLookUp = viewModel::lookUpCode,
+                    onAbandon = viewModel::abandonRequest,
+                )
             }
         }
     }
@@ -152,6 +145,30 @@ fun HouseholdGateScreen(
                 TextButton(onClick = viewModel::dismissConfirm) { Text(stringResource(R.string.action_cancel)) }
             },
         )
+    }
+}
+
+/** The gate's cards (DESIGN 5.1): create or join, or the join request in flight. */
+@Composable
+internal fun GateCards(
+    join: JoinState?,
+    state: GateViewModel.UiState,
+    onCreate: (String) -> Unit,
+    onLookUp: (String) -> Unit,
+    onAbandon: (PendingJoin) -> Unit,
+) {
+    when (join) {
+        null -> {
+            Text(
+                stringResource(R.string.gate_intro),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            CreateCard(state.busy, state.createError, onCreate)
+            JoinCard(state.busy, state.joinError, onLookUp)
+        }
+
+        else -> JoinStatusCard(join, state.busy, state.requestError) { onAbandon(join.pending) }
     }
 }
 

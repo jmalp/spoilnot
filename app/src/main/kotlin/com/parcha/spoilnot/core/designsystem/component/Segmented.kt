@@ -17,17 +17,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
-/** Font scale from which [Segmented] stacks its options, since side by side they no longer fit (after v1). */
-const val SEGMENTED_STACK_FONT_SCALE = 1.5f
-
 /**
- * A single-choice control (DESIGN 6.5): segmented buttons, or a list of radio buttons at large text sizes so long
- * labels are never cut off.
+ * A single-choice control (DESIGN 6.5): segmented buttons, or from 1.5× text ([isLargeText]) a list of radio buttons
+ * so long labels are never cut off.
  */
 @Composable
 fun <T> Segmented(
@@ -39,7 +35,7 @@ fun <T> Segmented(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge)
-        if (LocalDensity.current.fontScale >= SEGMENTED_STACK_FONT_SCALE) {
+        if (isLargeText()) {
             Column(Modifier.selectableGroup().testTag("segmented_list")) {
                 options.forEach { option ->
                     Row(

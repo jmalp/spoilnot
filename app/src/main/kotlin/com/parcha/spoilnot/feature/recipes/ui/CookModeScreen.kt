@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,7 +22,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.ui.rememberSaveableList
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.Scaling
@@ -88,16 +91,17 @@ fun CookModeScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CookSteps(recipe: Recipe, servings: Int?, modifier: Modifier = Modifier) {
+internal fun CookSteps(recipe: Recipe, servings: Int?, modifier: Modifier = Modifier) {
     val steps = recipe.content.steps
     val pager = rememberPagerState { steps.size }
     val scope = rememberCoroutineScope()
     var showIngredients by rememberSaveable { mutableStateOf(false) }
     val checked = rememberSaveableList<Int>()
     Column(modifier.fillMaxSize()) {
+        val progress = stringResource(R.string.recipe_step_of, pager.currentPage + 1, steps.size)
         LinearProgressIndicator(
             progress = { (pager.currentPage + 1f) / steps.size.coerceAtLeast(1) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = progress },
         )
         HorizontalPager(state = pager, modifier = Modifier.weight(1f).testTag("cook_pager")) { page ->
             val step = steps[page]
@@ -119,22 +123,25 @@ private fun CookSteps(recipe: Recipe, servings: Int?, modifier: Modifier = Modif
                 )
             }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        val previous = stringResource(R.string.recipe_step_previous_description)
+        val backButton = @Composable {
+            // "Back" on screen, as before; TalkBack says which back, since the top bar has one too (review A11Y-08).
             OutlinedButton(
                 onClick = { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } },
                 enabled = pager.currentPage > 0,
+                modifier = Modifier.semantics { contentDescription = previous },
             ) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
                 Text(stringResource(R.string.recipe_step_previous), Modifier.padding(start = 4.dp))
             }
-            TextButton(onClick = { showIngredients = true }, modifier = Modifier.weight(1f)) {
+        }
+        val ingredientsButton = @Composable { buttonModifier: Modifier ->
+            TextButton(onClick = { showIngredients = true }, modifier = buttonModifier) {
                 Icon(Icons.AutoMirrored.Rounded.List, contentDescription = null)
                 Text(stringResource(R.string.recipe_ingredients), Modifier.padding(start = 4.dp))
             }
+        }
+        val nextButton = @Composable {
             FilledTonalButton(
                 onClick = { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
                 enabled = pager.currentPage < steps.lastIndex,
@@ -144,10 +151,31 @@ private fun CookSteps(recipe: Recipe, servings: Int?, modifier: Modifier = Modif
                 Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, Modifier.padding(start = 4.dp))
             }
         }
+        // From 1.5× text Ingredients gets its own line; between Back and Next it broke mid-word.
+        if (isLargeText()) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ingredientsButton(Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    backButton()
+                    Spacer(Modifier.weight(1f))
+                    nextButton()
+                }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                backButton()
+                ingredientsButton(Modifier.weight(1f))
+                nextButton()
+            }
+        }
     }
     if (showIngredients) {
         val factor = Scaling.factor(recipe.content.servings, servings)
-        ModalBottomSheet(onDismissRequest = { showIngredients = false }) {
+        SpoilNotSheet(onDismissRequest = { showIngredients = false }) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
                 Text(stringResource(R.string.recipe_ingredients), style = MaterialTheme.typography.titleLarge)
                 IngredientChecklist(

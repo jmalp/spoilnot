@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,9 +66,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.LoadError
+import com.parcha.spoilnot.core.designsystem.component.NameWithTrailing
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
@@ -278,7 +282,22 @@ private fun TodayCard(meals: List<PlannedMeal>, members: List<Member>, myUid: St
         action = stringResource(R.string.home_today_open) to onOpen,
     ) {
         meals.forEach { meal ->
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val cooks = cookNames(meal.cooks, members, myUid)
+            // One stop per meal for TalkBack: "Breakfast: Porridge, cooking: You, Cooked" (review A11Y-07).
+            val description = listOfNotNull(
+                stringResource(R.string.home_today_meal_description, slotLabel(meal.slot), meal.title),
+                cooks.takeIf {
+                    it.isNotEmpty()
+                }?.let { stringResource(R.string.home_today_cooking, it.joinToString()) },
+                meal.cookedAt?.let { stringResource(R.string.plan_cooked) },
+            ).joinToString(", ")
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clearAndSetSemantics { contentDescription = description },
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Text(
                     slotLabel(meal.slot),
                     style = MaterialTheme.typography.labelMedium,
@@ -290,7 +309,6 @@ private fun TodayCard(meals: List<PlannedMeal>, members: List<Member>, myUid: St
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val cooks = cookNames(meal.cooks, members, myUid)
                 if (cooks.isNotEmpty() || meal.cookedAt != null) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         cooks.forEach { CookChip(it) }
@@ -461,19 +479,25 @@ private fun RemindersOffLine(onTurnOn: () -> Unit) {
     }
 }
 
-/** One purchase that can still be used, as Pantry shows it: name and status chip. */
+/**
+ * One purchase that can still be used, as Pantry shows it: name and status chip, the chip under the name from 1.5×
+ * text (review A11Y-04). TalkBack reads it as one sentence, "Milk, expires tomorrow" (review A11Y-07).
+ */
 @Composable
 private fun AttentionRow(item: PantryItem.Purchase, today: LocalDate) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            item.name,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        StatusChip(item.batch.expiryDate, item.batch.dateType, today)
-    }
+    NameWithTrailing(
+        Modifier.semantics(mergeDescendants = true) {}.testTag("home_attention_row"),
+        name = {
+            Text(
+                item.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = it,
+            )
+        },
+        trailing = { StatusChip(item.batch.expiryDate, item.batch.dateType, today) },
+    )
 }
 
 /** "3 expired items to throw away or check": the expired folded into one line (after v1, UX-01). */
@@ -494,18 +518,22 @@ private fun ExpiredLine(count: Int) {
     }
 }
 
+/** "Olive oil · Low" as one sentence, the badge under the name from 1.5× text (review A11Y-04, A11Y-07). */
 @Composable
 private fun LowStockRow(row: PantryRow) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            row.name,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Badge(stringResource(if (row.isOut) R.string.badge_out else R.string.badge_low))
-    }
+    NameWithTrailing(
+        Modifier.semantics(mergeDescendants = true) {},
+        name = {
+            Text(
+                row.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = it,
+            )
+        },
+        trailing = { Badge(stringResource(if (row.isOut) R.string.badge_out else R.string.badge_low)) },
+    )
 }
 
 /** "Sam added Eggs to Groceries · 5 min ago" (DESIGN 5.6). */
@@ -608,19 +636,35 @@ private fun JoinRequestsCard(count: Int, onReview: () -> Unit, modifier: Modifie
         modifier = modifier.fillMaxWidth().testTag("card_home_join_requests"),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
-        Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Icon(Icons.Rounded.GroupAdd, contentDescription = null)
-            Text(
-                pluralStringResource(R.plurals.home_join_requests, count, count),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
+        val text = @Composable { textModifier: Modifier ->
+            Row(textModifier, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Icon(Icons.Rounded.GroupAdd, contentDescription = null)
+                Text(
+                    pluralStringResource(R.plurals.home_join_requests, count, count),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
+        val button = @Composable {
             Button(onClick = onReview, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.action_review))
+            }
+        }
+        // From 1.5× text the button goes under the sentence; beside it, the sentence broke one syllable per line
+        // (review A11Y-04).
+        if (isLargeText()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                text(Modifier)
+                Box(Modifier.align(Alignment.End)) { button() }
+            }
+        } else {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                text(Modifier.weight(1f))
+                button()
             }
         }
     }

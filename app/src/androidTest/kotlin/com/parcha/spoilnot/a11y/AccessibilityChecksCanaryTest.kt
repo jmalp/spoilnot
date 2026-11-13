@@ -11,7 +11,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.R as Material3R
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.getValue
@@ -30,8 +29,8 @@ import androidx.compose.ui.test.tryPerformAccessibilityChecks
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
-import androidx.test.platform.app.InstrumentationRegistry
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -71,28 +70,27 @@ class AccessibilityChecksCanaryTest {
         assertTrue("expected the name rule to fail, got $failure", failure is AssertionError)
     }
 
-    /** Material's 32 dp drag handle is the one known ATF result (A11Y-06, B19); anything else in a sheet still fails. */
+    /** Material's own sheet fails ATF on its 32 dp drag handle (A11Y-06), and the app's SpoilNotSheet passes. */
     @Test
-    fun inASheetOnlyMaterialsDragHandleIsExcused() {
-        var tiny by mutableStateOf(false)
+    fun materialsDragHandleFailsAndSpoilNotSheetsPasses() {
+        var ours by mutableStateOf(false)
         compose.setContent {
-            ModalBottomSheet(onDismissRequest = {
-            }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-                Text("A sheet", Modifier.padding(24.dp))
-                if (tiny) Box(Modifier.size(20.dp).background(Color.Gray).clickable {})
+            val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            if (ours) {
+                SpoilNotSheet(onDismissRequest = {}, sheetState = state) { Text("A sheet", Modifier.padding(24.dp)) }
+            } else {
+                ModalBottomSheet(onDismissRequest = {}, sheetState = state) { Text("A sheet", Modifier.padding(24.dp)) }
             }
         }
-        compose.enableAccessibilityChecks(spoilNotAccessibilityValidator(dragHandleDescription()))
+        compose.enableAccessibilityChecks(spoilNotAccessibilityValidator())
         compose.waitUntil(10_000) { compose.onAllNodes(isRoot()).fetchSemanticsNodes().size >= 2 }
-        compose.onAllNodes(isRoot()).tryPerformAccessibilityChecks()
-        tiny = true
+        val material = runCatching { compose.onAllNodes(isRoot()).tryPerformAccessibilityChecks() }.exceptionOrNull()
+        assertTrue("expected Material's drag handle to fail, got $material", material != null)
+        ours = true
+        compose.waitUntil(10_000) { compose.onAllNodes(isRoot()).fetchSemanticsNodes().size >= 2 }
         compose.waitForIdle()
-        val failure = runCatching { compose.onAllNodes(isRoot()).tryPerformAccessibilityChecks() }.exceptionOrNull()
-        assertTrue("expected the tiny button to fail, got $failure", failure != null)
+        compose.onAllNodes(isRoot()).tryPerformAccessibilityChecks()
     }
-
-    private fun dragHandleDescription() = InstrumentationRegistry.getInstrumentation().targetContext
-        .getString(Material3R.string.m3c_bottom_sheet_drag_handle_description)
 
     @Test
     fun spoilNotFabIsNamedByItsText() {

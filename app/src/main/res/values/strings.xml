@@ -452,6 +452,7 @@
     <string name="recipe_sort_az">A to Z</string>
     <string name="recipe_favorite">Add to favorites</string>
     <string name="recipe_unfavorite">Remove from favorites</string>
+    <!-- After v1 (A11Y-08) Android names the star recipe_favorite_toggle with its state; these two stay for the web until its port. -->
     <string name="recipe_minutes">%1$d min</string>
     <string name="recipe_hours">%1$d hr</string>
     <string name="recipe_hours_minutes">%1$d hr %2$d min</string>
@@ -779,4 +780,17 @@
     <string name="plan_moved">Moved %1$s</string>
     <string name="home_today">Today</string>
     <string name="home_today_open">Open plan</string>
+    <!-- Screen readers and large text (after v1, review A11Y-04 to A11Y-11). -->
+    <string name="home_today_meal_description">%1$s: %2$s</string>
+    <string name="home_today_cooking">cooking: %1$s</string>
+    <string name="grocery_source_recipe_description">from a recipe</string>
+    <string name="grocery_source_meal_plan_description">from the meal plan</string>
+    <string name="grocery_entry_expires">expires %1$s</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
+    <string name="recipe_favorite_toggle">Favorite</string>
+    <string name="recipe_step_previous_description">Back to the previous step</string>
+    <string name="recipe_cooked_amount_description">Amount of %1$s to use, in %2$s</string>
+    <string name="join_request_approve_description">Approve %1$s</string>
+    <string name="join_request_decline_description">Decline %1$s</string>
 </resources>

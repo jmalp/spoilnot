@@ -73,7 +73,7 @@ class TourScreenshotTest(private val dark: Boolean, private val fontScale: Float
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/${name}_$suffix.png")
+        compose.onRoot().captureRoboImage("${name}_$suffix.png")
     }
 
     @Test

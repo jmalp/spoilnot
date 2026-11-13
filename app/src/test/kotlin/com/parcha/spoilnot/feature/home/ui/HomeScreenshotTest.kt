@@ -114,7 +114,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_cards_$suffix.png")
+        compose.onRoot().captureRoboImage("home_cards_$suffix.png")
     }
 
     /** A new household: Needs attention and the grocery list say how to start, with no "all done" check (UX-07). */
@@ -140,7 +140,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_new_household_$suffix.png")
+        compose.onRoot().captureRoboImage("home_new_household_$suffix.png")
     }
 
     /** Nothing needs doing: the empty cards are one compact row each (after v1). */
@@ -162,7 +162,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_calm_$suffix.png")
+        compose.onRoot().captureRoboImage("home_calm_$suffix.png")
     }
 
     /**
@@ -207,6 +207,6 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
         }
         compose.onAllNodesWithTag("home_reminders_turn_on").assertCountEquals(2)
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/home_reminders_off_$suffix.png")
+        compose.onRoot().captureRoboImage("home_reminders_off_$suffix.png")
     }
 }

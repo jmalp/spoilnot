@@ -77,7 +77,7 @@ class AddToPantryTest {
         assertEquals(listOf("i1", "i2"), entries.map { it.item.id })
         assertEquals(QuantityUnit.Kilograms, entries[1].unit)
         assertEquals(emptyList<GroceryItem>(), skipped)
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/add_to_pantry_light_font1.png")
+        compose.onRoot().captureRoboImage("add_to_pantry_light_font1.png")
     }
 
     @Test
@@ -155,7 +155,7 @@ class AddToPantryTest {
         assertEquals("nothing is added until the amount is typed", null, confirmed)
         compose.onNodeWithText("Can't change while you have some").assertIsDisplayed()
         compose.onNodeWithTag("entry_quantity_i1").performTextReplacement("2000")
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/add_to_pantry_unit_locked_light_font1.png")
+        compose.onRoot().captureRoboImage("add_to_pantry_unit_locked_light_font1.png")
         compose.onNodeWithText("Add 1 to pantry").performClick()
         val entry = confirmed!!.first.single()
         assertEquals(QuantityUnit.Grams, entry.unit)
@@ -168,7 +168,7 @@ class AddToPantryTest {
         compose.onNodeWithText("Rice").performClick()
         compose.onNodeWithTag("entry_skip_i2").performClick()
         compose.onNodeWithText("Skipped", substring = true).assertIsDisplayed()
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/add_to_pantry_dark_font2.png")
+        compose.onRoot().captureRoboImage("add_to_pantry_dark_font2.png")
         compose.onNodeWithText("Add 1 to pantry").performClick()
         val (entries, skipped) = confirmed!!
         assertEquals(listOf("i1"), entries.map { it.item.id })

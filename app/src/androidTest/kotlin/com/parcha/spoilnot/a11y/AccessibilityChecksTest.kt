@@ -1,11 +1,12 @@
 package com.parcha.spoilnot.a11y
 
-import androidx.compose.material3.R as Material3R
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertAll
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -207,6 +208,12 @@ class AccessibilityChecksTest {
         compose.waitUntil(20_000) { windows() == 1 }
     }
 
+    /** Runs one of B19's semantics checks (headings, roles) and keeps what fails. */
+    private fun semantics(stop: String, assertion: () -> Unit) {
+        compose.waitForIdle()
+        runCatching(assertion).onFailure { problems += "$stop (semantics): ${it.message}" }
+    }
+
     /** Runs ATF and the name rule on every window open now, and keeps what fails. */
     private fun check(stop: String) {
         compose.waitForIdle()
@@ -219,9 +226,7 @@ class AccessibilityChecksTest {
     @Test
     fun mainScreensAndTheirSheetsPassAccessibilityChecks() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
-        compose.enableAccessibilityChecks(
-            spoilNotAccessibilityValidator(str(Material3R.string.m3c_bottom_sheet_drag_handle_description)),
-        )
+        compose.enableAccessibilityChecks(spoilNotAccessibilityValidator())
         val stopped = runCatching { walk() }.exceptionOrNull()
         val report = buildList {
             stopped?.let { add("Stopped before the end: $it") }
@@ -245,6 +250,12 @@ class AccessibilityChecksTest {
         fab(str(R.string.action_add_item)).performClick()
         awaitTag("sheet_add_item")
         check("Add item sheet")
+        // One date at a time: radio buttons (A11Y-08).
+        semantics("Add item date tiles") {
+            compose.onAllNodes(tagPrefix("date_chip_")).assertAll(
+                SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton),
+            )
+        }
         closeWindows()
         compose.onAllNodes(tagPrefix("pantry_item_"))[0].performClick()
         awaitTag("sheet_edit_item")
@@ -316,6 +327,7 @@ class AccessibilityChecksTest {
         tab(R.string.tab_groceries)
         await(tagPrefix("grocery_item_"))
         check("Groceries")
+        semantics("Grocery aisle headings") { compose.assertHasHeadingIn("grocery_list") }
         compose.onAllNodes(tagPrefix("grocery_item_"))[0].performClick()
         fab(resources().getQuantityString(R.plurals.grocery_add_to_pantry, 1, 1)).performClick()
         awaitTag("sheet_add_to_pantry")
@@ -325,6 +337,7 @@ class AccessibilityChecksTest {
         compose.onNode(hasContentDescription(str(R.string.open_settings))).performClick()
         awaitTag("screen_settings")
         check("Settings")
+        semantics("Settings headings") { compose.assertHeading(str(R.string.settings_account)) }
         awaitTag("row_household").performScrollTo().performClick()
         awaitTag("screen_household")
         check("Household")

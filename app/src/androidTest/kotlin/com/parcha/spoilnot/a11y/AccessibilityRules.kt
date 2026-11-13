@@ -4,14 +4,12 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.isToggleable
-import com.google.android.apps.common.testing.accessibility.framework.AccessibilityViewCheckResult
-import com.google.android.apps.common.testing.accessibility.framework.checks.TouchTargetSizeCheck
 import com.google.android.apps.common.testing.accessibility.framework.integrations.espresso.AccessibilityValidator
-import com.google.android.apps.common.testing.accessibility.framework.uielement.ViewHierarchyElement
-import org.hamcrest.BaseMatcher
-import org.hamcrest.Description
 
 /**
  * The app's own accessibility rule, on top of the Accessibility Test Framework (DESIGN 6.8): every node a screen reader
@@ -40,28 +38,23 @@ private fun SemanticsNode.isHidden(): Boolean =
     SemanticsProperties.HideFromAccessibility in config || SemanticsProperties.InvisibleToUser in config
 
 /**
- * ATF's checks, as `enableAccessibilityChecks()` runs them, minus one known result: Material's bottom sheet drag
- * handle (the clickable wrapper around the node Material describes as "Drag handle") is 32 dp wide (A11Y-06). Every
- * other check still runs on the sheets, and every result on other controls, including touch targets, still fails the
- * test. Batch B19 pads the handle to 48 dp and removes this exception.
+ * ATF's checks, as `enableAccessibilityChecks()` runs them, from each window's root. No result is excused: until B19,
+ * Material's 32 dp bottom sheet drag handle was (A11Y-06); every sheet now uses `SpoilNotSheet`, whose handle is 48 dp.
  */
-fun spoilNotAccessibilityValidator(dragHandleDescription: String): AccessibilityValidator = AccessibilityValidator()
-    .setRunChecksFromRootView(true)
-    .setSuppressingResultMatcher(MaterialDragHandleTouchTarget(dragHandleDescription))
+fun spoilNotAccessibilityValidator(): AccessibilityValidator = AccessibilityValidator().setRunChecksFromRootView(true)
 
-private class MaterialDragHandleTouchTarget(private val description: String) : BaseMatcher<Any>() {
-    override fun matches(item: Any?): Boolean {
-        val result = item as? AccessibilityViewCheckResult ?: return false
-        val element = result.element ?: return false
-        return result.accessibilityHierarchyCheck == TouchTargetSizeCheck::class.java && element.holdsHandle()
+/** Fails unless the node tagged [tag] holds at least one heading (review A11Y-09: list group headers). */
+fun SemanticsNodeInteractionsProvider.assertHasHeadingIn(tag: String) {
+    val headings = onAllNodes(isHeading() and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true)
+        .fetchSemanticsNodes(atLeastOneRootRequired = true)
+    if (headings.isEmpty()) throw AssertionError("No heading in $tag")
+}
+
+/** Fails unless some node in any window is a heading whose text is [text] (review A11Y-09). */
+fun SemanticsNodeInteractionsProvider.assertHeading(text: String) {
+    val headings = onAllNodes(isHeading(), useUnmergedTree = true).fetchSemanticsNodes(atLeastOneRootRequired = true)
+    val found = headings.any { node ->
+        node.config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text == text }
     }
-
-    // Material puts the click on a wrapper and the description on the handle inside it. Only a small target gets this
-    // result, so a large container holding a sheet can't be excused by it.
-    private fun ViewHierarchyElement.holdsHandle(): Boolean = contentDescription?.toString() == description ||
-        (0 until childViewCount).any { getChildView(it).holdsHandle() }
-
-    override fun describeTo(description: Description) {
-        description.appendText("TouchTargetSizeCheck on Material's drag handle \"${this.description}\"")
-    }
+    if (!found) throw AssertionError("\"$text\" is not a heading")
 }
