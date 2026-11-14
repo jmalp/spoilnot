@@ -5,6 +5,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.parcha.spoilnot.HiltTestActivity
+import com.parcha.spoilnot.LiveTest
 import com.parcha.spoilnot.feature.recipes.data.OkHttpRecipeImportService
 import com.parcha.spoilnot.feature.recipes.domain.BrowserScript
 import com.parcha.spoilnot.feature.recipes.domain.Extraction
@@ -19,19 +20,19 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
  * M5 acceptance against the real sites in docs/import-test-sites.md: the app's fetch first, and for blocked pages
- * the app's locked-down web view, as in DESIGN 11.2. Needs the internet, so it runs only when asked:
+ * the app's locked-down web view, as in DESIGN 11.2. Needs the internet, so it runs only when asked ([LiveTest]):
  * `./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.live=true
  *  -Pandroid.testInstrumentationRunnerArguments.class=com.parcha.spoilnot.feature.recipes.LiveImportTest`
  * Add `-Pandroid.testInstrumentationRunnerArguments.browser=true` to skip the fetch and read every site in the web
  * view, which runs the browser script and its JSON-LD limits (DESIGN 11.6).
  */
+@LiveTest
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class LiveImportTest {
@@ -56,7 +57,6 @@ class LiveImportTest {
     @Test
     fun importsAtLeastNineOfTheTenSites() {
         val args = InstrumentationRegistry.getArguments()
-        assumeTrue("live import runs only with -e live true", args.getString("live") == "true")
         val browserOnly = args.getString("browser") == "true"
         val importer = OkHttpRecipeImportService(OkHttpClient())
         val outcomes = sites.associateWith { url ->

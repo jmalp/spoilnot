@@ -310,32 +310,86 @@ Then, from a clean checkout:
   `CHROME_PATH=<Playwright's Chromium> npx lighthouse http://localhost:4173/ --only-categories=performance,accessibility`
   (results in DESIGN 18.6).
 
+## Benchmark setup (DESIGN 13.1)
+
+Benchmarks and the baseline profile need an emulator that runs at full speed on the Mac's GPU, or the numbers mean
+nothing (review 08, PERF-01). Start Pixel_8 headless:
+
+```bash
+~/Library/Android/sdk/emulator/emulator -avd Pixel_8 -gpu host -feature -Uwb -no-window -no-snapshot -no-boot-anim -no-audio
+```
+
+- `-gpu host` draws with the Mac's GPU. The default `-gpu auto` can choose SwiftShader (software rendering), which
+  draws frames several times slower than a phone.
+- `-no-window`: macOS throttles an emulator whose window isn't in front (App Nap), so a windowed one runs at background
+  priority (4 instead of 31) and its frames take 50 to 70 ms even in the system Settings list. Headless it runs at
+  full priority and gives the same numbers run after run.
+- `-feature -Uwb` stops the UWB service's crash loop on this image (a crash dump every few seconds takes a whole guest
+  core). The emulator gives this image 4 GB whatever `-memory` says.
+
+`./scripts/baseline-profile.sh` checks the device before it does anything (`--check` runs only the checks): it refuses
+a SwiftShader renderer (`adb shell dumpsys SurfaceFlinger | grep '^GLES:'` must name "Apple M1 Pro"), warns when the
+emulator's process runs under priority 31 (`ps -o pri -p <qemu pid>`), waits up to five minutes for the guest's
+one-minute load to fall under 2.5, and warns when the Mac has under 20% memory free or Low Power Mode is on. Also:
+
+- Keep the lid open and the Mac awake for the whole run: a sleeping Mac freezes the emulator mid-run, and the run is
+  worthless (`pmset -g log | grep Sleep` shows when).
+- Run one benchmark method per Gradle call with `-Pandroid.testInstrumentationRunnerArguments.class=<class>#<method>`;
+  a `tests_regex` with `|` or `(` runs no tests at all (AGP passes it through the device's shell unquoted).
+- Emulator numbers compare builds and screens on this Mac; they aren't phone timings. Phone timings come from the
+  owner's phone checks (QA.md 4).
+
 ## Baseline profile (DESIGN 13.1)
 
-Release builds ship `app/src/main/baselineProfiles/baseline-prof.txt`, a list of the code the app runs while
-starting and on its busiest screens, so Android can compile it ahead of time. Phones that install the APK from App
-Distribution get it through `androidx.profileinstaller` and compile it during their next idle maintenance (often
-overnight), so the first day may still feel like before.
+Release builds ship the rules in `app/src/main/baselineProfiles/`, a list of the code the app runs while starting and
+on its busiest screens, so Android can compile it ahead of time. AGP merges every file there:
 
-Regenerate it after large UI changes (new screens, a new list), with the Firebase emulators running
-(`./scripts/emulators.sh`) and one Android emulator or phone connected:
+- `baseline-prof.txt`, generated (below).
+- `crash-reports-prof.txt`, kept by hand: crash reports and Firebase Sessions, which run at every start of a build on
+  real Firebase but are off in the emulator builds the generator drives, so a fresh profile leaves them out. It holds
+  those packages' rules from the last profile generated with them on (`f737440`, 2026-10-28). After a Firebase update,
+  rules for classes that no longer exist are ignored; refresh the file only if crash reporting changes a lot.
+
+Phones that install the APK from App Distribution get the profile through `androidx.profileinstaller` and compile it
+during their next idle maintenance (often overnight), so the first day may still feel like before.
+
+Regenerate it after large UI changes (new screens, a new list) and after library updates (Compose, Firebase,
+DataStore: their code is in the profile too), on the benchmark setup above, with the Firebase emulators running
+(`./scripts/emulators.sh`):
 
 ```bash
 ./scripts/baseline-profile.sh
 ```
 
-It seeds the emulator-only 500-batch household (`PantryScrollPerfTest`), runs `BaselineProfileGenerator` in the
-`benchmark` module against the dev benchmark build (start, sign in, every tab, Insights, Pantry scrolls, Add item, Plan's add sheet), and
-copies the result into the app (the benchmarks tap Skip tour when the app tour shows). Review the diff and commit it. `--measure` also runs `StartupBenchmark` and
-`PantryScrollBenchmark` without and with the profile and prints the medians; `--measure-only` runs just the
-benchmarks with the profile already in the app. Emulator numbers compare builds; they
-are not phone timings, and a headless emulator with software rendering (`-gpu swiftshader_indirect`) draws scroll
-frames about twice as slowly as one on the Mac's GPU, so compare scroll numbers only between runs on the same setup.
+It checks the device, seeds the emulator-only 500-batch household (`PantryScrollPerfTest`, with `-e perf true`), runs
+`BaselineProfileGenerator` in the `benchmark` module against the dev benchmark build and copies the result into the
+app. The journey signs in, waits for Home's cards, opens Insights from Home, scrolls Pantry, opens Add item, opens
+Plan's add sheet and visits every tab (it taps Skip tour when the app tour shows). Every step checks that it opened
+what it should and fails the run otherwise: the benchmark build shows the screens' test tags to UI Automator as
+resource ids (`screen_pantry`, `card_home_attention`), and the sheets are found by their text. When a run fails with
+"… didn't show", a button or screen changed: fix the selector in `AppDriver.kt` rather than dropping the step. Review
+the diff and commit it.
+
+`--measure` also runs `StartupBenchmark` and `PantryScrollBenchmark` without and with the profile and prints the
+medians; `--measure-only` runs just the benchmarks with the profile already in the app. `StartupBenchmark` reports
+two numbers per start: `timeToInitialDisplayMs`, the first frame (Home's loading skeleton), and
+`timeToFullDisplayMs`, when Home reports itself drawn with its cards (`ReportDrawnWhen`), which is what DESIGN 13.1's
+cold-start budget is measured on.
 
 If a benchmark says the app "must not be running prior to cold start", something restarted the app right after the
 benchmark closed it: look in `adb logcat` for `Start proc … com.parcha.spoilnot.dev … for bound-service`. Crash
 reports and Firebase Sessions caused it until 2026-10-31 (their uploads to the emulators' demo project failed and were
 retried); both are now off in the emulator builds.
+
+## Opt-in instrumented tests
+
+Two instrumented tests run only when asked, and the default `connectedDevDebugAndroidTest` run leaves them out
+entirely (`HiltTestRunner` adds them to `notAnnotation`), so its report counts only tests that ran:
+
+- `LiveImportTest` (`@LiveTest`) reads the 10 real recipe sites; `-Pandroid.testInstrumentationRunnerArguments.live=true`
+  (the command is in docs/import-test-sites.md).
+- `PantryScrollPerfTest` (`@PerfTest`) seeds the 500-batch household for the benchmarks;
+  `-Pandroid.testInstrumentationRunnerArguments.perf=true` (`baseline-profile.sh` passes it).
 
 ## Nightly export and restore (DESIGN 13.4)
 
@@ -545,7 +599,8 @@ the export and restore print counts. Keep it that way when changing the jobs.
 
 Dependabot (`.github/dependabot.yml`) opens grouped pull requests on Mondays for Gradle, the four npm projects
 (`firebase`, `backend/reminder`, `web`, `tools/themes`) and GitHub Actions. Merge one when CI is green; for an app
-library update, also install a build on a phone before the next beta. With Dependabot security updates on
+library update, also install a build on a phone before the next beta, and regenerate the baseline profile after a
+Compose, Firebase or DataStore update (their code is in it; "Baseline profile"). With Dependabot security updates on
 (**Settings → Advanced Security**), security updates arrive as soon as they are published.
 
 - **Actions** are pinned to a full commit SHA with the version in a comment (`uses: actions/checkout@<sha> #

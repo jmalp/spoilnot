@@ -37,7 +37,9 @@ and every link with placeholders, and drops reviews, videos and nutrition.
 
 ## M5 acceptance results (2026-10-17)
 
-`LiveImportTest` on the Pixel 8 emulator (API 37), using the app's fetch and, when that fails, the app's web view:
+`LiveImportTest` on the Pixel 8 emulator (API 37), using the app's fetch and, when that fails, the app's web view.
+It runs only with `live=true`: a plain `connectedDevDebugAndroidTest` run leaves it out (`@LiveTest`, RUNBOOK
+"Opt-in instrumented tests"):
 
 ```
 ./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.live=true \
