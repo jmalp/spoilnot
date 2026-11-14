@@ -88,7 +88,7 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('sheet_add_item')).toHaveCount(0);
 
       // Home's cards and Insights. Thrown away today keeps the streak line the same on every run; month names
-      // change with the calendar, so they are masked.
+      // change with the calendar, so they are masked, and Insights gets fixed ones (below).
       const [thisMonth, lastMonth] = months();
       await seedStats(hid, uid, thisMonth, { used: 3, thrown: { expired: 1 }, byDay: { [new Date().getDate()]: 1 } });
       await seedStats(hid, uid, lastMonth, { used: 12, thrown: { expired: 3, spoiled: 1 }, byDay: { 3: 4 } });
@@ -101,10 +101,16 @@ for (const dark of [false, true]) {
       await page.getByTestId('card_home_insights').getByRole('button', { name: 'See your kitchen' }).click();
       await expect(page.getByTestId('insights_month_details')).toContainText('3 used');
       await page.waitForTimeout(800);
-      const monthNames = [
-        page.locator('.sn-month-bar__label'),
-        page.getByTestId('insights_month_details').locator('.t-title-small'),
-      ];
+      const barLabels = page.locator('.sn-month-bar__label');
+      const detailsTitle = page.getByTestId('insights_month_details').locator('.t-title-small');
+      const monthNames = [barLabels, detailsTitle];
+      // At 200% a month label's width decides where its column sits, so a mask alone left the bars moving from
+      // one month to the next (review 00, BASE-01). Fixed names, like the invite code's below, keep the layout of
+      // the October recording: May to October, October selected.
+      await barLabels.evaluateAll((labels) =>
+        labels.forEach((el, i) => (el.textContent = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'][i] ?? '')),
+      );
+      await detailsTitle.evaluate((el) => (el.textContent = 'October'));
       await shot(page, `insights_${suffix}`, monthNames);
       await expect(page.getByTestId('card_insights_months')).toHaveScreenshot(`insights_months_${suffix}.png`, {
         mask: monthNames,
