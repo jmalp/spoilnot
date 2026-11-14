@@ -84,12 +84,19 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier, viewModel: Se
     }
 }
 
-/** About's text above the licenses: the version (seven taps offer a test crash), privacy and the licenses title. */
+/**
+ * About's text above the licenses: the version (seven taps offer a test crash), privacy and the licenses title. The
+ * screenshot test passes a fixed version, so a release doesn't change its images.
+ */
 @Composable
-internal fun AboutHeader(onVersionTap: () -> Unit) {
+internal fun AboutHeader(
+    onVersionTap: () -> Unit,
+    versionName: String = BuildConfig.VERSION_NAME,
+    versionCode: Int = BuildConfig.VERSION_CODE,
+) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+            stringResource(R.string.about_version, versionName, versionCode),
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.clickable(interactionSource = null, indication = null, onClickLabel = null) {
                 onVersionTap()

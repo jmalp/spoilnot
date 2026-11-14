@@ -52,10 +52,13 @@ class NotificationSettingsScreenshotTest(private val dark: Boolean, private val 
         capture("settings_notifications")
     }
 
+    /** A fixed version, the one the references were recorded with, so a release doesn't change the images. */
     @Test
     fun about() {
         compose.setThemed(dark, fontScale) {
-            Column(Modifier.verticalScroll(rememberScrollState())) { AboutHeader(onVersionTap = {}) }
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                AboutHeader(onVersionTap = {}, versionName = "1.0.0-beta.9-dev", versionCode = 10)
+            }
         }
         capture("settings_about")
     }
