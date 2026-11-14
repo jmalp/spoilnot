@@ -127,6 +127,10 @@ dependencies {
         // Guava comes only through Firestore's gRPC, which asks for an older release; this raises it to the
         // catalog's version, so Dependabot keeps it current (DECISIONS 2026-11-10).
         implementation(libs.guava) { because("Firestore's gRPC asks for an older Guava") }
+        // Firestore 27.2 drops these annotations from gRPC, leaving Firebase's older release in the app while the
+        // test libraries ask for a newer one; AGP makes the tests use the app's version, so they fail to resolve
+        // (DECISIONS 2026-11-14).
+        implementation(libs.errorprone.annotations) { because("the test libraries need a newer release") }
     }
 
     implementation(libs.androidx.core.ktx)
