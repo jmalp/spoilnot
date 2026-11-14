@@ -40,7 +40,7 @@ espresso = "3.7.0"
 robolectric = "4.17"
 roborazzi = "1.77.0"
 benchmark = "1.5.0"
-uiautomator = "2.4.0"
+uiautomator = "2.4.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
