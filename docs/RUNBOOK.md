@@ -609,12 +609,21 @@ Compose, Firebase or DataStore update (their code is in it; "Baseline profile").
 - **npm** installs in CI and the jobs use `--ignore-scripts`. A dependency that needs its install script fails CI;
   don't add one to `backend/reminder` (its jobs hold the keys).
 - **npm audit:** run `npm audit fix --ignore-scripts` (never `--force`) in a project and review the lockfile diff;
-  it may pick an older patch release that sits outside an advisory's range. On 2026-11-12 the reminder job's tree had
-  no known advisories; the ones left in `firebase/` are in the rules-test SDK and the CLI (dev only) and need a major
-  downgrade, so they wait for upstream releases. The Firebase web SDK (13.3.0) pins `@grpc/grpc-js` to 1.9 for its
-  Node build; when a release lifts that pin, update `firebase` in `web/` and `firebase/` together.
+  it may pick an older patch release that sits outside an advisory's range. When no parent release has the fix, add
+  an `overrides` entry in that project's `package.json` (scoped to the old line, like `"glob@^10"`, so other users
+  are untouched), check that the callers' APIs still exist in the new version, run the project's tests, and add a
+  DECISIONS entry saying when to remove it. Since 2026-11-14 all four projects pass `npm audit` except `web/`'s
+  deepmerge (no fixed release; build time only). The overrides (DECISIONS 2026-11-14): `@grpc/grpc-js` in `web/` and
+  `firebase/` (the Firebase web SDK pins it to 1.9 for its Node build; drop it when a release lifts that pin, and
+  update `firebase` in both projects together), glob, minimatch, uuid and OpenTelemetry core in the Firebase CLI and
+  the web build tools, and `@babel/plugin-transform-runtime` in `web/`, which only lets `@vitejs/plugin-react`
+  install. Before removing one, `npm ls <package>` shows whether the parent brings the fixed version yet.
 - **Guava** comes only through Firestore's gRPC; the catalog's `guava` is the lowest version allowed (a constraint in
   `app/build.gradle.kts`). Dependabot raises it. Remove both when Firebase brings that version or a newer one.
+  `errorprone` works the same way: Firestore 27.2 dropped the annotations from gRPC, and without the constraint
+  the instrumented tests' classpath fails to resolve. Remove it when Firebase asks for 2.30.0 or later.
+- **AGP** stays at 9.4.1 until a release configures the release variants without unit tests (9.5.0 and 9.5.1 fail
+  with "Compose Preview requires unit tests"; check with `./gradlew :app:tasks`). Dependabot ignores both.
 - Gradle dependency verification is not used (DECISIONS 2026-11-10); the Gradle wrapper is checked by its
   `distributionSha256Sum` and by `setup-gradle` in CI.
 
