@@ -76,7 +76,8 @@ export function RecipeCard({
         type="button"
         className="sn-recipe-card__open m3-state"
         onClick={onOpen}
-        aria-label={recipe.content.title}
+        // "Spinach and feta omelette, Total 15 min": the title and the time as one sentence (after v1, review A11Y-07).
+        aria-label={time ? `${recipe.content.title}, ${str('recipe_total_time', time)}` : recipe.content.title}
       >
         <RecipeImage url={recipe.content.imageUrl} title={recipe.content.title} className="sn-recipe-card__image" />
         <span className="sn-recipe-card__text">
@@ -99,7 +100,8 @@ export function RecipeCard({
         type="button"
         className={`sn-recipe-card__star ${recipe.favorite ? 'sn-recipe-card__star--on' : ''}`}
         aria-pressed={recipe.favorite}
-        aria-label={str(recipe.favorite ? 'recipe_unfavorite' : 'recipe_favorite')}
+        // One name and its state ("Favorite, selected"): a label that flipped with the state said it twice (A11Y-08).
+        aria-label={str('recipe_favorite_toggle')}
         onClick={onToggleFavorite}
       >
         <Icon name={recipe.favorite ? 'round/star' : 'round/star_border'} />

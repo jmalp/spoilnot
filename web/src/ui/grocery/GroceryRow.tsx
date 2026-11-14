@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { str } from '../../core/i18n';
 import type { GroceryItem } from '../../domain/grocery/models';
 import { Checkbox, Icon, IconButton, Menu, MenuItem, type IconName } from '../kit';
-import { amountText } from '../pantry/labels';
+import { amountDescription, amountText } from '../pantry/labels';
 import { useSwipe } from '../swipe';
 import './grocery.css';
 
@@ -40,6 +40,27 @@ export function GroceryRow({
         : item.source === 'meal_plan'
           ? (['grocery_source_meal_plan', 'round/restaurant_menu'] as const)
           : null;
+  // One sentence for VoiceOver, as Pantry's rows (after v1, review A11Y-07): "Bananas, 6 pieces, Added automatically,
+  // added by Sam, ripe ones", with the checkbox's state. Remove and ⋮ stay their own stops.
+  const description = [
+    item.name,
+    item.quantity !== null ? amountDescription(item.quantity, item.unit) : null,
+    item.source === 'low_stock'
+      ? backInStock
+        ? null
+        : str('grocery_source_low_stock')
+      : item.source === 'recipe'
+        ? str('grocery_source_recipe_description')
+        : item.source === 'meal_plan'
+          ? str('grocery_source_meal_plan_description')
+          : null,
+    backInStock ? str('grocery_back_in_stock') : null,
+    addedBy ? str('grocery_added_by', addedBy) : null,
+    item.note,
+    item.pendingSync ? str('pending_sync') : null,
+  ]
+    .filter((part) => part)
+    .join(', ');
   return (
     <div
       className={`sn-grocery-row ${highlight ? 'sn-remote-highlight' : ''}`}
@@ -57,9 +78,9 @@ export function GroceryRow({
         }}
       >
         <label className="sn-grocery-row__main m3-state">
-          <Checkbox checked={item.checked} onCheckedChange={() => onToggle(item)} />
+          <Checkbox checked={item.checked} aria-label={description} onCheckedChange={() => onToggle(item)} />
           <span className="sn-grocery-row__text">
-            <span className="sn-grocery-row__name">
+            <span className="sn-grocery-row__name" aria-hidden>
               <span className={`t-body-large ${item.checked ? 'sn-grocery-row__checked' : ''}`}>{item.name}</span>
               {item.quantity !== null && (
                 <span className="t-body-medium c-on-surface-variant">× {amountText(item.quantity, item.unit)}</span>
@@ -90,9 +111,15 @@ export function GroceryRow({
                   </span>
                 )}
                 {addedBy && (
-                  <span className="t-body-small c-on-surface-variant">{str('grocery_added_by', addedBy)}</span>
+                  <span className="t-body-small c-on-surface-variant" aria-hidden>
+                    {str('grocery_added_by', addedBy)}
+                  </span>
                 )}
-                {item.note && <span className="t-body-small c-on-surface-variant">{item.note}</span>}
+                {item.note && (
+                  <span className="t-body-small c-on-surface-variant" aria-hidden>
+                    {item.note}
+                  </span>
+                )}
               </span>
             )}
           </span>
@@ -125,10 +152,13 @@ function GrocerySwipeBackground({ right, checked }: { right: boolean; checked: b
   );
 }
 
-/** A small label with an icon: tertiary for where an item came from, secondary for good news such as Back in stock. */
+/**
+ * A small label with an icon: tertiary for where an item came from, secondary for good news such as Back in stock.
+ * VoiceOver reads it in the row's sentence, on the checkbox, so it is hidden here.
+ */
 function SourceBadge({ text, icon, good = false }: { text: string; icon: IconName; good?: boolean }) {
   return (
-    <span className={`sn-source-badge t-label-medium ${good ? 'sn-source-badge--good' : ''}`}>
+    <span className={`sn-source-badge t-label-medium ${good ? 'sn-source-badge--good' : ''}`} aria-hidden>
       <Icon name={icon} size={14} />
       {text}
     </span>

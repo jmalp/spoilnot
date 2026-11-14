@@ -8,7 +8,15 @@ import type { QuantityUnit } from '../../domain/pantry/models';
 import type { LocalDate } from '../../domain/time';
 import { BottomSheet, Button, Icon, SelectField, Switch, TextField } from '../kit';
 import { DateChips, FormSheetColumn, largeText, LocationChoice, parseQuantity } from '../pantry/ItemForm';
-import { amountText, categoryLabel, formatDate, formatQuantity, locationLabel, unitLabel } from '../pantry/labels';
+import {
+  amountDescription,
+  amountText,
+  categoryLabel,
+  formatDate,
+  formatQuantity,
+  locationLabel,
+  unitLabel,
+} from '../pantry/labels';
 import { AddToPantryDrafts, type AddToPantryDraft, type EntryEdit, type EntryLine } from './addToPantryDrafts';
 import './grocery.css';
 
@@ -107,6 +115,22 @@ function summary(d: EntryEdit, today: LocalDate): string {
   return str('grocery_entry_summary', amountText(quantity, d.unit), locationLabel(d.location), date);
 }
 
+/**
+ * The line for VoiceOver, one sentence (after v1, review A11Y-07): "Apples, 6 pieces, Fridge, expires Nov 23", or with
+ * "Skipped" or the problem in place of the details.
+ */
+function entryDescription(d: EntryEdit & { item: { name: string } }, today: LocalDate): string {
+  const quantity = parseQuantity(d.quantity);
+  if (d.skip || quantity === null || quantity <= 0) return `${d.item.name}, ${summary(d, today)}`;
+  return str(
+    'row_description',
+    d.item.name,
+    amountDescription(quantity, d.unit),
+    locationLabel(d.location),
+    d.expiry ? str('grocery_entry_expires', formatDate(d.expiry, today)) : str('status_no_date'),
+  );
+}
+
 function EntryRow({
   line,
   today,
@@ -129,7 +153,7 @@ function EntryRow({
         type="button"
         className="sn-entry__summary m3-state"
         aria-expanded={draft.expanded}
-        aria-label={`${draft.item.name}, ${summary(draft, today)}. ${str(draft.expanded ? 'grocery_entry_done' : 'grocery_entry_edit')}`}
+        aria-label={`${entryDescription(draft, today)}. ${str(draft.expanded ? 'grocery_entry_done' : 'grocery_entry_edit')}`}
         onClick={onToggle}
       >
         <span className="sn-entry__text">

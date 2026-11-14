@@ -97,6 +97,11 @@
   flex-direction: column;
   gap: 8px;
 }
+/* From 1.5x text the legend goes under the ring (after v1, review A11Y-04). */
+:root[data-large-text] .sn-insights__ring-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
 .sn-insights__legend-row {
   display: flex;
   gap: 16px;
