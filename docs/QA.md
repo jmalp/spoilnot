@@ -426,9 +426,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 
 | Budget | How | Target |
 | --- | --- | --- |
-| Cold start | Swipe the app away, open it, count to the first screen | Under 2.5 s on a mid-range phone |
+| Cold start | Swipe the app away, wait 10 s, open it, time from the tap until Home shows its cards (not the splash, not the grey placeholders) | Under 2.5 s on a mid-range phone |
 | Scrolling | Scroll a long pantry quickly | Smooth (60 fps); no stutter after the first pass |
-| Initial sync | Sign out, sign in on mobile data (4G), time until the pantry shows | Under 2 s for a typical household |
+| Initial sync | Wi-Fi off. Sign out, sign in on mobile data (4G), time from the Sign in tap until Home shows its cards | Under 2 s for a typical household (DESIGN 13.1; this check decides whether that budget stays) |
 
 Measured on the Pixel 8 emulator (2026-10-18): cold start 0.2 to 0.4 s to first frame (release build); 500
 batches scroll at 17 to 19 ms per frame with 1.7% janky frames once warm (23% on the very first pass); a fresh
