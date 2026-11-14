@@ -13,10 +13,10 @@ updates:
       timezone: America/New_York
     open-pull-requests-limit: 5
     ignore:
-      # AGP 9.5.0 cannot configure release variants: its Compose Preview task needs unit tests there (DECISIONS
-      # 2026-10-31). Later AGP versions are proposed again.
+      # AGP 9.5.0 and 9.5.1 cannot configure release variants: their Compose Preview task needs unit tests there
+      # (DECISIONS 2026-10-31, 2026-11-14). Later AGP versions are proposed again.
       - dependency-name: "com.android.*"
-        versions: ["9.5.0"]
+        versions: ["9.5.0", "9.5.1"]
     groups:
       androidx-and-compose:
         patterns: ["androidx.*", "org.jetbrains.compose*"]
