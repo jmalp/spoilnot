@@ -33,6 +33,10 @@
   background: color-mix(in srgb, var(--sn-tone) 12%, transparent);
   white-space: nowrap;
 }
+/* At the largest text sizes a chip may take two lines rather than run past the card (after v1, review A11Y-04). */
+:root[data-large-text] .sn-status-chip {
+  white-space: normal;
+}
 .sn-badge {
   padding: 2px 8px;
   border-radius: 999px;
@@ -78,7 +82,8 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 96px;
+  /* Room for the floating button under the last row (TabScaffold measures it). */
+  padding-bottom: max(96px, var(--sn-fab-space, 0px));
 }
 .sn-group-header {
   position: sticky;
@@ -132,6 +137,12 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+/* From 1.5x text the Low or Out badge goes under the name (after v1, review A11Y-04). */
+:root[data-large-text] .sn-pantry-row__name {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 .sn-pantry-row__name-text {
   min-width: 0;

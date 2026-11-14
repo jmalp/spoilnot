@@ -448,9 +448,6 @@
     <string name="recipe_sort">Sort</string>
     <string name="recipe_sort_recent">Recently added</string>
     <string name="recipe_sort_az">A to Z</string>
-    <string name="recipe_favorite">Add to favorites</string>
-    <string name="recipe_unfavorite">Remove from favorites</string>
-    <!-- After v1 (A11Y-08) Android names the star recipe_favorite_toggle with its state; these two stay for the web until its port. -->
     <string name="recipe_minutes">%1$d min</string>
     <string name="recipe_hours">%1$d hr</string>
     <string name="recipe_hours_minutes">%1$d hr %2$d min</string>

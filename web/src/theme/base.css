@@ -73,9 +73,21 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* One focus ring for every control from a keyboard (after v1, review A11Y-11; FocusRing in the app): 2 px of primary
+   around it. Rows that fill a clipped container draw it inside their edge (.sn-ring-inset), or it would be cut off.
+   Taps don't show it: :focus-visible is for keyboard focus only. */
 :focus-visible {
-  outline: 2px solid var(--md-sys-color-secondary);
+  outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 2px;
+}
+.sn-ring-inset:focus-visible,
+.m3-list-item:focus-visible,
+.m3-navigation-bar__item:focus-visible,
+.sn-pantry-row :focus-visible,
+.sn-grocery-row :focus-visible,
+.sn-recipe-card :focus-visible,
+.sn-cart-header :focus-visible {
+  outline-offset: -2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -88,6 +88,12 @@ export function CookedSheet({
                       setChosen({ ...chosen, [line.product.id]: true });
                     }}
                     inputMode="decimal"
+                    // "Amount of Flour to use, in kg", not just the unit (after v1, review A11Y-07).
+                    aria-label={str(
+                      'recipe_cooked_amount_description',
+                      line.product.name,
+                      unitLabel(line.product.unit),
+                    )}
                     className="sn-cook-row__amount"
                     data-testid={`cook_amount_${line.product.id}`}
                   />
@@ -155,10 +161,12 @@ export function AddToGrocerySheet({
           }
         >
           {lists.length > 1 && (
-            <div className="sn-list-chips">
+            // One list at a time: radio buttons in a group for VoiceOver (after v1, review A11Y-08).
+            <div className="sn-list-chips" role="radiogroup">
               {lists.map((list) => (
                 <FilterChip
                   key={list.id}
+                  radio
                   label={list.name}
                   selected={list.id === listId}
                   onClick={() => onChooseList(list.id)}

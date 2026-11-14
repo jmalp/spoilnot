@@ -69,8 +69,8 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   await expect(page.getByTestId('cart_header')).toContainText('In cart (2)');
   await add(page, 'milk');
   await add(page, 'apples');
-  // Aisle headers in sentence case, as written (after v1, UX-18).
-  await expect(list(page).getByRole('heading')).toHaveText(['Dairy and eggs', 'Produce', 'Other']);
+  // Aisle headers in sentence case, as written (after v1, UX-18); the cart header is a heading too (after v1, A11Y-09).
+  await expect(list(page).getByRole('heading')).toHaveText(['Dairy and eggs', 'Produce', 'Other', 'In cart (2)']);
   await expect(list(page).getByRole('heading').first()).toHaveCSS('text-transform', 'none');
   await expect(page.getByTestId('cart_header').locator('.sn-cart-header__label')).toHaveCSS('text-transform', 'none');
 

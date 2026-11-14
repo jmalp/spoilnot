@@ -402,17 +402,20 @@ function GroceryListView({
       {inCart.length > 0 && (
         <section aria-label={plural('grocery_in_cart', inCart.length, inCart.length)}>
           <div className="sn-cart-header" data-testid="cart_header">
-            <button
-              type="button"
-              className="sn-cart-header__toggle m3-state"
-              aria-expanded={cartOpen}
-              onClick={onToggleCart}
-            >
-              <span className="t-label-large sn-cart-header__label">
-                {plural('grocery_in_cart', inCart.length, inCart.length)}
-              </span>
-              <Icon name={cartOpen ? 'round/expand_less' : 'round/expand_more'} />
-            </button>
+            {/* A heading, so VoiceOver's rotor jumps to it like the aisles, with expanded or collapsed (A11Y-09). */}
+            <h2 className="sn-cart-header__heading">
+              <button
+                type="button"
+                className="sn-cart-header__toggle m3-state"
+                aria-expanded={cartOpen}
+                onClick={onToggleCart}
+              >
+                <span className="t-label-large sn-cart-header__label">
+                  {plural('grocery_in_cart', inCart.length, inCart.length)}
+                </span>
+                <Icon name={cartOpen ? 'round/expand_less' : 'round/expand_more'} />
+              </button>
+            </h2>
             <Button variant="text" large onClick={onClear} data-testid="button_clear_checked">
               {str('grocery_clear_checked')}
             </Button>

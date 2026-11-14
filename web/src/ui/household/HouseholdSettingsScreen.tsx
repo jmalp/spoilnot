@@ -189,10 +189,23 @@ function JoinRequestsCard({
             )}
           </div>
           <div className="sn-row">
-            <Button variant="tonal" large disabled={busy} onClick={() => onApprove(request)}>
+            {/* "Approve Robin Lee": with two requests the buttons name whom they answer (after v1, review A11Y-08). */}
+            <Button
+              variant="tonal"
+              large
+              disabled={busy}
+              aria-label={str('join_request_approve_description', request.displayName)}
+              onClick={() => onApprove(request)}
+            >
               {str('action_approve')}
             </Button>
-            <Button variant="outlined" large disabled={busy} onClick={() => onDecline(request)}>
+            <Button
+              variant="outlined"
+              large
+              disabled={busy}
+              aria-label={str('join_request_decline_description', request.displayName)}
+              onClick={() => onDecline(request)}
+            >
               {str('action_decline')}
             </Button>
           </div>

@@ -1,5 +1,14 @@
-import { createContext, useContext, useEffect, useState, type ReactNode, type UIEvent } from 'react';
-import { str } from '../core/i18n';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type UIEvent,
+} from 'react';
+import { plural, str } from '../core/i18n';
 import { Button, Icon, IconButton, TopAppBar, useOptionalSnackbars, useSnackbars, type IconName } from './kit';
 import './scaffold.css';
 
@@ -41,6 +50,7 @@ export function TabScaffold({
 }) {
   const [scrolled, setScrolled] = useState(false);
   const snackbars = useSnackbars();
+  const [fabRef, fabSpace] = useFabSpace(Boolean(fab));
   // Snackbars show above the FAB, as Scaffold places them.
   useEffect(() => {
     if (!fab) return;
@@ -51,6 +61,7 @@ export function TabScaffold({
     <div
       className={`sn-screen ${innerScroll ? 'sn-screen--inner-scroll' : ''}`}
       data-testid={testId}
+      style={fabSpace}
       onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
     >
       <TopAppBar
@@ -62,7 +73,12 @@ export function TabScaffold({
             {actions}
             <IconButton
               icon="round/account_circle"
-              label={joinRequests > 0 ? `${str('open_settings')} (${joinRequests})` : str('open_settings')}
+              // "Open settings, 1 join request waiting", as the app says it (the badge's number isn't read again).
+              label={
+                joinRequests > 0
+                  ? plural('open_settings_with_requests', joinRequests, joinRequests)
+                  : str('open_settings')
+              }
               badge={joinRequests}
               onClick={onOpenSettings}
             />
@@ -72,9 +88,38 @@ export function TabScaffold({
       <ScrolledContext.Provider value={setScrolled}>
         <main className="sn-screen__content">{children}</main>
       </ScrolledContext.Provider>
-      {fab && <div className="sn-screen__fab">{fab}</div>}
+      {fab && (
+        <div className="sn-screen__fab" ref={fabRef}>
+          {fab}
+        </div>
+      )}
     </div>
   );
+}
+
+/** The FAB's 16 px margin below it and 16 px of air above it. */
+const FAB_MARGINS_PX = 32;
+
+/**
+ * The room a tab's list leaves under its last row for the floating button, as measured (listBottomPadding() in the
+ * app, after v1, review UX-14): --sn-fab-space on the screen, which grows with the button at large text sizes. Lists
+ * use at least 96 px (the button at 100 %).
+ */
+function useFabSpace(hasFab: boolean): [(el: HTMLDivElement | null) => void, CSSProperties | undefined] {
+  const [height, setHeight] = useState(0);
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (!element) return;
+    const measure = () => setHeight(element.getBoundingClientRect().height);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
+  const style =
+    hasFab && height > 0 ? ({ '--sn-fab-space': `${height + FAB_MARGINS_PX}px` } as CSSProperties) : undefined;
+  return [setElement, style];
 }
 
 /**

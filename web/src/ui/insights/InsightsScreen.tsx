@@ -72,7 +72,8 @@ export function InsightsContent({ summary }: { summary: InsightsSummary }) {
       <Section title={str('insights_card_title')} testId="card_insights_month">
         <div className="sn-insights__ring-row">
           <MonthRing stats={current} />
-          <div className="sn-insights__legend-column">
+          {/* The ring's description already reads both counts (after v1, review A11Y-07). */}
+          <div className="sn-insights__legend-column" aria-hidden>
             <LegendItem text={`${str('insights_legend_used')} ${current.used}`} thrown={false} />
             <LegendItem text={`${str('insights_legend_thrown')} ${MonthTotals.thrown(current)}`} thrown />
           </div>
