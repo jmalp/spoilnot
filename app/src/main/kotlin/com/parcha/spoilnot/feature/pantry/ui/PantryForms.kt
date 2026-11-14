@@ -85,6 +85,7 @@ import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
 import com.parcha.spoilnot.feature.grocery.domain.AisleGuess
+import com.parcha.spoilnot.feature.pantry.domain.Amounts
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.ItemEdit
@@ -102,8 +103,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-/** Parses a typed quantity; accepts "1,5" as well as "1.5". Null when not a number. */
-fun parseQuantity(text: String): Double? = text.trim().replace(',', '.').toDoubleOrNull()
+/** Parses a typed quantity; accepts "1,5" as well as "1.5", and the phone's own digits ([Amounts]). */
+fun parseQuantity(text: String): Double? = Amounts.parse(text)
 
 /**
  * The Add item sheet (DESIGN 5.2, reworked from beta feedback). Choosing an existing product fills unit, category,

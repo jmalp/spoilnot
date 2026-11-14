@@ -7,7 +7,7 @@ import org.jsoup.nodes.TextNode
 
 /** Sanitizing imported text (DESIGN 11.6): tags stripped, entities decoded, whitespace collapsed, length capped. */
 object RecipeText {
-    private val SPACES = Regex("""[\s\u00A0]+""")
+    private val SPACES = Regex("[${NameKey.WHITESPACE}]+")
     private val ENTITY = Regex("""&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);""")
     private val STEP_NUMBER =
         Regex("""^(?:step\s*)?\d{1,2}\s*[.):]\s+|^step\s*\d{1,2}\s*[:.-]?\s*""", RegexOption.IGNORE_CASE)
@@ -18,7 +18,7 @@ object RecipeText {
         var plain = if ('<' in text || '&' in text) Jsoup.parseBodyFragment(text).text() else text
         // Some sites encode twice ("&amp;amp;").
         if (ENTITY.containsMatchIn(plain)) plain = Jsoup.parseBodyFragment(plain).text()
-        return plain.replace(SPACES, " ").trim().take(limit).trim().ifEmpty { null }
+        return plain.replace(SPACES, " ").trim(' ').take(limit).trim(' ').ifEmpty { null }
     }
 
     /** Text that may hold several lines (instructions given as one string or as HTML), one entry per line. */
@@ -67,18 +67,26 @@ object Durations {
             """(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$""",
         RegexOption.IGNORE_CASE,
     )
-    private val HOURS = Regex("""(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b""", RegexOption.IGNORE_CASE)
-    private val MINUTES = Regex("""(\d+)\s*(?:minutes?|mins?|m)\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * A number of hours: "2", "1.5", "1,5", "1 1/2" or "1½" (after v1, LOGIC-15). The unit may run straight into the
+     * minutes ("1h20m"), so it only has to be followed by something that isn't a letter.
+     */
+    private val HOURS = Regex(
+        """(\d+ \d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔]?|[½¼¾⅓⅔])\s*(?:hours?|hrs?|h)(?!\p{L})""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val MINUTES = Regex("""(\d+)\s*(?:minutes?|mins?|m)(?!\p{L})""", RegexOption.IGNORE_CASE)
 
     /** Whole minutes, or null when unknown or zero. */
     fun minutes(text: String?): Int? {
-        val t = text?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val t = text?.let { NameKey.clean(it) }?.takeIf { it.isNotEmpty() } ?: return null
         val iso = ISO.matchEntire(t)
         val total = if (iso != null) {
             val (w, d, h, m, s) = iso.destructured
             (w.num() * 7 + d.num()) * 1440 + h.num() * 60 + m.num() + s.num() / 60
         } else {
-            val h = HOURS.find(t)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+            val h = HOURS.find(t)?.groupValues?.get(1)?.let(::hours) ?: 0.0
             val m = MINUTES.find(t)?.groupValues?.get(1)?.toDoubleOrNull()
                 ?: t.toDoubleOrNull().takeIf { h == 0.0 }
                 ?: 0.0
@@ -89,6 +97,9 @@ object Durations {
     }
 
     private fun String.num() = toDoubleOrNull() ?: 0.0
+
+    /** "1 1/2", "1½", "1,5" and "2" as hours; the ingredient parser reads them the same way. */
+    private fun hours(text: String): Double? = IngredientParser.quantity(text)?.value
 }
 
 /** recipeYield: "4", "4 servings", "Makes 12 cookies", "4-6" (DESIGN 11.3: first number, and keep the text). */

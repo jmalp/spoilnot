@@ -1,17 +1,33 @@
 // Small pantry rules (DESIGN 5.2, 8.1), ported from NameKey, NaturalOrder, ExpiryStatus and ShelfLife.
 import { addDays, daysBetween, type LocalDate } from '../time';
 
+/**
+ * Whitespace, one definition for both apps (after v1, WEB-06): Unicode's White_Space characters (tab to carriage
+ * return, space, U+0085, no-break space, U+1680, U+2000 to U+200A, line and paragraph separators, U+202F, U+205F, the
+ * full-width space U+3000) and U+FEFF. Written out because JavaScript's `\s` lacks U+0085 and Java's is ASCII only.
+ * Android's `NameKey.WHITESPACE` is the same class.
+ */
+export const WHITESPACE =
+  '\\t\\n\\u000B\\f\\r \\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF';
+const ONE_SPACE = new RegExp(`[${WHITESPACE}]`, 'g');
+const SPACES = new RegExp(`[${WHITESPACE}]+`, 'g');
+
 /** Lowercased, trimmed, whitespace collapsed, diacritics removed: used to match and de-duplicate. */
 export const NameKey = {
   of: (name: string): string =>
-    name
-      .normalize('NFD')
-      .replace(/\p{Mn}+/gu, '')
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, ' '),
+    NameKey.clean(
+      name
+        .normalize('NFD')
+        .replace(/\p{Mn}+/gu, '')
+        .toLowerCase(),
+    ),
   /** Display form of a typed name: trimmed with whitespace collapsed, case kept. */
-  clean: (name: string): string => name.trim().replace(/\s+/g, ' '),
+  clean: (name: string): string => name.replace(SPACES, ' ').replace(/^ +| +$/g, ''),
+  /**
+   * [text] with every whitespace character replaced by a plain space, keeping its length, so the parsers' patterns
+   * read the same text on both apps and their positions still point into the original.
+   */
+  plainSpaces: (text: string): string => text.replace(ONE_SPACE, ' '),
 };
 
 /** Names in the order people expect: case and accents ignored, numbers by value ("Bag 2" before "Bag 10"). */

@@ -5,7 +5,14 @@ import { PantryLimits, type PantryChange, type PantryData, type Product, type Qu
 import { NameKey } from '../pantry/rules';
 import type { Actor, HouseholdChange, HouseholdWriter, Undo } from '../write';
 import { PantryMatch } from './box';
-import { RecipeLimits, type Ingredient, type Recipe, type RecipeChange, type RecipeContent } from './models';
+import {
+  RecipeLimits,
+  type Ingredient,
+  type Recipe,
+  type RecipeChange,
+  type RecipeContent,
+  type RecipeWords,
+} from './models';
 import { IngredientParser, Scaling } from './parser';
 import { ProductLink, ShoppingName } from './shopping';
 import { RecipeText, SourceUrl } from './text';
@@ -59,7 +66,13 @@ const usualOf = (product: Product | null) => (product ? (product.buyQuantity ?? 
  */
 export const RecipeGrocery = {
   /** [factor] scales the recipe: counts are rounded up to whole items ("1½ eggs" is 2). */
-  candidates(recipe: Recipe, pantry: PantryData, listItems: GroceryItem[], factor = 1): GroceryCandidate[] {
+  candidates(
+    recipe: Recipe,
+    pantry: PantryData,
+    listItems: GroceryItem[],
+    words: RecipeWords,
+    factor = 1,
+  ): GroceryCandidate[] {
     const unchecked = listItems.filter((i) => !i.checked);
     const onListKeys = new Set(unchecked.map((i) => i.nameKey));
     const onListProducts = new Set(unchecked.flatMap((i) => (i.productId ? [i.productId] : [])));
@@ -77,7 +90,7 @@ export const RecipeGrocery = {
         name,
         quantity: usual ?? count,
         unit: usual !== null ? product!.unit : null,
-        note: note(recipe.content.title, Scaling.line(ingredient.raw, factor)),
+        note: note(recipe.content.title, Scaling.line(ingredient.raw, factor, words.pinch)),
         product,
         inPantry: PantryMatch.productFor(parsed.raw, pantry),
         onList: onListKeys.has(NameKey.of(name)) || (product !== null && onListProducts.has(product.id)),
@@ -280,7 +293,7 @@ export class RecipeService {
       sourceName: RecipeText.clean(c.sourceName, RecipeLimits.SOURCE_NAME),
       imageUrl: c.imageUrl !== null && SourceUrl.isWebUrl(c.imageUrl.trim()) ? c.imageUrl.trim() : null,
       description: trimmedOrNull(c.description, RecipeLimits.DESCRIPTION),
-      servings: c.servings !== null && c.servings >= 1 && c.servings <= 1000 ? c.servings : null,
+      servings: c.servings !== null && c.servings >= 1 && c.servings <= RecipeLimits.MAX_SERVINGS ? c.servings : null,
       servingsText: RecipeText.clean(c.servingsText, RecipeLimits.SERVINGS_TEXT),
       prepMinutes: c.prepMinutes !== null && c.prepMinutes > 0 ? c.prepMinutes : null,
       cookMinutes: c.cookMinutes !== null && c.cookMinutes > 0 ? c.cookMinutes : null,

@@ -9,6 +9,7 @@ import type { HouseholdChange, HouseholdWriter } from '../write';
 import { recipe } from './fixtures';
 import { content } from './models';
 import { RecipeGrocery, RecipeService, selectedByDefault } from './service';
+import { TEST_WORDS } from './fixtures';
 
 class RecordingWriter implements HouseholdWriter {
   applied: HouseholdChange[][] = [];
@@ -86,7 +87,7 @@ describe('RecipeService', () => {
       batches: [batch('b1', 'egg', { quantity: 6 }), batch('b2', 'oil')],
       fromCache: false,
     };
-    const c = RecipeGrocery.candidates(r, pantry, [groceryItem('Salt'), groceryItem('tomatoes', true)]);
+    const c = RecipeGrocery.candidates(r, pantry, [groceryItem('Salt'), groceryItem('tomatoes', true)], TEST_WORDS);
     expect(c.map((x) => x.name)).toEqual(['Eggs', 'Olive oil', 'Flour', 'Tomatoes', 'Salt']);
     expect(c.map((x) => x.product?.id ?? null)).toEqual(['egg', 'oil', null, null, null]);
     expect(c[0]!.inPantry?.id).toBe('egg');
@@ -105,7 +106,7 @@ describe('RecipeService', () => {
     const onions = { ...product('onion', { name: 'Onions', unit: 'lb' }), lastAddedQuantity: 3 };
     const soy = { ...product('soy', { name: 'Soy sauce' }), buyQuantity: 1, lastAddedQuantity: 2 };
     const r = recipe('r1', { title: 'Stir fry', ingredients: ['1 extra large onion, diced', '½ tbsp soy sauce'] });
-    const c = RecipeGrocery.candidates(r, { products: [onions, soy], batches: [], fromCache: false }, []);
+    const c = RecipeGrocery.candidates(r, { products: [onions, soy], batches: [], fromCache: false }, [], TEST_WORDS);
     expect(c.map((x) => x.name)).toEqual(['Onions', 'Soy sauce']);
     expect(c.map((x) => x.quantity)).toEqual([3, 1]); // Buy quantity wins over the last amount
     expect(c.map((x) => x.unit)).toEqual(['lb', 'pcs']);
@@ -121,6 +122,7 @@ describe('RecipeService', () => {
       recipe('r1', { ingredients: ['1 large onion'] }),
       { products: [onion], batches: [], fromCache: false },
       [listed],
+      TEST_WORDS,
     );
     expect(c[0]!.onList).toBe(true);
   });
@@ -132,7 +134,7 @@ describe('RecipeService', () => {
       batches: [],
       fromCache: false,
     };
-    const chosen = RecipeGrocery.candidates(r, pantry, []);
+    const chosen = RecipeGrocery.candidates(r, pantry, [], TEST_WORDS);
     expect(await service.addToGrocery('h1', actor, 'list1', r, chosen, pantry, 'Groceries')).toBe(2);
     const changes = writer.applied[0]!;
     const added = items(changes);
@@ -148,7 +150,10 @@ describe('RecipeService', () => {
   it('lines from several recipes keep their own recipe and the given source', async () => {
     const tacos = recipe('tacos', { title: 'Tacos', ingredients: ['2 tortillas'] });
     const soup = recipe('soup', { title: 'Soup', ingredients: ['1 leek'] });
-    const chosen = [...RecipeGrocery.candidates(tacos, empty, []), ...RecipeGrocery.candidates(soup, empty, [])];
+    const chosen = [
+      ...RecipeGrocery.candidates(tacos, empty, [], TEST_WORDS),
+      ...RecipeGrocery.candidates(soup, empty, [], TEST_WORDS),
+    ];
     expect(await service.addItems('h1', actor, 'list1', chosen, empty, 'Groceries', 'meal_plan', 'the meal plan')).toBe(
       2,
     );
@@ -162,7 +167,7 @@ describe('RecipeService', () => {
     const greenOnions = { ...product('green', { name: 'Green onions' }), lastAddedQuantity: 2 };
     const pantry: PantryData = { products: [greenOnions], batches: [], fromCache: false };
     const r = recipe('r1', { title: 'Stir fry', ingredients: ['3 scallions, sliced'] });
-    const original = RecipeGrocery.candidates(r, pantry, [])[0]!;
+    const original = RecipeGrocery.candidates(r, pantry, [], TEST_WORDS)[0]!;
     expect(original.name).toBe('Scallions');
     expect(original.product).toBeNull();
     const renamed = RecipeGrocery.rename(original, 'green onions', pantry.products);
@@ -177,13 +182,18 @@ describe('RecipeService', () => {
     expect(items(changes)[0]!.aliasOf).toBeNull();
     // Next time the recipe line finds the product by itself.
     const taught = { ...greenOnions, aliases: ['scallions'] };
-    const again = RecipeGrocery.candidates(r, { products: [taught], batches: [], fromCache: false }, [])[0]!;
+    const again = RecipeGrocery.candidates(
+      r,
+      { products: [taught], batches: [], fromCache: false },
+      [],
+      TEST_WORDS,
+    )[0]!;
     expect(again.name).toBe('Green onions');
   });
 
   it('renaming to a new name is remembered on the item until it becomes a product', async () => {
     const r = recipe('r1', { ingredients: ['2 scallions'] });
-    const renamed = RecipeGrocery.rename(RecipeGrocery.candidates(r, empty, [])[0]!, 'Spring onions', []);
+    const renamed = RecipeGrocery.rename(RecipeGrocery.candidates(r, empty, [], TEST_WORDS)[0]!, 'Spring onions', []);
     expect(renamed.quantity).toBe(2); // the recipe's count still applies
     await service.addToGrocery('h1', actor, 'list1', r, [renamed], empty);
     expect(items(writer.applied[0]!)[0]).toMatchObject({ name: 'Spring onions', aliasOf: 'scallions' });
@@ -193,11 +203,11 @@ describe('RecipeService', () => {
 
   it('lines for the same thing become one item', async () => {
     const r = recipe('r1', { title: 'Salsa', ingredients: ['1 onion, diced', '2 large onions, sliced', '1 tsp salt'] });
-    await service.addToGrocery('h1', actor, 'list1', r, RecipeGrocery.candidates(r, empty, []), empty);
+    await service.addToGrocery('h1', actor, 'list1', r, RecipeGrocery.candidates(r, empty, [], TEST_WORDS), empty);
     // "Onion" and "Onions" are different names; two onion lines with one name merge.
     expect(items(writer.applied[0]!).map((i) => i.name)).toEqual(['Onion', 'Onions', 'Salt']);
     const soup = recipe('r2', { title: 'Soup', ingredients: ['1 onion, diced', '1 onion, sliced'] });
-    const merged = RecipeGrocery.merge(RecipeGrocery.candidates(soup, empty, []));
+    const merged = RecipeGrocery.merge(RecipeGrocery.candidates(soup, empty, [], TEST_WORDS));
     expect(merged).toHaveLength(1);
     expect(merged[0]!.quantity).toBe(2);
     expect(merged[0]!.note).toBe('Soup: 1 onion, diced; Soup: 1 onion, sliced');

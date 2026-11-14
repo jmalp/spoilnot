@@ -287,4 +287,14 @@ class SiteSnapshotTest {
             assertTrue("$site tags", c.tags.size <= RecipeLimits.MAX_TAGS)
         }
     }
+
+    @Test
+    fun `an ingredient list sent as one string with line breaks is one ingredient per line`() {
+        // After v1, LOGIC-15.
+        val json = """{"@type":"Recipe","name":"Tea","recipeIngredient":"1 tea bag\n1 cup water\r\n\n",""" +
+            """"recipeInstructions":"Steep."}"""
+        val c = JsonLd.map(JsonLd.best(listOf(json))!!, null)
+        assertEquals(listOf("1 tea bag", "1 cup water"), c.ingredients.map { it.raw })
+        assertEquals("cup", c.ingredients[1].unit)
+    }
 }

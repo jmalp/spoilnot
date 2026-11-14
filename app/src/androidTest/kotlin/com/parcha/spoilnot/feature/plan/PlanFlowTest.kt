@@ -21,6 +21,7 @@ import com.parcha.spoilnot.feature.plan.domain.MealWeek
 import com.parcha.spoilnot.feature.recipes.domain.Cooking
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeLines
+import com.parcha.spoilnot.recipeWords
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
@@ -159,7 +160,7 @@ class PlanFlowTest {
         val pantry = withTimeout(20_000) {
             bob.pantryRepository.observe(householdId).first { d -> d.batches.singleOrNull()?.quantity == 6.0 }
         }
-        val line = Cooking.lines(recipe, pantry, MealPlanGrocery.factor(planned, recipe)).single()
+        val line = Cooking.lines(recipe, pantry, recipeWords(), MealPlanGrocery.factor(planned, recipe)).single()
         assertEquals(4.0, line.defaultAmount, 0.0)
 
         val undo = bob.mealPlan.cooked(householdId, bob.actor, planned, recipe, mapOf(line.product.id to 4.0), pantry)
@@ -191,7 +192,12 @@ class PlanFlowTest {
         alice.mealPlan.addRecipe(householdId, alice.actor, today, MealSlot.Dinner, recipe, emptyList(), emptyList())
         val days = MealWeek.build(weekStart, alice.week { d -> d.meals.isNotEmpty() }.meals, today)
         val pantry = PantryData(emptyList(), emptyList(), fromCache = false)
-        val sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(days, listOf(recipe)), pantry, emptyList())
+        val sections = MealPlanGrocery.sections(
+            MealPlanGrocery.toShop(days, listOf(recipe)),
+            pantry,
+            emptyList(),
+            recipeWords(),
+        )
         val list = withTimeout(10_000) { alice.groceryRepository.observeLists(householdId).first { it.isNotEmpty() } }
             .single { it.isDefault }
         val count = alice.recipes.addItems(

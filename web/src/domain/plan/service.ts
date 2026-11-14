@@ -3,7 +3,7 @@ import type { GroceryItem } from '../grocery/models';
 import type { PantryChange, PantryData } from '../pantry/models';
 import { NameKey } from '../pantry/rules';
 import type { PantryService } from '../pantry/service';
-import type { Recipe } from '../recipes/models';
+import type { Recipe, RecipeWords } from '../recipes/models';
 import { Scaling } from '../recipes/parser';
 import { RecipeGrocery, type GroceryCandidate, type RecipeService } from '../recipes/service';
 import type { LocalDate } from '../time';
@@ -35,12 +35,17 @@ export const MealPlanGrocery = {
   /** How much of the recipe the meal needs: its servings over the recipe's, or 1 when either is unknown. */
   factor: (meal: PlannedMeal, recipe: Recipe): number => Scaling.factor(recipe.content.servings, meal.servings),
 
-  sections(meals: [PlannedMeal, Recipe][], pantry: PantryData, listItems: GroceryItem[]): MealGroceries[] {
+  sections(
+    meals: [PlannedMeal, Recipe][],
+    pantry: PantryData,
+    listItems: GroceryItem[],
+    words: RecipeWords,
+  ): MealGroceries[] {
     return meals
       .map(([meal, recipe]) => ({
         meal,
         recipe,
-        candidates: RecipeGrocery.candidates(recipe, pantry, listItems, MealPlanGrocery.factor(meal, recipe)),
+        candidates: RecipeGrocery.candidates(recipe, pantry, listItems, words, MealPlanGrocery.factor(meal, recipe)),
       }))
       .filter((s) => s.candidates.length > 0);
   },

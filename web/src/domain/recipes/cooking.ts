@@ -4,7 +4,7 @@ import { NeedsAttention } from '../pantry/items';
 import { Expiry } from '../pantry/rules';
 import { compareStrings, sortedWith, type LocalDate } from '../time';
 import { PantryMatch } from './box';
-import type { Ingredient, Recipe } from './models';
+import type { Ingredient, Recipe, RecipeWords } from './models';
 import { IngredientParser, Scaling } from './parser';
 import { ProductIndex, ProductLink, ShoppingName } from './shopping';
 
@@ -64,12 +64,18 @@ function amount(i: Ingredient, product: Product): number | null {
   return null;
 }
 
+/** Scaled pieces rounded up, ignoring floating-point dust: 4.5 is 5, 3.0000000001 is 3. */
+const wholePieces = (value: number, factor: number): number =>
+  Math.abs(factor - 1) < 1e-9 ? value : Math.ceil(value - 1e-9);
+
 export const Cooking = {
   /**
    * The in-stock products [recipe] uses, at [factor] times its servings (the detail screen's stepper), in recipe
-   * order. Lines that mean the same product add up.
+   * order. Lines that mean the same product add up. Scaled, a product kept in pieces is suggested in whole pieces,
+   * rounded up like the grocery list ("4½ eggs" takes 5, after v1, LOGIC-13); at the recipe's own servings the amount
+   * is as written ("½ onion"). [words] give tiny scaled amounts their text (Scaling.line).
    */
-  lines(recipe: Recipe, pantry: PantryData, factor = 1): CookLine[] {
+  lines(recipe: Recipe, pantry: PantryData, words: RecipeWords, factor = 1): CookLine[] {
     const stock = new Map<string, number>();
     for (const b of pantry.batches)
       if (b.quantity > 0) stock.set(b.productId, (stock.get(b.productId) ?? 0) + b.quantity);
@@ -82,11 +88,12 @@ export const Cooking = {
     }
     return [...groups.values()].map(({ product, ingredients }) => {
       const amounts = ingredients.map((i) => amount(i, product));
+      const total = amounts.every((a) => a !== null) ? amounts.reduce((s, a) => s + a!, 0) * factor : null;
       return {
         product,
-        lines: ingredients.map((i) => Scaling.line(i.raw, factor)),
+        lines: ingredients.map((i) => Scaling.line(i.raw, factor, words.pinch)),
         inStock: stock.get(product.id)!,
-        suggested: amounts.every((a) => a !== null) ? amounts.reduce((s, a) => s + a!, 0) * factor : null,
+        suggested: total !== null && product.unit === 'pcs' ? wholePieces(total, factor) : total,
       };
     });
   },

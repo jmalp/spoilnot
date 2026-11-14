@@ -78,5 +78,12 @@ so the browser script runs on each page:
 fetch also found all 10). Times were 1.0 to 6.2 s, except Food Network at 31 s (its page keeps loading; the test
 waits up to 45 s).
 
+## After the parser changes (2026-11-13)
+
+After comma decimals and thousands, "1h20m" and mixed-number times, and one-string ingredient lists (DESIGN 11.3,
+11.5, review LOGIC-15), the first command above on the Pixel 8 emulator: **10 of 10 imported**, all by fetch in 0.7
+to 1.0 s, with the same ingredient counts, parsed quantities, servings and times as on 2026-10-17. King Arthur
+Baking now has 10 steps (7 then); its page changed, not the parser, which reads steps as before.
+
 Share sheet: `RecipeUiTest` sends the same intent Chrome's share sheet does. Share to preview took 1.6 s on an idle
 host (target under 5 s).

@@ -36,6 +36,7 @@ import {
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
 import { capTo, ReadCaps } from '../domain/caps';
+import { NameKey } from '../domain/pantry/rules';
 import { SharedByKey, STOP_TIMEOUT_MS } from '../domain/shared';
 import { date, mapEach, millis, num, numbers, str, strings } from './fields';
 
@@ -48,7 +49,8 @@ export function toProduct(s: DocumentSnapshot): Product {
   return {
     id: s.id,
     name: capTo(str(s.get('name')) ?? '', ReadCaps.NAME),
-    nameKey: str(s.get('nameKey')) ?? '',
+    // Keys written before one whitespace definition (after v1, WEB-06) are normalised here, not migrated.
+    nameKey: NameKey.of(str(s.get('nameKey')) ?? ''),
     category: categoryOf(s.get('category')),
     defaultLocation: locationOf(s.get('defaultLocation')),
     unit: unitOf(s.get('unit')),
@@ -60,7 +62,7 @@ export function toProduct(s: DocumentSnapshot): Product {
     recentShelfLifeDays: numbers(s.get('recentShelfLifeDays')),
     createdAt: millis(s, 'createdAt'),
     lastAddedQuantity: num(s.get('lastAddedQuantity')),
-    aliases: strings(s.get('aliases')),
+    aliases: strings(s.get('aliases')).map(NameKey.of),
     openedShelfLifeDays: num(s.get('openedShelfLifeDays')),
     updatedBy: str(s.get('updatedBy')),
   };

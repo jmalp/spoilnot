@@ -123,4 +123,27 @@ describe('MealWeek', () => {
     // Copying again adds nothing.
     expect(MealWeek.copy(previous, lastStart, thisStart, [...existing, ...copies])).toEqual([]);
   });
+
+  it('copying counts meals of the same name in a slot', () => {
+    // LOGIC-14: two "Leftovers" at Monday lunch last week (for two people) stay two.
+    const lastStart = '2026-10-19';
+    const thisStart = '2026-10-26';
+    const previous = [
+      { ...meal('a', { date: lastStart, slot: 'lunch', position: 0 }), title: 'Leftovers' },
+      { ...meal('b', { date: lastStart, slot: 'lunch', position: 1 }), title: 'leftovers ' },
+      { ...meal('c', { date: lastStart, slot: 'lunch', position: 2 }), title: 'Soup' },
+    ];
+    const copies = MealWeek.copy(previous, lastStart, thisStart, []);
+    expect(copies.map((m) => m.title)).toEqual(['Leftovers', 'leftovers ', 'Soup']);
+    expect(copies.map((m) => m.position)).toEqual([0, 1, 2]);
+    // One is already there: only the second is copied, after it.
+    const one = { ...meal('x', { date: thisStart, slot: 'lunch' }), title: 'Leftovers' };
+    const again = MealWeek.copy(previous, lastStart, thisStart, [one]);
+    expect(again.map((m) => [m.title, m.position])).toEqual([
+      ['leftovers ', 1],
+      ['Soup', 2],
+    ]);
+    // Copying twice adds nothing.
+    expect(MealWeek.copy(previous, lastStart, thisStart, copies)).toEqual([]);
+  });
 });

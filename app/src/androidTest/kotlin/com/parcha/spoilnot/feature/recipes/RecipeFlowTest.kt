@@ -24,6 +24,7 @@ import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
 import com.parcha.spoilnot.feature.recipes.domain.RecipeLines
 import com.parcha.spoilnot.feature.recipes.domain.SaveResult
+import com.parcha.spoilnot.recipeWords
 import java.time.LocalDate
 import kotlin.time.measureTime
 import kotlinx.coroutines.flow.first
@@ -152,7 +153,7 @@ class RecipeFlowTest {
         val list = withTimeout(10_000) { alice.groceryRepository.observeLists(householdId).first { it.isNotEmpty() } }
             .single { it.isDefault }
         val pantry = PantryData(emptyList(), emptyList(), fromCache = false)
-        val chosen = RecipeGrocery.candidates(recipe, pantry, emptyList())
+        val chosen = RecipeGrocery.candidates(recipe, pantry, emptyList(), recipeWords())
         assertEquals(3, alice.recipes.addToGrocery(householdId, alice.actor, list.id, recipe, chosen, pantry))
         val items = withTimeout(20_000) {
             bob.groceryRepository.observeItems(householdId, list.id).first { it.size == 3 }
@@ -185,7 +186,7 @@ class RecipeFlowTest {
             }
         }
 
-        val lines = Cooking.lines(recipe, pantry)
+        val lines = Cooking.lines(recipe, pantry, recipeWords())
         assertEquals(listOf("Eggs"), lines.map { it.product.name })
         val (event, removeEvent) = alice.recipes.cookedEvent(recipe)
         val undo = alice.pantry.use(

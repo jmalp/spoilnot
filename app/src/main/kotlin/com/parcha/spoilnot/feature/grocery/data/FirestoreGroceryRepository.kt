@@ -25,6 +25,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.pantry.domain.Category
+import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -103,7 +104,8 @@ class FirestoreGroceryRepository(
         fun DocumentSnapshot.toItem() = GroceryItem(
             id = id,
             name = string("name").orEmpty().capTo(ReadCaps.NAME),
-            nameKey = string("nameKey").orEmpty(),
+            // Keys written before one whitespace definition (after v1, WEB-06) are normalised here, not migrated.
+            nameKey = NameKey.of(string("nameKey").orEmpty()),
             quantity = double("quantity"),
             unit = string("unit")?.let { QuantityUnit.fromWire(it) },
             note = string("note"),

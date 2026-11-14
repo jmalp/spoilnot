@@ -72,6 +72,10 @@ object RecipeBox {
 object PantryMatch {
     private val WORD = Regex("""[^\p{L}\p{N}]+""")
 
+    /** A grade of olive oil, not a different thing to buy (after v1, LOGIC-16): "extra-virgin olive oil" is olive oil. */
+    private val GRADE = Regex("""(?<![\p{L}\p{N}])extra[- ]virgin(?![\p{L}\p{N}])""")
+    private const val VOWELS = "aeiou"
+
     fun singular(word: String): String = when {
         word.length <= 3 -> word
 
@@ -89,8 +93,25 @@ object PantryMatch {
         else -> word
     }
 
+    /**
+     * The form words are compared in (after v1, LOGIC-16), so both singulars of a plural meet: "cookies" (cooky or
+     * cookie), "cookie", "chilies" and "chili" all become "cooki"/"chili"; "leaves" and "leaf", "knives" and "knife",
+     * "olives" and "olive" become "leav", "kniv" and "oliv". Not a word to show anyone.
+     */
+    fun stem(word: String): String {
+        val w = singular(word)
+        return when {
+            w.endsWith("ie") -> w.dropLast(1)
+            w.length >= 2 && w.endsWith("y") && w[w.length - 2] !in VOWELS -> w.dropLast(1) + "i"
+            w.length > 3 && w.endsWith("fe") -> w.dropLast(2) + "v"
+            w.length > 3 && w.endsWith("ve") -> w.dropLast(1)
+            w.length > 3 && w.endsWith("f") -> w.dropLast(1) + "v"
+            else -> w
+        }
+    }
+
     fun words(text: String): Set<String> =
-        NameKey.of(text).split(WORD).filter { it.isNotEmpty() }.map { singular(it) }.toSet()
+        NameKey.of(text).replace(GRADE, " ").split(WORD).filter { it.isNotEmpty() }.map { stem(it) }.toSet()
 
     fun matches(nameKey: String, line: String): Boolean {
         val product = words(nameKey)

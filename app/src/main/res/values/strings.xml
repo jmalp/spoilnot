@@ -458,6 +458,8 @@
     </plurals>
     <string name="recipe_fewer_servings">Fewer servings</string>
     <string name="recipe_more_servings">More servings</string>
+    <!-- A scaled ingredient amount too small to measure, before the ingredient: "a pinch of salt". -->
+    <string name="recipe_scaled_pinch">a pinch of</string>
     <string name="recipe_by">By %1$s</string>
     <string name="recipe_ingredients">Ingredients</string>
     <string name="recipe_steps">Steps</string>

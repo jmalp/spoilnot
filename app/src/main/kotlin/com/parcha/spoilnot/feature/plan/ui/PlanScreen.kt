@@ -193,6 +193,7 @@ fun PlanScreen(navigation: PlanNavigation, modifier: Modifier = Modifier, viewMo
             members = state.members,
             myUid = state.myUid,
             recipeExists = meal.recipeId != null && state.recipes.any { it.id == meal.recipeId },
+            recipeServings = state.recipes.firstOrNull { it.id == meal.recipeId }?.content?.servings,
             onSave = { servings, cooks, note ->
                 viewModel.update(meal, servings, cooks, note)
                 openMealId = null

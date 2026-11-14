@@ -63,6 +63,7 @@ import com.parcha.spoilnot.feature.plan.domain.MealPlanLimits
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
+import com.parcha.spoilnot.feature.recipes.domain.Scaling
 import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import java.time.LocalDate
 
@@ -201,6 +202,8 @@ fun MealSheet(
     members: List<Member>,
     myUid: String,
     recipeExists: Boolean,
+    /** The planned recipe's own servings, so the stepper can reach them (after v1, LOGIC-13). */
+    recipeServings: Int?,
     onSave: (servings: Int?, cooks: List<String>, note: String?) -> Unit,
     onCook: () -> Unit,
     onNotCooked: () -> Unit,
@@ -212,6 +215,7 @@ fun MealSheet(
 ) {
     val sheet = rememberFormSheet()
     var servings by rememberSaveable { mutableStateOf(meal.servings) }
+    val maxServings = Scaling.maxServings(recipeServings, meal.servings)
     val cooks = rememberSaveableList(*meal.cooks.toTypedArray())
     var note by rememberSaveable { mutableStateOf(meal.note.orEmpty()) }
     var moving by rememberSaveable { mutableStateOf(false) }
@@ -260,10 +264,8 @@ fun MealSheet(
                     modifier = Modifier.widthIn(min = 48.dp).testTag("plan_servings"),
                 )
                 IconButton(
-                    onClick = {
-                        servings = ((servings ?: 0) + 1).coerceAtMost(MealPlanLimits.MAX_SERVINGS)
-                    },
-                    enabled = (servings ?: 0) < MealPlanLimits.MAX_SERVINGS,
+                    onClick = { servings = ((servings ?: 0) + 1).coerceAtMost(maxServings) },
+                    enabled = (servings ?: 0) < maxServings,
                 ) { Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.plan_more)) }
             }
             CookPicker(members, myUid, cooks)

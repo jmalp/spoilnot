@@ -5,6 +5,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
+import com.parcha.spoilnot.feature.recipes.domain.RecipeWords
 import com.parcha.spoilnot.feature.recipes.domain.Scaling
 
 /** A planned recipe and its ingredients as grocery lines, scaled to the meal's servings. */
@@ -34,7 +35,8 @@ object MealPlanGrocery {
         meals: List<Pair<PlannedMeal, Recipe>>,
         pantry: PantryData,
         listItems: List<GroceryItem>,
+        words: RecipeWords,
     ): List<MealGroceries> = meals.map { (meal, recipe) ->
-        MealGroceries(meal, recipe, RecipeGrocery.candidates(recipe, pantry, listItems, factor(meal, recipe)))
+        MealGroceries(meal, recipe, RecipeGrocery.candidates(recipe, pantry, listItems, words, factor(meal, recipe)))
     }.filter { it.candidates.isNotEmpty() }
 }

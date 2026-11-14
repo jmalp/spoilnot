@@ -175,12 +175,13 @@ internal fun CookSteps(recipe: Recipe, servings: Int?, modifier: Modifier = Modi
     }
     if (showIngredients) {
         val factor = Scaling.factor(recipe.content.servings, servings)
+        val pinch = stringResource(R.string.recipe_scaled_pinch)
         SpoilNotSheet(onDismissRequest = { showIngredients = false }) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
                 Text(stringResource(R.string.recipe_ingredients), style = MaterialTheme.typography.titleLarge)
                 IngredientChecklist(
                     recipe.content.ingredients.map {
-                        it.group to Scaling.line(it.raw, factor)
+                        it.group to Scaling.line(it.raw, factor, pinch)
                     },
                     checked,
                 )

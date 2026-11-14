@@ -3,6 +3,8 @@ package com.parcha.spoilnot.feature.recipes.domain
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
+import kotlin.math.abs
+import kotlin.math.ceil
 
 /**
  * One pantry product a recipe uses, in the "I cooked this" sheet (DESIGN 5.5, after v1).
@@ -37,9 +39,11 @@ object Cooking {
 
     /**
      * The in-stock products [recipe] uses, at [factor] times its servings (the detail screen's stepper), in recipe
-     * order. Lines that mean the same product add up.
+     * order. Lines that mean the same product add up. Scaled, a product kept in pieces is suggested in whole pieces,
+     * rounded up like the grocery list ("4½ eggs" takes 5, after v1, LOGIC-13); at the recipe's own servings the
+     * amount is as written ("½ onion"). [words] give tiny scaled amounts their text ([Scaling.line]).
      */
-    fun lines(recipe: Recipe, pantry: PantryData, factor: Double = 1.0): List<CookLine> {
+    fun lines(recipe: Recipe, pantry: PantryData, words: RecipeWords, factor: Double = 1.0): List<CookLine> {
         val stock = pantry.batches.filter { it.quantity > 0 }.groupBy { it.productId }
             .mapValues { (_, batches) -> batches.sumOf { it.quantity } }
         val linked = RecipeIngredients.linked(recipe, pantry.products)
@@ -47,14 +51,19 @@ object Cooking {
         return linked.groupBy({ it.first.id }) { it.second }.map { (id, ingredients) ->
             val product = linked.first { it.first.id == id }.first
             val amounts = ingredients.map { amount(it, product) }
+            val total = if (amounts.all { it != null }) amounts.sumOf { it!! } * factor else null
             CookLine(
                 product = product,
-                lines = ingredients.map { Scaling.line(it.raw, factor) },
+                lines = ingredients.map { Scaling.line(it.raw, factor, words.pinch) },
                 inStock = stock.getValue(id),
-                suggested = if (amounts.all { it != null }) amounts.sumOf { it!! } * factor else null,
+                suggested = total?.let { if (product.unit == QuantityUnit.Pieces) wholePieces(it, factor) else it },
             )
         }
     }
+
+    /** Scaled pieces rounded up, ignoring floating-point dust: 4.5 is 5, 3.0000000001 is 3. */
+    private fun wholePieces(value: Double, factor: Double): Double =
+        if (abs(factor - 1.0) < 1e-9) value else ceil(value - 1e-9)
 
     private fun amount(ingredient: Ingredient, product: Product): Double? {
         val parsed = if (ingredient.qty == null && ingredient.name == null) {
