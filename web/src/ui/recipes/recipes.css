@@ -40,7 +40,7 @@
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   align-content: start;
   gap: 12px;
-  padding: 8px 16px 96px;
+  padding: 8px 16px max(96px, var(--sn-fab-space, 0px));
 }
 .sn-recipe-card {
   position: relative;
@@ -154,6 +154,11 @@ a.sn-info-chip {
 .sn-recipe-section h2 {
   flex: 1;
 }
+/* From 1.5x text the servings stepper goes under "Ingredients" (after v1, review A11Y-04). */
+:root[data-large-text] .sn-recipe-section {
+  flex-direction: column;
+  align-items: flex-start;
+}
 .sn-recipe-group {
   padding-top: 8px;
 }
@@ -236,6 +241,17 @@ a.sn-info-chip {
 .sn-cook__bar .sn-cook__ingredients {
   flex: 1;
 }
+/* From 1.5x text Ingredients takes its own line above Previous and Next, or it broke mid-word (A11Y-04). */
+:root[data-large-text] .sn-cook__bar {
+  flex-wrap: wrap;
+}
+:root[data-large-text] .sn-cook__bar .sn-cook__ingredients {
+  order: -1;
+  flex: 1 0 100%;
+}
+:root[data-large-text] .sn-cook__bar .m3-button:not(.sn-cook__ingredients) {
+  flex: 1;
+}
 
 .sn-sheet-rows {
   display: flex;
@@ -300,6 +316,18 @@ a.sn-info-chip {
 .sn-cook-row__amount {
   width: 96px;
   flex: none;
+}
+/* From 1.5x text the amount goes under its ingredient (after v1, review A11Y-04). */
+:root[data-large-text] .sn-cook-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+:root[data-large-text] .sn-cook-row__main {
+  flex: none;
+}
+:root[data-large-text] .sn-cook-row__amount {
+  width: auto;
+  margin-left: 48px;
 }
 .sn-rename-suggestions {
   display: flex;

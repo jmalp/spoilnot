@@ -633,7 +633,12 @@ export function DateChips({
     ['chip_plus_1_month', addMonths(today, 1)],
   ];
   return (
-    <div className={`sn-tiles ${twoRows ? 'sn-tiles--two-rows' : ''}`}>
+    // One date at a time: radio buttons in a group, so VoiceOver says "1 of 4" (after v1, review A11Y-08).
+    <div
+      className={`sn-tiles ${twoRows ? 'sn-tiles--two-rows' : ''}`}
+      role="radiogroup"
+      aria-label={str('field_expiry')}
+    >
       {options.map(([label, date]) => {
         const selected = value === date;
         return (
@@ -641,7 +646,8 @@ export function DateChips({
             key={label}
             type="button"
             className={`sn-tile sn-tile--small m3-state ${selected ? 'sn-tile--selected' : ''}`}
-            aria-pressed={selected}
+            role="radio"
+            aria-checked={selected}
             data-testid={`date_chip_${date}`}
             onClick={() => onChange(selected ? null : date)}
           >

@@ -18,7 +18,7 @@ import { yearMonthOf, type LocalDate } from '../../domain/time';
 import { Button, Card, Icon, type IconName } from '../kit';
 import { insights$, MonthRing } from '../insights/InsightsScreen';
 import { moodText } from '../insights/labels';
-import { chipText } from '../pantry/labels';
+import { chipText, statusText } from '../pantry/labels';
 import { Badge, StatusChip } from '../pantry/PantryRow';
 import { InstallCard } from '../install/InstallHelp';
 import { LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
@@ -258,12 +258,19 @@ function GroceryCard({ summary, onOpen }: { summary: HomeSummary; onOpen: () => 
       {summary.lowStock.length > 0 ? (
         <div className="sn-home-low" data-testid="home_running_low">
           <h3 className="t-label-large c-on-surface-variant">{str('home_running_low')}</h3>
-          {summary.lowStock.slice(0, CARD_ROWS).map((row) => (
-            <div key={row.productId} className="sn-home-row">
-              <span className="t-body-large sn-home-row__name">{row.name}</span>
-              <Badge text={str(row.isOut ? 'badge_out' : 'badge_low')} />
-            </div>
-          ))}
+          {summary.lowStock.slice(0, CARD_ROWS).map((row) => {
+            const badge = str(row.isOut ? 'badge_out' : 'badge_low');
+            // One sentence for VoiceOver, "Olive oil, Low", the badge under the name from 1.5x text (A11Y-04, A11Y-07).
+            return (
+              <div key={row.productId} className="sn-home-row sn-home-row--trailing" data-testid="home_low_row">
+                <span className="visually-hidden">{`${row.name}, ${badge}`}</span>
+                <span className="t-body-large sn-home-row__name" aria-hidden>
+                  {row.name}
+                </span>
+                <Badge text={badge} hidden />
+              </div>
+            );
+          })}
           {more > 0 && (
             <span className="t-body-medium c-on-surface-variant">{plural('home_running_low_more', more, more)}</span>
           )}
@@ -300,12 +307,25 @@ function TodayCard({
     >
       {meals.map((meal) => {
         const cooks = cookNames(meal.cooks, members, myUid);
+        // One stop per meal for VoiceOver: "Breakfast: Porridge, cooking: You, Cooked" (after v1, review A11Y-07).
+        const description = [
+          str('home_today_meal_description', slotLabel(meal.slot), meal.title),
+          cooks.length > 0 ? str('home_today_cooking', cooks.join(', ')) : null,
+          meal.cookedAt !== null ? str('plan_cooked') : null,
+        ]
+          .filter((part) => part !== null)
+          .join(', ');
         return (
-          <div key={meal.id} className="sn-today-meal">
-            <span className="t-label-medium c-on-surface-variant">{slotLabel(meal.slot)}</span>
-            <span className="t-body-large sn-home-row__name">{meal.title}</span>
+          <div key={meal.id} className="sn-today-meal" data-testid="home_today_meal">
+            <span className="visually-hidden">{description}</span>
+            <span className="t-label-medium c-on-surface-variant" aria-hidden>
+              {slotLabel(meal.slot)}
+            </span>
+            <span className="t-body-large sn-home-row__name" aria-hidden>
+              {meal.title}
+            </span>
             {(cooks.length > 0 || meal.cookedAt !== null) && (
-              <span className="sn-meal-row__details">
+              <span className="sn-meal-row__details" aria-hidden>
                 {cooks.map((name) => (
                   <CookChip key={name} name={name} />
                 ))}
@@ -461,12 +481,19 @@ function RemindersOffLine({ onTurnOn }: { onTurnOn: () => void }) {
   );
 }
 
-/** One purchase that can still be used, as Pantry shows it: name and status chip. */
+/**
+ * One purchase that can still be used, as Pantry shows it: name and status chip, the chip under the name from 1.5x
+ * text (after v1, review A11Y-04). VoiceOver reads it as one sentence, "Milk, expires tomorrow" (A11Y-07).
+ */
 function AttentionRow({ item, today }: { item: PurchaseItem; today: LocalDate }) {
+  const { expiryDate, dateType } = item.batch;
   return (
-    <div className="sn-home-row">
-      <span className="t-body-large sn-home-row__name">{item.name}</span>
-      <StatusChip expiry={item.batch.expiryDate} dateType={item.batch.dateType} today={today} />
+    <div className="sn-home-row sn-home-row--trailing" data-testid="home_attention_row">
+      <span className="visually-hidden">{`${item.name}, ${statusText(expiryDate, dateType, today)}`}</span>
+      <span className="t-body-large sn-home-row__name" aria-hidden>
+        {item.name}
+      </span>
+      <StatusChip expiry={expiryDate} dateType={dateType} today={today} hidden />
     </div>
   );
 }
@@ -487,9 +514,13 @@ function ExpiredLine({ count }: { count: number }) {
 function JoinRequestsCard({ count, onReview }: { count: number; onReview: () => void }) {
   return (
     <Card variant="filled" className="sn-home-join" data-testid="card_home_join_requests">
+      {/* From 1.5x text the button goes under the sentence; beside it, the sentence broke one syllable per line and
+          Review ran out of its button (after v1, review A11Y-04). */}
       <div className="sn-home-join__row">
-        <Icon name="round/group_add" />
-        <span className="t-title-medium sn-home-join__text">{plural('home_join_requests', count, count)}</span>
+        <span className="sn-home-join__text">
+          <Icon name="round/group_add" />
+          <span className="t-title-medium">{plural('home_join_requests', count, count)}</span>
+        </span>
         <Button large onClick={onReview}>
           {str('action_review')}
         </Button>

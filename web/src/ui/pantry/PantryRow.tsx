@@ -166,8 +166,12 @@ function LocationLabel({ location }: { location: Location }) {
 }
 
 /** Small pill such as Out or Low. */
-export function Badge({ text }: { text: string }) {
-  return <span className="sn-badge t-label-medium">{text}</span>;
+export function Badge({ text, hidden = false }: { text: string; hidden?: boolean }) {
+  return (
+    <span className="sn-badge t-label-medium" aria-hidden={hidden || undefined}>
+      {text}
+    </span>
+  );
 }
 
 /** Status chip: icon, text and the fixed status color, never color alone (DESIGN 6.4); VoiceOver gets the full wording. */
@@ -175,10 +179,13 @@ export function StatusChip({
   expiry,
   dateType,
   today,
+  hidden = false,
 }: {
   expiry: LocalDate | null;
   dateType: DateType;
   today: LocalDate;
+  /** Read in its row's sentence instead (Home's Needs attention). */
+  hidden?: boolean;
 }) {
   const status = Expiry.of(expiry, today);
   return (
@@ -186,6 +193,7 @@ export function StatusChip({
       className={`sn-status-chip sn-status-chip--${tone(status)} t-label-large`}
       role="img"
       aria-label={statusText(expiry, dateType, today)}
+      aria-hidden={hidden || undefined}
       data-testid="status_chip"
     >
       <Icon name={statusIcon(status)} size={16} />

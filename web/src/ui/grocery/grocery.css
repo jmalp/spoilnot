@@ -146,6 +146,12 @@
   padding-right: 8px;
   border-top: 1px solid var(--md-sys-color-outline-variant);
 }
+.sn-cart-header__heading {
+  flex: 1;
+  display: flex;
+  margin: 0;
+  font: inherit;
+}
 .sn-cart-header__toggle {
   flex: 1;
   display: flex;
