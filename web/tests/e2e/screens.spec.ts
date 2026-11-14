@@ -200,7 +200,7 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('recipe_card')).toHaveCount(2);
       await expect(page.locator('[data-remote]')).toHaveCount(0);
       await shot(page, `recipes_${suffix}`);
-      await page.getByRole('button', { name: 'Pancakes', exact: true }).click();
+      await page.getByRole('button', { name: 'Pancakes, Total 20 min', exact: true }).click();
       await expect(page.getByTestId('recipe_title')).toHaveText('Pancakes');
       await shot(page, `recipe_detail_${suffix}`);
       await page.getByTestId('recipe_add_to_list').click();

@@ -405,7 +405,23 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     recipe's "Ingredients" is whole with the servings stepper under it, cook mode's Ingredients button is on its own
     line, and in Pantry, Groceries and Recipes the last row scrolls fully above the floating button. Any sheet's drag
     handle can be dragged from a little beside the bar.
-61. Recipes, plan and names (Android and the iPhone web app, after v1, 2026-11-13, DESIGN 5.3, 5.5, 5.9, 8.1, 11): on
+61. Large text, VoiceOver and the keyboard on the iPhone (web, after v1, 2026-11-13, DESIGN 6.8, 18.2): in the Home
+    Screen app, **VoiceOver on** (Settings > Accessibility > VoiceOver), swipe through Home from the top: each Needs
+    attention row is one stop ("Milk, Expires tomorrow"), each Today meal one stop ("Dinner: Tacos, cooking: You"),
+    and the avatar says "Open settings, 1 join request waiting" once. Groceries: each row's checkbox reads the whole
+    row ("Bananas, 2 pieces, from a recipe, checkbox, unchecked"); with the rotor on Headings, swiping down jumps from
+    aisle to aisle and to In cart, which says expanded or collapsed. Add item: the date tiles say "radio button, 1 of
+    4". A recipe card reads its title and time, its star "Favorite, toggle button" with on or off, the same on the
+    recipe. Cook mode's progress says "Step 1 of 3" and the second Back "Back to the previous step". Household:
+    Approve and Decline name the person. With a sheet open, swiping never leaves it. **VoiceOver off, a Bluetooth
+    keyboard** with Settings > Accessibility > Keyboards > Full Keyboard Access on: Tab on Pantry goes through the
+    screen (Settings, search, chips, rows) and only then the five tabs, with a green ring around each. **Larger Text at
+    the largest size** (Settings > Accessibility > Display & Text Size > Larger Text, Larger Accessibility Sizes, slider
+    at the end), then reopen the app: Home's names are whole with the chip under them, the join requests card has
+    Review under its sentence, the five tab labels are whole on one line, a recipe's "Ingredients" is whole with the
+    servings stepper under it, cook mode's Ingredients button is on its own line, I cooked this shows each amount under
+    its ingredient, and in Pantry and Groceries the last row scrolls fully above the floating button.
+62. Recipes, plan and names (Android and the iPhone web app, after v1, 2026-11-13, DESIGN 5.3, 5.5, 5.9, 8.1, 11): on
     Android, import a recipe with "Makes 120" servings (or create one with 120 servings and "1/8 tsp salt", "3 eggs"
     and "2 tbsp extra-virgin olive oil"): the detail's stepper goes past 100 to 120; at 12 servings the salt reads "a
     pinch of salt", not "0 tsp salt". Plan it: the meal's sheet shows 120 servings and + stays usable up to 120. With

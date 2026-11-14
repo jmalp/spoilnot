@@ -353,8 +353,6 @@ export const STRINGS = {
   "recipe_sort": "Sort",
   "recipe_sort_recent": "Recently added",
   "recipe_sort_az": "A to Z",
-  "recipe_favorite": "Add to favorites",
-  "recipe_unfavorite": "Remove from favorites",
   "recipe_minutes": "%1$d min",
   "recipe_hours": "%1$d hr",
   "recipe_hours_minutes": "%1$d hr %2$d min",

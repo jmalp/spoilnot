@@ -90,6 +90,9 @@ function CookSteps({ recipe, servings }: { recipe: Recipe; servings: number | nu
       <div
         className="sn-cook__progress"
         role="progressbar"
+        // Named, so VoiceOver says "Step 1 of 3" rather than a bare percentage (after v1, review A11Y-12).
+        aria-label={str('recipe_step_of', current + 1, steps.length)}
+        aria-valuetext={str('recipe_step_of', current + 1, steps.length)}
         aria-valuemin={1}
         aria-valuemax={steps.length}
         aria-valuenow={current + 1}
@@ -106,7 +109,14 @@ function CookSteps({ recipe, servings }: { recipe: Recipe; servings: number | nu
         </p>
       </div>
       <div className="sn-cook__bar">
-        <Button variant="outlined" icon="round/arrow_back" disabled={current === 0} onClick={() => go(current - 1)}>
+        {/* The top bar's Back leaves cook mode; this one turns the page (after v1, review A11Y-08). */}
+        <Button
+          variant="outlined"
+          icon="round/arrow_back"
+          disabled={current === 0}
+          aria-label={str('recipe_step_previous_description')}
+          onClick={() => go(current - 1)}
+        >
           {str('recipe_step_previous')}
         </Button>
         <Button

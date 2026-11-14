@@ -174,9 +174,12 @@
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  height: 56px;
+  /* Grows with large text instead of cutting its words; lists leave room for it as measured (TabScaffold). */
+  min-height: 56px;
   min-width: 80px;
-  padding: 0 20px 0 16px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 20px 8px 16px;
+  text-align: start;
   border: none;
   border-radius: 16px;
   background: var(--md-sys-color-primary-container);
@@ -282,15 +285,20 @@
 .m3-navigation-bar__item[aria-current='page'] .m3-navigation-bar__label {
   color: var(--md-sys-color-on-surface);
 }
+/* One line, growing with the text size only up to 1.2x (TAB_LABEL_MAX_FONT_SCALE in the app, after v1, review UX-14):
+   all five fit a fifth of an iPhone there, and the icon above says the same; at the accessibility sizes they were cut
+   to "Ho…". 14.4 and 19.2 px are 12 and 16 sp at 1.2x (textScale.ts). An iPhone's fifth is narrower than Android's
+   (79 px on a 393 px iPhone), so the size also stops at 3.3% of the screen's width and the letter spacing stays
+   0.5 px instead of growing with the root size; "Groceries" then fits from the iPhone SE up. */
 .m3-navigation-bar__label {
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--sp-12);
-  line-height: var(--sp-16);
+  font-size: min(var(--sp-12), 14.4px, 3.3vw);
+  line-height: min(var(--sp-16), 19.2px);
   font-weight: 500;
-  letter-spacing: 0.03125rem;
+  letter-spacing: 0.5px;
 }
 
 /* Badges: error colors, a 6 px dot or a 16 px pill with a number. */
@@ -434,7 +442,8 @@
 .m3-chip--with-icon {
   padding-left: 8px;
 }
-.m3-chip[aria-pressed='true'] {
+.m3-chip[aria-pressed='true'],
+.m3-chip[aria-checked='true'] {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
   box-shadow: none;

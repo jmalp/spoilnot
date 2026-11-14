@@ -86,7 +86,8 @@ export function RecipeDetailScreen({
           <>
             <IconButton
               icon={recipe.favorite ? 'round/star' : 'round/star_border'}
-              label={str(recipe.favorite ? 'recipe_unfavorite' : 'recipe_favorite')}
+              // One name with its state, "Favorite, selected", as on the cards (after v1, review A11Y-08).
+              label={str('recipe_favorite_toggle')}
               aria-pressed={recipe.favorite}
               data-testid="recipe_favorite"
               onClick={() => void recipeService.setFavorite(hid, actor, recipe, !recipe.favorite).catch(failed)}

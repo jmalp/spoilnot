@@ -1,11 +1,11 @@
 import { useId } from 'react';
-import { appliedTextScale } from '../../theme/textScale';
+import { LARGE_TEXT_SCALE, appliedTextScale } from '../../theme/textScale';
 import { Icon } from './Icon';
 import { ripple } from './ripple';
 import { Radio } from './Selection';
 
 /** Text scale from which Segmented stacks its options, since side by side they no longer fit. */
-export const SEGMENTED_STACK_SCALE = 1.5;
+export const SEGMENTED_STACK_SCALE = LARGE_TEXT_SCALE;
 
 /**
  * A single-choice control (DESIGN 6.5): segmented buttons, or a list of radio buttons at large text sizes so long

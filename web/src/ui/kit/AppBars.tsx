@@ -23,9 +23,15 @@ export function TopAppBar({
   return (
     <header className={`m3-top-app-bar ${scrolled ? 'm3-top-app-bar--scrolled' : ''}`}>
       {navigation && <div className="m3-top-app-bar__navigation">{navigation}</div>}
-      <h1 className={`m3-top-app-bar__title ${titleStyle === 'headline' ? 't-headline-small' : 't-title-large'}`}>
-        {title}
-      </h1>
+      {/* No title, no heading: an empty <h1> is a stop VoiceOver reads as nothing (after v1, review A11Y-12). Recipe
+          detail names itself in its content. */}
+      {title === '' || title === null || title === undefined ? (
+        <div className="m3-top-app-bar__title" />
+      ) : (
+        <h1 className={`m3-top-app-bar__title ${titleStyle === 'headline' ? 't-headline-small' : 't-title-large'}`}>
+          {title}
+        </h1>
+      )}
       {actions && <div className="m3-top-app-bar__actions">{actions}</div>}
     </header>
   );

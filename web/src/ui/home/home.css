@@ -65,6 +65,16 @@
   overflow: hidden;
   overflow-wrap: anywhere;
 }
+/* From 1.5x text the chip or badge goes under the name (after v1, review A11Y-04; NameWithTrailing in the app):
+   beside it, names broke mid-word at 200% and at the largest sizes the chip ran past the card. */
+:root[data-large-text] .sn-home-row--trailing {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+:root[data-large-text] .sn-home-row--trailing .sn-home-row__name {
+  align-self: stretch;
+}
 .sn-today-meal {
   display: flex;
   flex-direction: column;
@@ -110,6 +120,18 @@
 }
 .sn-home-join__text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+:root[data-large-text] .sn-home-join__row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+:root[data-large-text] .sn-home-join__row > .m3-button {
+  align-self: flex-end;
 }
 .sn-skeleton {
   display: flex;
