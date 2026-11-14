@@ -18,6 +18,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.parcha.spoilnot.EmulatorSupport
 import com.parcha.spoilnot.EmulatorSupport.PASSWORD
 import com.parcha.spoilnot.MainActivity
+import com.parcha.spoilnot.PerfTest
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
@@ -41,7 +42,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
-import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -49,10 +49,11 @@ import org.junit.runner.RunWith
 
 /**
  * DESIGN 13.1 budget: smooth scrolling with 500 batches. Seeds 500 batches (250 products, two each), flings the
- * Pantry list and logs Android's frame statistics. Opt in with `-e perf true`; the numbers are a debug build's, so
+ * Pantry list and logs Android's frame statistics. Opt in with `-e perf true` ([PerfTest]); the numbers are a debug build's, so
  * a release build does better.
  */
 @OptIn(ExperimentalTestApi::class)
+@PerfTest
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class PantryScrollPerfTest {
@@ -77,10 +78,6 @@ class PantryScrollPerfTest {
 
     @Before
     fun seed500Batches() = runBlocking {
-        assumeTrue(
-            "perf runs only with -e perf true",
-            InstrumentationRegistry.getArguments().getString("perf") == "true",
-        )
         EmulatorSupport.requireEmulatorAndNetworkAccess()
         hilt.inject()
         FirebaseAuth.getInstance().signOut()

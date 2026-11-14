@@ -44,4 +44,6 @@
 - With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest` (includes the two-user household tests)
 - Recipe import changes: also run `LiveImportTest` against the real sites (command in docs/import-test-sites.md)
 - Changes to listeners or scheduled jobs: `cd firebase && npm run quota-sim` and compare with docs/RUNBOOK.md
-- Large UI changes (new screens or lists): `./scripts/baseline-profile.sh` and commit the new profile
+- Large UI changes (new screens or lists) and Compose, Firebase or DataStore updates: `./scripts/baseline-profile.sh`
+  on the headless emulator from docs/RUNBOOK.md "Benchmark setup" (the script refuses software rendering) and
+  commit the new profile

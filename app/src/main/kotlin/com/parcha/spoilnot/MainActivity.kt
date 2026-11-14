@@ -8,6 +8,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
@@ -53,7 +56,7 @@ class MainActivity : ComponentActivity() {
             }
             SpoilNotTheme(darkTheme = dark, colorTheme = colorTheme) {
                 RequestEmulatorNetworkAccess()
-                SpoilNotRoot()
+                SpoilNotRoot(Modifier.semantics { testTagsAsResourceId = EXPOSE_TEST_TAGS })
             }
         }
     }
@@ -71,5 +74,12 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val SPLASH_MAX_MS = 1_500L
+
+        /**
+         * The benchmark build shows the screens' test tags to UI Automator as resource ids, so the baseline profile
+         * journey can check that each step opened its screen (DESIGN 13.1, after v1 review PERF-06). Other builds
+         * don't.
+         */
+        val EXPOSE_TEST_TAGS = BuildConfig.BUILD_TYPE == "benchmark"
     }
 }

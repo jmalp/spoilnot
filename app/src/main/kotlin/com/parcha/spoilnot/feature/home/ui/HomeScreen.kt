@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.home.ui
 
 import android.text.format.DateUtils
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -123,6 +124,9 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // A start ends when Home's cards (or its error) replace the skeleton, not at the first frame: Android records
+    // that as the time to full display, and StartupBenchmark measures it (DESIGN 13.1, after v1 review PERF-05).
+    ReportDrawnWhen { state.summary != null || state.loadFailed }
     TabScaffold(
         title = stringResource(R.string.tab_home),
         onOpenSettings = navigation.openSettings,
