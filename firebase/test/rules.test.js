@@ -912,7 +912,7 @@ describe('meal plan', () => {
     const db = as('bob');
     for (const bad of [
       { date: '29/10/2026' }, { date: 20261029 }, { slot: 'brunch' }, { position: 'first' }, { title: '' },
-      { title: 'x'.repeat(121) }, { servings: 0 }, { servings: 101 }, { servings: 2.5 }, { cooks: 'alice' },
+      { title: 'x'.repeat(121) }, { servings: 0 }, { servings: 1001 }, { servings: 2.5 }, { cooks: 'alice' },
       { cooks: Array.from({ length: 21 }, (_, i) => `u${i}`) }, { note: '' }, { note: 'x'.repeat(201) },
       { recipeId: '' },
     ]) {
@@ -920,6 +920,9 @@ describe('meal plan', () => {
     }
     await assertFails(setDoc(doc(db, path()), meal('alice')));
     await assertFails(setDoc(doc(db, path()), { ...meal('bob'), updatedAt: new Date('2026-01-01') }));
+    // A recipe for 120 is planned at 120, up to a recipe's 1,000 (after v1, LOGIC-13).
+    await assertSucceeds(setDoc(doc(db, path('m120')), meal('bob', { servings: 120 })));
+    await assertSucceeds(setDoc(doc(db, path('m1000')), meal('bob', { servings: 1000 })));
   });
 
   it('cooked is set by the writer at server time, kept by later edits and cleared together', async () => {

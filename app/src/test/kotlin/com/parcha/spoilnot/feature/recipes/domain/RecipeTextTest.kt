@@ -54,6 +54,14 @@ class DurationsTest {
         assertEquals(75, Durations.minutes("1 hour 15 mins"))
         assertEquals(120, Durations.minutes("2 hrs"))
         assertEquals(45, Durations.minutes("45"))
+        // After v1, LOGIC-15: a unit straight before the minutes, mixed numbers and comma decimals.
+        assertEquals(80, Durations.minutes("1h20m"))
+        assertEquals(80, Durations.minutes("1 h 20 min"))
+        assertEquals(90, Durations.minutes("1 1/2 hours"))
+        assertEquals(90, Durations.minutes("1½ hours"))
+        assertEquals(90, Durations.minutes("1,5 hours"))
+        assertEquals(30, Durations.minutes("1/2 hour"))
+        assertEquals(80, Durations.minutes("1\u00A0hour 20\u00A0minutes"))
     }
 
     @Test

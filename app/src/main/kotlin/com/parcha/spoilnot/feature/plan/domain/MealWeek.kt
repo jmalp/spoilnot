@@ -59,9 +59,10 @@ object MealWeek {
 
     /**
      * Copy last week (DESIGN 5.9): [previous] meals moved by whole weeks from [from] to [to], keeping recipe, title,
-     * servings, cooks and note but not Cooked. A meal already in [existing] on the same day and slot with the same
-     * name is skipped, so copying twice adds nothing. Copies go after the meals already in their slot, in their old
-     * order. Ids are left empty for the service to fill.
+     * servings, cooks and note but not Cooked. Meals of the same name in a slot are counted (after v1, LOGIC-14): as
+     * many are copied as last week had, minus those already in [existing] on that day and slot, so two "Leftovers"
+     * stay two and copying twice adds nothing. Copies go after the meals already in their slot, in their old order.
+     * Ids are left empty for the service to fill.
      */
     fun copy(
         previous: List<PlannedMeal>,
@@ -70,7 +71,7 @@ object MealWeek {
         existing: List<PlannedMeal>,
     ): List<PlannedMeal> {
         val shift = ChronoUnit.DAYS.between(from, to)
-        val taken = existing.map { Triple(it.date, it.slot, NameKey.of(it.title)) }.toMutableSet()
+        val already = existing.groupingBy { Triple(it.date, it.slot, NameKey.of(it.title)) }.eachCount().toMutableMap()
         val next = existing.groupBy { it.date to it.slot }
             .mapValues { (_, meals) -> nextPosition(meals) }
             .toMutableMap()
@@ -78,7 +79,12 @@ object MealWeek {
             .sortedWith(compareBy<PlannedMeal>({ it.date }, { it.slot }, { it.position }))
             .mapNotNull { meal ->
                 val date = meal.date.plusDays(shift)
-                if (!taken.add(Triple(date, meal.slot, NameKey.of(meal.title)))) return@mapNotNull null
+                val key = Triple(date, meal.slot, NameKey.of(meal.title))
+                val there = already[key] ?: 0
+                if (there > 0) {
+                    already[key] = there - 1
+                    return@mapNotNull null
+                }
                 val position = next[date to meal.slot] ?: 0L
                 next[date to meal.slot] = position + 1
                 meal.copy(

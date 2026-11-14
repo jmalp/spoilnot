@@ -1,6 +1,7 @@
 // Ported from IngredientParserTest and ScalingTest.
 import { describe, expect, it } from 'vitest';
-import { ingredient } from './models';
+import { ingredient, RecipeLimits } from './models';
+import { TEST_WORDS } from './fixtures';
 import { IngredientParser, Scaling } from './parser';
 
 const parsed = (raw: string) => IngredientParser.parse(raw);
@@ -73,11 +74,11 @@ describe('IngredientParser', () => {
 
 describe('Scaling', () => {
   it('scales only the quantity and keeps the rest of the line', () => {
-    expect(Scaling.line('1 ½ cups flour, sifted', 2)).toBe('3 cups flour, sifted');
-    expect(Scaling.line('200g flour', 2)).toBe('400g flour');
-    expect(Scaling.line('2-3 cloves garlic', 0.5)).toBe('1–1½ cloves garlic');
-    expect(Scaling.line('Salt to taste', 3)).toBe('Salt to taste');
-    expect(Scaling.line('2 cups milk', 1)).toBe('2 cups milk');
+    expect(Scaling.line('1 ½ cups flour, sifted', 2, 'a pinch of')).toBe('3 cups flour, sifted');
+    expect(Scaling.line('200g flour', 2, 'a pinch of')).toBe('400g flour');
+    expect(Scaling.line('2-3 cloves garlic', 0.5, 'a pinch of')).toBe('1–1½ cloves garlic');
+    expect(Scaling.line('Salt to taste', 3, 'a pinch of')).toBe('Salt to taste');
+    expect(Scaling.line('2 cups milk', 1, 'a pinch of')).toBe('2 cups milk');
   });
 
   it('factor comes from the original and target servings', () => {
@@ -94,5 +95,22 @@ describe('Scaling', () => {
     expect(Scaling.formatQuantity(12.4)).toBe('12');
     expect(Scaling.formatQuantity(1.1)).toBe('1.1');
     expect(Scaling.formatQuantity(0.125)).toBe('⅛');
+  });
+});
+
+describe('Servings and tiny amounts (after v1, LOGIC-13)', () => {
+  it("servings steppers reach the recipe's own servings", () => {
+    expect(Scaling.maxServings(4)).toBe(100);
+    expect(Scaling.maxServings(null)).toBe(100);
+    expect(Scaling.maxServings(120)).toBe(120);
+    expect(Scaling.maxServings(120, 150)).toBe(150);
+    expect(Scaling.maxServings(5_000)).toBe(RecipeLimits.MAX_SERVINGS);
+  });
+
+  it('amounts under a sixteenth are a pinch', () => {
+    expect(Scaling.line('1/8 tsp salt', 0.1, TEST_WORDS.pinch)).toBe('a pinch of salt');
+    expect(Scaling.line('1 pinch of pepper', 0.05, TEST_WORDS.pinch)).toBe('a pinch of pepper');
+    expect(Scaling.line('1 tsp salt', 1 / 16, TEST_WORDS.pinch)).toBe('0.06 tsp salt');
+    expect(Scaling.line('1/4 tsp salt', 0.5, TEST_WORDS.pinch)).toBe('⅛ tsp salt');
   });
 });

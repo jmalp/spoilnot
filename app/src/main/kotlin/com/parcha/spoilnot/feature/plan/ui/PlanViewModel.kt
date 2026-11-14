@@ -36,6 +36,7 @@ import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import com.parcha.spoilnot.feature.recipes.domain.RecipeStore
+import com.parcha.spoilnot.feature.recipes.domain.RecipeWords
 import com.parcha.spoilnot.feature.recipes.domain.UseItUp
 import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -88,6 +89,7 @@ class PlanViewModel @Inject constructor(
     private val service: MealPlanService,
     private val recipeService: RecipeService,
     clock: Clock,
+    private val words: RecipeWords,
 ) : ViewModel() {
     data class UiState(
         val loading: Boolean = true,
@@ -194,7 +196,7 @@ class PlanViewModel @Inject constructor(
                 if (meal == null || recipe == null) {
                     null
                 } else {
-                    CookState(meal, recipe, Cooking.lines(recipe, p, MealPlanGrocery.factor(meal, recipe)), p)
+                    CookState(meal, recipe, Cooking.lines(recipe, p, words, MealPlanGrocery.factor(meal, recipe)), p)
                 }
             }
         }
@@ -231,7 +233,7 @@ class PlanViewModel @Inject constructor(
                 WeekGroceryState(
                     lists = all,
                     listId = id,
-                    sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(s.days, s.recipes), p, listItems),
+                    sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(s.days, s.recipes), p, listItems, words),
                     pantry = p,
                     loading = false,
                 )

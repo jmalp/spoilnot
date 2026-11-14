@@ -34,13 +34,13 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.theme.STATUS_TINT_ALPHA
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
+import com.parcha.spoilnot.feature.pantry.domain.Amounts
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.ExpiryStatus
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
-import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
@@ -228,10 +228,8 @@ fun amountDescription(quantity: Double, unit: QuantityUnit?): String =
 /** The plural form for a possibly fractional amount: exactly 1 is singular, anything else plural. */
 private fun pluralCount(quantity: Double): Int = if (quantity == 1.0) 1 else 2
 
-private val QUANTITY = DecimalFormat("0.##")
-
-/** 2, 1.5 or 0.25: no trailing zeros. */
-fun formatQuantity(value: Double): String = QUANTITY.format(value)
+/** 2, 1.5 or 0.25: no trailing zeros, in ASCII digits so forms can read it back ([Amounts]). */
+fun formatQuantity(value: Double): String = Amounts.format(value)
 
 /** Small pill such as Out or Low. */
 @Composable

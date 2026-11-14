@@ -9,8 +9,10 @@ import com.parcha.spoilnot.feature.recipes.domain.PantryMatch
  * The aisle (category) for a grocery item typed without a matching product (DESIGN 5.3, after v1), so "bananas" goes
  * under Produce instead of Other and the store order can place it. The household's own products come first: the
  * product with the most words that are all in the name gives its aisle, so the household's own filing wins. Then a
- * built-in English word list, longest phrase first, so "peanut butter" is a pantry staple, not dairy, and "frozen
- * peas" is frozen. Unknown names stay without an aisle (Other).
+ * built-in English word list: how it is kept ("frozen", "canned") first, then phrases of more than one word ("peanut
+ * butter" is a pantry staple, not dairy), then what kind of product it is ("broth", "sauce", "paste", "dressing",
+ * "juice"), then single food words, longest first. So "frozen spinach" is frozen and "chicken broth" a pantry staple
+ * (after v1, LOGIC-17). Unknown names stay without an aisle (Other).
  */
 object AisleGuess {
     private val WORD = Regex("""[^\p{L}\p{N}]+""")
@@ -58,7 +60,26 @@ object AisleGuess {
         )
     }
 
+    /** How it is kept: wins over every phrase that doesn't contain it ("frozen ground beef"). */
+    private val KEPT: List<Pair<String, Category>> = listOf(
+        "frozen" to Category.Frozen,
+        "canned" to Category.PantryStaples,
+        "tinned" to Category.PantryStaples,
+    )
+
+    /** What kind of product the food word makes: wins over single food words ("tomato paste", "apple juice"). */
+    private val KINDS: List<Pair<String, Category>> = listOf(
+        "broth" to Category.PantryStaples,
+        "stock" to Category.PantryStaples,
+        "sauce" to Category.PantryStaples,
+        "paste" to Category.PantryStaples,
+        "dressing" to Category.PantryStaples,
+        "juice" to Category.Drinks,
+    )
+
     private val LONGEST_FIRST = PHRASES.keys.sortedByDescending { it.split(' ').size * 100 + it.length }
+    private val PHRASES_FIRST = LONGEST_FIRST.filter { ' ' in it }
+    private val WORDS_LONGEST_FIRST = LONGEST_FIRST.filter { ' ' !in it }
 
     fun of(name: String, products: List<Product> = emptyList()): Category? {
         val words = words(name)
@@ -68,7 +89,12 @@ object AisleGuess {
             .maxByOrNull { words(it.name).size }
             ?.let { return it.category }
         val text = " ${words.joinToString(" ")} "
-        return LONGEST_FIRST.firstOrNull { text.contains(" $it ") }?.let { PHRASES.getValue(it) }
+        fun has(phrase: String) = text.contains(" $phrase ")
+        PHRASES_FIRST.firstOrNull { has(it) && KEPT.none { (word, _) -> word !in it.split(' ') && has(word) } }
+            ?.let { return PHRASES.getValue(it) }
+        KEPT.firstOrNull { has(it.first) }?.let { return it.second }
+        KINDS.firstOrNull { has(it.first) }?.let { return it.second }
+        return WORDS_LONGEST_FIRST.firstOrNull { has(it) }?.let { PHRASES.getValue(it) }
     }
 
     /**

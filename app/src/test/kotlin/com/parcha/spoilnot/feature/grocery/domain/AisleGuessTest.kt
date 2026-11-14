@@ -37,6 +37,21 @@ class AisleGuessTest {
     }
 
     @Test
+    fun `how it is kept and what kind of product it is win over the food word`() {
+        // After v1, LOGIC-17: "chicken" is longer than "broth", but chicken broth is a pantry staple.
+        assertEquals(Category.PantryStaples, AisleGuess.of("chicken broth"))
+        assertEquals(Category.PantryStaples, AisleGuess.of("beef stock"))
+        assertEquals(Category.PantryStaples, AisleGuess.of("tomato paste"))
+        assertEquals(Category.PantryStaples, AisleGuess.of("salad dressing"))
+        assertEquals(Category.PantryStaples, AisleGuess.of("canned tomatoes"))
+        assertEquals(Category.Drinks, AisleGuess.of("apple juice"))
+        assertEquals(Category.Frozen, AisleGuess.of("frozen spinach"))
+        assertEquals(Category.Frozen, AisleGuess.of("frozen chicken"))
+        // "Frozen" wins over a phrase without it, too.
+        assertEquals(Category.Frozen, AisleGuess.of("frozen ground beef"))
+    }
+
+    @Test
     fun `the household's own products come first`() {
         // This household files oat milk under Drinks, not Dairy.
         val oatMilk = product("oatmilk", "Oat milk", category = Category.Drinks)

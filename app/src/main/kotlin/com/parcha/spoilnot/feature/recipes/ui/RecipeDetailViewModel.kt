@@ -20,6 +20,7 @@ import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
 import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import com.parcha.spoilnot.feature.recipes.domain.RecipeStore
+import com.parcha.spoilnot.feature.recipes.domain.RecipeWords
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -47,6 +48,7 @@ class RecipeDetailViewModel @AssistedInject constructor(
     private val service: RecipeService,
     private val pantryService: PantryService,
     private val events: RecipeEvents,
+    private val words: RecipeWords,
 ) : RecipeScopeViewModel(session) {
     @AssistedFactory
     interface Factory {
@@ -96,7 +98,7 @@ class RecipeDetailViewModel @AssistedInject constructor(
                     GroceryState(
                         lists = all,
                         listId = id,
-                        candidates = s.recipe?.let { RecipeGrocery.candidates(it, p, listItems) }.orEmpty(),
+                        candidates = s.recipe?.let { RecipeGrocery.candidates(it, p, listItems, words) }.orEmpty(),
                         pantry = p,
                         loading = false,
                     )
@@ -119,7 +121,7 @@ class RecipeDetailViewModel @AssistedInject constructor(
             val (hid, factor) = open ?: return@flatMapLatest flowOf(CookState())
             if (hid == null) return@flatMapLatest flowOf(CookState())
             combine(state, pantry.observe(hid).retryLoading()) { s, p ->
-                CookState(s.recipe?.let { Cooking.lines(it, p, factor) }.orEmpty(), p, loading = false)
+                CookState(s.recipe?.let { Cooking.lines(it, p, words, factor) }.orEmpty(), p, loading = false)
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CookState())

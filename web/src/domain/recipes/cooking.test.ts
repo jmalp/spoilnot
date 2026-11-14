@@ -4,6 +4,7 @@ import { batch, product, TODAY } from '../pantry/fixtures';
 import type { PantryData } from '../pantry/models';
 import { CookLines, Cooking, RecipeIngredients, UseItUp } from './cooking';
 import { recipe } from './fixtures';
+import { TEST_WORDS } from './fixtures';
 
 describe('Cooking', () => {
   const eggs = product('egg', { name: 'Eggs' });
@@ -25,7 +26,7 @@ describe('Cooking', () => {
     const r = recipe('r1', {
       ingredients: ['3 large eggs', '500 g rice', '2 tbsp soy sauce', '1 cup milk', '1 egg, for brushing'],
     });
-    const lines = Cooking.lines(r, pantry);
+    const lines = Cooking.lines(r, pantry, TEST_WORDS);
     expect(lines.map((l) => l.product.id)).toEqual(['egg', 'rice', 'soy']); // milk is out of stock
     expect(lines[0]!.suggested).toBe(4); // 3 + 1 eggs
     expect(lines[0]!.lines).toEqual(['3 large eggs', '1 egg, for brushing']);
@@ -38,10 +39,32 @@ describe('Cooking', () => {
   });
 
   it('servings scale the amounts, capped at what is in stock', () => {
-    const lines = Cooking.lines(recipe('r1', { ingredients: ['4 eggs'] }), pantry, 2);
+    const lines = Cooking.lines(recipe('r1', { ingredients: ['4 eggs'] }), pantry, TEST_WORDS, 2);
     expect(lines[0]!.suggested).toBe(8);
     expect(CookLines.defaultAmount(lines[0]!)).toBe(6);
     expect(lines[0]!.lines).toEqual(['8 eggs']);
+  });
+
+  it("scaled pieces are suggested whole, rounded up, and the recipe's own amount as written", () => {
+    // After v1, LOGIC-13: 1.5 times "3 eggs" takes 5, not 4.5, like the grocery list.
+    const omelette = recipe('r1', { ingredients: ['3 eggs'] });
+    expect(Cooking.lines(omelette, pantry, TEST_WORDS, 1.5)[0]!.suggested).toBe(5);
+    const half = recipe('r2', { ingredients: ['½ egg'] });
+    expect(Cooking.lines(half, pantry, TEST_WORDS)[0]!.suggested).toBe(0.5);
+    // Grams are not pieces: 1.5 times 333 g is 499.5 g.
+    const grams = recipe('r3', { ingredients: ['333 g rice'] });
+    expect(Cooking.lines(grams, pantry, TEST_WORDS, 1.5)[0]!.suggested).toBeCloseTo(499.5, 9);
+  });
+
+  it('a tiny scaled amount reads a pinch, not 0', () => {
+    const salt = product('salt', { name: 'Salt', unit: 'g' });
+    const withSalt: PantryData = {
+      products: [salt],
+      batches: [batch('s', 'salt', { quantity: 100 })],
+      fromCache: false,
+    };
+    const line = Cooking.lines(recipe('r1', { ingredients: ['1/8 tsp salt'] }), withSalt, TEST_WORDS, 0.1)[0]!;
+    expect(line.lines).toEqual(['a pinch of salt']);
   });
 });
 

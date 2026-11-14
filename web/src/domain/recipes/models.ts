@@ -101,7 +101,15 @@ export const RecipeLimits = {
   URL: 2_000,
   SOURCE_NAME: 100,
   SERVINGS_TEXT: 100,
+  /** A recipe makes 1 to this many servings; a planned meal can go up to it too (after v1, LOGIC-13). */
+  MAX_SERVINGS: 1_000,
 };
+
+/**
+ * The words from strings.xml that recipe logic writes into lines (after v1, LOGIC-13): [pinch] ("a pinch of") for a
+ * scaled amount too small to measure. The screens pass `recipeWords()` (ui/recipes/labels).
+ */
+export type RecipeWords = { pinch: string };
 
 export type RecipeBoxData = { recipes: Recipe[]; fromCache: boolean };
 

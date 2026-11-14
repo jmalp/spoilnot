@@ -25,6 +25,7 @@ import { AddMealSheet, MealSheet, WeekGrocerySheet } from './PlanSheets';
 import { PlanDrafts, type PlanSheetDraft } from './planDrafts';
 import '../recipes/recipes.css';
 import './plan.css';
+import { recipeWords } from '../recipes/words';
 
 /** How long Copy last week waits for the server before using the phone's copy. */
 const COPY_WAIT_MS = 5_000;
@@ -252,6 +253,7 @@ export function PlanScreen({
           members={members}
           myUid={me.user.uid}
           recipeExists={recipeOf(openMeal) !== null}
+          recipeServings={recipeOf(openMeal)?.content.servings ?? null}
           weekDays={MealWeek.days(start)}
           onDismiss={closeSheet}
           onSave={(servings, cooks, note) => {
@@ -579,7 +581,7 @@ function CookedSheetFor({
   if (data === null) return null;
   return (
     <CookedSheet
-      lines={Cooking.lines(recipe, data, MealPlanGrocery.factor(meal, recipe))}
+      lines={Cooking.lines(recipe, data, recipeWords(), MealPlanGrocery.factor(meal, recipe))}
       markCooked
       onDismiss={onDismiss}
       onUse={(amounts) => onDone(meal, recipe, amounts, data)}
@@ -627,7 +629,7 @@ function WeekGroceryFor({
   );
   // Shown once loaded: a sheet that grows after it opens keeps its first resting place and hides its button.
   if (lists === null || items === null || data === null) return null;
-  const sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(days, recipes), data, items);
+  const sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(days, recipes), data, items, recipeWords());
   return (
     <WeekGrocerySheet
       lists={lists}

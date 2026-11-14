@@ -142,7 +142,9 @@ quantity may be below 0 (8.5 invariant 1), which refuses nothing any build write
 2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once. 2026-11-13's: a join
 request no longer needs the code's `active` to be true (Pause joining was removed, DESIGN 5.1), which also refuses
 nothing; until it is deployed, a new build asking to join with a code an older build paused gets "You don't have
-permission to do that." (the owner can press New code meanwhile).
+permission to do that." (the owner can press New code meanwhile). Also 2026-11-13's (B21, DESIGN 5.9): a planned meal may have up to
+1,000 servings (it was 100), which refuses nothing either; until it is deployed, a new build planning a recipe for
+more than 100, or raising a meal past 100, gets "You don't have permission to do that." and the meal rolls back.
 
 What the released builds (Android 1.0.0-beta.9, versionCode 10, and web build 55edcc5) do that these rules refuse:
 

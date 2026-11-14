@@ -237,9 +237,16 @@ internal fun RecipeBody(
                 NameWithTrailing(
                     spacing = 8.dp,
                     name = { SectionTitle(stringResource(R.string.recipe_ingredients), it) },
-                    trailing = { if (c.servings != null && servings != null) ServingsStepper(servings, onServings) },
+                    trailing = {
+                        if (c.servings != null &&
+                            servings != null
+                        ) {
+                            ServingsStepper(servings, Scaling.maxServings(c.servings), onServings)
+                        }
+                    },
                 )
-                IngredientChecklist(c.ingredients.map { it.group to Scaling.line(it.raw, factor) }, checked)
+                val pinch = stringResource(R.string.recipe_scaled_pinch)
+                IngredientChecklist(c.ingredients.map { it.group to Scaling.line(it.raw, factor, pinch) }, checked)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onAddToList, modifier = Modifier.testTag("recipe_add_to_list")) {
                         Icon(Icons.Rounded.AddShoppingCart, contentDescription = null)
@@ -316,7 +323,7 @@ fun IngredientChecklist(lines: List<Pair<String?, String>>, checked: MutableList
 }
 
 @Composable
-private fun ServingsStepper(servings: Int, onChange: (Int) -> Unit) {
+private fun ServingsStepper(servings: Int, max: Int, onChange: (Int) -> Unit) {
     val label = pluralStringResource(R.plurals.recipe_servings, servings, servings)
     Row(verticalAlignment = Alignment.CenterVertically) {
         FilledTonalIconButton(onClick = { onChange(servings - 1) }, enabled = servings > 1) {
@@ -330,7 +337,7 @@ private fun ServingsStepper(servings: Int, onChange: (Int) -> Unit) {
                 .semantics { liveRegion = LiveRegionMode.Polite }
                 .testTag("recipe_servings"),
         )
-        FilledTonalIconButton(onClick = { onChange(servings + 1) }, enabled = servings < 100) {
+        FilledTonalIconButton(onClick = { onChange(servings + 1) }, enabled = servings < max) {
             Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.recipe_more_servings))
         }
     }

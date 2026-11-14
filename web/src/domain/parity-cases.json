@@ -1,0 +1,529 @@
+{
+  "_about": "Cases both apps' unit tests read (after v1, B21): Android's ParityCasesTest and the web's parity.test.ts. Inputs and the outputs both must give. Category and unit values are their wire names.",
+  "nameKey": [
+    {
+      "name": "  Crème   Fraîche ",
+      "key": "creme fraiche",
+      "clean": "Crème Fraîche"
+    },
+    {
+      "name": "JALAPEÑO",
+      "key": "jalapeno",
+      "clean": "JALAPEÑO"
+    },
+    {
+      "name": "naïve Zoë",
+      "key": "naive zoe",
+      "clean": "naïve Zoë"
+    },
+    {
+      "name": "Milk  2%",
+      "key": "milk 2%",
+      "clean": "Milk 2%"
+    },
+    {
+      "name": "Milk  2%",
+      "key": "milk 2%",
+      "clean": "Milk 2%"
+    },
+    {
+      "name": "x　y",
+      "key": "x y",
+      "clean": "x y"
+    },
+    {
+      "name": "牛乳　2本",
+      "key": "牛乳 2本",
+      "clean": "牛乳 2本"
+    },
+    {
+      "name": " Thin space ",
+      "key": "thin space",
+      "clean": "Thin space"
+    },
+    {
+      "name": "Tab\there\r\n",
+      "key": "tab here",
+      "clean": "Tab here"
+    },
+    {
+      "name": "line break ",
+      "key": "line break",
+      "clean": "line break"
+    },
+    {
+      "name": "nextline",
+      "key": "next line",
+      "clean": "next line"
+    },
+    {
+      "name": "﻿Bom",
+      "key": "bom",
+      "clean": "Bom"
+    },
+    {
+      "name": " Ogham  spaces",
+      "key": "ogham spaces",
+      "clean": "Ogham spaces"
+    },
+    {
+      "name": "Apple​",
+      "key": "apple​",
+      "clean": "Apple​"
+    },
+    {
+      "name": "\u001fUnit",
+      "key": "\u001funit",
+      "clean": "\u001fUnit"
+    },
+    {
+      "name": "   ",
+      "key": "",
+      "clean": ""
+    }
+  ],
+  "quickAdd": [
+    {
+      "text": "3 kg rice",
+      "name": "rice",
+      "quantity": 3,
+      "unit": "kg"
+    },
+    {
+      "text": "2 kg rice",
+      "name": "rice",
+      "quantity": 2,
+      "unit": "kg"
+    },
+    {
+      "text": "2  kg  rice",
+      "name": "rice",
+      "quantity": 2,
+      "unit": "kg"
+    },
+    {
+      "text": "1,5 l milk",
+      "name": "milk",
+      "quantity": 1.5,
+      "unit": "l"
+    },
+    {
+      "text": "2l milk",
+      "name": "milk",
+      "quantity": 2,
+      "unit": "l"
+    },
+    {
+      "text": "6　bananas",
+      "name": "bananas",
+      "quantity": 6,
+      "unit": null
+    },
+    {
+      "text": "0 eggs",
+      "name": "eggs",
+      "quantity": null,
+      "unit": null
+    },
+    {
+      "text": "7up",
+      "name": "7up",
+      "quantity": null,
+      "unit": null
+    },
+    {
+      "text": "  milk ",
+      "name": "milk",
+      "quantity": null,
+      "unit": null
+    }
+  ],
+  "ingredient": [
+    {
+      "raw": "1 cup milk",
+      "qty": 1,
+      "unit": "cup",
+      "name": "milk"
+    },
+    {
+      "raw": "½ cup sugar",
+      "qty": 0.5,
+      "unit": "cup",
+      "name": "sugar"
+    },
+    {
+      "raw": "1 ½ cups flour",
+      "qty": 1.5,
+      "unit": "cup",
+      "name": "flour"
+    },
+    {
+      "raw": "1⁄2 tsp salt",
+      "qty": 0.5,
+      "unit": "tsp",
+      "name": "salt"
+    },
+    {
+      "raw": "2–3 tomatoes",
+      "qty": 2,
+      "unit": null,
+      "name": "tomatoes"
+    },
+    {
+      "raw": "3 to 4 cloves garlic, minced",
+      "qty": 3,
+      "unit": "clove",
+      "name": "garlic"
+    },
+    {
+      "raw": "1 (14 oz) can tomatoes",
+      "qty": 1,
+      "unit": "can",
+      "name": "tomatoes"
+    },
+    {
+      "raw": "a pinch of salt",
+      "qty": null,
+      "unit": null,
+      "name": null
+    },
+    {
+      "raw": "1,5 kg Mehl",
+      "qty": 1.5,
+      "unit": "kg",
+      "name": "Mehl"
+    },
+    {
+      "raw": "1,25 l Milch",
+      "qty": 1.25,
+      "unit": "l",
+      "name": "Milch"
+    },
+    {
+      "raw": "1,000 g flour",
+      "qty": 1000,
+      "unit": "g",
+      "name": "flour"
+    },
+    {
+      "raw": "12,345 g sugar",
+      "qty": 12345,
+      "unit": "g",
+      "name": "sugar"
+    },
+    {
+      "raw": "1.5 kg potatoes",
+      "qty": 1.5,
+      "unit": "kg",
+      "name": "potatoes"
+    },
+    {
+      "raw": "250g butter",
+      "qty": 250,
+      "unit": "g",
+      "name": "butter"
+    },
+    {
+      "raw": "2　eggs",
+      "qty": 2,
+      "unit": null,
+      "name": "eggs"
+    }
+  ],
+  "scale": [
+    {
+      "raw": "1/8 tsp salt",
+      "factor": 0.1,
+      "line": "a pinch of salt"
+    },
+    {
+      "raw": "1 egg",
+      "factor": 0.05,
+      "line": "a pinch of egg"
+    },
+    {
+      "raw": "1/8 tsp",
+      "factor": 0.1,
+      "line": "a pinch of"
+    },
+    {
+      "raw": "1 (14 oz) can tomatoes",
+      "factor": 0.01,
+      "line": "a pinch of tomatoes"
+    },
+    {
+      "raw": "1 tsp salt",
+      "factor": 0.0625,
+      "line": "0.06 tsp salt"
+    },
+    {
+      "raw": "1 ½ cups flour, sifted",
+      "factor": 2,
+      "line": "3 cups flour, sifted"
+    },
+    {
+      "raw": "1,5 kg Mehl",
+      "factor": 2,
+      "line": "3 kg Mehl"
+    },
+    {
+      "raw": "1,000 g flour",
+      "factor": 0.5,
+      "line": "500 g flour"
+    },
+    {
+      "raw": "1 cup milk",
+      "factor": 2,
+      "line": "2 cup milk"
+    },
+    {
+      "raw": "Salt to taste",
+      "factor": 3,
+      "line": "Salt to taste"
+    }
+  ],
+  "link": [
+    {
+      "line": "cookie",
+      "product": "Cookies",
+      "linked": true
+    },
+    {
+      "line": "chilies",
+      "product": "Chili",
+      "linked": true
+    },
+    {
+      "line": "pie crust",
+      "product": "Pie crusts",
+      "linked": true
+    },
+    {
+      "line": "brownies",
+      "product": "Brownie",
+      "linked": true
+    },
+    {
+      "line": "extra-virgin olive oil",
+      "product": "Olive oil",
+      "linked": true
+    },
+    {
+      "line": "extra virgin olive oil",
+      "product": "Olive oil",
+      "linked": true
+    },
+    {
+      "line": "bay leaves",
+      "product": "Bay leaf",
+      "linked": true
+    },
+    {
+      "line": "olives",
+      "product": "Olive",
+      "linked": true
+    },
+    {
+      "line": "cherries",
+      "product": "Cherry",
+      "linked": true
+    },
+    {
+      "line": "turkeys",
+      "product": "Turkey",
+      "linked": true
+    },
+    {
+      "line": "loaves of bread",
+      "product": "Bread loaf",
+      "linked": true
+    },
+    {
+      "line": "onion",
+      "product": "Green onions",
+      "linked": false
+    }
+  ],
+  "aisle": [
+    {
+      "name": "chicken broth",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "beef broth",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "chicken stock",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "frozen spinach",
+      "aisle": "frozen"
+    },
+    {
+      "name": "frozen chicken",
+      "aisle": "frozen"
+    },
+    {
+      "name": "frozen ground beef",
+      "aisle": "frozen"
+    },
+    {
+      "name": "frozen peas",
+      "aisle": "frozen"
+    },
+    {
+      "name": "canned tomatoes",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "tinned tuna",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "salad dressing",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "tomato paste",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "tomato sauce",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "apple juice",
+      "aisle": "drinks"
+    },
+    {
+      "name": "orange juice",
+      "aisle": "drinks"
+    },
+    {
+      "name": "peanut butter",
+      "aisle": "pantry_staples"
+    },
+    {
+      "name": "ice cream",
+      "aisle": "frozen"
+    },
+    {
+      "name": "chicken",
+      "aisle": "meat_fish"
+    },
+    {
+      "name": "bananas",
+      "aisle": "produce"
+    },
+    {
+      "name": "milk",
+      "aisle": "dairy"
+    },
+    {
+      "name": "something new",
+      "aisle": null
+    }
+  ],
+  "amountParse": [
+    {
+      "text": "1.5",
+      "value": 1.5
+    },
+    {
+      "text": "1,5",
+      "value": 1.5
+    },
+    {
+      "text": "  3 ",
+      "value": 3
+    },
+    {
+      "text": ".5",
+      "value": 0.5
+    },
+    {
+      "text": "2.",
+      "value": 2
+    },
+    {
+      "text": "١٫٥",
+      "value": 1.5
+    },
+    {
+      "text": "۱.۵",
+      "value": 1.5
+    },
+    {
+      "text": "١٢",
+      "value": 12
+    },
+    {
+      "text": "۲",
+      "value": 2
+    },
+    {
+      "text": "१.५",
+      "value": 1.5
+    },
+    {
+      "text": "２",
+      "value": 2
+    },
+    {
+      "text": "",
+      "value": null
+    },
+    {
+      "text": "abc",
+      "value": null
+    },
+    {
+      "text": "1e5",
+      "value": null
+    },
+    {
+      "text": "-1",
+      "value": null
+    },
+    {
+      "text": "1.2.3",
+      "value": null
+    }
+  ],
+  "amountFormat": [
+    {
+      "value": 1.5,
+      "text": "1.5"
+    },
+    {
+      "value": 2,
+      "text": "2"
+    },
+    {
+      "value": 0.25,
+      "text": "0.25"
+    },
+    {
+      "value": 0.125,
+      "text": "0.13"
+    },
+    {
+      "value": 2.675,
+      "text": "2.67"
+    },
+    {
+      "value": 1234567.5,
+      "text": "1234567.5"
+    },
+    {
+      "value": 0.005,
+      "text": "0.01"
+    },
+    {
+      "value": 0,
+      "text": "0"
+    }
+  ]
+}

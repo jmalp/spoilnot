@@ -48,6 +48,21 @@ describe('NameKey and ShelfLife', () => {
     expect(NameKey.clean('  Greek   yogurt ')).toBe('Greek yogurt');
   });
 
+  it('any whitespace counts, the same on both apps', () => {
+    // After v1, WEB-06: a no-break space pasted from a web page, a Japanese keyboard's full-width space.
+    expect(NameKey.of('Milk\u00A0 2%')).toBe('milk 2%');
+    expect(NameKey.of('x\u3000y')).toBe('x y');
+    expect(NameKey.clean('\u2009Thin\u202Fspace\u205F')).toBe('Thin space');
+    expect(NameKey.plainSpaces('a\u00A0\u3000b')).toBe('a  b');
+  });
+
+  it("a key stored before then normalises to today's key", () => {
+    // DECISIONS 2026-11-13: keys are normalised when read, not migrated. Android wrote "milk\u00A0 2%" for this.
+    const old = 'Milk\u00A0 2%'.toLowerCase();
+    expect(NameKey.of(old)).toBe(NameKey.of('Milk\u00A0 2%'));
+    for (const key of ['creme fraiche', 'milk 2%', '牛乳 2本']) expect(NameKey.of(key)).toBe(key);
+  });
+
   it('shelf life keeps the last 5 and ignores undated or backdated batches', () => {
     let recent: number[] = [];
     for (const d of [3, 5, 7, 9, 11, 13]) recent = ShelfLife.record(recent, TODAY, addDays(TODAY, d));
