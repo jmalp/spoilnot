@@ -90,7 +90,16 @@ object RecipeLimits {
     const val URL = 2_000
     const val SOURCE_NAME = 100
     const val SERVINGS_TEXT = 100
+
+    /** A recipe makes 1 to this many servings; a planned meal can go up to it too (after v1, LOGIC-13). */
+    const val MAX_SERVINGS = 1_000
 }
+
+/**
+ * The words from strings.xml that recipe logic writes into lines (after v1, LOGIC-13): [pinch] ("a pinch of") for a
+ * scaled amount too small to measure. Provided by `RecipeWordsModule`; tests make their own.
+ */
+data class RecipeWords(val pinch: String)
 
 /** The recipe box. Writes go through the HouseholdWriter. */
 interface RecipeRepository {

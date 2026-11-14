@@ -361,6 +361,7 @@ export const STRINGS = {
   "recipe_total_time": "Total %1$s",
   "recipe_fewer_servings": "Fewer servings",
   "recipe_more_servings": "More servings",
+  "recipe_scaled_pinch": "a pinch of",
   "recipe_by": "By %1$s",
   "recipe_ingredients": "Ingredients",
   "recipe_steps": "Steps",

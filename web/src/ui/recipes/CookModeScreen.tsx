@@ -132,7 +132,10 @@ function CookSteps({ recipe, servings }: { recipe: Recipe; servings: number | nu
           <div className="sn-recipe-detail__body">
             <h2 className="t-title-large">{str('recipe_ingredients')}</h2>
             <IngredientChecklist
-              lines={recipe.content.ingredients.map((i) => [i.group, Scaling.line(i.raw, factor)])}
+              lines={recipe.content.ingredients.map((i) => [
+                i.group,
+                Scaling.line(i.raw, factor, str('recipe_scaled_pinch')),
+              ])}
               checked={checked}
               onToggle={(index) => {
                 const next = new Set(checked);

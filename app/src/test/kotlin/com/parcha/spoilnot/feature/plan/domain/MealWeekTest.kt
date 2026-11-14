@@ -121,4 +121,25 @@ class MealWeekTest {
         // Copying again adds nothing.
         assertTrue(MealWeek.copy(previous, lastStart, thisStart, existing + copies).isEmpty())
     }
+
+    @Test
+    fun `copying counts meals of the same name in a slot`() {
+        // LOGIC-14: two "Leftovers" at Monday lunch last week (for two people) stay two.
+        val lastStart = LocalDate.of(2026, 10, 19)
+        val thisStart = LocalDate.of(2026, 10, 26)
+        val previous = listOf(
+            meal("a", date = lastStart, slot = MealSlot.Lunch, position = 0).copy(title = "Leftovers"),
+            meal("b", date = lastStart, slot = MealSlot.Lunch, position = 1).copy(title = "leftovers "),
+            meal("c", date = lastStart, slot = MealSlot.Lunch, position = 2).copy(title = "Soup"),
+        )
+        val copies = MealWeek.copy(previous, lastStart, thisStart, emptyList())
+        assertEquals(listOf("Leftovers", "leftovers ", "Soup"), copies.map { it.title })
+        assertEquals(listOf(0L, 1L, 2L), copies.map { it.position })
+        // One is already there: only the second is copied, after it.
+        val one = meal("x", date = thisStart, slot = MealSlot.Lunch).copy(title = "Leftovers")
+        val again = MealWeek.copy(previous, lastStart, thisStart, listOf(one))
+        assertEquals(listOf("leftovers " to 1L, "Soup" to 2L), again.map { it.title to it.position })
+        // Copying twice adds nothing.
+        assertTrue(MealWeek.copy(previous, lastStart, thisStart, copies).isEmpty())
+    }
 }

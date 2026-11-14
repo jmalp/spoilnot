@@ -111,14 +111,20 @@ export const MealWeek = {
 
   /**
    * Copy last week: [previous] meals moved by whole weeks from [from] to [to], keeping recipe, title, servings, cooks
-   * and note but not Cooked. A meal already in [existing] on the same day and slot with the same name is skipped, so
-   * copying twice adds nothing. Copies go after the meals already in their slot, in their old order. Ids are left
-   * empty for the service to fill.
+   * and note but not Cooked. Meals of the same name in a slot are counted (after v1, LOGIC-14): as many are copied as
+   * last week had, minus those already in [existing] on that day and slot, so two "Leftovers" stay two and copying
+   * twice adds nothing. Copies go after the meals already in their slot, in their old order. Ids are left empty for
+   * the service to fill.
    */
   copy(previous: PlannedMeal[], from: LocalDate, to: LocalDate, existing: PlannedMeal[]): PlannedMeal[] {
     const shift = daysBetween(from, to);
     const key = (date: LocalDate, slot: MealSlot, title: string) => `${date}|${slot}|${NameKey.of(title)}`;
-    const taken = new Set(existing.map((m) => key(m.date, m.slot, m.title)));
+    // Meals of the same name in a slot are counted (after v1, LOGIC-14).
+    const already = new Map<string, number>();
+    for (const m of existing) {
+      const k = key(m.date, m.slot, m.title);
+      already.set(k, (already.get(k) ?? 0) + 1);
+    }
     const next = new Map<string, number>();
     for (const m of existing) {
       const k = `${m.date}|${m.slot}`;
@@ -134,8 +140,11 @@ export const MealWeek = {
     for (const meal of ordered) {
       const date = addDays(meal.date, shift);
       const k = key(date, meal.slot, meal.title);
-      if (taken.has(k)) continue;
-      taken.add(k);
+      const there = already.get(k) ?? 0;
+      if (there > 0) {
+        already.set(k, there - 1);
+        continue;
+      }
       const slotKey = `${date}|${meal.slot}`;
       const position = next.get(slotKey) ?? 0;
       next.set(slotKey, position + 1);

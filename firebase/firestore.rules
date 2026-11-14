@@ -435,7 +435,8 @@ service cloud.firestore {
             && m.position is int
             && s(m.title, 1, 120)
             && (m.recipeId == null || s(m.recipeId, 1, 100))
-            && (m.servings == null || (m.servings is int && m.servings >= 1 && m.servings <= 100))
+            // Up to a recipe's most servings (after v1, LOGIC-13: a recipe for 120 is planned at full size).
+            && (m.servings == null || (m.servings is int && m.servings >= 1 && m.servings <= 1000))
             && m.cooks is list && m.cooks.size() <= 20 && m.cooks.join('').size() <= 20 * 128
             && (m.note == null || s(m.note, 1, 200))
             // Cooked (after v1): set by the writer at server time, cleared together, or left as it was. A meal goes

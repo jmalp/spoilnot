@@ -12,6 +12,7 @@ import {
   type StockBatch,
 } from '../../domain/pantry/models';
 import { guessCategoryForNewProduct } from '../../domain/grocery/aisles';
+import { Amounts } from '../../domain/pantry/amounts';
 import { NameKey, ShelfLife } from '../../domain/pantry/rules';
 import { itemEditOf, rebaseEdit, type ItemEditBase } from '../../domain/pantry/edit-watch';
 import type { ItemEdit, StockDraft } from '../../domain/pantry/service';
@@ -39,12 +40,8 @@ import {
 } from './labels';
 import './form.css';
 
-/** Parses a typed quantity; accepts "1,5" as well as "1.5". Null when not a number. */
-export function parseQuantity(text: string): number | null {
-  const value = text.trim().replace(',', '.');
-  if (!/^\d*\.?\d+$|^\d+\.$/.test(value)) return null;
-  return Number(value);
-}
+/** Parses a typed quantity; accepts "1,5" as well as "1.5", and the phone's own digits (Amounts). */
+export const parseQuantity = (text: string): number | null => Amounts.parse(text);
 
 /** From this text size (root font scale) the date tiles take two rows and quantity and unit stack. */
 const LARGE_TEXT_SCALE = 1.3;

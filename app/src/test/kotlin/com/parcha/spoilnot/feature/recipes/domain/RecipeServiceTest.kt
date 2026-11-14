@@ -95,7 +95,7 @@ class RecipeServiceTest {
             fromCache = false,
         )
         val onList = listOf(groceryItem("Salt"), groceryItem("tomatoes", checked = true))
-        val c = RecipeGrocery.candidates(r, pantry, onList)
+        val c = RecipeGrocery.candidates(r, pantry, onList, TEST_WORDS)
         assertEquals(listOf("Eggs", "Olive oil", "Flour", "Tomatoes", "Salt"), c.map { it.name })
         assertEquals(listOf("egg", "oil", null, null, null), c.map { it.product?.id })
         assertEquals("egg", c[0].inPantry?.id)
@@ -115,7 +115,12 @@ class RecipeServiceTest {
         val onions = product("onion", "Onions", unit = QuantityUnit.Pounds).copy(lastAddedQuantity = 3.0)
         val soy = product("soy", "Soy sauce").copy(buyQuantity = 1.0, lastAddedQuantity = 2.0)
         val r = recipe("r1", "Stir fry", ingredients = listOf("1 extra large onion, diced", "½ tbsp soy sauce"))
-        val c = RecipeGrocery.candidates(r, PantryData(listOf(onions, soy), emptyList(), false), emptyList())
+        val c = RecipeGrocery.candidates(
+            r,
+            PantryData(listOf(onions, soy), emptyList(), false),
+            emptyList(),
+            TEST_WORDS,
+        )
         assertEquals(listOf("Onions", "Soy sauce"), c.map { it.name })
         assertEquals(listOf(3.0, 1.0), c.map { it.quantity }) // Buy quantity wins over the last amount
         assertEquals(listOf(QuantityUnit.Pounds, QuantityUnit.Pieces), c.map { it.unit })
@@ -129,7 +134,7 @@ class RecipeServiceTest {
         val onion = product("onion")
         val listed = groceryItem("onions").copy(productId = "onion")
         val r = recipe("r1", ingredients = listOf("1 large onion"))
-        val c = RecipeGrocery.candidates(r, PantryData(listOf(onion), emptyList(), false), listOf(listed))
+        val c = RecipeGrocery.candidates(r, PantryData(listOf(onion), emptyList(), false), listOf(listed), TEST_WORDS)
         assertTrue(c.single().onList)
     }
 
@@ -138,7 +143,7 @@ class RecipeServiceTest {
         val r = recipe("r1", ingredients = listOf("2 tbsp olive oil", "1 cup rice"))
         val pantry =
             PantryData(listOf(product("oil", "Olive oil", category = Category.PantryStaples)), emptyList(), false)
-        val chosen = RecipeGrocery.candidates(r, pantry, emptyList())
+        val chosen = RecipeGrocery.candidates(r, pantry, emptyList(), TEST_WORDS)
         assertEquals(2, service.addToGrocery("h1", actor, "list1", r, chosen, pantry, "Groceries"))
         val changes = writer.applied.single()
         val items = changes.filterIsInstance<GroceryChange.CreateItem>().map { it.item }
@@ -157,8 +162,8 @@ class RecipeServiceTest {
         val tacos = recipe("tacos", "Tacos", ingredients = listOf("2 tortillas"))
         val soup = recipe("soup", "Soup", ingredients = listOf("1 leek"))
         val empty = PantryData(emptyList(), emptyList(), false)
-        val chosen = RecipeGrocery.candidates(tacos, empty, emptyList()) +
-            RecipeGrocery.candidates(soup, empty, emptyList())
+        val chosen = RecipeGrocery.candidates(tacos, empty, emptyList(), TEST_WORDS) +
+            RecipeGrocery.candidates(soup, empty, emptyList(), TEST_WORDS)
         val count = service.addItems(
             "h1",
             actor,
@@ -182,7 +187,7 @@ class RecipeServiceTest {
         val greenOnions = product("green", "Green onions").copy(lastAddedQuantity = 2.0)
         val pantry = PantryData(listOf(greenOnions), emptyList(), false)
         val r = recipe("r1", "Stir fry", ingredients = listOf("3 scallions, sliced"))
-        val original = RecipeGrocery.candidates(r, pantry, emptyList()).single()
+        val original = RecipeGrocery.candidates(r, pantry, emptyList(), TEST_WORDS).single()
         assertEquals("Scallions", original.name)
         assertNull(original.product)
         val renamed = RecipeGrocery.rename(original, "green onions", pantry.products)
@@ -196,7 +201,12 @@ class RecipeServiceTest {
         assertNull(changes.filterIsInstance<GroceryChange.CreateItem>().single().item.aliasOf)
         // Next time the recipe line finds the product by itself.
         val taught = greenOnions.copy(aliases = listOf("scallions"))
-        val again = RecipeGrocery.candidates(r, PantryData(listOf(taught), emptyList(), false), emptyList()).single()
+        val again = RecipeGrocery.candidates(
+            r,
+            PantryData(listOf(taught), emptyList(), false),
+            emptyList(),
+            TEST_WORDS,
+        ).single()
         assertEquals("Green onions", again.name)
     }
 
@@ -205,7 +215,7 @@ class RecipeServiceTest {
         val r = recipe("r1", ingredients = listOf("2 scallions"))
         val empty = PantryData(emptyList(), emptyList(), false)
         val renamed = RecipeGrocery.rename(
-            RecipeGrocery.candidates(r, empty, emptyList()).single(),
+            RecipeGrocery.candidates(r, empty, emptyList(), TEST_WORDS).single(),
             "Spring onions",
             emptyList(),
         )
@@ -222,7 +232,7 @@ class RecipeServiceTest {
     @Test
     fun `lines for the same thing become one item`() = runTest {
         val r = recipe("r1", "Salsa", ingredients = listOf("1 onion, diced", "2 large onions, sliced", "1 tsp salt"))
-        val chosen = RecipeGrocery.candidates(r, PantryData(emptyList(), emptyList(), false), emptyList())
+        val chosen = RecipeGrocery.candidates(r, PantryData(emptyList(), emptyList(), false), emptyList(), TEST_WORDS)
         service.addToGrocery("h1", actor, "list1", r, chosen, PantryData(emptyList(), emptyList(), false))
         val items = writer.applied.single().filterIsInstance<GroceryChange.CreateItem>().map { it.item }
         // "Onion" and "Onions" are different names; two onion lines with one name merge.
@@ -232,6 +242,7 @@ class RecipeServiceTest {
                 recipe("r2", "Soup", ingredients = listOf("1 onion, diced", "1 onion, sliced")),
                 PantryData(emptyList(), emptyList(), false),
                 emptyList(),
+                TEST_WORDS,
             ),
         ).single()
         assertEquals(2.0, merged.quantity!!, 1e-9)

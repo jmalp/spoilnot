@@ -405,6 +405,18 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     recipe's "Ingredients" is whole with the servings stepper under it, cook mode's Ingredients button is on its own
     line, and in Pantry, Groceries and Recipes the last row scrolls fully above the floating button. Any sheet's drag
     handle can be dragged from a little beside the bar.
+61. Recipes, plan and names (Android and the iPhone web app, after v1, 2026-11-13, DESIGN 5.3, 5.5, 5.9, 8.1, 11): on
+    Android, import a recipe with "Makes 120" servings (or create one with 120 servings and "1/8 tsp salt", "3 eggs"
+    and "2 tbsp extra-virgin olive oil"): the detail's stepper goes past 100 to 120; at 12 servings the salt reads "a
+    pinch of salt", not "0 tsp salt". Plan it: the meal's sheet shows 120 servings and + stays usable up to 120. With
+    Olive oil and Eggs in the pantry, I cooked this at 6 servings of a recipe for 4 with "3 eggs" suggests 5 eggs, and
+    the olive oil line is linked. Groceries: type "chicken broth", "frozen spinach" and "tomato paste": Pantry
+    staples, Frozen, Pantry staples. Plan: put two "Leftovers" at Monday lunch, go to next week, Copy last week: two
+    Leftovers there. On both apps, paste "Milk 2%" with a no-break space from a web page (or type a full-width space
+    on a Japanese keyboard) as a product on Android, then add "milk 2%" on the iPhone's Groceries and Add to pantry:
+    it adds to the same product. Android, optional: phone language Arabic, Edit an item with 1.5: the field shows
+    "1.5", + makes it 2.5 and Save works. Android, optional: with Pantry open, set the time zone about 12 hours away
+    (automatic off), return: within a minute the chips show the new day.
 
 ## 3. Conditions
 

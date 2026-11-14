@@ -16,6 +16,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
+import com.parcha.spoilnot.feature.recipes.domain.TEST_WORDS
 import com.parcha.spoilnot.feature.recipes.domain.recipe
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -74,6 +75,7 @@ class RecipeComponentsTest {
             recipe("r1", "Stir fry", ingredients = listOf("3 scallions, sliced")),
             PantryData(emptyList(), emptyList(), false),
             emptyList(),
+            TEST_WORDS,
         ).single()
         var edits = 0
         var saved: String? = null

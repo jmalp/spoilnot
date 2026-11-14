@@ -26,6 +26,7 @@ import {
 } from './components';
 import { AddToGrocerySheet, CookedSheet } from './RecipeSheets';
 import './recipes.css';
+import { recipeWords } from './words';
 
 const NO_PANTRY: PantryData = { products: [], batches: [], fromCache: true };
 
@@ -191,10 +192,12 @@ function RecipeBody({
         {c.ingredients.length > 0 && (
           <>
             <SectionTitle text={str('recipe_ingredients')}>
-              {stepper && <ServingsStepper servings={servings} onChange={onServings} />}
+              {stepper && (
+                <ServingsStepper servings={servings} max={Scaling.maxServings(c.servings)} onChange={onServings} />
+              )}
             </SectionTitle>
             <IngredientChecklist
-              lines={c.ingredients.map((i) => [i.group, Scaling.line(i.raw, factor)])}
+              lines={c.ingredients.map((i) => [i.group, Scaling.line(i.raw, factor, str('recipe_scaled_pinch'))])}
               checked={checked}
               onToggle={(index) => {
                 const next = new Set(checked);
@@ -263,7 +266,15 @@ function RecipeBody({
   );
 }
 
-function ServingsStepper({ servings, onChange }: { servings: number; onChange: (servings: number) => void }) {
+function ServingsStepper({
+  servings,
+  max,
+  onChange,
+}: {
+  servings: number;
+  max: number;
+  onChange: (servings: number) => void;
+}) {
   return (
     <div className="sn-stepper">
       <IconButton
@@ -278,7 +289,7 @@ function ServingsStepper({ servings, onChange }: { servings: number; onChange: (
       <IconButton
         icon="round/add"
         label={str('recipe_more_servings')}
-        disabled={servings >= 100}
+        disabled={servings >= max}
         onClick={() => onChange(servings + 1)}
       />
     </div>
@@ -349,7 +360,7 @@ function CookedSheetFor({
   if (data === null) return null;
   return (
     <CookedSheet
-      lines={Cooking.lines(recipe, data, factor)}
+      lines={Cooking.lines(recipe, data, recipeWords(), factor)}
       onDismiss={onDismiss}
       onUse={(amounts) => onDone(amounts, data)}
     />
@@ -397,7 +408,7 @@ function AddToListFor({
     <AddToGrocerySheet
       lists={lists ?? []}
       listId={listId}
-      candidates={loading ? [] : RecipeGrocery.candidates(recipe, pantryData, items)}
+      candidates={loading ? [] : RecipeGrocery.candidates(recipe, pantryData, items, recipeWords())}
       products={pantryData?.products ?? []}
       loading={loading}
       onChooseList={setChosenList}

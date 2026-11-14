@@ -122,8 +122,9 @@ object JsonLd {
         val cook = Durations.minutes(text(node["cookTime"]))
         val total = Durations.minutes(text(node["totalTime"]))
             ?: if (prep != null || cook != null) (prep ?: 0) + (cook ?: 0) else null
+        // Some sites send the list as one string with line breaks (after v1, LOGIC-15): one ingredient per line.
         val ingredients = strings(node["recipeIngredient"]).ifEmpty { strings(node["ingredients"]) }
-            .mapNotNull { RecipeText.clean(it, RecipeLimits.INGREDIENT) }
+            .flatMap { RecipeText.lines(it, RecipeLimits.INGREDIENT) }
             .take(RecipeLimits.MAX_INGREDIENTS)
             .map { IngredientParser.parse(it) }
         val tags = RecipeText.tags(

@@ -1,5 +1,6 @@
 // The meal plan (DESIGN 5.9, 8.2), ported from feature/plan/domain/MealPlanModels.
 import type { Observable } from 'rxjs';
+import { RecipeLimits } from '../recipes/models';
 import type { LocalDate } from '../time';
 import type { HouseholdChange } from '../write';
 
@@ -61,5 +62,9 @@ export const MealPlanLimits = {
   NOTE: 200,
   MAX_COOKS: 20,
   MIN_SERVINGS: 1,
-  MAX_SERVINGS: 100,
+  /**
+   * As many as a recipe can make (after v1, LOGIC-13), so a recipe for 120 is planned at full size; the stepper stops
+   * at `Scaling.maxServings`.
+   */
+  MAX_SERVINGS: RecipeLimits.MAX_SERVINGS,
 };

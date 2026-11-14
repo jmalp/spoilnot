@@ -75,6 +75,7 @@ object RecipeGrocery {
         recipe: Recipe,
         pantry: PantryData,
         listItems: List<GroceryItem>,
+        words: RecipeWords,
         factor: Double = 1.0,
     ): List<GroceryCandidate> {
         val unchecked = listItems.filter { !it.checked }
@@ -97,7 +98,7 @@ object RecipeGrocery {
                 name = name,
                 quantity = usual ?: count,
                 unit = if (usual != null) product.unit else null,
-                note = note(recipe.content.title, Scaling.line(ingredient.raw, factor)),
+                note = note(recipe.content.title, Scaling.line(ingredient.raw, factor, words.pinch)),
                 product = product,
                 inPantry = PantryMatch.productFor(parsed.raw, pantry),
                 onList = NameKey.of(name) in onListKeys || (product != null && product.id in onListProducts),
@@ -290,7 +291,7 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
             sourceName = RecipeText.clean(content.sourceName, RecipeLimits.SOURCE_NAME),
             imageUrl = content.imageUrl?.trim()?.takeIf { SourceUrl.isWebUrl(it) },
             description = content.description?.trim()?.take(RecipeLimits.DESCRIPTION)?.ifEmpty { null },
-            servings = content.servings?.takeIf { it in 1..1000 },
+            servings = content.servings?.takeIf { it in 1..RecipeLimits.MAX_SERVINGS },
             servingsText = RecipeText.clean(content.servingsText, RecipeLimits.SERVINGS_TEXT),
             prepMinutes = content.prepMinutes?.takeIf { it > 0 },
             cookMinutes = content.cookMinutes?.takeIf { it > 0 },

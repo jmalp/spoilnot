@@ -26,6 +26,7 @@ import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.Location
+import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryEvent
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
@@ -176,7 +177,8 @@ class FirestorePantryRepository(
         fun DocumentSnapshot.toProduct() = Product(
             id = id,
             name = string("name").orEmpty().capTo(ReadCaps.NAME),
-            nameKey = string("nameKey").orEmpty(),
+            // Keys written before one whitespace definition (after v1, WEB-06) are normalised here, not migrated.
+            nameKey = NameKey.of(string("nameKey").orEmpty()),
             category = Category.fromWire(string("category")),
             defaultLocation = Location.fromWire(string("defaultLocation")),
             unit = QuantityUnit.fromWire(string("unit")),
@@ -188,7 +190,7 @@ class FirestorePantryRepository(
             recentShelfLifeDays = list("recentShelfLifeDays")?.mapNotNull { (it as? Number)?.toInt() }.orEmpty(),
             createdAt = instant("createdAt"),
             lastAddedQuantity = double("lastAddedQuantity"),
-            aliases = strings("aliases"),
+            aliases = strings("aliases").map(NameKey::of),
             openedShelfLifeDays = long("openedShelfLifeDays")?.toInt(),
             updatedBy = string("updatedBy"),
         )

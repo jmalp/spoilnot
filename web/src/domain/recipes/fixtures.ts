@@ -1,6 +1,6 @@
 // Builders for recipe tests (the app's recipe() test helper).
 import { IngredientParser } from './parser';
-import { content, type Recipe } from './models';
+import { content, type Recipe, type RecipeWords } from './models';
 
 export function recipe(
   id: string,
@@ -28,3 +28,6 @@ export function recipe(
     createdBy: null,
   };
 }
+
+/** strings.xml's recipe words, as the screens pass them (recipeWords()). */
+export const TEST_WORDS: RecipeWords = { pinch: 'a pinch of' };

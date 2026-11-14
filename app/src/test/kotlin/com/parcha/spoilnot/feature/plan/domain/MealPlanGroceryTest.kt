@@ -6,6 +6,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
+import com.parcha.spoilnot.feature.recipes.domain.TEST_WORDS
 import com.parcha.spoilnot.feature.recipes.domain.recipe
 import java.time.Instant
 import java.time.LocalDate
@@ -56,7 +57,12 @@ class MealPlanGroceryTest {
         val soup = recipe("soup", "Soup", ingredients = listOf("3 eggs", "1 onion, diced"), servings = 4)
         val planned = meal("m1", wednesday, "soup", servings = 6)
         assertEquals(1.5, MealPlanGrocery.factor(planned, soup), 0.0)
-        val lines = MealPlanGrocery.sections(listOf(planned to soup), empty, emptyList()).single().candidates
+        val lines = MealPlanGrocery.sections(
+            listOf(planned to soup),
+            empty,
+            emptyList(),
+            TEST_WORDS,
+        ).single().candidates
         // 4.5 eggs are 5 eggs to buy; 1.5 onions are 2.
         assertEquals(listOf(5.0, 2.0), lines.map { it.quantity })
         assertEquals("Soup: 4½ eggs", lines[0].note)
@@ -78,6 +84,7 @@ class MealPlanGroceryTest {
             listOf(meal("m1", wednesday, "tacos") to tacos, meal("m2", wednesday, "bare") to bare),
             pantry,
             listOf(onList),
+            TEST_WORDS,
         )
         val lines = sections.single().candidates
         assertTrue(lines[0].onList)
@@ -93,6 +100,7 @@ class MealPlanGroceryTest {
             listOf(meal("m1", wednesday, "tacos") to tacos, meal("m2", wednesday, "soup") to soup),
             empty,
             emptyList(),
+            TEST_WORDS,
         )
         val merged = RecipeGrocery.merge(sections.flatMap { it.candidates }).single()
         assertEquals(5.0, merged.quantity!!, 0.0)

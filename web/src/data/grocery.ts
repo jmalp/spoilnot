@@ -24,6 +24,7 @@ import {
 } from '../domain/grocery/models';
 import { CATEGORIES, categoryOf, isPantryChange, unitOf, type Category } from '../domain/pantry/models';
 import { lostRace, type AppError } from '../core/errors';
+import { NameKey } from '../domain/pantry/rules';
 import { compareStrings } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
 import { cachedLiveDocuments, changedFields, liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
@@ -61,7 +62,8 @@ export function toItem(s: DocumentSnapshot): GroceryItem {
   return {
     id: s.id,
     name: capTo(text(s.get('name')) ?? '', ReadCaps.NAME),
-    nameKey: text(s.get('nameKey')) ?? '',
+    // Keys written before one whitespace definition (after v1, WEB-06) are normalised here, not migrated.
+    nameKey: NameKey.of(text(s.get('nameKey')) ?? ''),
     quantity: num(s.get('quantity')),
     unit: typeof unit === 'string' ? unitOf(unit) : null,
     note: text(s.get('note')),

@@ -82,11 +82,32 @@ put(
 const LONGEST_FIRST = [...PHRASES.keys()].sort(
   (a, b) => b.split(' ').length * 100 + b.length - (a.split(' ').length * 100 + a.length),
 );
+const PHRASES_FIRST = LONGEST_FIRST.filter((p) => p.includes(' '));
+const WORDS_LONGEST_FIRST = LONGEST_FIRST.filter((p) => !p.includes(' '));
+
+/** How it is kept: wins over every phrase that doesn't contain it ("frozen ground beef"). */
+const KEPT: [string, Category][] = [
+  ['frozen', 'frozen'],
+  ['canned', 'pantry_staples'],
+  ['tinned', 'pantry_staples'],
+];
+/** What kind of product the food word makes: wins over single food words ("tomato paste", "apple juice"). */
+const KINDS: [string, Category][] = [
+  ['broth', 'pantry_staples'],
+  ['stock', 'pantry_staples'],
+  ['sauce', 'pantry_staples'],
+  ['paste', 'pantry_staples'],
+  ['dressing', 'pantry_staples'],
+  ['juice', 'drinks'],
+];
 
 /**
  * The aisle for a grocery item typed without a matching product, so "bananas" goes under Produce. The household's
- * own products come first (the one with the most words, all in the name); then a built-in English word list, longest
- * phrase first, so "peanut butter" is a pantry staple. Unknown names stay without an aisle (Other).
+ * own products come first (the one with the most words, all in the name); then a built-in English word list: how it is
+ * kept ("frozen", "canned") first, then phrases of more than one word ("peanut butter" is a pantry staple), then what
+ * kind of product it is ("broth", "sauce", "paste", "dressing", "juice"), then single food words, longest first. So
+ * "frozen spinach" is frozen and "chicken broth" a pantry staple (after v1, LOGIC-17). Unknown names stay without an
+ * aisle (Other).
  */
 export function guessAisle(name: string, products: Product[] = []): Category | null {
   const typed = words(name);
@@ -102,8 +123,13 @@ export function guessAisle(name: string, products: Product[] = []): Category | n
   }
   if (best) return best.category;
   const text = ` ${typed.join(' ')} `;
-  const phrase = LONGEST_FIRST.find((p) => text.includes(` ${p} `));
-  return phrase === undefined ? null : PHRASES.get(phrase)!;
+  const has = (phrase: string) => text.includes(` ${phrase} `);
+  const phrase = PHRASES_FIRST.find((p) => has(p) && !KEPT.some(([word]) => !p.split(' ').includes(word) && has(word)));
+  if (phrase !== undefined) return PHRASES.get(phrase)!;
+  const kept = KEPT.find(([word]) => has(word)) ?? KINDS.find(([word]) => has(word));
+  if (kept) return kept[1];
+  const word = WORDS_LONGEST_FIRST.find(has);
+  return word === undefined ? null : PHRASES.get(word)!;
 }
 
 /**

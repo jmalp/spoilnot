@@ -1,9 +1,9 @@
 // Recipe text rules (DESIGN 11.3, 11.6), ported from RecipeText and SourceUrl: what the web edits and shows. The
 // import-only parts (durations, yields, HTML blocks) stay on Android, which adds the recipes.
-import { NameKey } from '../pantry/rules';
+import { NameKey, WHITESPACE } from '../pantry/rules';
 import { RecipeLimits } from './models';
 
-const SPACES = /[\s\u00A0]+/g;
+const SPACES = new RegExp(`[${WHITESPACE}]+`, 'g');
 const ENTITY = /&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/;
 
 /** The text of [html] as a browser parses it (Jsoup's text() in the app). */
@@ -19,7 +19,11 @@ export const RecipeText = {
     let plain = text.includes('<') || text.includes('&') ? htmlText(text) : text;
     // Some sites encode twice ("&amp;amp;").
     if (ENTITY.test(plain)) plain = htmlText(plain);
-    const cut = plain.replace(SPACES, ' ').trim().slice(0, limit).trim();
+    const cut = plain
+      .replace(SPACES, ' ')
+      .replace(/^ +| +$/g, '')
+      .slice(0, limit)
+      .replace(/^ +| +$/g, '');
     return cut === '' ? null : cut;
   },
 

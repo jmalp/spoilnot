@@ -12,6 +12,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.plan.domain.MealPlanGrocery
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
+import com.parcha.spoilnot.feature.recipes.domain.TEST_WORDS
 import com.parcha.spoilnot.feature.recipes.domain.UseItUp
 import com.parcha.spoilnot.feature.recipes.domain.recipe
 import com.parcha.spoilnot.testing.Screenshots
@@ -78,7 +79,7 @@ class PlanSheetsScreenshotTest(private val dark: Boolean, private val fontScale:
     fun mealSheet() {
         compose.setThemed(dark, fontScale) {
             MealSheet(
-                meal, members, "me", recipeExists = true,
+                meal, members, "me", recipeExists = true, recipeServings = 4,
                 onSave = { _, _, _ -> }, onCook = {}, onNotCooked = {}, weekDays = week, onMove = { _, _ -> },
                 onOpenRecipe = {}, onRemove = {}, onDismiss = {},
             )
@@ -98,7 +99,7 @@ class PlanSheetsScreenshotTest(private val dark: Boolean, private val fontScale:
         val state = PlanViewModel.WeekGroceryState(
             lists = listOf(GroceryList("l1", "Groceries", isDefault = true), GroceryList("l2", "Costco", false)),
             listId = "l1",
-            sections = MealPlanGrocery.sections(listOf(meal to pancakes), pantry, emptyList()),
+            sections = MealPlanGrocery.sections(listOf(meal to pancakes), pantry, emptyList(), TEST_WORDS),
             pantry = pantry,
             loading = false,
         )

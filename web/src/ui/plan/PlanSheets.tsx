@@ -8,6 +8,7 @@ import { MEAL_SLOTS, MealPlanLimits, type MealSlot, type PlannedMeal } from '../
 import type { MealGroceries } from '../../domain/plan/service';
 import type { UseItUpSuggestion } from '../../domain/recipes/cooking';
 import type { Recipe } from '../../domain/recipes/models';
+import { Scaling } from '../../domain/recipes/parser';
 import { RecipeGrocery, selectedByDefault, type GroceryCandidate } from '../../domain/recipes/service';
 import type { LocalDate } from '../../domain/time';
 import { BottomSheet, Button, Dialog, FilterChip, Icon, IconButton, TextField } from '../kit';
@@ -175,6 +176,7 @@ export function MealSheet({
   members,
   myUid,
   recipeExists,
+  recipeServings,
   weekDays,
   onSave,
   onCook,
@@ -191,6 +193,8 @@ export function MealSheet({
   members: Member[];
   myUid: string;
   recipeExists: boolean;
+  /** The planned recipe's own servings, so the stepper can reach them (after v1, LOGIC-13). */
+  recipeServings: number | null;
   weekDays: LocalDate[];
   onSave: (servings: number | null, cooks: string[], note: string | null) => void;
   onCook: () => void;
@@ -202,6 +206,7 @@ export function MealSheet({
 }) {
   const { servings, cooks, note } = draft;
   const setServings = (count: number | null) => onDraft({ servings: count });
+  const maxServings = Scaling.maxServings(recipeServings, meal.servings);
   const setCooks = (picked: string[]) => onDraft({ cooks: picked });
   const setNote = (text: string) => onDraft({ note: text });
   const [moving, setMoving] = useState(false);
@@ -235,8 +240,8 @@ export function MealSheet({
             <IconButton
               icon="round/add"
               label={str('plan_more')}
-              disabled={(servings ?? 0) >= MealPlanLimits.MAX_SERVINGS}
-              onClick={() => setServings(Math.min(MealPlanLimits.MAX_SERVINGS, (servings ?? 0) + 1))}
+              disabled={(servings ?? 0) >= maxServings}
+              onClick={() => setServings(Math.min(maxServings, (servings ?? 0) + 1))}
             />
           </div>
           <CookPicker members={members} myUid={myUid} cooks={cooks} onChange={setCooks} />
