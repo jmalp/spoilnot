@@ -61,10 +61,15 @@ fun SpoilNotTheme(
     colorTheme: ColorTheme = ColorTheme.Wallpaper,
     content: @Composable () -> Unit,
 ) {
-    // Status colors are fixed and never follow the theme, so expiry stays recognizable (DESIGN 6.4).
-    CompositionLocalProvider(LocalStatusColors provides if (darkTheme) DarkStatusColors else LightStatusColors) {
+    val scheme = colorSchemeFor(colorTheme, darkTheme)
+    CompositionLocalProvider(
+        // Status colors are fixed and never follow the theme, so expiry stays recognizable (DESIGN 6.4).
+        LocalStatusColors provides if (darkTheme) DarkStatusColors else LightStatusColors,
+        // The page and row surfaces of the 2026-11 look take different roles in light and dark (DESIGN 19.2).
+        LocalAppSurfaces provides appSurfaces(scheme, darkTheme),
+    ) {
         MaterialTheme(
-            colorScheme = colorSchemeFor(colorTheme, darkTheme),
+            colorScheme = scheme,
             typography = SpoilNotTypography,
             shapes = SpoilNotShapes,
             content = content,
