@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +40,7 @@ import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeForm
@@ -91,7 +91,7 @@ fun RecipeEditScreen(
         title = stringResource(if (recipeId == null) R.string.recipe_new else R.string.recipe_edit),
         onBack = onBack,
         modifier = modifier.testTag("screen_recipe_edit"),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
     ) { padding ->
         val current = form
         when {

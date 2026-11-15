@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.core.prefs.ThemeMode
 import com.parcha.spoilnot.feature.auth.domain.Units
@@ -103,7 +104,7 @@ class ColorThemeScreenshotTest(private val dark: Boolean, private val fontScale:
         var theme by mutableStateOf(ColorTheme.SpoilNot)
         compose.setContent {
             SpoilNotTheme(darkTheme = dark, colorTheme = theme) {
-                Surface {
+                Surface(color = SpoilNotSurfaces.current.page) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         HomeCards(summary, TODAY, "me", HomeNavigation({}, {}, {}, {}), insights)
                     }

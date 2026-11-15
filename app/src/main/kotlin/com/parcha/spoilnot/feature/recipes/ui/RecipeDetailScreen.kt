@@ -46,7 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -78,6 +77,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.NameWithTrailing
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.ImportMethod
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
@@ -110,7 +110,7 @@ fun RecipeDetailScreen(
         title = "",
         onBack = onBack,
         modifier = modifier.testTag("screen_recipe_detail"),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
         // In a bar under the content, not floating (after v1, UX-12): the floating Cook button covered I cooked this.
         bottomBar = {
             if (recipe != null && recipe.content.steps.isNotEmpty()) StartCookingBar { onCook(servings) }

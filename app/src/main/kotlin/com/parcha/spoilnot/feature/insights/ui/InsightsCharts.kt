@@ -65,9 +65,18 @@ private fun rememberGrow(key: Any): Float {
     return progress.value
 }
 
+/** The colors of a [UsageRing]: the used arc, the dashed thrown-away arc and the track under them. */
+data class UsageRingColors(val used: Color, val thrown: Color, val track: Color) {
+    companion object {
+        /** The chart colors on a surface, as Your kitchen draws them. */
+        @Composable
+        fun onSurface() = UsageRingColors(ChartColors.used, ChartColors.thrown, ChartColors.track)
+    }
+}
+
 /**
  * The share used this month as a ring: a solid arc for used, a dashed one for thrown away, and the percentage in the
- * middle. Empty months show only the track.
+ * middle. Empty months show only the track. Home's card passes [colors] for its `primary` background (DESIGN 19.8).
  */
 @Composable
 fun UsageRing(
@@ -78,10 +87,11 @@ fun UsageRing(
     modifier: Modifier = Modifier,
     size: Dp = 160.dp,
     centerStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineMedium,
+    colors: UsageRingColors = UsageRingColors.onSurface(),
 ) {
-    val usedColor = ChartColors.used
-    val thrownColor = ChartColors.thrown
-    val track = ChartColors.track
+    val usedColor = colors.used
+    val thrownColor = colors.thrown
+    val track = colors.track
     val grow = rememberGrow(used to thrown)
     Box(modifier.size(size).clearAndSetSemantics { contentDescription = description }, Alignment.Center) {
         Canvas(Modifier.size(size)) {

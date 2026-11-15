@@ -354,8 +354,8 @@ class AccessibilityChecksTest {
         back()
 
         tab(R.string.tab_home)
-        await(hasText(str(R.string.insights_see)))
-        compose.onNode(hasText(str(R.string.insights_see))).performScrollTo().performClick()
+        // The whole Your kitchen card opens it (DESIGN 19.8).
+        awaitTag("card_home_insights").performScrollTo().performClick()
         awaitTag("screen_insights")
         check("Insights")
     }

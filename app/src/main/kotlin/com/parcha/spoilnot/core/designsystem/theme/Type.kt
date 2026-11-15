@@ -56,6 +56,9 @@ object SpoilNotText {
     /** The status words in a row's second line. */
     val RowStatus = text(FontWeight.ExtraBold, size = 13, lineHeight = 18)
 
+    /** The heading of a section on the page or of a plain card, such as Home's Today. */
+    val SectionTitle = text(FontWeight.ExtraBold, size = 18, lineHeight = 24)
+
     /** The title of a highlight card. */
     val CardTitle = text(FontWeight.ExtraBold, size = 22, lineHeight = 28, letterSpacing = -0.2)
 

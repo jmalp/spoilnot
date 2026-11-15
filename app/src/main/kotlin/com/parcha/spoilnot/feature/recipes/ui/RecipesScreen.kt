@@ -43,7 +43,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,6 +70,7 @@ import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.component.listBottomPadding
@@ -109,7 +109,7 @@ fun RecipesScreen(
         onOpenSettings = navigation.openSettings,
         modifier = modifier.testTag("screen_recipes"),
         actions = { if (!state.boxEmpty) SortMenu(state.query.sort, viewModel::setSort) },
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
         floatingActionButton = {
             SpoilNotFab(
                 text = stringResource(R.string.recipe_add),

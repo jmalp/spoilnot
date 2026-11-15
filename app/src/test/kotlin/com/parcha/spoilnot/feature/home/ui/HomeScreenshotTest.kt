@@ -9,15 +9,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.home.domain.HomeDashboard
 import com.parcha.spoilnot.feature.household.domain.Member
@@ -104,7 +111,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
-                    Surface {
+                    Surface(color = SpoilNotSurfaces.current.page) {
                         Column(
                             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -113,6 +120,16 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
                 }
             }
         }
+        // The count badge isn't read: the rows and "See all 4 in Pantry" say it (DESIGN 19.8).
+        compose.onNodeWithText("See all 4 in Pantry").assertHasClickAction()
+        compose.onNodeWithText("4").assertDoesNotExist()
+        // Each row is one sentence with the full status wording (review A11Y-07).
+        compose.onAllNodesWithTag("home_attention_row")[0]
+            .assert(hasText("Milk") and hasContentDescription("Expires tomorrow"))
+        // The whole Your kitchen card opens it, and its numbers are read once, from the ring.
+        compose.onNodeWithTag("card_home_insights").assertHasClickAction()
+        compose.onAllNodes(hasText("%", substring = true)).assertCountEquals(0)
+        compose.onNode(hasContentDescription("11 used", substring = true)).assertExists()
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
         compose.onRoot().captureRoboImage("home_cards_$suffix.png")
     }
@@ -130,7 +147,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
-                    Surface {
+                    Surface(color = SpoilNotSurfaces.current.page) {
                         Column(
                             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -152,7 +169,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
-                    Surface {
+                    Surface(color = SpoilNotSurfaces.current.page) {
                         Column(
                             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -181,7 +198,7 @@ class HomeScreenshotTest(private val dark: Boolean, private val fontScale: Float
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
-                    Surface {
+                    Surface(color = SpoilNotSurfaces.current.page) {
                         Column(Modifier.verticalScroll(rememberScrollState())) {
                             OfflineBanner()
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -9,9 +9,10 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -40,6 +41,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.CoachMarks
 import com.parcha.spoilnot.core.designsystem.component.LocalCoachMarks
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.component.rememberScreenReaderOn
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
@@ -310,7 +312,7 @@ fun AppShell(
                 predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
             )
             // Refused writes from any screen (after v1, REL-13), above the navigation bar.
-            SnackbarHost(shellSnackbar, Modifier.align(Alignment.BottomCenter))
+            SpoilNotSnackbarHost(shellSnackbar, Modifier.align(Alignment.BottomCenter))
         }
         if (reminders.ask && tourStep == null) {
             NotificationExplainer(reminders.hour, onTurnOn = turnOnReminders, onLater = remindersViewModel::later)
@@ -318,14 +320,24 @@ fun AppShell(
     }
 }
 
-/** The five tabs (DESIGN 6.2), each label on one line (review UX-14). */
+/**
+ * The five tabs (DESIGN 6.2), each label on one line (review UX-14). In the 2026-11 look (DESIGN 19.11) the bar is
+ * `surfaceContainer` and the current tab's indicator `primaryContainer`.
+ */
 @Composable
 internal fun TabBar(
     currentTab: TopLevelDestination,
     modifier: Modifier = Modifier,
     onSelect: (TopLevelDestination) -> Unit,
 ) {
-    NavigationBar(modifier) {
+    val colors = NavigationBarItemDefaults.colors(
+        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    NavigationBar(modifier, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         TopLevelDestination.entries.forEach { tab ->
             val selected = tab == currentTab
             NavigationBarItem(
@@ -334,6 +346,7 @@ internal fun TabBar(
                 modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
                 icon = { Icon(if (selected) tab.selectedIcon else tab.unselectedIcon, contentDescription = null) },
                 label = { TabLabel(stringResource(tab.label)) },
+                colors = colors,
             )
         }
     }
