@@ -347,6 +347,8 @@ A fifth tab, **Plan** (Home, Pantry, Plan, Recipes, Groceries), shows one week o
 
 ## 6. UX and visual design
 
+After v1 (2026-11-15) the app is getting a new look, described in section 19. It replaces 6.4's *Shape and surface* and 6.5's component patterns one screen at a time; a screen that has not been rebuilt yet keeps what this section says, and the rest of this section holds for both.
+
 **6.1 Principles.** Glanceable (what needs attention comes first), fast capture (adding an item takes under 10 seconds with thumb-reachable controls), calm (color is reserved for status), trustworthy (Undo on every destructive action, visible sync state). After v1 (2026-11-12) "calm" holds on every theme: the presets' filled buttons and floating buttons keep their hue at least 45° (OKLCH) from the Soon, Today/Tomorrow and Expired colors, so what needs attention stands out next to them (review UX-17), and Undo stays as long as the phone's accessibility timeout asks (5.2). After v1 (2026-11-11), Add to pantry has Undo too; the household actions, Clear household data and Delete list ask first instead (DECISIONS). **One rule for confirmations** (after v1, 2026-11-13, review UX-11, R13): an action with Undo never asks first (Delete recipe and Clear this week asked, then offered Undo too), and only an action without Undo asks (Delete list, Leave, Remove member, Transfer ownership, New code, Delete household, Clear household data, Delete account, Sign out with unsynced changes). Forms and sheets keep what was typed or picked through rotation, theme and font changes and Android closing the app: the Add to pantry rows, Plan's Add meal sheet (open, with its title and cooks) and a meal's cooks, cook mode's ticked ingredients, a recipe's Add to grocery list choices and renames, and I cooked this amounts. In the web app (after v1, 2026-11-12) the Add to pantry rows and Plan's Add meal sheet (cooks and typed meal) and meal sheet (servings, cooks and note) also come back, still open, when iOS reloads a page it discarded in the background (18.3).
 
 **6.2 Navigation.** A bottom `NavigationBar` with four destinations: Home, Pantry, Recipes, Groceries (after v1, five: Plan between Pantry and Recipes, 5.9). Settings opens from the avatar button in each tab's top app bar. Each tab keeps its own back stack (Navigation 3) so scroll position and sub-screens survive tab switches. Portrait-first; landscape and tablets MUST NOT break (use window size classes, center content, maximum width 640 dp). After v1 (2026-11-13, review UX-14, A11Y-11) the bar sits under the screen in the layout, so Tab from a keyboard (and switch access) reaches the screen before the five tabs; tab labels stay on one line, growing with the phone's text size up to 1.2× (`TAB_LABEL_MAX_FONT_SCALE`) next to their icons, where at 2× they broke mid-word ("Pantr / y"). The iPhone web app (18.2) has the same order and labels (2026-11-13): the screen comes before the tab bar in the page, and labels stop at 1.2×, or at 3.3% of the screen's width where that is less, since an iPhone's fifth is narrower.
@@ -1444,6 +1446,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-14 | The web's Insights months screenshot no longer fails outside October (review finding BASE-01): `screens.spec.ts` gives the month labels fixed names (May to October, as recorded) before the 200% shots, as it already fixes the invite code, so the label widths stop moving the columns from month to month; the references are unchanged. The deploy script's browser tests pass again without `--skip-tests` | 18.2, DECISIONS |
 | 2026-11-14 | Android's About screenshot no longer changes with each release: `AboutHeader` takes the version as parameters (the build's by default) and `NotificationSettingsScreenshotTest` passes the recorded one, 1.0.0-beta.9-dev (build 10), so a release's version bump no longer fails `verifyRoborazziDevDebug` on the four `settings_about` images, as beta.10's did; the references are unchanged | 13.1, DECISIONS |
 | 2026-11-14 | Dependencies (replacing Dependabot's open updates): Firebase BoM 35.2.0 (Firestore 27.2.0, Crashlytics 21.1.0, Messaging 26.0.2), Navigation 3 1.2.1, kotlinx-serialization 1.13.0, jsoup 1.24.1, concurrent-futures 1.3.0, KSP 2.3.14, Spotless 8.11.0, Google Services plugin 4.6.0, Gradle 9.9.1, MockK 1.14.12, Robolectric 4.18, Roborazzi 1.79.0, UI Automator 2.4.1, `actions/setup-java` 6.3.0; the Firebase web SDK 13.3.0 and the web tools (Vite 8.3.8, Vitest 5.1.0, Playwright 1.65.1, jsdom 31, ESLint 10.15, Prettier 3.10), firebase-tools 15.36.0 and firebase-admin 14.5.1. npm `overrides` clear the advisories no parent release fixes (`@grpc/grpc-js`, glob, minimatch, uuid, OpenTelemetry core), so every npm project passes `npm audit` but the web build's deepmerge, which has no fix; a Gradle constraint keeps `error_prone_annotations` at 2.52.0 for the instrumented tests. AGP stays at 9.4.1: 9.5.1 still cannot configure release variants | 12.2, RUNBOOK |
+| 2026-11-15 | A new look for the whole app, step 1 (Android; the owner's choice of 2026-11-14 from mockups, "Look A"): section 19 specifies it, with its surfaces, shapes, text styles, list groups, status tile, header, cards, buttons, chips, the two additions (Pantry's *Use first* and *Everything else* groups, Plan's row of days) and the order of work; the shared pieces are in `core/designsystem` (`AppSurfaces`, `SpoilNotCorners`, `LeafShape`, `SpoilNotText`, `ListSegment`, `GroupHeading`, `StatusTile`, `ScreenHeader`, `HighlightCard`, `AccentCard`, `LeafBadge`, `ConnectedButtonGroup`, `LabelChip`, `TonalButton`) with their tests. No screen uses them yet, so nothing changes on a phone and the existing screenshots are unchanged | 6, 19, DECISIONS |
 
 ## 18. Web app for iPhone (after v1)
 
@@ -1678,6 +1681,84 @@ release.
 | W6a | Settings and extras: appearance (System, Light or Dark, the six themes), units, export, clear household data, About and licences, the app tour (removed in W6b, 18.1) | The settings and tour flows pass on WebKit |
 | W6b | Notifications: Settings > Notifications, web push (the FCM web token as a `platform: web` device, the job's `webpush`) and the notification explainer of 5.4; the app tour removed | The notification flows pass on WebKit with the push APIs played by the test, the service worker's push handling and the job's `webpush` part are tested, and a push reaches an iPhone in QA (WebKit in Playwright has no Push API) |
 | W7 | Release: hosting config, `scripts/deploy-web.sh`, install help, performance check (Lighthouse), docs | The owner's iPhone QA passes; deployed to prod with the owner's OK |
+
+## 19. Visual overhaul (after v1)
+
+**19.1 What it is.** A new look for every screen, chosen by the owner on 2026-11-14 from mockups ("Look A"): a tinted page, rows grouped into rounded blocks instead of outlined cards and dividers, one filled card per screen for what matters most, heavier titles, joined button groups, and a leaf shape taken from the app icon. The mockups, with every screen in light and dark, the states and a components sheet, are on the owner's design canvas (https://claude.ai/artifact/BtRJVW4ojnhaUNNkG3vfp9); where they and this section differ, this section wins.
+
+It replaces 6.4's *Shape and surface* and 6.5's component patterns, one screen at a time (19.13). Until a screen is rebuilt it keeps what section 6 says. Everything else in section 6 holds: the principles (6.1), five tabs and Settings behind the avatar button (6.2), the fixed status colors and "never color alone" (6.4), Manrope, the color themes, motion, the states (6.7), the accessibility rules (6.8) and the copy rules (6.9). Features and data do not change, except the two additions in 19.12.
+
+Colors are always Material 3 roles from the active theme, or the app's `StatusColors`, never fixed values, so the seven color themes and dark mode follow without extra work.
+
+**19.2 Surfaces.** The page is tinted and rows sit one step lighter than it, so a group reads as one block without an outline. The Material roles differ in light and dark, because dark's `surfaceContainerLowest` is darker than the page. `AppSurfaces` (`SpoilNotSurfaces.current`, provided by `SpoilNotTheme`) names them:
+
+| Surface | Used for | Light | Dark |
+| --- | --- | --- | --- |
+| `page` | Behind a screen's content | `surfaceContainerLow` | `surface` |
+| `row` | List rows, plain cards, search and quick-add fields | `surfaceContainerLowest` | `surfaceContainer` |
+| `nestedRow` | Rows inside a highlight card | `surfaceContainerLowest` | `surfaceContainerLow` |
+| `field` | Text fields and pickers on a sheet or dialog | `surfaceContainerLowest` | `surfaceContainerHigh` |
+| `tile` | The leading tile of a row without a status | `surfaceContainer` | `surfaceContainerHighest` |
+
+The navigation bar is `surfaceContainer`; sheets are `surfaceContainerLow` and dialogs `surfaceContainerHigh`, as Material has them. `ColorThemesContrastTest` checks text (4.5:1) on every one of these in every fixed theme, and that rows are lighter than the page.
+
+**19.3 Shape.** `SpoilNotCorners`: a group of rows has 20 dp outside corners and 6 dp where two rows meet (18 dp outside inside a highlight card); plain and accent cards 24 dp; highlight cards, sheets and dialogs 28 dp; text fields 16 dp; label chips 8 dp; buttons, search fields and the chosen button of a group fully round. **The leaf** (`LeafShape`): two opposite corners fully round and the other two at 15%, at any size. It holds a recipe's letter when there is no photo, a step number, the account's initial and the icon of an accent card.
+
+**19.4 Type.** Manrope, with ExtraBold added to the bundled weights. `SpoilNotText` holds the styles Material's scale lacks; body text and labels keep Material's styles. All are sp and follow the phone's text size.
+
+| Style | Size / line | Weight | Used for |
+| --- | --- | --- | --- |
+| `ScreenTitle` | 30 / 40 | ExtraBold | A screen's title |
+| `ScreenEyebrow` | 14 / 20 | SemiBold | The line above the title |
+| `GroupHeading` | 14 / 20 | ExtraBold | The heading of a group of rows |
+| `RowTitle` | 16 / 22 | Bold | A row's name |
+| `RowSupporting` | 13 / 18 | SemiBold | A row's second line |
+| `RowStatus` | 13 / 18 | ExtraBold | The status words in a row |
+| `CardTitle` | 22 / 28 | ExtraBold | A highlight card's title |
+| `BigNumber` | 48 / 54 | ExtraBold | A card's one large number |
+| `ButtonLarge` | 16 / 24 | ExtraBold | Main buttons and the floating button |
+| `ButtonMedium` | 14 / 20 | Bold | Tonal buttons and connected buttons |
+| `ChipLabel` | 12 / 16 | Bold | Label chips |
+
+**19.5 List groups.** Rows that belong together are one group (`ListSegment`, `segmentPosition`, `segmentShape`): each row is a `row` surface, at least 68 dp tall with two lines (64 dp with a checkbox, 56 dp with one line), 2 dp from the next (`ListGroupGap`), with the corners of 19.3 by its place in the group; a single row is rounded all round. No dividers and no outlines. A group may have a heading (`GroupHeading`: `primary`, sentence case, a heading for screen readers). A row that opens something is one control with its sentence (6.8); its ⋮ stays a separate 48 dp stop.
+
+**19.6 Status.** A row starts with a **status tile** (`StatusTile`): 44 dp (40 dp inside a highlight card), 16 dp corners, the status icon of 6.4 in the status color, on that color at 12% over the row (`STATUS_TINT_ALPHA`). A row without a date gets a neutral tile (`tile`). The row says the status **in words** in its second line, in the status color (`RowStatus`), before the location. So status is still icon plus text and never color alone; the tile is decoration for screen readers, which get the row's sentence. This replaces the status chip on rows and brings back the leading icon that 2026-10-19 removed (DECISIONS). Swipe backgrounds keep their tint, icon and words.
+
+**19.7 Screen header.** `ScreenHeader` replaces the top app bar: a small line (`ScreenEyebrow`, `onSurfaceVariant`) above the title (`ScreenTitle`), actions at the end level with the title, 20 dp from the start and 16 dp from the end. At 1.0× text it is 64 dp, the height of the compact bar it replaces (DECISIONS 2026-10-19 holds), it stays pinned, and it grows with the text. The line says: Home, today's date ("Saturday, Nov 14"); Pantry, how many rows the unfiltered list has ("6 items"); Groceries, how many are left to buy ("4 to buy"); Recipes, how many recipes ("4 recipes"); Plan, "This week" while the current week shows. Pushed screens have a round back button (48 dp, `row` color) on its own line above the title. The Settings button is `secondaryContainer`.
+
+**19.8 Cards.** Three kinds. A **highlight card** (`HighlightCard`: `primaryContainer`, 28 dp corners, title in `CardTitle`) holds the one thing a screen wants read first: Home's Needs attention with its count in a badge, Plan's today, the account in Settings. Its rows are nested rows. An **accent card** (`AccentCard`: `tertiaryContainer`, 24 dp) suggests something, with a `LeafBadge` in the swapped colors: Use it up, the streak. **Your kitchen this month** is `primary` with `onPrimary` text: the percentage in `BigNumber`, the ring at the end with the used arc in `primaryContainer` and the thrown-away arc in dashes, so the two are told apart without color. Other content sits on plain cards (`row`, 24 dp) or directly on the page.
+
+**19.9 Buttons.** A screen's or sheet's main button is filled `primary`, fully round, 56 dp (60 dp on Welcome and Sign in, 48 dp inside a card), `ButtonLarge`. A second action is `TonalButton`: `secondaryContainer`, 48 dp. Text buttons are 44 dp, `primary`. Icon buttons are 48 dp and round, on the `row` color when they float over a header. **The floating button** is `primary` with `onPrimary` (it was `primaryContainer`), 64 dp tall, 22 dp corners, `ButtonLarge`, always extended. **A connected group** (`ConnectedButtonGroup`) is a single choice shown as joined buttons: 48 dp, 2 dp apart, outside corners fully round and joined ones 8 dp; the chosen button is fully round, `primary` with `onPrimary`, the others `surfaceContainerHigh` with `onSurfaceVariant`. It serves the theme and units choices, the quick dates and cook mode's Back, Ingredients, Next. Steppers join − and + to their value the same way. From 1.5× text a group is a list of radio buttons, as segmented buttons already are (6.5); each button is a radio button for screen readers either way.
+
+**19.10 Chips, fields and controls.** Filter chips are 44 dp, on the `row` color with 12 dp corners, and fully round in `primary` with a check when chosen; with nothing chosen none is filled (there is no All chip, DECISIONS 2026-10-19). Label chips (`LabelChip`) are 24 dp with 8 dp corners: `tertiaryContainer` for where an item came from, `secondaryContainer` for a person. Search and quick-add fields are 56 dp, fully round, on the `row` color. Text fields are 56 dp with 16 dp corners on the `field` color, their label above them; focus draws a 2 dp `primary` border, an error a 2 dp `error` border with the message and an icon under the field. Switches, checkboxes and radio buttons are Material's.
+
+**19.11 Bars, banners and overlays.** The navigation bar keeps its five labelled tabs; the indicator is `primaryContainer`. "Couldn't load." is a rounded banner (20 dp, `errorContainer`) and Offline a rounded banner (16 dp, `surfaceContainerHighest`), first in the screen's content; the daily-limit banner stays full width at the very top with 24 dp bottom corners. The snackbar is `inverseSurface` with 18 dp corners and Undo in `inversePrimary`; the floating button moves up over it. Sheets and dialogs keep their behavior (6.5); a dialog's choices are a list group.
+
+**19.12 What changes besides the look.** Each is built with its screen (19.13).
+
+- **Pantry, two groups.** In the default view (Sort: Soonest expiry, Group by: None, no search, no filter) the list has two groups: *Use first*, the Needs attention set of 5.4 (every purchase that has expired or expires within 3 days), and *Everything else*. The line that folds three or more expired purchases (5.2) is the first row of Use first. When nothing needs attention there are no headings. Any other sort, a Group by, a search or a filter shows the list as that choice orders it, without the two groups.
+- **Plan, a row of days.** Under the week switcher, seven buttons in the week's order (Week starts on): the weekday's short name over the day of the month, today's filled. A tap scrolls to that day's card. Each is named in full for screen readers ("Saturday, Nov 14, today"). From 1.5× text the row scrolls sideways instead of shrinking.
+- **Home.** Needs attention shows its count in a badge. Your kitchen moves above Use it up. Today's *Open plan* sits beside its heading.
+- **Recipe.** Without a photo the header is a block with the recipe's letter in a leaf. **Cook mode** gets a back button and the recipe's name at the top, "Step 1 of 2" as a chip beside it, and the step's number in a leaf.
+- **Settings.** The account is a highlight card with the name's initial in a leaf; Sign out is a full-width tonal button at the end.
+- **Sign in.** An error outlines its field and shows an icon beside the message.
+
+**19.13 Order of work.** One change (pull request) per step, Android first; the iPhone web app (section 18) follows each step with the same look, generated from the Android sources as before.
+
+| Step | What | State |
+| --- | --- | --- |
+| 1 | This section, and the shared pieces of 19.2 to 19.10 with their tests. No screen changes. | Done 2026-11-15 |
+| 2 | The app shell (page color, header, navigation bar, floating button, banners, snackbar, main button) and Home | Next |
+| 3 | Pantry with Add item, its sheets and dialogs, and the two groups | |
+| 4 | Groceries with Add to pantry | |
+| 5 | Plan with the row of days | |
+| 6 | Recipes, the recipe, cook mode, import | |
+| 7 | Your kitchen, Settings, Household, Notifications, About | |
+| 8 | Welcome, Sign in, Sign up, the gate, the tour, Update required | |
+
+Each step re-records the screenshots it changes (13.1), keeps `AccessibilityChecksTest` and the 2× text layouts passing, and adds its QA flows. After the last step: a new baseline profile and the benchmarks (RUNBOOK).
+
+**19.14 Tests for the shared pieces.** `ListGroupTest` (a row's corners by its place), `ColorThemesContrastTest` (19.2's surfaces, status words and tiles on rows, the snackbar and banners, in every fixed theme), and `LookComponentsScreenshotTest` (all the pieces on one page, light and dark, text at 1.0 and 2.0; headings, a row as one control and the connected group's single choice).
 
 ## Appendix A. Kickoff prompt and CLAUDE.md
 

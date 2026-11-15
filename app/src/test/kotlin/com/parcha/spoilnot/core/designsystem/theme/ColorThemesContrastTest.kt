@@ -99,6 +99,68 @@ class ColorThemesContrastTest {
     }
 
     @Test
+    fun `the 2026-11 look's text is readable on its page, rows and cards`() {
+        // DESIGN 19.2: a tinted page with rows one step away; names, second lines, group headings and text buttons
+        // sit on the page, a row, a row inside a highlight card, or a field on a sheet.
+        val failures = cases.flatMap { (name, c, _, dark) ->
+            val s = appSurfaces(c, dark)
+            listOf(
+                "onSurface/page" to (c.onSurface to s.page),
+                "onSurfaceVariant/page" to (c.onSurfaceVariant to s.page),
+                "primary/page (group headings, text buttons)" to (c.primary to s.page),
+                "onSurface/row" to (c.onSurface to s.row),
+                "onSurfaceVariant/row" to (c.onSurfaceVariant to s.row),
+                "primary/row (text buttons)" to (c.primary to s.row),
+                "onSurface/nestedRow" to (c.onSurface to s.nestedRow),
+                "onSurfaceVariant/nestedRow" to (c.onSurfaceVariant to s.nestedRow),
+                "onSurface/field" to (c.onSurface to s.field),
+                "onSurfaceVariant/field" to (c.onSurfaceVariant to s.field),
+                "onSurfaceVariant/tile" to (c.onSurfaceVariant to s.tile),
+                "onSurfaceVariant/surfaceContainerHigh (connected buttons)" to
+                    (c.onSurfaceVariant to c.surfaceContainerHigh),
+                "inverseOnSurface/inverseSurface (snackbar)" to (c.inverseOnSurface to c.inverseSurface),
+                "inversePrimary/inverseSurface (Undo)" to (c.inversePrimary to c.inverseSurface),
+                "onErrorContainer/errorContainer (banners)" to (c.onErrorContainer to c.errorContainer),
+            ).mapNotNull { (pair, colors) -> check(name, pair, colors.first, colors.second, TEXT) }
+        }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test
+    fun `status words and tiles are readable on the 2026-11 look's rows`() {
+        // DESIGN 19.6: a row says its status in words in the status color, beside a tile that tints the row with
+        // that color at STATUS_TINT_ALPHA; the swipe backgrounds put their words on the same tint.
+        val failures = cases.flatMap { (name, c, status, dark) ->
+            val s = appSurfaces(c, dark)
+            listOf("row" to s.row, "nestedRow" to s.nestedRow).flatMap { (bgName, background) ->
+                StatusTone.entries.flatMap { tone ->
+                    val color = status.forTone(tone)
+                    val tile = if (tone == StatusTone.NoDate) {
+                        s.tile
+                    } else {
+                        color.copy(alpha = STATUS_TINT_ALPHA).compositeOver(background)
+                    }
+                    listOfNotNull(
+                        check(name, "$tone status words on $bgName", color, background, TEXT),
+                        check(name, "$tone status on its tile over $bgName", color, tile, TEXT),
+                    )
+                }
+            }
+        }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test
+    fun `the 2026-11 look's rows are one step away from the page in every theme`() {
+        val failures = cases.mapNotNull { (name, c, _, dark) ->
+            val s = appSurfaces(c, dark)
+            // Lighter in both modes: white on the tinted page in light, a raised surface on the dark page.
+            if (s.row.luminance() > s.page.luminance()) null else "$name: rows don't stand off the page"
+        }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test
     fun `buttons keep away from the status hues`() {
         // DESIGN 6.1, color is reserved for status: filled buttons (primary) and the floating buttons
         // (primaryContainer) are at least MIN_HUE_DISTANCE from the tones that ask for attention, so Expired still
