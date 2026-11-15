@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.Icon
@@ -19,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 
@@ -31,9 +33,13 @@ fun QuotaBanner(modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.errorContainer)
+            // The 2026-11 look (DESIGN 19.11): full width at the very top, its bottom corners rounded.
+            .background(
+                MaterialTheme.colorScheme.errorContainer,
+                RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
+            )
             .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
             .testTag("quota_banner"),
         verticalAlignment = Alignment.CenterVertically,
@@ -44,6 +50,7 @@ fun QuotaBanner(modifier: Modifier = Modifier) {
             stringResource(R.string.error_quota),
             color = MaterialTheme.colorScheme.onErrorContainer,
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
         )
     }
 }

@@ -24,7 +24,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +48,7 @@ import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.PasswordField
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.feature.household.domain.ResetOutcome
 import com.parcha.spoilnot.feature.household.ui.DeleteAccountDialog
 import com.parcha.spoilnot.feature.household.ui.UnsyncedSignOutDialog
@@ -115,7 +115,7 @@ fun SettingsScreen(
         title = stringResource(R.string.settings),
         onBack = onBack,
         modifier = modifier.testTag("screen_settings"),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
     ) { padding ->
         Column(
             Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),

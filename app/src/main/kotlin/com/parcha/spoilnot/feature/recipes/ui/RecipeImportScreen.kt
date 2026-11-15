@@ -22,7 +22,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.ExtractionMethod
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
@@ -76,7 +76,7 @@ fun RecipeImportScreen(
         title = stringResource(R.string.recipe_preview),
         onBack = onBack,
         modifier = modifier.testTag("screen_recipe_import"),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
     ) { padding ->
         when (val s = state) {
             RecipeImportViewModel.UiState.Loading, is RecipeImportViewModel.UiState.TryBrowser -> Column(

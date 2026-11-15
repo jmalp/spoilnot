@@ -23,7 +23,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -49,6 +48,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.feature.notifications.domain.ExpiredMode
 import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
 import com.parcha.spoilnot.feature.pantry.ui.EnumDropdown
@@ -89,7 +89,7 @@ fun NotificationSettingsScreen(
         title = stringResource(R.string.settings_notifications),
         onBack = onBack,
         modifier = modifier.testTag("screen_notifications"),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
     ) { padding ->
         val p = prefs ?: return@DetailScaffold
         val canAsk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notifications.permissionGranted(context)

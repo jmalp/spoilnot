@@ -121,6 +121,11 @@ class ColorThemesContrastTest {
                 "inverseOnSurface/inverseSurface (snackbar)" to (c.inverseOnSurface to c.inverseSurface),
                 "inversePrimary/inverseSurface (Undo)" to (c.inversePrimary to c.inverseSurface),
                 "onErrorContainer/errorContainer (banners)" to (c.onErrorContainer to c.errorContainer),
+                "onSurface/surfaceContainer (navigation bar)" to (c.onSurface to c.surfaceContainer),
+                "onSurfaceVariant/surfaceContainer (navigation bar)" to (c.onSurfaceVariant to c.surfaceContainer),
+                "onSurface/surfaceContainerHighest (offline banner)" to (c.onSurface to c.surfaceContainerHighest),
+                "primaryContainer/onPrimaryContainer (Needs attention's count)" to
+                    (c.primaryContainer to c.onPrimaryContainer),
             ).mapNotNull { (pair, colors) -> check(name, pair, colors.first, colors.second, TEXT) }
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
@@ -146,6 +151,18 @@ class ColorThemesContrastTest {
                     )
                 }
             }
+        }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test
+    fun `Home's Your kitchen ring stands out on its card`() {
+        // DESIGN 19.8: on the primary card the used arc is primaryContainer and the dashed thrown-away arc onPrimary.
+        val failures = cases.flatMap { (name, c) ->
+            listOfNotNull(
+                check(name, "primaryContainer/primary (used arc)", c.primaryContainer, c.primary, GRAPHICS),
+                check(name, "onPrimary/primary (thrown-away arc)", c.onPrimary, c.primary, GRAPHICS),
+            )
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
     }

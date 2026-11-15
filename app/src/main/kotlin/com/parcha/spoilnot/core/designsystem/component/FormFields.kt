@@ -33,8 +33,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 
 /** A labelled text field with helper or error text below it. */
 @Composable
@@ -102,7 +104,10 @@ fun PasswordField(
     )
 }
 
-/** Full-width primary button that shows a spinner while [busy]. */
+/**
+ * A screen's or sheet's main button (DESIGN 19.9): full width, filled `primary`, fully round, at least 56 dp tall,
+ * shows a spinner while [busy].
+ */
 @Composable
 fun PrimaryButton(
     text: String,
@@ -111,12 +116,12 @@ fun PrimaryButton(
     busy: Boolean = false,
     enabled: Boolean = true,
 ) {
-    Button(onClick = onClick, enabled = enabled && !busy, modifier = modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+    Button(onClick = onClick, enabled = enabled && !busy, modifier = modifier.fillMaxWidth().heightIn(min = 56.dp)) {
         Box(contentAlignment = Alignment.Center) {
             if (busy) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
-                Text(text)
+                Text(text, style = SpoilNotText.ButtonLarge, textAlign = TextAlign.Center)
             }
         }
     }

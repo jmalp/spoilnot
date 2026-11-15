@@ -40,7 +40,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,6 +73,7 @@ import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.component.listBottomPadding
@@ -126,7 +126,7 @@ fun PantryScreen(
         onOpenSettings = onOpenSettings,
         modifier = modifier.testTag("screen_pantry"),
         actions = { SortGroupMenu(state.query.sort, state.query.grouping, viewModel::setSort, viewModel::setGrouping) },
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
         floatingActionButton = {
             if (!state.pantryEmpty) {
                 SpoilNotFab(

@@ -433,6 +433,18 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     it adds to the same product. Android, optional: phone language Arabic, Edit an item with 1.5: the field shows
     "1.5", + makes it 2.5 and Save works. Android, optional: with Pantry open, set the time zone about 12 hours away
     (automatic off), return: within a minute the chips show the new day.
+63. The new look, step 2: the shell and Home (Android, after v1, 2026-11-15, DESIGN 19.7 to 19.12): every tab sits on
+    the tinted page under a header with a round Settings button, as tall as the old bar; Home's header says today's
+    date above "Home" in the phone's language. With food expiring tomorrow and two expired items, Needs attention is
+    the green card with "3" in a circle, a Tomorrow row with its tile and the words "Tomorrow", and "2 expired items to
+    throw away or check" as its last row; TalkBack reads the first row as "Milk, Expires tomorrow" and never reads the
+    "3" alone. With nothing expiring it is a small white card that says so. Plan two meals today: Home shows them as
+    two tiles under "Today" with Open plan beside it; at 2× text they stack. Your kitchen is the dark green card with
+    the large percentage; tapping anywhere on it opens Your kitchen, and TalkBack reads the title and one sentence
+    with the counts. Pantry's Add item is the dark green button; use something up: the Undo snackbar has rounded
+    corners above it. Turn on airplane mode: the Offline banner is a rounded strip under the header. Join from another
+    account as the owner's household: the Settings button shows the badge, which stays readable at 2× text. Dark mode
+    and a preset color theme (Fiery Palette): the same, in their colors.
 
 ## 3. Conditions
 
