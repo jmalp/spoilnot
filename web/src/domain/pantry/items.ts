@@ -70,8 +70,13 @@ export const PantryItems = {
   },
 
   build(products: Product[], batches: StockBatch[], query: PantryQuery, today: LocalDate): PantryItemGroup[] {
+    return this.group(this.all(products, batches, today), query);
+  },
+
+  /** The groups for [query] from [all]'s result, so a caller that needs both builds the items once. */
+  group(all: PantryItem[], query: PantryQuery): PantryItemGroup[] {
     const search = NameKey.of(query.search);
-    const items = this.all(products, batches, today)
+    const items = all
       .filter((it) => search === '' || NameKey.of(it.name).includes(search))
       .filter((it) => matches(it, query.filter));
     const sorted = sort(items, query.sort);

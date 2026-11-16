@@ -455,6 +455,7 @@ function QuickAddField({
   return (
     <div className="sn-pantry-search sn-quick-add sn-anchor">
       <TextField
+        outlined
         label=""
         aria-label={str('grocery_quick_add')}
         placeholder={str('grocery_quick_add')}

@@ -58,13 +58,25 @@ test('the list, filters and search, as on Android', async ({ page }) => {
     /Rice.*500 g/,
     /Olive oil.*Out/,
   ]);
-  await expect(page.getByTestId('pantry_item_milk').getByTestId('status_chip')).toHaveAccessibleName(
-    'Expires tomorrow',
-  );
+  // A row says its status in words before its place, and reads the full wording as one sentence (DESIGN 19.6).
+  const milk = page.getByTestId('pantry_item_milk');
+  await expect(milk.locator('.sn-pantry-row__second')).toHaveText('Tomorrow · Fridge');
+  await expect(milk.getByRole('button', { name: 'Milk, 1 piece, Expires tomorrow, Fridge' })).toBeVisible();
 
-  // Needs attention holds the expired too, as Home and the digest count them (after v1, R8).
+  // The default view in two groups (DESIGN 19.12); the line above the title counts every row (19.7).
+  await expect(page.getByTestId('screen_eyebrow')).toHaveText('5 items');
+  const groups = page.getByTestId('pantry_list');
+  await expect(groups.getByRole('heading')).toHaveText(['Use first', 'Everything else']);
+  await expect(groups.getByRole('region', { name: 'Use first' }).locator('[data-testid^="pantry_item_"]')).toHaveText([
+    /Soup/,
+    /Milk/,
+  ]);
+
+  // Needs attention holds the expired too, as Home and the digest count them (after v1, R8); a filter shows the list
+  // without the two groups.
   await page.getByTestId('pantry_filter_needsAttention').click();
   await expect(rows(page)).toHaveText([/Soup/, /Milk/]);
+  await expect(groups.getByRole('heading')).toHaveCount(0);
   await page.getByTestId('pantry_filter_needsAttention').click(); // the chosen filter again: everything
   await expect(rows(page)).toHaveCount(5);
 

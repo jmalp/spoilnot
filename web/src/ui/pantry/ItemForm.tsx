@@ -17,18 +17,20 @@ import { NameKey, ShelfLife } from '../../domain/pantry/rules';
 import { itemEditOf, rebaseEdit, type ItemEditBase } from '../../domain/pantry/edit-watch';
 import type { ItemEdit, StockDraft } from '../../domain/pantry/service';
 import { addDays, addMonths, type LocalDate } from '../../domain/time';
+import { isLargeText } from '../../theme/textScale';
 import {
   BottomSheet,
   Button,
+  ConnectedButtonGroup,
   DatePickerDialog,
   Icon,
-  IconButton,
   Menu,
   MenuItem,
   SelectField,
   Switch,
   TextField,
 } from '../kit';
+import { FieldMessage } from '../kit/TextField';
 import {
   categoryLabel,
   formatDate,
@@ -42,10 +44,6 @@ import './form.css';
 
 /** Parses a typed quantity; accepts "1,5" as well as "1.5", and the phone's own digits (Amounts). */
 export const parseQuantity = (text: string): number | null => Amounts.parse(text);
-
-/** From this text size (root font scale) the date tiles take two rows and quantity and unit stack. */
-const LARGE_TEXT_SCALE = 1.3;
-export const largeText = () => parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 >= LARGE_TEXT_SCALE;
 
 type FormState = {
   name: string;
@@ -152,6 +150,7 @@ export function AddItemSheet({
   return (
     <BottomSheet label={str('add_item_title')} onDismiss={onDismiss} testId="sheet_add_item">
       <FormSheetColumn
+        look
         title={str('add_item_title')}
         button={
           <Button primary onClick={save} data-testid="button_save_item">
@@ -241,6 +240,7 @@ export function EditItemSheet({
   return (
     <BottomSheet label={str('edit_item_title')} onDismiss={onDismiss} testId="sheet_edit_item">
       <FormSheetColumn
+        look
         title={str('edit_item_title')}
         button={
           <Button primary onClick={save} data-testid="button_save_item">
@@ -326,20 +326,26 @@ function review(form: FormState, base: ItemEdit, live: ItemEditBase): FormState 
   };
 }
 
-/** Scrollable fields with the save button pinned below them, so saving never needs a scroll. */
+/**
+ * Scrollable fields with the save button pinned below them, so saving never needs a scroll. With [look], a sheet of
+ * the 2026-11 look (DESIGN 19.11, step 3): the title in the sheet title style, 20 px from the sides, 18 px between
+ * fields; the other sheets take it with their steps.
+ */
 export function FormSheetColumn({
   title,
   button,
   children,
+  look = false,
 }: {
   title: string;
   button: ReactNode;
   children: ReactNode;
+  look?: boolean;
 }) {
   return (
-    <div className="sn-form-sheet">
+    <div className={`sn-form-sheet ${look ? 'sn-form-sheet--look' : ''}`}>
       <div className="sn-form-sheet__fields">
-        <h2 className="t-headline-small">{title}</h2>
+        <h2 className={look ? 't-sheet-title' : 't-headline-small'}>{title}</h2>
         {children}
       </div>
       <div className="sn-form-sheet__button">{button}</div>
@@ -381,7 +387,8 @@ function ItemFields({
         : undefined;
   const qty = parseQuantity(form.quantity);
   const qtyBad = qty === null || (allowZero ? qty < 0 : qty <= 0);
-  const large = largeText();
+  // A compact stepper beside the unit; stacked from 1.5x text, as in the app (isLargeText).
+  const large = isLargeText();
   return (
     <>
       <NameField
@@ -393,11 +400,11 @@ function ItemFields({
         focus={focusName}
       />
       <div className={large ? 'sn-form-stack' : 'sn-form-row'}>
-        <QuantityRow
+        <QuantityStepper
           value={form.quantity}
           onChange={(v) => set({ quantity: v })}
           error={form.submitted && qtyBad ? str('error_quantity') : undefined}
-          compact={!large}
+          fill={large}
         />
         <SelectField
           label={str('field_unit')}
@@ -410,8 +417,8 @@ function ItemFields({
           testId="field_unit"
         />
       </div>
-      <ExpiryField value={form.expiry} today={today} twoRows={large} onChange={(expiry) => set({ expiry })} />
-      <LocationChoice selected={form.location} grid={large} onPick={(location) => set({ location })} />
+      <ExpiryField value={form.expiry} today={today} onChange={(expiry) => set({ expiry })} />
+      <LocationChoice selected={form.location} onPick={(location) => set({ location })} />
       {/* Usually filled in from the product or the name, so it comes after what changes every time. */}
       <SelectField
         label={str('field_category')}
@@ -424,7 +431,7 @@ function ItemFields({
       {/* Keep some in stock (after v1, UX-07): while off it says what it does; the whole row toggles. */}
       <label className="sn-switch-row" data-testid="switch_auto_add">
         <span className="sn-switch-row__text">
-          <span className="t-body-large" id={`${id}-auto-add`}>
+          <span className="t-row-title" id={`${id}-auto-add`}>
             {str('field_auto_add')}
           </span>
           {!form.autoAdd && (
@@ -522,56 +529,100 @@ function NameField({
   );
 }
 
-/** Stepper plus keyboard; decimals allowed (DESIGN 5.2). */
-function QuantityRow({
+/**
+ * Quantity as a stepper (DESIGN 19.9): − and + joined to the typed amount, its label above; decimals allowed (5.2).
+ * [fill] stretches the amount across the row, at large text sizes.
+ */
+function QuantityStepper({
   value,
   onChange,
   error,
-  compact,
+  fill,
 }: {
   value: string;
   onChange: (v: string) => void;
   error?: string;
-  compact: boolean;
+  fill: boolean;
 }) {
+  const id = useId();
   return (
-    <div className="sn-quantity">
-      <IconButton
-        icon="round/remove"
-        label={str('action_minus_one')}
-        onClick={() => onChange(formatQuantity(Math.max(0, (parseQuantity(value) ?? 0) - 1)))}
-      />
-      <TextField
-        label={str('field_quantity')}
-        value={value}
-        onValueChange={onChange}
-        inputMode="decimal"
-        error={error}
-        className={compact ? 'sn-quantity__field--compact' : 'sn-quantity__field'}
-        data-testid="field_quantity"
-      />
-      <IconButton
-        icon="round/add"
-        label={str('action_plus_one')}
-        onClick={() => onChange(formatQuantity((parseQuantity(value) ?? 0) + 1))}
-      />
+    <div
+      className={`sn-stepper-field ${error ? 'sn-stepper-field--error' : ''} ${fill ? 'sn-stepper-field--fill' : ''}`}
+    >
+      <label className="t-field-label sn-stepper-field__label" htmlFor={id}>
+        {str('field_quantity')}
+      </label>
+      <div className="sn-joined-stepper">
+        <StepButton
+          icon="round/remove"
+          label={str('action_minus_one')}
+          start
+          onClick={() => onChange(formatQuantity(Math.max(0, (parseQuantity(value) ?? 0) - 1)))}
+        />
+        <input
+          id={id}
+          className="sn-joined-stepper__value"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          inputMode="decimal"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          data-testid="field_quantity"
+        />
+        <StepButton
+          icon="round/add"
+          label={str('action_plus_one')}
+          onClick={() => onChange(formatQuantity((parseQuantity(value) ?? 0) + 1))}
+        />
+      </div>
+      <FieldMessage id={error ? `${id}-error` : undefined} error={error} />
     </div>
   );
 }
 
-/** The date button (opening the picker) and the quick date tiles (DESIGN 5.2). */
+/** − or + of a stepper: 56 px, secondaryContainer, round outside and 8 px where it joins the value (DESIGN 19.9). */
+export function StepButton({
+  icon,
+  label,
+  start = false,
+  disabled = false,
+  onClick,
+}: {
+  icon: 'round/remove' | 'round/add';
+  label: string;
+  start?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`sn-step-button m3-state ${start ? 'sn-step-button--start' : 'sn-step-button--end'}`}
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+    </button>
+  );
+}
+
+/**
+ * The expiration date (DESIGN 5.2, 19.10): a picker that looks like a field, with the date and its status, then the
+ * quick dates.
+ */
 function ExpiryField({
   value,
   today,
-  twoRows,
   onChange,
 }: {
   value: LocalDate | null;
   today: LocalDate;
-  twoRows: boolean;
   onChange: (d: LocalDate | null) => void;
 }) {
   const [picking, setPicking] = useState(false);
+  const labelId = useId();
   // Far-off dates read as the date itself; show it once ("Nov 2", not "Nov 2 · Nov 2").
   const text = value
     ? ((date, status) => (status === date ? date : `${date} · ${status}`))(
@@ -581,18 +632,23 @@ function ExpiryField({
     : str('status_no_date');
   return (
     <div className="sn-field-group">
-      <span className="t-label-large">{str('field_expiry')}</span>
-      <Button
-        variant="outlined"
-        full
-        large
-        icon="round/calendar_month"
+      <span className="t-field-label c-on-surface-variant" id={labelId}>
+        {str('field_expiry')}
+      </span>
+      <button
+        type="button"
+        className="sn-date-button m3-state"
+        aria-describedby={labelId}
         onClick={() => setPicking(true)}
         data-testid="field_expiry"
       >
-        {text}
-      </Button>
-      <DateChips value={value} today={today} twoRows={twoRows} onChange={onChange} />
+        <span className="sn-date-button__icon">
+          <Icon name="round/calendar_month" />
+        </span>
+        <span className="sn-date-button__text t-field-text">{text}</span>
+        <Icon name="round/expand_more" size={20} />
+      </button>
+      <DateChips value={value} today={today} onChange={onChange} />
       {picking && (
         <DatePickerDialog
           value={value}
@@ -609,18 +665,17 @@ function ExpiryField({
 }
 
 /**
- * The quick date tiles: four equal tiles in one row (two rows at large text sizes). Tapping the chosen one again
- * clears the date; no date is the default.
+ * The quick dates, shared by Add item and Add to pantry: a connected group of four (DESIGN 19.9), radio buttons from
+ * 1.5x text. One date at a time, radio buttons for VoiceOver (review A11Y-08). Tapping the chosen one again clears the
+ * date; no date is the default.
  */
 export function DateChips({
   value,
   today,
-  twoRows,
   onChange,
 }: {
   value: LocalDate | null;
   today: LocalDate;
-  twoRows: boolean;
   onChange: (d: LocalDate | null) => void;
 }) {
   const options: [StringId, LocalDate][] = [
@@ -630,63 +685,46 @@ export function DateChips({
     ['chip_plus_1_month', addMonths(today, 1)],
   ];
   return (
-    // One date at a time: radio buttons in a group, so VoiceOver says "1 of 4" (after v1, review A11Y-08).
-    <div
-      className={`sn-tiles ${twoRows ? 'sn-tiles--two-rows' : ''}`}
-      role="radiogroup"
-      aria-label={str('field_expiry')}
-    >
-      {options.map(([label, date]) => {
-        const selected = value === date;
-        return (
-          <button
-            key={label}
-            type="button"
-            className={`sn-tile sn-tile--small m3-state ${selected ? 'sn-tile--selected' : ''}`}
-            role="radio"
-            aria-checked={selected}
-            data-testid={`date_chip_${date}`}
-            onClick={() => onChange(selected ? null : date)}
-          >
-            <span className="t-label-large">{str(label)}</span>
-          </button>
-        );
-      })}
-    </div>
+    <ConnectedButtonGroup
+      label={str('field_expiry')}
+      options={options}
+      selected={options.find(([, date]) => date === value) ?? null}
+      optionLabel={([label]) => str(label)}
+      optionKey={([label]) => label}
+      optionTestId={([, date]) => `date_chip_${date}`}
+      onPick={([, date]) => onChange(date === value ? null : date)}
+    />
   );
 }
 
-/** Location as four equal tiles, icon over label (a 2 by 2 grid at large text sizes); the chosen one is bold with a border. */
-export function LocationChoice({
-  selected,
-  grid,
-  onPick,
-}: {
-  selected: Location;
-  grid: boolean;
-  onPick: (l: Location) => void;
-}) {
+/**
+ * Location as four equal tiles, icon over label (a 2 by 2 grid from 1.5x text). The chosen one is filled
+ * primaryContainer, rounder and heavier (DESIGN 19.10), so it never depends on color alone.
+ */
+export function LocationChoice({ selected, onPick }: { selected: Location; onPick: (l: Location) => void }) {
   const labelId = useId();
   return (
     <div className="sn-field-group">
-      <span className="t-label-large" id={labelId}>
+      <span className="t-field-label c-on-surface-variant" id={labelId}>
         {str('field_location')}
       </span>
-      <div className={`sn-tiles ${grid ? 'sn-tiles--two-rows' : ''}`} role="radiogroup" aria-labelledby={labelId}>
+      <div
+        className={`sn-tiles ${isLargeText() ? 'sn-tiles--two-rows' : ''}`}
+        role="radiogroup"
+        aria-labelledby={labelId}
+      >
         {LOCATIONS.map((location) => (
           <button
             key={location}
             type="button"
             role="radio"
             aria-checked={location === selected}
-            className={`sn-tile sn-tile--location m3-state ${location === selected ? 'sn-tile--selected' : ''}`}
+            className={`sn-tile m3-state ${location === selected ? 'sn-tile--selected' : ''}`}
             data-testid={`location_${location}`}
             onClick={() => onPick(location)}
           >
-            <span className="sn-tile__icon">
-              <Icon name={locationIcon(location)} />
-            </span>
-            <span className="t-label-large">{locationLabel(location)}</span>
+            <Icon name={locationIcon(location)} />
+            <span className="t-button-medium">{locationLabel(location)}</span>
           </button>
         ))}
       </div>

@@ -70,6 +70,7 @@ export function RecipesScreen({
         <>
           <div className="sn-pantry-search">
             <TextField
+              outlined
               label=""
               aria-label={str('recipe_search')}
               placeholder={str('recipe_search')}

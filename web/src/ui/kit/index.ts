@@ -24,4 +24,15 @@ export { ErrorText, ListItem } from './ListItem';
 export { DatePickerDialog } from './DatePicker';
 export { SelectField } from './SelectField';
 export { Segmented, SEGMENTED_STACK_SCALE } from './Segmented';
-export { AccentCard, HighlightCard, LabelChip, LeafBadge, ListGroup, PlainCard, StatusTile } from './Look';
+export {
+  AccentCard,
+  ConnectedButtonGroup,
+  HighlightCard,
+  LabelChip,
+  LeafBadge,
+  ListGroup,
+  PlainCard,
+  SearchField,
+  SpoilNotFilterChip,
+  StatusTile,
+} from './Look';

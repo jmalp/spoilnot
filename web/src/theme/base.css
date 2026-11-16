@@ -11,13 +11,16 @@
   --sp-13: 13px;
   --sp-14: 14px;
   --sp-16: 16px;
+  --sp-17: 17px;
   --sp-18: 18px;
   --sp-20: 20px;
   --sp-22: 22px;
   --sp-24: 24px;
+  --sp-26: 26px;
   --sp-28: 28px;
   --sp-30: 30px;
   --sp-32: 32px;
+  --sp-34: 34px;
   --sp-36: 36px;
   --sp-40: 40px;
   --sp-44: 44px;
@@ -254,6 +257,29 @@ button {
   font-size: var(--sp-12);
   line-height: var(--sp-16);
   font-weight: 700;
+}
+/* Step 3 (DESIGN 19.4): a sheet's and a dialog's titles, a field's label above it and what is typed in it. */
+.t-sheet-title {
+  font-size: var(--sp-26);
+  line-height: var(--sp-34);
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.t-dialog-title {
+  font-size: var(--sp-24);
+  line-height: var(--sp-32);
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.t-field-label {
+  font-size: var(--sp-13);
+  line-height: var(--sp-18);
+  font-weight: 700;
+}
+.t-field-text {
+  font-size: var(--sp-17);
+  line-height: var(--sp-24);
+  font-weight: 600;
 }
 
 .c-on-surface-variant {

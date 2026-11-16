@@ -1,29 +1,43 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { catchError, firstValueFrom, map, of, timeout } from 'rxjs';
 import { messageId } from '../../core/errors';
+import { useHeldWhileScrolling } from '../../core/holdWhileScrolling';
 import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
 import { retryLoading } from '../../domain/load';
 import { useRemoteChanges } from '../../core/remoteChanges';
-import { str, type StringId } from '../../core/i18n';
+import { plural, str, type StringId } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
+import { pantryBlocks, type PantryHeading } from '../../domain/pantry/blocks';
+import { keepUnchanged } from '../../domain/pantry/identity';
 import {
-  ExpiredFold,
   PantryItems,
   type PantryFilter,
   type PantryGrouping,
   type PantryItem,
+  type PantryItemGroup,
   type PantryQuery,
   type PantrySort,
 } from '../../domain/pantry/items';
 import { checkEdit, itemEditOf, type ItemEditBase } from '../../domain/pantry/edit-watch';
-import type { PantryData, Product, StockBatch } from '../../domain/pantry/models';
+import type { Location, PantryData, Product, StockBatch } from '../../domain/pantry/models';
 import type { Undo } from '../../domain/write';
-import { Button, Fab, FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
+import {
+  Button,
+  Fab,
+  Icon,
+  IconButton,
+  Menu,
+  MenuItem,
+  Progress,
+  SearchField,
+  SpoilNotFilterChip,
+  useSnackbars,
+} from '../kit';
 import { EmptyState, LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
-import { categoryLabel, locationLabel } from './labels';
+import { categoryLabel, locationIcon, locationLabel } from './labels';
 import { AddItemSheet, EditItemSheet } from './ItemForm';
 import { OpenedSheet } from './OpenedSheet';
-import { ExpiredHeader, MoveDialog, PantryItemRow, ThrowAwayDialog, type BatchActions } from './PantryRow';
+import { ExpiredFoldRow, MoveDialog, PantryItemRow, ThrowAwayDialog, type BatchActions } from './PantryRow';
 import './pantry.css';
 
 const FILTERS: [PantryFilter, StringId][] = [
@@ -36,10 +50,31 @@ const FILTERS: [PantryFilter, StringId][] = [
   ['lowStock', 'filter_low_stock'],
 ];
 
-/** The Pantry tab (DESIGN 5.2): search, filters, one row per purchase, swipe and menu actions with Undo. */
+/** The place a location filter shows, for its chip's icon; the others have none (DECISIONS 2026-11-16). */
+const filterLocation = (filter: PantryFilter): Location | null =>
+  filter === 'fridge' || filter === 'freezer' || filter === 'pantry' || filter === 'other' ? filter : null;
+
 /** How long the Edit window waits for the member list to name who removed its item. */
 const MEMBER_NAME_WAIT_MS = 3_000;
 
+/**
+ * [items] with each one kept from the previous render when its data didn't change (keepUnchanged), so memoized rows
+ * skip another phone's change to other rows (review WEB-13). React's pattern for information from earlier renders.
+ */
+function useKeepUnchanged(items: PantryItem[]): PantryItem[] {
+  const [kept, setKept] = useState({ source: items, items });
+  if (kept.source !== items) {
+    const next = { source: items, items: keepUnchanged(kept.items, items) };
+    setKept(next);
+    return next.items;
+  }
+  return kept.items;
+}
+
+/**
+ * The Pantry tab (DESIGN 5.2, 19.12): how many rows the list has above the title, the search field, the filter chips
+ * and one row per purchase, in two groups in the default view; swipe and menu actions with Undo.
+ */
 export function PantryScreen({
   onOpenSettings,
   joinRequests,
@@ -71,38 +106,59 @@ export function PantryScreen({
   // An Out staple opens Add item for that product.
   const [adding, setAdding] = useState<{ prefill: Product | null } | null>(null);
   const actor = useMemo(() => ({ uid: me.user.uid, name: me.displayName }), [me]);
+  const hid = me.householdId;
 
   // Invariant 1: delete batches that reached 0, whoever notices first.
   useEffect(() => {
     if (data) void pantryService.deleteEmptyBatches(me.householdId, actor, data).catch(() => undefined);
   }, [data, pantryService, me.householdId, actor]);
 
-  const act = (work: () => Promise<Undo | null>, message?: (undo: Undo) => string) => {
-    work().then(
-      (undo) => {
-        if (undo && message)
-          snackbars.showUndo(message(undo), () => void pantryService.undo(me.householdId, actor, undo));
-      },
-      (e: unknown) => snackbars.show(str(messageId(e))),
-    );
-  };
-  const hid = me.householdId;
-  const actions: BatchActions = {
-    onMinus: (b) =>
-      act(
-        () => pantryService.adjust(hid, actor, b, -1),
-        () => str('undo_used_up', b.productName),
-      ),
-    onPlus: (b) => act(() => pantryService.adjust(hid, actor, b, 1)),
-    onUsedUp: (b) =>
-      act(
-        () => pantryService.usedUp(hid, actor, b),
-        () => str('undo_used_up', b.productName),
-      ),
-    onThrowAway: setThrowing,
-    onMove: setMoving,
-    onOpened: setOpening,
-  };
+  const act = useCallback(
+    (work: () => Promise<Undo | null>, message?: (undo: Undo) => string) => {
+      work().then(
+        (undo) => {
+          if (undo && message) snackbars.showUndo(message(undo), () => void pantryService.undo(hid, actor, undo));
+        },
+        (e: unknown) => snackbars.show(str(messageId(e))),
+      );
+    },
+    [snackbars, pantryService, hid, actor],
+  );
+  // The same handlers across snapshots, so memoized rows skip what didn't change (review WEB-13).
+  const actions: BatchActions = useMemo(
+    () => ({
+      onMinus: (b) =>
+        act(
+          () => pantryService.adjust(hid, actor, b, -1),
+          () => str('undo_used_up', b.productName),
+        ),
+      onPlus: (b) => act(() => pantryService.adjust(hid, actor, b, 1)),
+      onUsedUp: (b) =>
+        act(
+          () => pantryService.usedUp(hid, actor, b),
+          () => str('undo_used_up', b.productName),
+        ),
+      onThrowAway: setThrowing,
+      onMove: setMoving,
+      onOpened: setOpening,
+    }),
+    [act, pantryService, hid, actor],
+  );
+  // The newest pantry for handlers that run on a tap, so they keep their identity from snapshot to snapshot.
+  const latest = useRef(data);
+  useEffect(() => {
+    latest.current = data;
+  }, [data]);
+  const onOpen = useCallback(
+    (item: PantryItem) =>
+      item.kind === 'purchase'
+        ? setEditing({
+            batch: item.batch,
+            product: latest.current?.products.find((p) => p.id === item.batch.productId) ?? null,
+          })
+        : setAdding({ prefill: item.product }),
+    [],
+  );
 
   // Members' names, only while the Edit window is open (it names who changed its item).
   const editOpen = editing !== null;
@@ -147,12 +203,21 @@ export function PantryScreen({
     })();
   }, [editing, removed, pantry, households, hid, me.user.uid, members, snackbars]);
 
-  const groups = data ? PantryItems.build(data.products, data.batches, query, today) : [];
-  const empty = data !== null && PantryItems.all(data.products, data.batches, today).length === 0;
+  const all = useKeepUnchanged(
+    useMemo(() => (data ? PantryItems.all(data.products, data.batches, today) : []), [data, today]),
+  );
+  const groups = useMemo(() => PantryItems.group(all, query), [all, query]);
+  const empty = data !== null && all.length === 0;
+  // Once per change of the pantry, not on every render while the sheet is open (review PERF-08).
+  const productsWithStock = useMemo(
+    () => new Set(data?.batches.filter((b) => b.quantity > 0).map((b) => b.productId)),
+    [data],
+  );
 
   return (
     <TabScaffold
       title={str('tab_pantry')}
+      eyebrow={data ? plural('pantry_eyebrow_items', all.length, all.length) : undefined}
       onOpenSettings={onOpenSettings}
       joinRequests={joinRequests}
       innerScroll
@@ -180,71 +245,49 @@ export function PantryScreen({
       {data === null ? (
         <div className="sn-centered">{!failed && <Progress />}</div>
       ) : empty ? (
-        <EmptyState icon="outlined/kitchen" message={str('pantry_empty_body')}>
+        <div className="sn-pantry-empty">
+          <span className="sn-pantry-empty__leaf" aria-hidden>
+            <Icon name="outlined/kitchen" />
+          </span>
+          <p>{str('pantry_empty_body')}</p>
           <Button primary data-testid="button_add_first_item" onClick={() => setAdding({ prefill: null })}>
             {str('action_add_first_item')}
           </Button>
-        </EmptyState>
+        </div>
       ) : (
         <>
-          <div className="sn-pantry-search">
-            <TextField
-              label=""
-              aria-label={str('pantry_search')}
-              placeholder={str('pantry_search')}
+          <div className="sn-pantry-search sn-pantry-search--look">
+            <SearchField
               value={query.search}
               onValueChange={(search) => setQuery({ ...query, search })}
-              type="search"
-              enterKeyHint="search"
-              data-testid="pantry_search"
-              leading={
-                <span className="sn-pantry-search__leading">
-                  <Icon name="round/search" />
-                </span>
-              }
-              trailing={
-                query.search ? (
-                  <IconButton
-                    icon="round/clear"
-                    label={str('action_cancel')}
-                    onClick={() => setQuery({ ...query, search: '' })}
-                  />
-                ) : undefined
-              }
+              placeholder={str('pantry_search')}
+              clearLabel={str('action_cancel')}
+              testId="pantry_search"
             />
           </div>
-          <div className="sn-filter-row">
+          <div className="sn-filter-row sn-filter-row--look">
             {/* No All chip: everything is the default, and tapping the chosen filter again goes back to it. */}
-            {FILTERS.map(([filter, label]) => (
-              <FilterChip
-                key={filter}
-                label={str(label)}
-                selected={query.filter === filter}
-                data-testid={`pantry_filter_${filter}`}
-                onClick={() => setQuery({ ...query, filter: query.filter === filter ? 'all' : filter })}
-              />
-            ))}
+            {FILTERS.map(([filter, label]) => {
+              const location = filterLocation(filter);
+              return (
+                <SpoilNotFilterChip
+                  key={filter}
+                  label={str(label)}
+                  selected={query.filter === filter}
+                  icon={location ? locationIcon(location) : undefined}
+                  data-testid={`pantry_filter_${filter}`}
+                  onClick={() => setQuery({ ...query, filter: query.filter === filter ? 'all' : filter })}
+                />
+              );
+            })}
           </div>
-          <PantryList
-            groups={groups}
-            query={query}
-            today={today}
-            actions={actions}
-            onOpen={(item: PantryItem) =>
-              item.kind === 'purchase'
-                ? setEditing({
-                    batch: item.batch,
-                    product: data?.products.find((p) => p.id === item.batch.productId) ?? null,
-                  })
-                : setAdding({ prefill: item.product })
-            }
-          />
+          <PantryList groups={groups} query={query} today={today} actions={actions} onOpen={onOpen} />
         </>
       )}
       {adding && data && (
         <AddItemSheet
           products={data.products}
-          productsWithStock={new Set(data.batches.filter((b) => b.quantity > 0).map((b) => b.productId))}
+          productsWithStock={productsWithStock}
           today={today}
           imperialFirst={me.units === 'imperial'}
           prefill={adding.prefill}
@@ -329,6 +372,23 @@ export function PantryScreen({
   );
 }
 
+function headingText(heading: PantryHeading): string {
+  switch (heading.kind) {
+    case 'useFirst':
+      return str('pantry_use_first');
+    case 'everythingElse':
+      return str('pantry_everything_else');
+    case 'location':
+      return locationLabel(heading.location);
+    case 'category':
+      return categoryLabel(heading.category);
+  }
+}
+
+/**
+ * The list as groups of rows (DESIGN 19.5, 19.12): Use first and Everything else in the default view, a group per
+ * location or category when grouped. A change from another phone waits while the list scrolls (DESIGN 6.4, WEB-11).
+ */
 function PantryList({
   groups,
   query,
@@ -336,17 +396,19 @@ function PantryList({
   actions,
   onOpen,
 }: {
-  groups: ReturnType<typeof PantryItems.build>;
+  groups: PantryItemGroup[];
   query: PantryQuery;
   today: string;
   actions: BatchActions;
   onOpen: (item: PantryItem) => void;
 }) {
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const shown = useHeldWhileScrolling(groups, scroller);
   const [showExpired, setShowExpired] = useState(false);
   // Rows another phone changed get a short highlight (DESIGN 6.4).
   const batches = useMemo(
-    () => groups.flatMap((g) => g.items).flatMap((i) => (i.kind === 'purchase' ? [i.batch] : [])),
-    [groups],
+    () => shown.flatMap((g) => g.items).flatMap((i) => (i.kind === 'purchase' ? [i.batch] : [])),
+    [shown],
   );
   const remote = useRemoteChanges(
     batches,
@@ -354,51 +416,36 @@ function PantryList({
     (b) => b.pendingSync,
     (b) => ({ ...b, pendingSync: false }),
   );
-  if (groups.length === 0) return <EmptyState icon="round/search" message={str('pantry_no_matches')} />;
-  // A backlog of expired food folds into one header; its rows show on request.
-  const fold = ExpiredFold.of(groups, query);
+  const blocks = useMemo(() => pantryBlocks(shown, query, showExpired), [shown, query, showExpired]);
+  if (shown.length === 0) return <EmptyState icon="round/search" message={str('pantry_no_matches')} />;
   return (
-    <div className="sn-pantry-list" data-testid="pantry_list">
-      {fold && (
-        <>
-          <ExpiredHeader
-            count={fold.expired.length}
-            shown={showExpired}
-            onToggle={() => setShowExpired(!showExpired)}
-          />
-          {showExpired &&
-            fold.expired.map((item) => (
-              <PantryItemRow
-                key={`expired-${item.key}`}
-                item={item}
-                today={today}
-                actions={actions}
-                onOpen={onOpen}
-                highlight={remote.has(item.key)}
-              />
-            ))}
-        </>
-      )}
-      {(fold?.rest ?? groups).map((group) => {
-        const header = group.location
-          ? locationLabel(group.location)
-          : group.category
-            ? categoryLabel(group.category)
-            : null;
-        const key = group.location ?? group.category ?? 'all';
+    <div className="sn-pantry-list sn-pantry-list--look" data-testid="pantry_list" ref={setScroller}>
+      {blocks.map((block) => {
+        const heading = block.heading ? headingText(block.heading) : null;
         return (
-          <section key={key} aria-label={header ?? undefined}>
-            {header && <h2 className="sn-group-header t-label-large">{header}</h2>}
-            {group.items.map((item) => (
-              <PantryItemRow
-                key={`${key}-${item.key}`}
-                item={item}
-                today={today}
-                actions={actions}
-                onOpen={onOpen}
-                highlight={remote.has(item.key)}
-              />
-            ))}
+          <section key={block.key} className="sn-pantry-block" aria-label={heading ?? undefined}>
+            {heading && <h2 className="sn-pantry-heading t-group-heading">{heading}</h2>}
+            <div className="sn-group">
+              {block.lines.map((line) =>
+                line.kind === 'folded' ? (
+                  <ExpiredFoldRow
+                    key={line.key}
+                    count={line.count}
+                    shown={showExpired}
+                    onToggle={() => setShowExpired(!showExpired)}
+                  />
+                ) : (
+                  <PantryItemRow
+                    key={line.key}
+                    item={line.item}
+                    today={today}
+                    actions={actions}
+                    onOpen={onOpen}
+                    highlight={remote.has(line.key)}
+                  />
+                ),
+              )}
+            </div>
           </section>
         );
       })}
