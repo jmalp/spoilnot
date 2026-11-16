@@ -9,20 +9,33 @@ import { ActivityFeed, HomeDashboard, type ActivityEvent, type HomeSummary } fro
 import { MonthTotals, type InsightsSummary } from '../../domain/insights/insights';
 import { NeedsAttention, type PantryFilter, type PurchaseItem } from '../../domain/pantry/items';
 import type { PantryData } from '../../domain/pantry/models';
+import { Expiry } from '../../domain/pantry/rules';
 import type { Member } from '../../domain/household';
 import type { PlannedMeal } from '../../domain/plan/models';
 import { MealWeek, PlanDays } from '../../domain/plan/week';
 import { UseItUp, type UseItUpSuggestion } from '../../domain/recipes/cooking';
-import { CookChip, CookedLabel, cookNames, slotLabel, useFirstDay } from '../plan/components';
+import { CookedLabel, cookNames, slotLabel, useFirstDay } from '../plan/components';
 import { yearMonthOf, type LocalDate } from '../../domain/time';
-import { Button, Card, Icon, type IconName } from '../kit';
-import { insights$, MonthRing } from '../insights/InsightsScreen';
-import { moodText } from '../insights/labels';
-import { chipText, statusText } from '../pantry/labels';
-import { Badge, StatusChip } from '../pantry/PantryRow';
+import {
+  AccentCard,
+  Button,
+  HighlightCard,
+  Icon,
+  LabelChip,
+  LeafBadge,
+  ListGroup,
+  PlainCard,
+  StatusTile,
+  type IconName,
+} from '../kit';
+import { UsageRing } from '../insights/Charts';
+import { insights$ } from '../insights/InsightsScreen';
+import { moodText, percent } from '../insights/labels';
+import { chipText, statusIcon, statusText, tone } from '../pantry/labels';
+import { Badge } from '../pantry/PantryRow';
 import { InstallCard } from '../install/InstallHelp';
 import { LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
-import { activityText, relativeTime } from './labels';
+import { activityText, homeDate, relativeTime } from './labels';
 import './home.css';
 
 /** DESIGN 5.6: the last 10 events. */
@@ -48,8 +61,8 @@ type PlanToday = { meals: PlannedMeal[]; planned: Set<string> };
 const NO_PLAN: PlanToday = { meals: [], planned: new Set() };
 
 /**
- * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), Use it up, the grocery list with what is
- * running low, this month's kitchen (5.7) and recent activity.
+ * The Home tab (DESIGN 5.6, 19.12): what needs attention, today's meals (5.9), this month's kitchen (5.7), Use it up,
+ * the grocery list with what is running low, and recent activity.
  */
 export function HomeScreen({
   navigation,
@@ -127,6 +140,7 @@ export function HomeScreen({
   return (
     <TabScaffold
       title={str('tab_home')}
+      eyebrow={homeDate(today)}
       onOpenSettings={navigation.openSettings}
       joinRequests={joinRequests}
       testId="screen_home"
@@ -178,47 +192,16 @@ function HomeCards({
 }) {
   const { clock } = useServices();
   const now = useNow(clock);
-  const attention = summary.attention;
-  const attentionSize = NeedsAttention.size(attention);
   return (
     <>
-      <HomeCard
-        title={str('home_attention')}
-        icon="round/warning_amber"
-        testId="card_home_attention"
-        // The same set and count as Pantry's Needs attention filter (after v1, R8).
-        // "See 1 in Pantry" next to the one item already shown led to the same thing (after v1, UX-18).
-        action={
-          attentionSize > 0
-            ? [
-                attention.expired.length === 0 && attention.usable.length <= CARD_ROWS
-                  ? str('home_open_pantry')
-                  : plural('home_see_all', attentionSize, attentionSize),
-                () => navigation.openPantry('needsAttention'),
-              ]
-            : undefined
-        }
-        calm={
-          attentionSize > 0 ? undefined : summary.pantryEmpty ? str('home_attention_start') : str('home_attention_none')
-        }
-        // A new household has nothing done yet: no check mark (after v1, UX-07).
-        calmIcon={summary.pantryEmpty ? 'round/kitchen' : 'round/check_circle'}
-        // What reminders would tell, and the phone that blocks them, belong together: a line, not another banner.
-        footer={remindersOff ? <RemindersOffLine onTurnOn={navigation.turnOnReminders} /> : undefined}
-      >
-        {/* What can still be used comes first; the expired are one line, as in Pantry (after v1, UX-01). */}
-        {attention.usable.slice(0, CARD_ROWS).map((item) => (
-          <AttentionRow key={item.key} item={item} today={today} />
-        ))}
-        {attention.expired.length > 0 && <ExpiredLine count={attention.expired.length} />}
-      </HomeCard>
+      <NeedsAttentionCard summary={summary} today={today} navigation={navigation} remindersOff={remindersOff} />
       {todayMeals.length > 0 && (
-        <TodayCard meals={todayMeals} members={members} myUid={myUid} onOpen={navigation.openPlan} />
+        <TodaySection meals={todayMeals} members={members} myUid={myUid} onOpen={navigation.openPlan} />
       )}
+      {insights && <KitchenCard insights={insights} onOpen={navigation.openInsights} />}
       {useItUp.length > 0 && <UseItUpCard suggestions={useItUp} today={today} onOpen={navigation.openRecipe} />}
       <GroceryCard summary={summary} onOpen={navigation.openGroceries} />
-      {insights && <InsightsCard insights={insights} onOpen={navigation.openInsights} />}
-      <HomeCard
+      <HomePlainCard
         title={str('home_recent_activity')}
         icon="round/history"
         testId="card_home_activity"
@@ -232,8 +215,264 @@ function HomeCards({
             )}
           </div>
         ))}
-      </HomeCard>
+      </HomePlainCard>
     </>
+  );
+}
+
+/**
+ * Needs attention (DESIGN 5.6, 19.8): the highlight card, its count in a badge, what can still be used first and the
+ * expired folded into one row, as in Pantry (after v1, UX-01). With nothing to show it is a compact plain card that
+ * says so, or for a new household how to start (UX-07).
+ */
+function NeedsAttentionCard({
+  summary,
+  today,
+  navigation,
+  remindersOff,
+}: {
+  summary: HomeSummary;
+  today: LocalDate;
+  navigation: HomeNavigation;
+  remindersOff: boolean;
+}) {
+  const attention = summary.attention;
+  const size = NeedsAttention.size(attention);
+  // What reminders would tell, and the phone that blocks them, belong together: a line, not another banner.
+  const reminders = remindersOff ? <RemindersOffLine onTurnOn={navigation.turnOnReminders} /> : undefined;
+  if (size === 0) {
+    return (
+      <CalmCard
+        title={str('home_attention')}
+        message={summary.pantryEmpty ? str('home_attention_start') : str('home_attention_none')}
+        // A new household has nothing done yet: no check mark (after v1, UX-07).
+        icon={summary.pantryEmpty ? 'round/kitchen' : 'round/check_circle'}
+        testId="card_home_attention"
+        footer={reminders}
+      />
+    );
+  }
+  // "See 1 in Pantry" next to the one item already shown led to the same thing (after v1, UX-18). The same set and
+  // count as Pantry's Needs attention filter (after v1, R8).
+  const allShown = attention.expired.length === 0 && attention.usable.length <= CARD_ROWS;
+  return (
+    <HighlightCard className="sn-attention" data-testid="card_home_attention">
+      <div className="sn-attention__header">
+        <Icon name="round/warning_amber" />
+        <h2 className="t-card-title">{str('home_attention')}</h2>
+        {/* The rows and See all N say the count; a bare number after the heading would not. */}
+        <span className="sn-attention__count t-section-title" aria-hidden>
+          {size}
+        </span>
+      </div>
+      <ListGroup nested>
+        {/* What can still be used comes first; the expired are one row, as in Pantry (after v1, UX-01). */}
+        {attention.usable.slice(0, CARD_ROWS).map((item) => (
+          <AttentionRow key={item.key} item={item} today={today} />
+        ))}
+        {attention.expired.length > 0 && <ExpiredRow count={attention.expired.length} />}
+      </ListGroup>
+      {reminders}
+      <Button large className="sn-card-button" onClick={() => navigation.openPantry('needsAttention')}>
+        {allShown ? str('home_open_pantry') : plural('home_see_all', size, size)}
+      </Button>
+    </HighlightCard>
+  );
+}
+
+/**
+ * One purchase that can still be used (DESIGN 19.6): its status tile, the name, and the status in words in its color,
+ * under the name from 1.5x text (after v1, review A11Y-04). VoiceOver reads one sentence, "Milk, Expires tomorrow"
+ * (A11Y-07).
+ */
+function AttentionRow({ item, today }: { item: PurchaseItem; today: LocalDate }) {
+  const { expiryDate, dateType } = item.batch;
+  const status = Expiry.of(expiryDate, today);
+  return (
+    <div className="sn-segment sn-home-row sn-home-row--nested" data-testid="home_attention_row">
+      <span className="visually-hidden">{`${item.name}, ${statusText(expiryDate, dateType, today)}`}</span>
+      <StatusTile tone={tone(status)} icon={statusIcon(status)} nested />
+      <span className="sn-home-row__text sn-home-row--trailing" aria-hidden>
+        <span className="t-row-title sn-home-row__name">{item.name}</span>
+        <span
+          className={`t-row-status sn-home-status sn-home-status--${tone(status)}`}
+          data-testid="home_attention_status"
+        >
+          {chipText(expiryDate, dateType, today)}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/** "3 expired items to throw away or check": the expired folded into the last row (after v1, UX-01). */
+function ExpiredRow({ count }: { count: number }) {
+  return (
+    <div className="sn-segment sn-home-row sn-home-row--nested" data-testid="home_attention_expired">
+      <StatusTile tone="expired" icon="round/delete_outline" nested />
+      {/* A sentence, not a name: shown whole at any text size, as in the app. */}
+      <span className="t-row-title sn-home-row__sentence">{plural('home_attention_expired', count, count)}</span>
+    </div>
+  );
+}
+
+/**
+ * Today's planned meals and who cooks them (DESIGN 5.9, 19.12): a section on the page with Open plan beside its
+ * heading, one tile per meal, two side by side and one per line from 1.5x text. Shown only when something is planned.
+ */
+function TodaySection({
+  meals,
+  members,
+  myUid,
+  onOpen,
+}: {
+  meals: PlannedMeal[];
+  members: Member[];
+  myUid: string;
+  onOpen: () => void;
+}) {
+  return (
+    <section className="sn-today" data-testid="card_home_today">
+      <div className="sn-today__header">
+        <h2 className="t-section-title">{str('home_today')}</h2>
+        <Button variant="text" large className="t-button-medium" onClick={onOpen}>
+          {str('home_today_open')}
+        </Button>
+      </div>
+      <div className="sn-today__tiles">
+        {meals.map((meal) => {
+          const cooks = cookNames(meal.cooks, members, myUid);
+          // One stop per meal for VoiceOver: "Breakfast: Porridge, cooking: You, Cooked" (after v1, review A11Y-07).
+          const description = [
+            str('home_today_meal_description', slotLabel(meal.slot), meal.title),
+            cooks.length > 0 ? str('home_today_cooking', cooks.join(', ')) : null,
+            meal.cookedAt !== null ? str('plan_cooked') : null,
+          ]
+            .filter((part) => part !== null)
+            .join(', ');
+          return (
+            <div key={meal.id} className="sn-today-meal" data-testid="home_today_meal">
+              <span className="visually-hidden">{description}</span>
+              <span className="t-row-supporting c-on-surface-variant" aria-hidden>
+                {slotLabel(meal.slot)}
+              </span>
+              <span className="t-row-title sn-home-row__name" aria-hidden>
+                {meal.title}
+              </span>
+              {(cooks.length > 0 || meal.cookedAt !== null) && (
+                <span className="sn-today-meal__details" aria-hidden>
+                  {cooks.map((name) => (
+                    <LabelChip key={name} text={name} icon="round/person" kind="person" />
+                  ))}
+                  {meal.cookedAt !== null && <CookedLabel />}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Your kitchen this month (DESIGN 5.7, 19.8): the percentage used, large, with the counts and the ring on a primary
+ * card. The whole card opens Your kitchen; VoiceOver reads the title and the ring's sentence once.
+ */
+function KitchenCard({ insights, onOpen }: { insights: InsightsSummary; onOpen: () => void }) {
+  const month = insights.current;
+  const thrown = MonthTotals.thrown(month);
+  const share = MonthTotals.usedShare(month);
+  const description =
+    share === null ? str('insights_ring_empty') : str('insights_ring_description', month.used, thrown, percent(share));
+  return (
+    <button
+      type="button"
+      className="sn-kitchen-card m3-state"
+      data-testid="card_home_insights"
+      aria-label={`${str('insights_card_title')}, ${description}`}
+      aria-description={str('insights_see')}
+      onClick={onOpen}
+    >
+      <span className="sn-kitchen-card__text" aria-hidden>
+        <span className="t-row-supporting">{str('insights_card_title')}</span>
+        {share === null ? (
+          <span className="t-body-medium">{moodText(insights.mood)}</span>
+        ) : (
+          <>
+            <span className="t-big-number">{str('insights_percent', percent(share))}</span>
+            <span className="sn-kitchen-card__legend t-row-supporting">
+              <span className="sn-kitchen-card__entry">
+                <span className="sn-kitchen-card__swatch" />
+                {`${str('insights_legend_used')} ${month.used}`}
+              </span>
+              <span className="sn-kitchen-card__entry">
+                <span className="sn-kitchen-card__swatch sn-kitchen-card__swatch--outlined" />
+                {`${str('insights_legend_thrown')} ${thrown}`}
+              </span>
+            </span>
+          </>
+        )}
+      </span>
+      <UsageRing
+        used={month.used}
+        thrown={thrown}
+        centerText=""
+        description={description}
+        size={84}
+        small
+        colors={{
+          used: 'var(--md-sys-color-primary-container)',
+          thrown: 'var(--md-sys-color-on-primary)',
+          track: 'color-mix(in srgb, var(--md-sys-color-on-primary) 24%, var(--md-sys-color-primary))',
+        }}
+      />
+    </button>
+  );
+}
+
+/**
+ * "Use it up" (DESIGN 5.6, 19.8): an accent card with saved recipes that use food expiring soon, each with what it
+ * uses and when that expires, each opening its recipe. Shown only when there is a match.
+ */
+function UseItUpCard({
+  suggestions,
+  today,
+  onOpen,
+}: {
+  suggestions: UseItUpSuggestion[];
+  today: LocalDate;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <AccentCard data-testid="card_home_use_it_up">
+      <LeafBadge icon="round/restaurant_menu" />
+      <div className="sn-use-it-up__list">
+        <h2 className="t-row-supporting">{str('home_use_it_up')}</h2>
+        {suggestions.map(({ recipe, uses }) => (
+          <button
+            key={recipe.id}
+            type="button"
+            className="sn-use-it-up m3-state"
+            aria-description={str('home_use_it_up_open')}
+            onClick={() => onOpen(recipe.id)}
+          >
+            <span className="sn-use-it-up__text">
+              <span className="t-row-title sn-home-row__name">{recipe.content.title}</span>
+              <span className="t-row-supporting">
+                {str(
+                  'home_use_it_up_uses',
+                  uses
+                    .map((u) => `${u.product.name} (${chipText(u.batch.expiryDate, u.batch.dateType, today)})`)
+                    .join(', '),
+                )}
+              </span>
+            </span>
+            <Icon name="round/chevron_right" />
+          </button>
+        ))}
+      </div>
+    </AccentCard>
   );
 }
 
@@ -244,7 +483,7 @@ function HomeCards({
 function GroceryCard({ summary, onOpen }: { summary: HomeSummary; onOpen: () => void }) {
   const more = summary.lowStock.length - CARD_ROWS;
   return (
-    <HomeCard
+    <HomePlainCard
       title={str('home_grocery_list')}
       icon="round/list_alt"
       testId="card_home_groceries"
@@ -257,7 +496,7 @@ function GroceryCard({ summary, onOpen }: { summary: HomeSummary; onOpen: () => 
       </span>
       {summary.lowStock.length > 0 ? (
         <div className="sn-home-low" data-testid="home_running_low">
-          <h3 className="t-label-large c-on-surface-variant">{str('home_running_low')}</h3>
+          <h3 className="t-row-supporting c-on-surface-variant">{str('home_running_low')}</h3>
           {summary.lowStock.slice(0, CARD_ROWS).map((row) => {
             const badge = str(row.isOut ? 'badge_out' : 'badge_low');
             // One sentence for VoiceOver, "Olive oil, Low", the badge under the name from 1.5x text (A11Y-04, A11Y-07).
@@ -282,138 +521,20 @@ function GroceryCard({ summary, onOpen }: { summary: HomeSummary; onOpen: () => 
           </span>
         )
       )}
-    </HomeCard>
-  );
-}
-
-/** Today's planned meals and who cooks them (DESIGN 5.9). Shown only when something is planned. */
-function TodayCard({
-  meals,
-  members,
-  myUid,
-  onOpen,
-}: {
-  meals: PlannedMeal[];
-  members: Member[];
-  myUid: string;
-  onOpen: () => void;
-}) {
-  return (
-    <HomeCard
-      title={str('home_today')}
-      icon="round/calendar_month"
-      testId="card_home_today"
-      action={[str('home_today_open'), onOpen]}
-    >
-      {meals.map((meal) => {
-        const cooks = cookNames(meal.cooks, members, myUid);
-        // One stop per meal for VoiceOver: "Breakfast: Porridge, cooking: You, Cooked" (after v1, review A11Y-07).
-        const description = [
-          str('home_today_meal_description', slotLabel(meal.slot), meal.title),
-          cooks.length > 0 ? str('home_today_cooking', cooks.join(', ')) : null,
-          meal.cookedAt !== null ? str('plan_cooked') : null,
-        ]
-          .filter((part) => part !== null)
-          .join(', ');
-        return (
-          <div key={meal.id} className="sn-today-meal" data-testid="home_today_meal">
-            <span className="visually-hidden">{description}</span>
-            <span className="t-label-medium c-on-surface-variant" aria-hidden>
-              {slotLabel(meal.slot)}
-            </span>
-            <span className="t-body-large sn-home-row__name" aria-hidden>
-              {meal.title}
-            </span>
-            {(cooks.length > 0 || meal.cookedAt !== null) && (
-              <span className="sn-meal-row__details" aria-hidden>
-                {cooks.map((name) => (
-                  <CookChip key={name} name={name} />
-                ))}
-                {meal.cookedAt !== null && <CookedLabel />}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </HomeCard>
+    </HomePlainCard>
   );
 }
 
 /**
- * "Use it up" (DESIGN 5.6, after v1): saved recipes that use food expiring soon, each with what it uses and when that
- * expires. Shown only when there is a match.
+ * A plain card (DESIGN 19.8): the row surface with 24 px corners, an icon and a title, its content, and a filled
+ * button at the end. With nothing to show ([calm]) it is one compact row instead (after v1).
  */
-function UseItUpCard({
-  suggestions,
-  today,
-  onOpen,
-}: {
-  suggestions: UseItUpSuggestion[];
-  today: LocalDate;
-  onOpen: (id: string) => void;
-}) {
-  return (
-    <HomeCard title={str('home_use_it_up')} icon="round/restaurant_menu" testId="card_home_use_it_up">
-      {suggestions.map(({ recipe, uses }) => (
-        <button
-          key={recipe.id}
-          type="button"
-          className="sn-use-it-up m3-state"
-          aria-description={str('home_use_it_up_open')}
-          onClick={() => onOpen(recipe.id)}
-        >
-          <span className="t-body-large sn-home-row__name">{recipe.content.title}</span>
-          <span className="t-body-medium c-on-surface-variant">
-            {str(
-              'home_use_it_up_uses',
-              uses
-                .map((u) => `${u.product.name} (${chipText(u.batch.expiryDate, u.batch.dateType, today)})`)
-                .join(', '),
-            )}
-          </span>
-        </button>
-      ))}
-    </HomeCard>
-  );
-}
-
-/** This month's kitchen (DESIGN 5.7): a small ring, the counts and a friendly line. */
-function InsightsCard({ insights, onOpen }: { insights: InsightsSummary; onOpen: () => void }) {
-  const month = insights.current;
-  return (
-    <HomeCard
-      title={str('insights_card_title')}
-      icon="round/donut_large"
-      testId="card_home_insights"
-      action={[str('insights_see'), onOpen]}
-    >
-      <div className="sn-home-insights">
-        <MonthRing stats={month} small />
-        <div className="sn-home-insights__text">
-          {/* The ring shows the percentage; the text gives the counts behind it. */}
-          {MonthTotals.total(month) > 0 && (
-            <span className="t-title-medium">{str('insights_counts', month.used, MonthTotals.thrown(month))}</span>
-          )}
-          <span className="t-body-medium">{moodText(insights.mood)}</span>
-        </div>
-      </div>
-    </HomeCard>
-  );
-}
-
-/**
- * An outlined card with an icon, a title and an optional button. With nothing to show ([calm]) it is one compact row
- * with a check instead (after v1), or [calmIcon] where nothing is done yet. Solid buttons: tonal ones on tonal cards
- * were hard to see in light mode.
- */
-function HomeCard({
+function HomePlainCard({
   title,
   icon,
   testId,
   action,
   calm,
-  calmIcon = 'round/check_circle',
-  footer,
   children,
 }: {
   title: string;
@@ -421,91 +542,78 @@ function HomeCard({
   testId: string;
   action?: [string, () => void];
   calm?: string;
-  calmIcon?: IconName;
-  /** A last line under the card's content or its calm row. */
-  footer?: ReactNode;
   children?: ReactNode;
 }) {
-  if (calm !== undefined) {
-    return (
-      <Card data-testid={testId}>
-        <div className="sn-home-calm">
-          <span className="c-primary">
-            <Icon name={calmIcon} />
-          </span>
-          <div className="sn-home-calm__text">
-            <h2 className="t-title-small">{title}</h2>
-            <span className="t-body-medium c-on-surface-variant">{calm}</span>
-          </div>
-        </div>
-        {footer && <div className="sn-home-calm__footer">{footer}</div>}
-      </Card>
-    );
-  }
+  if (calm !== undefined) return <CalmCard title={title} message={calm} icon={icon} testId={testId} />;
   return (
-    <Card data-testid={testId}>
+    <PlainCard data-testid={testId}>
       <div className="sn-home-card">
         <div className="sn-home-card__header">
           <span className="c-primary">
             <Icon name={icon} />
           </span>
-          <h2 className="t-title-medium">{title}</h2>
+          <h2 className="t-section-title">{title}</h2>
         </div>
         {children}
-        {footer}
         {action && (
-          <Button large className="sn-home-card__action" onClick={action[1]}>
+          <Button large className="sn-card-button" onClick={action[1]}>
             {action[0]}
           </Button>
         )}
       </div>
-    </Card>
+    </PlainCard>
+  );
+}
+
+/** Nothing to show: a compact plain card with an icon, the title and one line (after v1). */
+function CalmCard({
+  title,
+  message,
+  icon,
+  testId,
+  footer,
+}: {
+  title: string;
+  message: string;
+  icon: IconName;
+  testId: string;
+  /** A last line under the card's row. */
+  footer?: ReactNode;
+}) {
+  return (
+    <PlainCard data-testid={testId}>
+      <div className="sn-home-calm">
+        <span className="c-primary">
+          <Icon name={icon} />
+        </span>
+        <div className="sn-home-calm__text">
+          <h2 className="t-row-title">{title}</h2>
+          <span className="t-body-medium c-on-surface-variant">{message}</span>
+        </div>
+      </div>
+      {footer && <div className="sn-home-calm__footer">{footer}</div>}
+    </PlainCard>
   );
 }
 
 /**
  * "Reminders are off on this phone · Turn on" (after v1, review UX-02): the member wants reminders and this phone
- * blocks them. Said in words with an icon, not by color.
+ * blocks them. Said in words with an icon, not by color. Turn on takes the card's text color on the highlight card.
  */
 function RemindersOffLine({ onTurnOn }: { onTurnOn: () => void }) {
   return (
     <div className="sn-home-reminders" data-testid="home_reminders_off">
-      <span className="c-on-surface-variant">
-        <Icon name="round/notifications_off" />
-      </span>
+      <Icon name="round/notifications_off" />
       <span className="t-body-medium sn-home-reminders__text">{str('home_reminders_off')}</span>
-      <Button variant="text" large onClick={onTurnOn} data-testid="home_reminders_turn_on">
+      <Button
+        variant="text"
+        large
+        className="sn-home-reminders__turn-on t-button-medium"
+        onClick={onTurnOn}
+        data-testid="home_reminders_turn_on"
+      >
         {str('home_reminders_turn_on')}
       </Button>
-    </div>
-  );
-}
-
-/**
- * One purchase that can still be used, as Pantry shows it: name and status chip, the chip under the name from 1.5x
- * text (after v1, review A11Y-04). VoiceOver reads it as one sentence, "Milk, expires tomorrow" (A11Y-07).
- */
-function AttentionRow({ item, today }: { item: PurchaseItem; today: LocalDate }) {
-  const { expiryDate, dateType } = item.batch;
-  return (
-    <div className="sn-home-row sn-home-row--trailing" data-testid="home_attention_row">
-      <span className="visually-hidden">{`${item.name}, ${statusText(expiryDate, dateType, today)}`}</span>
-      <span className="t-body-large sn-home-row__name" aria-hidden>
-        {item.name}
-      </span>
-      <StatusChip expiry={expiryDate} dateType={dateType} today={today} hidden />
-    </div>
-  );
-}
-
-/** "3 expired items to throw away or check": the expired folded into one line (after v1, UX-01). */
-function ExpiredLine({ count }: { count: number }) {
-  return (
-    <div className="sn-home-row" data-testid="home_attention_expired">
-      <span className="sn-home-expired__icon">
-        <Icon name="round/delete_outline" />
-      </span>
-      <span className="t-body-large sn-home-row__name">{plural('home_attention_expired', count, count)}</span>
     </div>
   );
 }
@@ -513,31 +621,31 @@ function ExpiredLine({ count }: { count: number }) {
 /** Shown to the owner while someone is waiting for approval (DESIGN 5.6). */
 function JoinRequestsCard({ count, onReview }: { count: number; onReview: () => void }) {
   return (
-    <Card variant="filled" className="sn-home-join" data-testid="card_home_join_requests">
+    <section className="sn-home-join" data-testid="card_home_join_requests">
       {/* From 1.5x text the button goes under the sentence; beside it, the sentence broke one syllable per line and
           Review ran out of its button (after v1, review A11Y-04). */}
       <div className="sn-home-join__row">
         <span className="sn-home-join__text">
           <Icon name="round/group_add" />
-          <span className="t-title-medium">{plural('home_join_requests', count, count)}</span>
+          <span className="t-row-title">{plural('home_join_requests', count, count)}</span>
         </span>
-        <Button large onClick={onReview}>
+        <Button large className="sn-card-button" onClick={onReview}>
           {str('action_review')}
         </Button>
       </div>
-    </Card>
+    </section>
   );
 }
 
 /** Shown on the first load only (DESIGN 6.7); still when reduce motion is on. */
 function SkeletonCard() {
   return (
-    <Card data-testid="home_skeleton">
+    <PlainCard data-testid="home_skeleton">
       <div className="sn-skeleton" aria-hidden>
         <span style={{ width: '40%', height: 20 }} />
         <span style={{ width: '90%', height: 16 }} />
         <span style={{ width: '70%', height: 16 }} />
       </div>
-    </Card>
+    </PlainCard>
   );
 }

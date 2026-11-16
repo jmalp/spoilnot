@@ -27,7 +27,7 @@ import {
   useSnackbars,
 } from '../kit';
 import { amountText, categoryLabel, unitLabel } from '../pantry/labels';
-import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { EmptyState, LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
 import { AddToPantryDrafts, type AddToPantryDraft } from './addToPantryDrafts';
 import { AddToPantrySheet, EditGroceryItemSheet } from './GroceryForms';
 import { GroceryRow } from './GroceryRow';
@@ -386,9 +386,8 @@ function GroceryListView({
   aisleHint: boolean;
   onAisleHintDone: () => void;
 }) {
-  const onScroll = useOnInnerScroll();
   return (
-    <div className="sn-pantry-list" data-testid="grocery_list" onScroll={onScroll}>
+    <div className="sn-pantry-list" data-testid="grocery_list">
       {aisles.map(([label, key, rows], index) => (
         <section key={key} aria-label={label}>
           <h2 className="sn-group-header sn-aisle-header t-label-large">{label}</h2>

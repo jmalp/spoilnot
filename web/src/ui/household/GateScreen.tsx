@@ -186,7 +186,7 @@ function CreateCard({
           error={submitted && !valid ? str('error_household_name') : undefined}
         />
         <ErrorText text={error} />
-        <Button type="submit" full large busy={busy}>
+        <Button type="submit" primary busy={busy}>
           {str('action_create')}
         </Button>
       </form>

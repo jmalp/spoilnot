@@ -30,4 +30,34 @@ describe('theme', () => {
     expect(document.documentElement.dataset.mode).toBe('dark');
     expect(isThemeId('wallpaper')).toBe(false);
   });
+
+  it('sets the page and row surfaces from different roles in light and dark (DESIGN 19.2)', () => {
+    const light = themeVariables('spoilnot', false);
+    expect(light['--sn-surface-page']).toBe(light['--md-sys-color-surface-container-low']);
+    expect(light['--sn-surface-row']).toBe(light['--md-sys-color-surface-container-lowest']);
+    expect(light['--sn-surface-tile']).toBe(light['--md-sys-color-surface-container']);
+    const dark = themeVariables('spoilnot', true);
+    expect(dark['--sn-surface-page']).toBe(dark['--md-sys-color-surface']);
+    expect(dark['--sn-surface-row']).toBe(dark['--md-sys-color-surface-container']);
+    expect(dark['--sn-surface-nested-row']).toBe(dark['--md-sys-color-surface-container-low']);
+    expect(dark['--sn-surface-field']).toBe(dark['--md-sys-color-surface-container-high']);
+  });
+
+  it('keeps rows lighter than the page in every theme, light and dark', () => {
+    const luminance = (hex: string) => {
+      const channel = (i: number) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+    };
+    for (const id of THEME_IDS) {
+      for (const dark of [false, true]) {
+        const vars = themeVariables(id, dark);
+        expect(luminance(vars['--sn-surface-row']!), `${id} ${dark ? 'dark' : 'light'}`).toBeGreaterThan(
+          luminance(vars['--sn-surface-page']!),
+        );
+      }
+    }
+  });
 });

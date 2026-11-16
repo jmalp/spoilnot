@@ -19,7 +19,7 @@ import { addDays, daysBetween, sortedWith, type LocalDate } from '../../domain/t
 import type { Undo } from '../../domain/write';
 import { Button, Card, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
 import { CookedSheet } from '../recipes/RecipeSheets';
-import { LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
 import { CookChip, CookedLabel, cookNames, dayTitle, shortDate, slotLabel, useFirstDay } from './components';
 import { AddMealSheet, MealSheet, WeekGrocerySheet } from './PlanSheets';
 import { PlanDrafts, type PlanSheetDraft } from './planDrafts';
@@ -408,7 +408,6 @@ function PlanDaysList({
   loaded: boolean;
   onCopyLastWeek: () => void;
 }) {
-  const onScroll = useOnInnerScroll();
   const list = useRef<HTMLDivElement>(null);
   const firstDate = days[0]?.date;
   // An empty week says how to fill it, with Copy last week out of the ⋮ menu too (after v1, UX-15).
@@ -423,7 +422,7 @@ function PlanDaysList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstDate, loaded]);
   return (
-    <div className="sn-plan-days" data-testid="plan_days" ref={list} onScroll={onScroll}>
+    <div className="sn-plan-days" data-testid="plan_days" ref={list}>
       {empty && <EmptyWeek onCopyLastWeek={onCopyLastWeek} />}
       {days.map((day) => (
         <DayCard

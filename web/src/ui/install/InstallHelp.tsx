@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { str } from '../../core/i18n';
 import { canAddToHomeScreen } from '../../core/install';
 import { usePreferences, useServices } from '../../core/services';
-import { Button, Card, Icon } from '../kit';
+import { Button, Icon, PlainCard } from '../kit';
 import './install.css';
 
 /** The welcome screen's line in Safari on an iPhone: how to install before signing in (DESIGN 18.1). */
@@ -23,14 +23,15 @@ export function InstallCard() {
   const { installHelpDismissed } = usePreferences();
   const [possible] = useState(canAddToHomeScreen);
   if (!possible || installHelpDismissed) return null;
+  // A plain card like Home's others in the 2026-11 look (DESIGN 19.8).
   return (
-    <Card data-testid="card_install">
+    <PlainCard data-testid="card_install">
       <div className="sn-home-card">
         <div className="sn-home-card__header">
           <span className="c-primary">
             <Icon name="round/ios_share" />
           </span>
-          <h2 className="t-title-medium">{str('web_install_title')}</h2>
+          <h2 className="t-section-title">{str('web_install_title')}</h2>
         </div>
         <p className="t-body-medium c-on-surface-variant sn-install-card__body">{str('web_install_body')}</p>
         <Button
@@ -41,6 +42,6 @@ export function InstallCard() {
           {str('web_install_later')}
         </Button>
       </div>
-    </Card>
+    </PlainCard>
   );
 }

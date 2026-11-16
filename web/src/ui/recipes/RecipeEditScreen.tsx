@@ -140,7 +140,7 @@ function RecipeFormFields({ recipe, onSaved }: { recipe: Recipe; onSaved: () => 
         supportingText={str('recipe_field_tags_hint')}
         autoCapitalize="sentences"
       />
-      <Button full large busy={saving} onClick={save} data-testid="recipe_save">
+      <Button primary busy={saving} onClick={save} data-testid="recipe_save">
         {str('action_save')}
       </Button>
     </div>

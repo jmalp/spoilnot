@@ -1,35 +1,22 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-  type UIEvent,
-} from 'react';
+import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { plural, str } from '../core/i18n';
 import { Button, Icon, IconButton, TopAppBar, useOptionalSnackbars, useSnackbars, type IconName } from './kit';
+import { ripple } from './kit/ripple';
 import './scaffold.css';
 
-const ScrolledContext = createContext<(scrolled: boolean) => void>(() => undefined);
+/** The floating button at 100% text (64 px) and its 16 px margin: snackbars show above it, as Scaffold places them. */
+const FAB_INSET_PX = 64 + 16;
 
 /**
- * For a list that scrolls on its own below fixed content (innerScroll): tells the top app bar when content is under
- * it, as the pinned bar's scroll behavior does in the app.
- */
-export function useOnInnerScroll(): (event: UIEvent<HTMLElement>) => void {
-  const setScrolled = useContext(ScrolledContext);
-  return (event) => setScrolled(event.currentTarget.scrollTop > 0);
-}
-
-/**
- * A tab's screen (TabScaffold in the app): the pinned top app bar with a headlineSmall title, the screen's
- * actions and the Settings avatar, content centered at most 640 px wide, and an optional extended FAB. With
- * [innerScroll] the content fills the screen and scrolls itself (a fixed search and filters above a list).
+ * A tab's screen in the 2026-11 look (TabScaffold in the app, DESIGN 19.7): the tinted page, a pinned header with the
+ * [eyebrow] line over the title, the screen's actions and the Settings button, content centered at most 640 px wide,
+ * and an optional extended FAB. The header is the old top app bar's 64 px at 100% text and keeps its color while the
+ * content scrolls. With [innerScroll] the content fills the screen and scrolls itself (a fixed search and filters
+ * above a list).
  */
 export function TabScaffold({
   title,
+  eyebrow,
   onOpenSettings,
   actions,
   fab,
@@ -40,6 +27,8 @@ export function TabScaffold({
 }: {
   /** The title, or a control such as the grocery list switcher. */
   title: ReactNode;
+  /** The line above the title: the date, or how many items (DESIGN 19.7). */
+  eyebrow?: string;
   onOpenSettings: () => void;
   actions?: ReactNode;
   fab?: ReactNode;
@@ -48,52 +37,67 @@ export function TabScaffold({
   testId?: string;
   children: ReactNode;
 }) {
-  const [scrolled, setScrolled] = useState(false);
   const snackbars = useSnackbars();
   const [fabRef, fabSpace] = useFabSpace(Boolean(fab));
-  // Snackbars show above the FAB, as Scaffold places them.
   useEffect(() => {
     if (!fab) return;
-    snackbars.setBottomInset(56 + 16);
+    snackbars.setBottomInset(FAB_INSET_PX);
     return () => snackbars.setBottomInset(0);
   }, [fab, snackbars]);
   return (
     <div
-      className={`sn-screen ${innerScroll ? 'sn-screen--inner-scroll' : ''}`}
+      className={`sn-screen sn-screen--page ${innerScroll ? 'sn-screen--inner-scroll' : ''}`}
       data-testid={testId}
       style={fabSpace}
-      onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
     >
-      <TopAppBar
-        title={title}
-        titleStyle="headline"
-        scrolled={scrolled}
-        actions={
-          <>
-            {actions}
-            <IconButton
-              icon="round/account_circle"
-              // "Open settings, 1 join request waiting", as the app says it (the badge's number isn't read again).
-              label={
-                joinRequests > 0
-                  ? plural('open_settings_with_requests', joinRequests, joinRequests)
-                  : str('open_settings')
-              }
-              badge={joinRequests}
-              onClick={onOpenSettings}
-            />
-          </>
-        }
-      />
-      <ScrolledContext.Provider value={setScrolled}>
-        <main className="sn-screen__content">{children}</main>
-      </ScrolledContext.Provider>
+      <header className="sn-screen-header">
+        <div className="sn-screen-header__titles">
+          {eyebrow && (
+            <p className="t-screen-eyebrow c-on-surface-variant sn-screen-header__eyebrow" data-testid="screen_eyebrow">
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="t-screen-title sn-screen-header__title">{title}</h1>
+        </div>
+        <div className="sn-screen-header__actions">
+          {actions}
+          <SettingsButton joinRequests={joinRequests} onClick={onOpenSettings} />
+        </div>
+      </header>
+      <main className="sn-screen__content">{children}</main>
       {fab && (
         <div className="sn-screen__fab" ref={fabRef}>
           {fab}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The button that opens Settings (DESIGN 6.2, 19.7): a 48 px tonal circle with a person, and the owner's waiting join
+ * requests as a badge. "Open settings, 1 join request waiting", as the app says it; the badge's number isn't read
+ * again.
+ */
+function SettingsButton({ joinRequests, onClick }: { joinRequests: number; onClick: () => void }) {
+  const label =
+    joinRequests > 0 ? plural('open_settings_with_requests', joinRequests, joinRequests) : str('open_settings');
+  return (
+    <button
+      type="button"
+      className="sn-settings-button m3-state"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      onPointerDown={ripple}
+    >
+      <Icon name="round/person" />
+      {joinRequests > 0 && (
+        <span className="m3-badge" aria-hidden>
+          {joinRequests}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -124,7 +128,8 @@ function useFabSpace(hasFab: boolean): [(el: HTMLDivElement | null) => void, CSS
 
 /**
  * A pushed screen (DetailScaffold): a titleLarge title with a back button, and an optional extended FAB or a bar under
- * the content (after v1, UX-12: a bar never covers what scrolls above it).
+ * the content (after v1, UX-12: a bar never covers what scrolls above it). On the page's color, the bar too, until the
+ * screen's own step of the new look (DESIGN 19.7).
  */
 export function DetailScaffold({
   title,
@@ -145,20 +150,19 @@ export function DetailScaffold({
   testId?: string;
   children: ReactNode;
 }) {
-  const [scrolled, setScrolled] = useState(false);
   // Snackbars show above the FAB or the bar; screens before sign-in have neither.
   const snackbars = useOptionalSnackbars();
-  const inset = bottomBar ? BOTTOM_BAR_PX : fab ? 56 + 16 : 0;
+  const inset = bottomBar ? BOTTOM_BAR_PX : fab ? FAB_INSET_PX : 0;
   useEffect(() => {
     if (!inset || !snackbars) return;
     snackbars.setBottomInset(inset);
     return () => snackbars.setBottomInset(0);
   }, [inset, snackbars]);
   const screen = (
-    <div className="sn-screen" data-testid={testId} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+    <div className="sn-screen sn-screen--page" data-testid={testId}>
       <TopAppBar
         title={title}
-        scrolled={scrolled}
+        page
         navigation={<IconButton icon="round/arrow_back" label={str('back')} onClick={onBack} />}
         actions={actions}
       />
@@ -217,11 +221,12 @@ export function QuotaBanner() {
  * status, not the color alone.
  */
 export function LoadError({ onRetry }: { onRetry: () => void }) {
+  // The 2026-11 look (DESIGN 19.11): a rounded banner, first in the screen's content.
   return (
     <div className="sn-load-error" data-testid="load_error" role="alert">
-      <Icon name="round/error_outline" size={20} />
-      <span className="t-body-medium sn-load-error__text">{str('load_error')}</span>
-      <Button variant="text" data-testid="load_error_retry" onClick={onRetry}>
+      <Icon name="round/error_outline" size={22} />
+      <span className="t-body-large sn-load-error__text">{str('load_error')}</span>
+      <Button variant="text" className="t-button-large" data-testid="load_error_retry" onClick={onRetry}>
         {str('action_retry')}
       </Button>
     </div>
@@ -232,8 +237,8 @@ export function LoadError({ onRetry }: { onRetry: () => void }) {
 export function OfflineBanner() {
   return (
     <div className="sn-offline" data-testid="offline_banner" role="status">
-      <Icon name="round/cloud_off" size={16} />
-      <span className="t-body-medium">{str('offline_banner')}</span>
+      <Icon name="round/cloud_off" size={20} />
+      <span className="t-label-large">{str('offline_banner')}</span>
     </div>
   );
 }

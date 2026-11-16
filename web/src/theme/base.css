@@ -8,18 +8,23 @@
   /* Text sizes at 100 %; theme/textScale.ts sets them for the phone's text size (DESIGN 18.2). */
   --sp-11: 11px;
   --sp-12: 12px;
+  --sp-13: 13px;
   --sp-14: 14px;
   --sp-16: 16px;
+  --sp-18: 18px;
   --sp-20: 20px;
   --sp-22: 22px;
   --sp-24: 24px;
   --sp-28: 28px;
+  --sp-30: 30px;
   --sp-32: 32px;
   --sp-36: 36px;
   --sp-40: 40px;
   --sp-44: 44px;
   --sp-45: 45px;
+  --sp-48: 48px;
   --sp-52: 52px;
+  --sp-54: 54px;
   --sp-57: 57px;
   --sp-64: 64px;
   --sn-safe-top: env(safe-area-inset-top, 0px);
@@ -183,6 +188,72 @@ button {
   line-height: var(--sp-16);
   font-weight: 500;
   letter-spacing: 0.03125rem;
+}
+
+/* The 2026-11 look's text styles (DESIGN 19.4; SpoilNotText in the app): heavier titles and tighter numbers than
+   Material's scale has. Manrope's variable font reaches 800 (ExtraBold). */
+.t-screen-title {
+  font-size: var(--sp-30);
+  line-height: var(--sp-40);
+  font-weight: 800;
+  letter-spacing: -0.03125rem;
+}
+.t-screen-eyebrow {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 600;
+}
+.t-group-heading {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 800;
+}
+.t-row-title {
+  font-size: var(--sp-16);
+  line-height: calc(var(--sp-16) * 1.375);
+  font-weight: 700;
+}
+.t-row-supporting {
+  font-size: var(--sp-13);
+  line-height: calc(var(--sp-13) * 1.385);
+  font-weight: 600;
+}
+.t-row-status {
+  font-size: var(--sp-13);
+  line-height: calc(var(--sp-13) * 1.385);
+  font-weight: 800;
+}
+.t-section-title {
+  font-size: var(--sp-18);
+  line-height: var(--sp-24);
+  font-weight: 800;
+}
+.t-card-title {
+  font-size: var(--sp-22);
+  line-height: var(--sp-28);
+  font-weight: 800;
+  letter-spacing: -0.0125rem;
+}
+.t-big-number {
+  font-size: var(--sp-48);
+  line-height: var(--sp-54);
+  font-weight: 800;
+  letter-spacing: -0.09375rem;
+}
+.t-button-large {
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+}
+.t-button-medium {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 700;
+}
+.t-chip-label {
+  font-size: var(--sp-12);
+  line-height: var(--sp-16);
+  font-weight: 700;
 }
 
 .c-on-surface-variant {

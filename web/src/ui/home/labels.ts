@@ -1,6 +1,18 @@
 import { plural, str } from '../../core/i18n';
 import type { ActivityEvent } from '../../domain/home/models';
+import type { LocalDate } from '../../domain/time';
 import { reasonLabel } from '../pantry/labels';
+
+/**
+ * Home's line above its title (DESIGN 19.7; homeDate in the app): today as the phone's language writes a weekday with
+ * its date, "Saturday, Nov 14" in American English.
+ */
+export function homeDate(date: LocalDate, locale?: string): string {
+  const at = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)));
+  return new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(
+    at,
+  );
+}
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;

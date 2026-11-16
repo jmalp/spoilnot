@@ -44,7 +44,7 @@ function WelcomeScreen({ onCreateAccount, onSignIn }: { onCreateAccount: () => v
         <h1 className="sn-welcome__title t-display-medium">{str('web_app_name')}</h1>
         <p className="t-body-large c-on-surface-variant">{str('welcome_tagline')}</p>
         <div className="sn-welcome__space" />
-        <Button full large onClick={onCreateAccount}>
+        <Button primary onClick={onCreateAccount}>
           {str('action_create_account')}
         </Button>
         <Button variant="outlined" full large onClick={onSignIn}>
@@ -82,7 +82,7 @@ function SignInScreen({ onForgotPassword, onBack }: { onForgotPassword: (email: 
         />
         <PasswordField value={password} onValueChange={setPassword} />
         <ErrorText text={action.error && str(action.error)} />
-        <Button type="submit" full large busy={action.busy}>
+        <Button type="submit" primary busy={action.busy}>
           {str('action_sign_in')}
         </Button>
         <Button variant="text" className="sn-auth__secondary" onClick={() => onForgotPassword(email)}>
@@ -141,7 +141,7 @@ function SignUpScreen({ onBack }: { onBack: () => void }) {
           error={submitted && !passwordValid ? str('error_password_short') : undefined}
         />
         <ErrorText text={action.error && str(action.error)} />
-        <Button type="submit" full large busy={action.busy}>
+        <Button type="submit" primary busy={action.busy}>
           {str('action_create_account')}
         </Button>
       </FormColumn>
@@ -179,7 +179,7 @@ function ResetPasswordScreen({ initialEmail, onBack }: { initialEmail: string; o
         />
         {sentTo && <p className="t-body-medium sn-auth__text">{str('reset_sent', sentTo)}</p>}
         <ErrorText text={action.error && str(action.error)} />
-        <Button type="submit" full large busy={action.busy}>
+        <Button type="submit" primary busy={action.busy}>
           {str('action_send_link')}
         </Button>
       </FormColumn>

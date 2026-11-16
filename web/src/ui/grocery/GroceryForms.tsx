@@ -82,7 +82,7 @@ export function AddToPantrySheet({
       <FormSheetColumn
         title={str('grocery_add_to_pantry_title')}
         button={
-          <Button full large onClick={confirm} data-testid="button_confirm_add_to_pantry">
+          <Button primary onClick={confirm} data-testid="button_confirm_add_to_pantry">
             {label}
           </Button>
         }
@@ -255,8 +255,7 @@ export function EditGroceryItemSheet({
         title={str('grocery_edit_item', item.name)}
         button={
           <Button
-            full
-            large
+            primary
             data-testid="button_save_grocery_item"
             onClick={() => {
               if (qtyError || name.trim() === '') return;
