@@ -2,10 +2,7 @@ package com.parcha.spoilnot.feature.pantry.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AcUnit
@@ -17,22 +14,15 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WarningAmber
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
-import com.parcha.spoilnot.core.designsystem.theme.STATUS_TINT_ALPHA
-import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
 import com.parcha.spoilnot.feature.pantry.domain.Amounts
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -96,7 +86,7 @@ fun statusText(expiry: LocalDate?, dateType: DateType, today: LocalDate): String
     }
 }
 
-/** Short text for the chip on a list row. */
+/** The short status a row says in its second line (DESIGN 19.6), such as "Tomorrow" or "2 days". */
 @Composable
 fun chipText(expiry: LocalDate?, dateType: DateType, today: LocalDate): String {
     val status = ExpiryStatus.of(expiry, today)
@@ -121,29 +111,6 @@ fun chipText(expiry: LocalDate?, dateType: DateType, today: LocalDate): String {
 fun formatDate(date: LocalDate, today: LocalDate): String = date.format(
     if (date.year == today.year) DateTimeFormatter.ofPattern("MMM d") else DateTimeFormatter.ofPattern("MMM yyyy"),
 )
-
-/**
- * Status chip: icon, text and the fixed status color, never color alone (DESIGN 6.4). Screen readers get the
- * full wording.
- */
-@Composable
-fun StatusChip(expiry: LocalDate?, dateType: DateType, today: LocalDate, modifier: Modifier = Modifier) {
-    val status = ExpiryStatus.of(expiry, today)
-    val color = SpoilNotStatus.colors.forTone(status.tone())
-    val description = statusText(expiry, dateType, today)
-    Row(
-        modifier = modifier
-            .background(color.copy(alpha = STATUS_TINT_ALPHA), CircleShape)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-            .clearAndSetSemantics { contentDescription = description }
-            .testTag("status_chip"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(status.icon(), contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
-        Text(chipText(expiry, dateType, today), style = MaterialTheme.typography.labelLarge, color = color)
-    }
-}
 
 @StringRes
 fun Location.label(): Int = when (this) {

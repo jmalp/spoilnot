@@ -35,7 +35,8 @@ import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
  * yet, and [onPick] is also called for the chosen button, so a caller can clear the choice.
  *
  * From 1.5× text ([isLargeText]) it is a list of radio buttons, like [Segmented], so labels are never cut off. Each
- * button is a radio button in a group for screen readers either way (DESIGN 6.8).
+ * button is a radio button in a group for screen readers either way (DESIGN 6.8). [optionTag] tags each button for
+ * tests.
  */
 @Composable
 fun <T> ConnectedButtonGroup(
@@ -44,6 +45,7 @@ fun <T> ConnectedButtonGroup(
     optionLabel: @Composable (T) -> String,
     onPick: (T) -> Unit,
     modifier: Modifier = Modifier,
+    optionTag: ((T) -> String)? = null,
 ) {
     if (isLargeText()) {
         Column(modifier.selectableGroup().testTag("connected_list")) {
@@ -52,7 +54,8 @@ fun <T> ConnectedButtonGroup(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
-                        .selectable(option == selected, role = Role.RadioButton) { onPick(option) },
+                        .selectable(option == selected, role = Role.RadioButton) { onPick(option) }
+                        .then(optionTag?.let { Modifier.testTag(it(option)) } ?: Modifier),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(selected = option == selected, onClick = null)
@@ -78,7 +81,8 @@ fun <T> ConnectedButtonGroup(
                         .weight(1f)
                         .heightIn(min = 48.dp)
                         .clip(shape)
-                        .selectable(chosen, role = Role.RadioButton) { onPick(option) },
+                        .selectable(chosen, role = Role.RadioButton) { onPick(option) }
+                        .then(optionTag?.let { Modifier.testTag(it(option)) } ?: Modifier),
                     shape = shape,
                     color = if (chosen) {
                         MaterialTheme.colorScheme.primary
@@ -97,7 +101,8 @@ fun <T> ConnectedButtonGroup(
                             style = SpoilNotText.ButtonMedium,
                             fontWeight = if (chosen) FontWeight.ExtraBold else FontWeight.Bold,
                             textAlign = TextAlign.Center,
-                            maxLines = 1,
+                            // Two lines before 1.5x text turns the group into a list, on narrow phones.
+                            maxLines = 2,
                         )
                     }
                 }

@@ -39,7 +39,15 @@ data class PantryQuery(
     val sort: PantrySort = PantrySort.SoonestExpiry,
     val grouping: PantryGrouping = PantryGrouping.None,
     val search: String = "",
-)
+) {
+    /**
+     * The list as it opens (DESIGN 19.12): soonest expiry first, not grouped, no search and no filter. Only this view
+     * splits into Use first and Everything else.
+     */
+    val isDefaultView: Boolean
+        get() = filter == PantryFilter.All && sort == PantrySort.SoonestExpiry && grouping == PantryGrouping.None &&
+            search.isBlank()
+}
 
 /** A section of the list; [location] or [category] is set when grouping. */
 data class PantryGroup(val location: Location?, val category: Category?, val rows: List<PantryRow>)

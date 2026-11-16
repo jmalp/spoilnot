@@ -16,7 +16,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 
-/** A labelled text field with helper or error text below it. */
+/** A labelled one-line text field with helper or error text below it ([SpoilNotTextField], DESIGN 19.10). */
 @Composable
 fun FormTextField(
     value: String,
@@ -53,19 +52,18 @@ fun FormTextField(
     trailingIcon: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
 ) {
-    OutlinedTextField(
+    SpoilNotTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
-        supportingText = (error ?: helper)?.let { { Text(it) } },
-        isError = error != null,
-        singleLine = true,
+        label = label,
+        helper = helper,
+        error = error,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
         trailingIcon = trailingIcon,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
     )
 }
 

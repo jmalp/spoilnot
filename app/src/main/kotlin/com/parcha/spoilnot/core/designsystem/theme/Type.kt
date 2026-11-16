@@ -73,6 +73,18 @@ object SpoilNotText {
 
     /** The text of a label chip. */
     val ChipLabel = text(FontWeight.Bold, size = 12, lineHeight = 16)
+
+    /** A sheet's title, such as Add item. */
+    val SheetTitle = text(FontWeight.ExtraBold, size = 26, lineHeight = 34, letterSpacing = -0.3)
+
+    /** A dialog's title. */
+    val DialogTitle = text(FontWeight.ExtraBold, size = 24, lineHeight = 32, letterSpacing = -0.3)
+
+    /** The label above a text field or a picker on a form. */
+    val FieldLabel = text(FontWeight.Bold, size = 13, lineHeight = 18)
+
+    /** What is typed in a text field, and a picker's value. */
+    val FieldText = text(FontWeight.SemiBold, size = 17, lineHeight = 24)
 }
 
 /**

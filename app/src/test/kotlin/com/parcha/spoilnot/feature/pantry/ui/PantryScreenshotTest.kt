@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.pantry.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -15,9 +16,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
+import com.parcha.spoilnot.core.designsystem.component.segmentPosition
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
-import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
@@ -53,68 +56,72 @@ class PantryScreenshotTest(private val dark: Boolean, private val fontScale: Flo
 
     private val suffix get() = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
 
-    private fun snap(name: String, content: @Composable () -> Unit) {
+    /** [onSheet]: the color of a sheet, for forms; otherwise the page's (DESIGN 19.2). */
+    private fun snap(name: String, onSheet: Boolean = false, content: @Composable () -> Unit) {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
                     // A Surface, as in the app, so text gets the theme's content color.
-                    Surface { Column { content() } }
+                    val color = if (onSheet) {
+                        MaterialTheme.colorScheme.surfaceContainerLow
+                    } else {
+                        SpoilNotSurfaces.current.page
+                    }
+                    Surface(color = color) { Column { content() } }
                 }
             }
         }
         compose.onRoot().captureRoboImage("${name}_$suffix.png")
     }
 
-    @Test
-    fun statusChips() = snap("status_chips") {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(-3L, 0L, 1L, 3L, 6L, 30L, null).forEach {
-                StatusChip(it?.let(TODAY::plusDays), DateType.UseBy, TODAY)
-            }
-            StatusChip(TODAY.minusDays(1), DateType.BestBefore, TODAY)
-        }
-    }
-
+    /** A group of rows (DESIGN 19.5, 19.6): every status, opened, low, waiting to sync, Out. */
     @Test
     fun pantryRows() = snap("pantry_rows") {
         val products =
             listOf(
                 product("milk"),
                 product("yogurt"),
+                product("rice", location = Location.Pantry, min = 1000.0, unit = QuantityUnit.Grams),
                 product("oil", name = "Olive oil", min = 1.0, location = Location.Pantry),
             )
         val batches = listOf(
-            batch("m1", "milk", quantity = 2.0, inDays = 1),
+            batch("m0", "milk", inDays = -2),
+            batch("m1", "milk", quantity = 2.0, inDays = 1).copy(openedOn = TODAY),
             batch("y1", "yogurt", inDays = 3),
             batch("y2", "yogurt", quantity = 3.0, inDays = 10, location = Location.Freezer).copy(pendingSync = true),
+            batch("r1", "rice", quantity = 500.0, inDays = null, location = Location.Pantry)
+                .copy(unit = QuantityUnit.Grams),
         )
         val actions = BatchActions({}, {}, {}, {}, {})
-        PantryItems.build(products, batches, PantryQuery(), TODAY).flatMap { it.items }.forEach { item ->
-            PantryItemRow(item, TODAY, actions, {})
+        val items = PantryItems.build(products, batches, PantryQuery(), TODAY).flatMap { it.items }
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(ListGroupGap)) {
+            items.forEachIndexed { index, item ->
+                PantryItemRow(item, TODAY, actions, {}, position = segmentPosition(index, items.size))
+            }
         }
     }
 
-    /** The folded expired backlog at the top of the list (after v1). */
+    /** The folded expired backlog, a row of its group (after v1, DESIGN 19.12). */
     @Test
-    fun expiredHeader() = snap("pantry_expired_header") {
-        ExpiredHeader(65, shown = false, onToggle = {})
+    fun expiredFold() = snap("pantry_expired_header") {
+        Column(Modifier.padding(16.dp)) { ExpiredFoldRow(65, shown = false, onToggle = {}) }
     }
 
     @Test
-    fun addItemForm() = snap("add_item_form") {
+    fun addItemForm() = snap("add_item_form", onSheet = true) {
         AddItemForm(emptyList(), emptySet(), TODAY) {}
     }
 
     @Test
-    fun addItemFormForAStaple() = snap("add_item_form_staple") {
+    fun addItemFormForAStaple() = snap("add_item_form_staple", onSheet = true) {
         val eggs = product("eggs", min = 6.0, unit = QuantityUnit.Pieces).copy(buyQuantity = 12.0)
         AddItemForm(listOf(eggs), emptySet(), TODAY, prefill = eggs) {}
     }
 
     /** The Edit window's notice when someone else changed its item (after v1, DESIGN 9.2). */
     @Test
-    fun editChangedNotice() = snap("edit_changed_notice") {
+    fun editChangedNotice() = snap("edit_changed_notice", onSheet = true) {
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ChangedNotice(stringResource(R.string.edit_changed_by, "Sam"), onReview = {})
             ChangedNotice(stringResource(R.string.edit_changed), onReview = {})

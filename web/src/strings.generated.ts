@@ -434,6 +434,8 @@ export const STRINGS = {
   "home_grocery_start": "Turn on Keep some in stock for food you always want at home, and it goes on the list when it runs low.",
   "home_open_pantry": "Open in Pantry",
   "home_use_it_up": "Use it up",
+  "pantry_use_first": "Use first",
+  "pantry_everything_else": "Everything else",
   "pantry_expired_show": "Show",
   "pantry_expired_hide": "Hide",
   "home_use_it_up_uses": "Uses %1$s",
@@ -734,6 +736,10 @@ export const PLURALS = {
   "pantry_expired_count": {
     "one": "%d expired item",
     "other": "%d expired items"
+  },
+  "pantry_eyebrow_items": {
+    "one": "%d item",
+    "other": "%d items"
   },
   "insights_streak_days": {
     "one": "%d day with nothing thrown away",

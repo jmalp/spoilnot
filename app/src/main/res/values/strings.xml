@@ -564,6 +564,14 @@
         <item quantity="one">%d expired item</item>
         <item quantity="other">%d expired items</item>
     </plurals>
+    <!-- The line above Pantry's title (DESIGN 19.7): every row of the unfiltered list. -->
+    <plurals name="pantry_eyebrow_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <!-- The default view's two groups (DESIGN 19.12). -->
+    <string name="pantry_use_first">Use first</string>
+    <string name="pantry_everything_else">Everything else</string>
     <string name="pantry_expired_show">Show</string>
     <string name="pantry_expired_hide">Hide</string>
     <string name="home_use_it_up_uses">Uses %1$s</string>
