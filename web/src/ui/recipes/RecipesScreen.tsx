@@ -7,7 +7,7 @@ import { NameKey } from '../../domain/pantry/rules';
 import { RecipeBox, type RecipeFilter, type RecipeQuery, type RecipeSort } from '../../domain/recipes/box';
 import type { Recipe } from '../../domain/recipes/models';
 import { FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
-import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { EmptyState, LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
 import { RecipeCard } from './components';
 import '../pantry/pantry.css';
 import './recipes.css';
@@ -35,7 +35,6 @@ export function RecipesScreen({
   const snackbars = useSnackbars();
   const box = useObservable(recipes.box$, null);
   const loadFailed = useObservable(recipes.load.failed$, false);
-  const onScroll = useOnInnerScroll();
   const actor = { uid: me.user.uid, name: me.displayName };
 
   const tags = box ? RecipeBox.tags(box.recipes) : [];
@@ -101,7 +100,7 @@ export function RecipesScreen({
             onSelect={(f) => onQueryChange({ ...query, filter: f })}
           />
           {list.length === 0 && <p className="t-body-large sn-recipe-no-matches">{str('recipe_no_matches')}</p>}
-          <div className="sn-recipe-grid" data-testid="recipe_grid" onScroll={onScroll}>
+          <div className="sn-recipe-grid" data-testid="recipe_grid">
             {list.map((recipe) => (
               <RecipeCard
                 key={recipe.id}

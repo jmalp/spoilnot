@@ -104,9 +104,13 @@ test('Needs attention, the Grocery list card, Insights and Recent activity, from
   // This month's kitchen, then Insights with the month details.
   await goHome(page);
   const card = page.getByTestId('card_home_insights');
-  await expect(card).toContainText('3 used · 1 thrown away');
-  await expect(card.getByRole('img')).toHaveAccessibleName('This month: 3 used, 1 thrown away, 75% used.');
-  await card.getByRole('button', { name: 'See your kitchen' }).click();
+  // The whole card is one control, read once: its title and the ring's sentence (DESIGN 19.8).
+  await expect(card).toContainText('75%');
+  await expect(card).toContainText('Used 3');
+  await expect(card).toContainText('Thrown away 1');
+  await expect(card).toHaveRole('button');
+  await expect(card).toHaveAccessibleName('Your kitchen this month, This month: 3 used, 1 thrown away, 75% used.');
+  await card.click();
   await expect(page.getByTestId('screen_insights')).toBeVisible();
   const details = page.getByTestId('insights_month_details');
   await expect(details).toContainText('3 used · 1 thrown away · 75% used');
@@ -126,7 +130,8 @@ test('Needs attention, the Grocery list card, Insights and Recent activity, from
   await goHome(page);
   await expect(page.getByTestId('card_home_activity')).toContainText('You threw away Yogurt (expired)');
   await expect(page.getByTestId('card_home_activity')).toContainText('Just now');
-  await expect(card).toContainText('3 used · 2 thrown away');
+  await expect(card).toContainText('Used 3');
+  await expect(card).toContainText('Thrown away 2');
   await expect(page.getByTestId('home_attention_expired')).toHaveText('1 expired item to throw away or check');
   await expect(attention.getByRole('button', { name: 'See all 3 in Pantry' })).toBeVisible();
 });

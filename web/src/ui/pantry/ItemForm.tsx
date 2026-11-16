@@ -154,7 +154,7 @@ export function AddItemSheet({
       <FormSheetColumn
         title={str('add_item_title')}
         button={
-          <Button full large onClick={save} data-testid="button_save_item">
+          <Button primary onClick={save} data-testid="button_save_item">
             {str('action_add_item')}
           </Button>
         }
@@ -243,7 +243,7 @@ export function EditItemSheet({
       <FormSheetColumn
         title={str('edit_item_title')}
         button={
-          <Button full large onClick={save} data-testid="button_save_item">
+          <Button primary onClick={save} data-testid="button_save_item">
             {str('action_save')}
           </Button>
         }

@@ -17,6 +17,53 @@
   margin: 0 auto;
   padding: 0 var(--sn-safe-right) 0 var(--sn-safe-left);
 }
+/* The tinted page of the 2026-11 look (DESIGN 19.2), on tabs and pushed screens. */
+.sn-screen--page {
+  background: var(--sn-surface-page);
+}
+/* A tab's header (DESIGN 19.7; ScreenHeader in the app): the line above the title, the title, and the actions level
+   with it; 64 px at 100% text like the top app bar it replaces, pinned, on the page's color. */
+.sn-screen-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  flex: none;
+  min-height: calc(64px + var(--sn-screen-top));
+  padding: var(--sn-screen-top) calc(16px + var(--sn-safe-right)) 4px calc(20px + var(--sn-safe-left));
+  background: var(--sn-surface-page);
+  color: var(--md-sys-color-on-surface);
+}
+.sn-screen-header__titles {
+  flex: 1;
+  min-width: 0;
+}
+.sn-screen-header__eyebrow,
+.sn-screen-header__title {
+  margin: 0;
+  overflow-wrap: break-word;
+}
+.sn-screen-header__actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+/* The Settings button (DESIGN 19.7): a 48 px secondaryContainer circle with a person. */
+.sn-settings-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 24px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  cursor: pointer;
+}
 .sn-screen--inner-scroll {
   overflow: hidden;
 }
@@ -79,28 +126,41 @@
 .sn-full {
   min-height: 100%;
 }
+/* "Couldn't load." and Offline as rounded banners first in the content (DESIGN 19.11). */
 .sn-load-error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 8px 2px 16px;
+  gap: 10px;
+  min-height: 56px;
+  margin: 8px calc(16px + var(--sn-safe-right)) 0 calc(16px + var(--sn-safe-left));
+  padding: 4px 6px 4px 16px;
+  border-radius: 20px;
   background: var(--md-sys-color-error-container);
   color: var(--md-sys-color-on-error-container);
   flex: none;
 }
 .sn-load-error__text {
   flex: 1;
+  font-weight: 700;
 }
 .sn-load-error .m3-button--text {
   color: var(--md-sys-color-on-error-container);
+  min-height: 44px;
 }
 .sn-offline {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
+  gap: 10px;
+  min-height: 48px;
+  margin: 8px calc(16px + var(--sn-safe-right)) 0 calc(16px + var(--sn-safe-left));
+  padding: 8px 16px;
+  border-radius: 16px;
   background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
   flex: none;
+}
+.sn-offline .t-label-large {
+  font-weight: 700;
 }
 
 /* The root (SpoilNotRoot): the quota banner (DESIGN 6.7) above whichever top-level screen shows; the screen fills the
@@ -128,8 +188,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: calc(8px + var(--sn-safe-top)) calc(16px + var(--sn-safe-right)) 8px calc(16px + var(--sn-safe-left));
+  /* Full width at the very top, its bottom corners rounded (DESIGN 19.11). */
+  padding: calc(8px + var(--sn-safe-top)) calc(20px + var(--sn-safe-right)) 14px calc(20px + var(--sn-safe-left));
+  border-radius: 0 0 24px 24px;
   background: var(--md-sys-color-error-container);
   color: var(--md-sys-color-on-error-container);
   flex: none;
+}
+.sn-quota .t-body-medium {
+  font-weight: 700;
 }

@@ -87,12 +87,7 @@ export function OpenedSheet({
             : str('opened_new_date', formatDate(byDays, today))}
         </p>
         <p className="t-body-small c-on-surface-variant">{str('opened_remembered', batch.productName)}</p>
-        <Button
-          full
-          large
-          onClick={() => onSave(pieces ? count : batch.quantity, days)}
-          data-testid="button_mark_opened"
-        >
+        <Button primary onClick={() => onSave(pieces ? count : batch.quantity, days)} data-testid="button_mark_opened">
           {str('action_mark_opened')}
         </Button>
       </div>

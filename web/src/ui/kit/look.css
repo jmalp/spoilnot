@@ -1,0 +1,125 @@
+/* The shared pieces of the 2026-11 look (DESIGN 19), measured like the app's core/designsystem. The surfaces are
+   --sn-surface-* from theme.ts (DESIGN 19.2). */
+
+/* List groups (DESIGN 19.5): a row's corners come from its place in the group. */
+.sn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sn-segment {
+  border-radius: 6px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
+}
+.sn-group > .sn-segment:first-child {
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+}
+.sn-group > .sn-segment:last-child {
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+.sn-group--nested > .sn-segment {
+  background: var(--sn-surface-nested-row);
+}
+.sn-group--nested > .sn-segment:first-child {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+.sn-group--nested > .sn-segment:last-child {
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+}
+
+/* Status tile (DESIGN 19.6): the status color at 12% (STATUS_TINT_ALPHA) over the row; a neutral tile for no date. */
+.sn-status-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  color: var(--sn-tone);
+  background: color-mix(in srgb, var(--sn-tone) 12%, var(--sn-surface-row));
+}
+.sn-status-tile--nested {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sn-tone) 12%, var(--sn-surface-nested-row));
+}
+.sn-status-tile--fresh {
+  --sn-tone: var(--sn-status-fresh);
+}
+.sn-status-tile--soon {
+  --sn-tone: var(--sn-status-soon);
+}
+.sn-status-tile--urgent {
+  --sn-tone: var(--sn-status-urgent);
+}
+.sn-status-tile--expired {
+  --sn-tone: var(--sn-status-expired);
+}
+.sn-status-tile--no-date {
+  --sn-tone: var(--sn-status-no-date);
+  background: var(--sn-surface-tile);
+}
+
+/* Cards (DESIGN 19.8). */
+.sn-highlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 12px 12px;
+  border-radius: 28px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.sn-accent-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 24px;
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+.sn-plain-card {
+  border-radius: 24px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The leaf (DESIGN 19.3): two opposite corners round and the other two at 15%. */
+.sn-leaf-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50% 15% 50% 15%;
+  background: var(--md-sys-color-on-tertiary-container);
+  color: var(--md-sys-color-tertiary-container);
+}
+
+/* Label chips (DESIGN 19.10). */
+.sn-label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.sn-label-chip:has(.m3-icon) {
+  padding-left: 6px;
+}
+.sn-label-chip--source {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+.sn-label-chip--person {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}

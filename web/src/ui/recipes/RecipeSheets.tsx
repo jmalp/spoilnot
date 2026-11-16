@@ -44,8 +44,7 @@ export function CookedSheet({
         title={str('recipe_cooked_title')}
         button={
           <Button
-            full
-            large
+            primary
             data-testid="recipe_cooked_use"
             onClick={() => {
               if (use.size > 0 || markCooked) onUse(use);
@@ -147,8 +146,7 @@ export function AddToGrocerySheet({
           title={title}
           button={
             <Button
-              full
-              large
+              primary
               data-testid="recipe_add_items"
               // A button for nothing says what to do instead (after v1, UX-18: it read "Add 0 items").
               disabled={count === 0}

@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { monthName, percent } from '../insights/labels';
 import type { ActivityEvent } from '../../domain/home/models';
-import { activityText, relativeTime } from './labels';
+import { activityText, homeDate, relativeTime } from './labels';
+
+describe('homeDate', () => {
+  it('is today as the phone writes a weekday with its date (DESIGN 19.7)', () => {
+    expect(homeDate('2026-11-14', 'en-US')).toBe('Saturday, Nov 14');
+    const british = homeDate('2026-11-14', 'en-GB');
+    expect(british.startsWith('Saturday')).toBe(true);
+    expect(british.indexOf('14')).toBeLessThan(british.indexOf('Nov'));
+    expect(homeDate('2026-11-14', 'es-ES')).toContain('sábado');
+  });
+
+  it('keeps the calendar day in any time zone', () => {
+    expect(homeDate('2026-01-01', 'en-US')).toBe('Thursday, Jan 1');
+  });
+});
 
 describe('relativeTime', () => {
   const now = new Date(2026, 9, 12, 15, 0).getTime();

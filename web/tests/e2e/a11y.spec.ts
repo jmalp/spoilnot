@@ -28,7 +28,8 @@ const AX5 = 3.12;
 async function shot(page: Page, name: string) {
   if (process.env.CI) return;
   await page.waitForTimeout(600); // the tab's ripple and any highlight settle
-  await expect(page).toHaveScreenshot(name);
+  // Home's line above the title is today's date (DESIGN 19.7).
+  await expect(page).toHaveScreenshot(name, { mask: [page.getByTestId('screen_eyebrow')] });
 }
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -109,11 +110,12 @@ test('at the largest text size what sits beside a name goes under it, and nothin
     expect(fits, `${name} on one line, whole`).toBe(true);
   }
 
-  // Home: the chip under the name, inside the card; Running low's badge under the name; Review under its sentence.
+  // Home: the status words under the name, inside the card (DESIGN 19.6); Running low's badge under the name; Review
+  // under its sentence.
   const attention = page.getByTestId('card_home_attention');
   const chips = page.getByTestId('home_attention_row').filter({ hasText: 'Tortilla chips' });
-  await expectBelow(chips.getByTestId('status_chip'), chips.locator('.sn-home-row__name'));
-  await expectInside(chips.getByTestId('status_chip'), attention);
+  await expectBelow(chips.getByTestId('home_attention_status'), chips.locator('.sn-home-row__name'));
+  await expectInside(chips.getByTestId('home_attention_status'), attention);
   const low = page.getByTestId('home_low_row').first();
   await expectBelow(low.locator('.sn-badge'), low.locator('.sn-home-row__name'));
   const join = page.getByTestId('card_home_join_requests');

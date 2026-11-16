@@ -62,7 +62,8 @@ for (const dark of [false, true]) {
       // Loaded: the skeleton is gone and this month's card has its (empty) counts.
       await expect(page.getByTestId('card_home_insights')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId('home_skeleton')).toHaveCount(0);
-      await shot(page, `home_${suffix}`);
+      // Home's line above the title is today's date (DESIGN 19.7).
+      await shot(page, `home_${suffix}`, ['screen_eyebrow']);
       await page.getByTestId('card_install').getByRole('button', { name: 'Not now' }).click();
 
       // Dates relative to today, so the chips read the same on every run.
@@ -94,11 +95,11 @@ for (const dark of [false, true]) {
       await seedStats(hid, uid, lastMonth, { used: 12, thrown: { expired: 3, spoiled: 1 }, byDay: { 3: 4 } });
       await seedActivity(hid, uid, 'Sam', { type: 'stock_added', name: 'Greek yogurt' });
       await page.getByRole('navigation').getByRole('button', { name: 'Home' }).click();
-      await expect(page.getByTestId('card_home_insights')).toContainText('3 used');
+      await expect(page.getByTestId('card_home_insights')).toContainText('Used 3');
       await expect(page.getByTestId('card_home_activity')).toContainText('Greek yogurt');
       await page.waitForTimeout(800); // the ring's grow animation
-      await shot(page, `home_cards_${suffix}`);
-      await page.getByTestId('card_home_insights').getByRole('button', { name: 'See your kitchen' }).click();
+      await shot(page, `home_cards_${suffix}`, ['screen_eyebrow']);
+      await page.getByTestId('card_home_insights').click();
       await expect(page.getByTestId('insights_month_details')).toContainText('3 used');
       await page.waitForTimeout(800);
       const barLabels = page.locator('.sn-month-bar__label');

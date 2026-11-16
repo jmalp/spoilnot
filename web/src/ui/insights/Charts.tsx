@@ -74,6 +74,7 @@ export function UsageRing({
   description,
   size,
   small = false,
+  colors = { used: USED, thrown: THROWN, track: TRACK },
 }: {
   used: number;
   thrown: number;
@@ -81,6 +82,8 @@ export function UsageRing({
   description: string;
   size: number;
   small?: boolean;
+  /** The arcs' and track's colors; Home's card passes its own for the primary background (DESIGN 19.8). */
+  colors?: { used: string; thrown: string; track: string };
 }) {
   const grow = useGrow(`${used}/${thrown}`);
   const stroke = size * 0.12;
@@ -93,15 +96,21 @@ export function UsageRing({
   return (
     <div className="sn-ring" role="img" aria-label={description} style={{ width: size, height: size }}>
       <svg width={size} height={size} aria-hidden>
-        <circle cx={c} cy={c} r={r} fill="none" stroke={TRACK} strokeWidth={stroke} />
+        <circle cx={c} cy={c} r={r} fill="none" stroke={colors.track} strokeWidth={stroke} />
         {usedSweep > 0 && (
-          <path d={arc(c, r, -90, usedSweep)} fill="none" stroke={USED} strokeWidth={stroke} strokeLinecap="butt" />
+          <path
+            d={arc(c, r, -90, usedSweep)}
+            fill="none"
+            stroke={colors.used}
+            strokeWidth={stroke}
+            strokeLinecap="butt"
+          />
         )}
         {thrown > 0 && thrownSweep > 0 && (
           <path
             d={arc(c, r, -90 + usedSweep, thrownSweep)}
             fill="none"
-            stroke={THROWN}
+            stroke={colors.thrown}
             strokeWidth={stroke}
             strokeDasharray={`${dash} ${dash / 2}`}
           />

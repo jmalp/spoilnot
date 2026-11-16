@@ -252,7 +252,7 @@ export function MealSheet({
             autoCapitalize="sentences"
             enterKeyHint="done"
           />
-          <Button full large data-testid="plan_save_meal" onClick={() => onSave(servings, cooks, note)}>
+          <Button primary data-testid="plan_save_meal" onClick={() => onSave(servings, cooks, note)}>
             {str('plan_save')}
           </Button>
           {meal.cookedAt === null ? (
@@ -416,8 +416,7 @@ export function WeekGrocerySheet({
           title={str('plan_shop_title')}
           button={
             <Button
-              full
-              large
+              primary
               data-testid="plan_add_items"
               // A button for nothing says what to do instead (after v1, UX-18: it read "Add 0 items").
               disabled={count === 0}

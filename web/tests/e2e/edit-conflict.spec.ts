@@ -56,10 +56,13 @@ test("the Edit window keeps Blake's use, says so, and Review shows it", async ({
   await expect(notice).toHaveCount(0);
 
   await sheet.getByTestId('field_expiry').click();
+  // A day of the month other than the current expiry's: the 21st always was, and on the 16th of a month that is the
+  // expiry itself (in 5 days), so nothing changed and the check below failed.
+  const day = Number(inDays(5).slice(8, 10)) === 10 ? 11 : 10;
   await page
     .getByRole('dialog')
     .getByRole('button', { name: /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/ })
-    .nth(20)
+    .nth(day - 1)
     .click();
   await page.getByTestId('date_ok').click();
   await sheet.getByTestId('button_save_item').click();

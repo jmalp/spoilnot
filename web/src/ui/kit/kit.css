@@ -131,6 +131,16 @@
   min-height: 48px;
   border-radius: 24px;
 }
+/* A screen's or sheet's main button (DESIGN 19.9; PrimaryButton in the app): full width, filled, at least 56 px,
+   ButtonLarge. */
+.m3-button--primary {
+  min-height: 56px;
+  border-radius: 28px;
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+  letter-spacing: 0;
+}
 .m3-button:disabled {
   background: transparent;
   color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
@@ -169,26 +179,27 @@
   cursor: default;
 }
 
-/* Extended FAB: 56 px, 16 px corners, primaryContainer, elevation 3. */
+/* Extended FAB in the 2026-11 look (DESIGN 19.9; SpoilNotFab in the app): 64 px, 22 px corners, primary, elevation 3,
+   ButtonLarge. */
 .m3-fab {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   /* Grows with large text instead of cutting its words; lists leave room for it as measured (TabScaffold). */
-  min-height: 56px;
+  min-height: 64px;
   min-width: 80px;
   max-width: calc(100vw - 32px);
-  padding: 8px 20px 8px 16px;
+  padding: 8px 24px 8px 20px;
   text-align: start;
   border: none;
-  border-radius: 16px;
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+  border-radius: 22px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   box-shadow: var(--sn-elevation-3);
-  font-size: var(--sp-14);
-  line-height: var(--sp-20);
-  font-weight: 500;
-  letter-spacing: 0.00625rem;
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 /* Cards: 16 px corners (DESIGN 6.4). */
@@ -228,6 +239,11 @@
 }
 .m3-top-app-bar--scrolled {
   background: var(--md-sys-color-surface-container);
+}
+/* Pushed screens in the 2026-11 look (DESIGN 19.7): on the page's color, which doesn't change while content scrolls. */
+.m3-top-app-bar--page,
+.m3-top-app-bar--page.m3-top-app-bar--scrolled {
+  background: var(--sn-surface-page);
 }
 .m3-top-app-bar__title {
   flex: 1;
@@ -278,9 +294,10 @@
   isolation: isolate;
   transition: background-color 200ms var(--sn-motion-standard);
 }
+/* The 2026-11 look (DESIGN 19.11): the current tab's indicator is primaryContainer. */
 .m3-navigation-bar__item[aria-current='page'] .m3-navigation-bar__indicator {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 .m3-navigation-bar__item[aria-current='page'] .m3-navigation-bar__label {
   color: var(--md-sys-color-on-surface);
@@ -312,7 +329,8 @@
   border-radius: 8px;
   background: var(--md-sys-color-error);
   color: var(--md-sys-color-on-error);
-  font-size: var(--sp-11);
+  /* The badge has a fixed size, so its number grows only to 1.2x text (13.2 px), like tab labels (DESIGN 19.7). */
+  font-size: min(var(--sp-11), 13.2px);
   line-height: 16px;
   font-weight: 500;
   text-align: center;
@@ -682,7 +700,7 @@
   color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
 }
 
-/* Snackbars: inverseSurface, 4 px corners, an inversePrimary action, above the navigation bar. */
+/* Snackbars: inverseSurface, 18 px corners (DESIGN 19.11), an inversePrimary action, above the navigation bar. */
 .m3-snackbar-host {
   position: absolute;
   left: 0;
@@ -701,8 +719,8 @@
   width: 100%;
   max-width: 600px;
   min-height: 48px;
-  padding: 6px 8px 6px 16px;
-  border-radius: 4px;
+  padding: 6px 8px 6px 18px;
+  border-radius: 18px;
   background: var(--md-sys-color-inverse-surface);
   color: var(--md-sys-color-inverse-on-surface);
   box-shadow: var(--sn-elevation-3);

@@ -445,6 +445,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     corners above it. Turn on airplane mode: the Offline banner is a rounded strip under the header. Join from another
     account as the owner's household: the Settings button shows the badge, which stays readable at 2× text. Dark mode
     and a preset color theme (Fiery Palette): the same, in their colors.
+64. The new look, step 2 on the iPhone (web, after v1, 2026-11-16, DESIGN 18.2, 19.7 to 19.12): flow 63 in the Home
+    Screen app on an iPhone, with VoiceOver instead of TalkBack: Home's line above the title is today's date in the
+    iPhone's language; VoiceOver reads the first Needs attention row as one sentence and never the count alone, and
+    Your kitchen as one button ("Your kitchen this month, This month: … used") that opens Your kitchen. In Safari (not
+    installed), the Add Spoil Not to your Home Screen card is a plain white card above Needs attention. Settings >
+    Accessibility > Larger Text at the largest size: the header grows with the text, Today's tiles stack, and the
+    Settings badge's number stays inside its dot. Scroll Pantry: the header keeps the page's color.
 
 ## 3. Conditions
 

@@ -19,7 +19,7 @@ import { checkEdit, itemEditOf, type ItemEditBase } from '../../domain/pantry/ed
 import type { PantryData, Product, StockBatch } from '../../domain/pantry/models';
 import type { Undo } from '../../domain/write';
 import { Button, Fab, FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
-import { EmptyState, LoadError, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { EmptyState, LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
 import { categoryLabel, locationLabel } from './labels';
 import { AddItemSheet, EditItemSheet } from './ItemForm';
 import { OpenedSheet } from './OpenedSheet';
@@ -181,7 +181,7 @@ export function PantryScreen({
         <div className="sn-centered">{!failed && <Progress />}</div>
       ) : empty ? (
         <EmptyState icon="outlined/kitchen" message={str('pantry_empty_body')}>
-          <Button full large data-testid="button_add_first_item" onClick={() => setAdding({ prefill: null })}>
+          <Button primary data-testid="button_add_first_item" onClick={() => setAdding({ prefill: null })}>
             {str('action_add_first_item')}
           </Button>
         </EmptyState>
@@ -342,7 +342,6 @@ function PantryList({
   actions: BatchActions;
   onOpen: (item: PantryItem) => void;
 }) {
-  const onScroll = useOnInnerScroll();
   const [showExpired, setShowExpired] = useState(false);
   // Rows another phone changed get a short highlight (DESIGN 6.4).
   const batches = useMemo(
@@ -359,7 +358,7 @@ function PantryList({
   // A backlog of expired food folds into one header; its rows show on request.
   const fold = ExpiredFold.of(groups, query);
   return (
-    <div className="sn-pantry-list" data-testid="pantry_list" onScroll={onScroll}>
+    <div className="sn-pantry-list" data-testid="pantry_list">
       {fold && (
         <>
           <ExpiredHeader
