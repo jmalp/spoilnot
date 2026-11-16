@@ -452,6 +452,22 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     installed), the Add Spoil Not to your Home Screen card is a plain white card above Needs attention. Settings >
     Accessibility > Larger Text at the largest size: the header grows with the text, Today's tiles stack, and the
     Settings badge's number stays inside its dot. Scroll Pantry: the header keeps the page's color.
+65. The new look, step 3: Pantry (Android, after v1, 2026-11-16, DESIGN 5.2, 19.6, 19.9 to 19.12): with milk
+    expiring tomorrow, yogurt in 2 days, eggs in 6 days and rice with no date, Pantry's header says "4 items" above
+    the title, and the list has two groups: "Use first" (milk, yogurt) and "Everything else" (eggs, rice). Each row
+    starts with a tile and says its status in words, then the location ("Tomorrow · Fridge"); rice says "No expiry
+    date · Pantry". TalkBack reads a row as one sentence ("Milk, 2 pieces, Expires tomorrow, Fridge"), "double tap to
+    Edit", and the ⋮ separately; headings navigation jumps from Use first to Everything else. Add three expired items:
+    "3 expired items" with Show is Use first's first row; Show puts them under it. Throw everything in Use first
+    away: no headings. Sort by name, group by location, type in the search or choose a filter: the two groups go
+    (location groups keep their headings, pinned while scrolling). A staple at 0 says "Out · Pantry" in red. Swipe a
+    row right and left: the tint fills the row's rounded shape. Add item: the labels sit above the fields, − and +
+    join the quantity, the quick dates are joined buttons (tap the chosen one again to clear it), the chosen location
+    is a filled green tile; leave Name empty and save: its box turns red with an icon and "Enter a name.". Throw away:
+    the dialog's reasons are rows. Mark opened: − and + join the count, the choices are chips. At 2× text: the quick
+    dates are radio buttons, "× 2" never breaks, the location tiles are a 2 by 2 grid. Sign in, the gate and Edit on
+    Groceries show the same fields. Dark mode and Fiery Palette: the same in their colors; a dialog's rows stand off
+    the dialog.
 
 ## 3. Conditions
 

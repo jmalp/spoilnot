@@ -33,6 +33,9 @@ object SpoilNotCorners {
 
     /** The joined corners of a connected button group. */
     val Connected = 8.dp
+
+    /** A filter chip that isn't chosen; a chosen one is fully round. */
+    val FilterChip = 12.dp
 }
 
 /**

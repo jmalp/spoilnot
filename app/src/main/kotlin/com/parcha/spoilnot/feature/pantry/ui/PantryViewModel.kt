@@ -89,6 +89,8 @@ class PantryViewModel @Inject constructor(
         val groups: List<PantryItemGroup> = emptyList(),
         /** Nothing in the pantry at all (not just filtered out). */
         val pantryEmpty: Boolean = false,
+        /** Rows of the unfiltered list, for the line above the title (DESIGN 19.7). */
+        val itemCount: Int = 0,
         val offline: Boolean = false,
         val query: PantryQuery = PantryQuery(),
         val today: LocalDate = LocalDate.MIN,
@@ -163,6 +165,7 @@ class PantryViewModel @Inject constructor(
                 loading = false,
                 groups = PantryItems.build(all, query),
                 pantryEmpty = all.isEmpty(),
+                itemCount = all.size,
                 offline = data.fromCache,
                 query = query,
                 today = today,

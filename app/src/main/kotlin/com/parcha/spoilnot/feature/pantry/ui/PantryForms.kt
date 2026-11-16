@@ -3,11 +3,12 @@ package com.parcha.spoilnot.feature.pantry.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -20,12 +21,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Sync
@@ -36,15 +39,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -64,12 +60,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -77,13 +75,26 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.ConnectedButtonGroup
+import com.parcha.spoilnot.core.designsystem.component.FieldBorderWidth
+import com.parcha.spoilnot.core.designsystem.component.FieldBox
+import com.parcha.spoilnot.core.designsystem.component.FieldLabel
+import com.parcha.spoilnot.core.designsystem.component.FieldMessage
+import com.parcha.spoilnot.core.designsystem.component.FieldMinHeight
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
-import com.parcha.spoilnot.core.designsystem.component.Segmented
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotTextField
+import com.parcha.spoilnot.core.designsystem.component.errorSemantics
+import com.parcha.spoilnot.core.designsystem.component.fieldLabelColor
 import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.feature.grocery.domain.AisleGuess
 import com.parcha.spoilnot.feature.pantry.domain.Amounts
 import com.parcha.spoilnot.feature.pantry.domain.Category
@@ -435,7 +446,7 @@ private fun ItemFields(
     val qtyBad = qty == null || if (allowZero) qty < 0 else qty <= 0
     val qtyError = if (form.submitted && qtyBad) stringResource(R.string.error_quantity) else null
     NameField(form.name, { form.name = it }, products, nameError, onChoose = onChooseProduct, focus = focusName)
-    // A compact stepper next to the unit (after v1): the amount needs a few digits, not the full width.
+    // A compact stepper beside the unit (after v1): the amount needs a few digits, not the full width.
     val unitField = @Composable { modifier: Modifier ->
         Box(modifier) {
             EnumDropdown(
@@ -450,11 +461,11 @@ private fun ItemFields(
         }
     }
     if (isLargeText()) {
-        QuantityRow(form.quantity, { form.quantity = it }, qtyError, compact = false)
+        QuantityStepper(form.quantity, { form.quantity = it }, qtyError, fill = true)
         unitField(Modifier.fillMaxWidth())
     } else {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            QuantityRow(form.quantity, { form.quantity = it }, qtyError)
+            QuantityStepper(form.quantity, { form.quantity = it }, qtyError)
             unitField(Modifier.weight(1f))
         }
     }
@@ -488,9 +499,10 @@ private fun AutoAddFields(form: ItemFormState) {
             .toggleable(value = form.autoAdd, role = Role.Switch, onValueChange = { form.autoAdd = it })
             .testTag("switch_auto_add"),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.field_auto_add), style = MaterialTheme.typography.bodyLarge)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(R.string.field_auto_add), style = SpoilNotText.RowTitle)
             if (!form.autoAdd) {
                 Text(
                     stringResource(R.string.field_auto_add_help),
@@ -502,7 +514,7 @@ private fun AutoAddFields(form: ItemFormState) {
         Switch(checked = form.autoAdd, onCheckedChange = null)
     }
     AnimatedVisibility(form.autoAdd) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(FormFieldGap)) {
             FormTextField(
                 value = form.keepAtLeast,
                 onValueChange = { form.keepAtLeast = it },
@@ -524,7 +536,13 @@ private fun AutoAddFields(form: ItemFormState) {
     }
 }
 
-/** Scrollable fields with the save button pinned below them, so saving never needs a scroll. */
+/** The space between two fields of a form sheet (DESIGN 19.10). */
+private val FormFieldGap = 18.dp
+
+/**
+ * Scrollable fields with the save button pinned below them, so saving never needs a scroll. The title in
+ * [SpoilNotText.SheetTitle], 20 dp from the sheet's sides (DESIGN 19.11).
+ */
 @Composable
 private fun FormSheetColumn(title: String, button: @Composable () -> Unit, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
@@ -532,13 +550,13 @@ private fun FormSheetColumn(title: String, button: @Composable () -> Unit, conte
             Modifier
                 .weight(1f, fill = false)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 20.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(FormFieldGap),
         ) {
-            Text(title, style = MaterialTheme.typography.headlineSmall)
+            Text(title, style = SpoilNotText.SheetTitle)
             content()
         }
-        Column(Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) { button() }
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp)) { button() }
     }
 }
 
@@ -572,23 +590,22 @@ private fun NameField(
         }.sortedBy { !it.nameKey.startsWith(key) }.take(5)
     }
     ExposedDropdownMenuBox(expanded = open && suggestions.isNotEmpty(), onExpandedChange = { open = it }) {
-        OutlinedTextField(
+        SpoilNotTextField(
             value = name,
             onValueChange = {
                 onChange(it)
                 open = true
             },
-            label = { Text(stringResource(R.string.field_name)) },
-            isError = error != null,
-            supportingText = error?.let { { Text(it) } },
-            singleLine = true,
+            label = stringResource(R.string.field_name),
+            error = error,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Sentences,
                 imeAction = ImeAction.Next,
             ),
-            modifier = Modifier.fillMaxWidth().menuAnchor(
-                ExposedDropdownMenuAnchorType.PrimaryEditable,
-            ).focusRequester(focusRequester).testTag("field_name"),
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                .focusRequester(focusRequester)
+                .testTag("field_name"),
         )
         ExposedDropdownMenu(expanded = open && suggestions.isNotEmpty(), onDismissRequest = { open = false }) {
             suggestions.forEach { product ->
@@ -604,40 +621,129 @@ private fun NameField(
     }
 }
 
-/** Stepper plus keyboard; decimals allowed (DESIGN 5.2). */
+/**
+ * Quantity as a stepper (DESIGN 19.9): − and + joined to the typed amount, its label above; decimals allowed (5.2).
+ * One text field for screen readers, named by its label, with − and + as their own buttons. [fill] stretches the
+ * amount across the row, at large text sizes.
+ */
 @Composable
-private fun QuantityRow(value: String, onChange: (String) -> Unit, error: String?, compact: Boolean = true) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        IconButton(onClick = { parseQuantity(value)?.let { onChange(formatQuantity((it - 1).coerceAtLeast(0.0))) } }) {
-            Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.action_minus_one))
-        }
-        FormTextField(
-            value = value,
-            onValueChange = onChange,
-            label = stringResource(R.string.field_quantity),
-            error = error,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-            // Compact beside the unit; the full width when stacked at large text sizes.
-            modifier = (if (compact) Modifier.width(96.dp) else Modifier.weight(1f)).testTag("field_quantity"),
-        )
-        IconButton(onClick = { onChange(formatQuantity((parseQuantity(value) ?: 0.0) + 1)) }) {
-            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.action_plus_one))
-        }
+private fun QuantityStepper(value: String, onChange: (String) -> Unit, error: String?, fill: Boolean = false) {
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
+    val colors = MaterialTheme.colorScheme
+    val boxShape = RoundedCornerShape(SpoilNotCorners.Connected)
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        modifier = Modifier
+            .then(if (fill) Modifier.fillMaxWidth() else Modifier)
+            .semantics(mergeDescendants = true) {}
+            .errorSemantics(error)
+            .testTag("field_quantity"),
+        singleLine = true,
+        textStyle = StepperValue.merge(TextStyle(color = colors.onSurface, textAlign = TextAlign.Center)),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+        interactionSource = interactions,
+        cursorBrush = SolidColor(if (error != null) colors.error else colors.primary),
+        decorationBox = { inner ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FieldLabel(stringResource(R.string.field_quantity), color = fieldLabelColor(focused, error != null))
+                Row(
+                    if (fill) Modifier.fillMaxWidth() else Modifier,
+                    horizontalArrangement = Arrangement.spacedBy(ListGroupGap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    StepButton(Icons.Rounded.Remove, stringResource(R.string.action_minus_one), start = true) {
+                        parseQuantity(value)?.let { onChange(formatQuantity((it - 1).coerceAtLeast(0.0))) }
+                    }
+                    Box(
+                        (if (fill) Modifier.weight(1f) else Modifier.width(StepperValueWidth))
+                            .heightIn(min = FieldMinHeight)
+                            .background(SpoilNotSurfaces.current.field, boxShape)
+                            .border(
+                                FieldBorderWidth,
+                                when {
+                                    error != null -> colors.error
+                                    focused -> colors.primary
+                                    else -> Color.Transparent
+                                },
+                                boxShape,
+                            )
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { inner() }
+                    StepButton(Icons.Rounded.Add, stringResource(R.string.action_plus_one), start = false) {
+                        onChange(formatQuantity((parseQuantity(value) ?: 0.0) + 1))
+                    }
+                }
+                FieldMessage(error = error, helper = null)
+            }
+        },
+    )
+}
+
+/** − or + of a stepper: 56 dp, `secondaryContainer`, fully round on the outside and 8 dp where it joins the value. */
+@Composable
+internal fun StepButton(
+    icon: ImageVector,
+    label: String,
+    start: Boolean,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val round = CornerSize(percent = 50)
+    val joined = CornerSize(SpoilNotCorners.Connected)
+    val shape = if (start) {
+        RoundedCornerShape(topStart = round, topEnd = joined, bottomEnd = joined, bottomStart = round)
+    } else {
+        RoundedCornerShape(topStart = joined, topEnd = round, bottomEnd = round, bottomStart = joined)
+    }
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = shape,
+        color = MaterialTheme.colorScheme.secondaryContainer.let { if (enabled) it else it.copy(alpha = 0.5f) },
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer.let {
+            if (enabled) it else it.copy(alpha = 0.38f)
+        },
+        modifier = modifier.size(FieldMinHeight).semantics { role = Role.Button },
+    ) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = label) }
     }
 }
 
-/** Date picker plus quick chips (DESIGN 5.2). */
+/** The typed amount of a stepper: larger and heavier than a field's text. */
+private val StepperValue = SpoilNotText.FieldText.copy(
+    fontSize = 20.sp,
+    lineHeight = 28.sp,
+    fontWeight = FontWeight.ExtraBold,
+)
+
+/** The amount's width between − and +: room for a few digits. */
+private val StepperValueWidth = 72.dp
+
+/**
+ * The expiration date (DESIGN 5.2, 19.10): a picker that looks like a field, with the date and its status, then the
+ * quick dates.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDate?) -> Unit) {
     var picking by rememberSaveable { mutableStateOf(false) }
+    val shape = RoundedCornerShape(SpoilNotCorners.Field)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.field_expiry), style = MaterialTheme.typography.labelLarge)
-        OutlinedButton(
-            onClick = { picking = true },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("field_expiry"),
+        FieldLabel(stringResource(R.string.field_expiry))
+        FieldBox(
+            focused = false,
+            isError = false,
+            endPadding = 12.dp,
+            modifier = Modifier
+                .clip(shape)
+                .clickable(role = Role.Button) { picking = true }
+                .testTag("field_expiry"),
         ) {
-            Icon(Icons.Rounded.CalendarMonth, contentDescription = null)
+            Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Text(
                 // Far-off dates read as the date itself; show it once ("Nov 2", not "Nov 2 · Nov 2").
                 value?.let {
@@ -646,7 +752,15 @@ private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDat
                     if (status == date) date else "$date · $status"
                 }
                     ?: stringResource(R.string.status_no_date),
-                Modifier.padding(start = 8.dp),
+                style = SpoilNotText.FieldText,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f).padding(vertical = 14.dp),
+            )
+            Icon(
+                Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
             )
         }
         DateChips(value, today, onChange)
@@ -673,9 +787,10 @@ private fun ExpiryField(value: LocalDate?, today: LocalDate, onChange: (LocalDat
 }
 
 /**
- * The quick date chips, shared by Add item and Add to pantry: four equal chips in one row (two rows at large text
- * sizes). Tapping the chosen one again clears the date; there is no "No expiry" chip because no date is the default
- * and the date button already says so (beta feedback).
+ * The quick dates, shared by Add item and Add to pantry: a connected group of four (DESIGN 19.9), a list of radio
+ * buttons from 1.5× text. One date at a time, radio buttons for screen readers (review A11Y-08). Tapping the chosen
+ * one again clears the date; there is no "No expiry" choice because no date is the default and the date picker
+ * already says so (beta feedback).
  */
 @Composable
 internal fun DateChips(value: LocalDate?, today: LocalDate, onChange: (LocalDate?) -> Unit) {
@@ -685,73 +800,24 @@ internal fun DateChips(value: LocalDate?, today: LocalDate, onChange: (LocalDate
         R.string.chip_plus_2_weeks to today.plusWeeks(2),
         R.string.chip_plus_1_month to today.plusMonths(1),
     )
-    val perRow = if (LocalDensity.current.fontScale >= DATE_CHIPS_TWO_ROWS_FONT_SCALE) 2 else options.size
-    // One date at a time: radio buttons in a group, so TalkBack says "1 of 4" (review A11Y-08: they were checkboxes).
-    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.chunked(perRow).forEach { line ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                line.forEach { (label, date) ->
-                    val selected = value == date
-                    ToggleTile(
-                        text = stringResource(label),
-                        selected = selected,
-                        onClick = { onChange(if (selected) null else date) },
-                        modifier = Modifier.weight(1f).testTag("date_chip_$date"),
-                    )
-                }
-            }
-        }
-    }
+    ConnectedButtonGroup(
+        options = options,
+        selected = options.firstOrNull { it.second == value },
+        optionLabel = { stringResource(it.first) },
+        onPick = { (_, date) -> onChange(if (date == value) null else date) },
+        optionTag = { "date_chip_${it.second}" },
+    )
 }
-
-/**
- * A compact tile for equal-width rows (the date chips): Material chips' fixed padding cut "+2 weeks" short in a
- * quarter of the row. Chosen: border, fill and a bold label, so it never depends on color alone. A radio button for
- * screen readers; tapping the chosen one again still clears it.
- */
-@Composable
-private fun ToggleTile(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = MaterialTheme.shapes.small
-    Box(
-        modifier
-            .clip(shape)
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                shape,
-            )
-            .selectable(selected, role = Role.RadioButton, onClick = onClick)
-            .heightIn(min = 48.dp)
-            .padding(horizontal = 4.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (selected) FontWeight.Bold else null,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-        )
-    }
-}
-
-/** From this font scale the four date chips no longer fit one row. */
-private const val DATE_CHIPS_TWO_ROWS_FONT_SCALE = 1.3f
 
 /**
  * Location as four equal tiles, icon over label, in one row (a 2 by 2 grid at large text sizes; after v1, replacing
- * chips that wrapped "Other" onto a line of its own). The chosen one has a border, a fill and a bold label.
+ * chips that wrapped "Other" onto a line of its own). The chosen one is filled `primaryContainer`, rounder and
+ * heavier (DESIGN 19.10), so it never depends on color alone.
  */
 @Composable
 internal fun LocationChoice(selected: Location, onPick: (Location) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.field_location), style = MaterialTheme.typography.labelLarge)
+        FieldLabel(stringResource(R.string.field_location))
         val rows = if (isLargeText()) 2 else 1
         Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Location.entries.chunked(Location.entries.size / rows).forEach { line ->
@@ -767,38 +833,36 @@ internal fun LocationChoice(selected: Location, onPick: (Location) -> Unit) {
 
 @Composable
 private fun LocationTile(location: Location, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    val shape = MaterialTheme.shapes.medium
+    val shape = RoundedCornerShape(if (selected) SpoilNotCorners.Highlight else SpoilNotCorners.Field)
+    val colors = MaterialTheme.colorScheme
+    val content = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant
     Column(
         modifier
             .clip(shape)
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                shape,
-            )
+            .background(if (selected) colors.primaryContainer else SpoilNotSurfaces.current.field)
             .selectable(selected, role = Role.RadioButton, onClick = onClick)
-            .heightIn(min = 64.dp)
+            .heightIn(min = LocationTileHeight)
             .padding(vertical = 8.dp, horizontal = 4.dp)
             .testTag("location_${location.name}"),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
-        Icon(
-            location.icon(),
-            contentDescription = null,
-            tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary,
-        )
+        Icon(location.icon(), contentDescription = null, tint = content)
         Text(
             stringResource(location.label()),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (selected) FontWeight.Bold else null,
+            style = SpoilNotText.ButtonMedium,
+            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Bold,
+            color = content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
+/** A location tile's height: icon over label. */
+private val LocationTileHeight = 76.dp
+
+/** A choice from a list, as a field that opens a menu (DESIGN 19.10): its label above, the choice in the box. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> EnumDropdown(
@@ -812,15 +876,17 @@ fun <T> EnumDropdown(
 ) {
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = open, onExpandedChange = { if (enabled) open = it }) {
-        OutlinedTextField(
+        SpoilNotTextField(
             value = optionLabel(value),
             onValueChange = {},
+            label = label,
             readOnly = true,
             enabled = enabled,
-            label = { Text(label) },
-            supportingText = helper?.let { { Text(it) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled),
+            helper = helper,
+            trailingIcon = {
+                Box(Modifier.padding(end = 12.dp)) { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) }
+            },
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { option ->

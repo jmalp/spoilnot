@@ -18,11 +18,19 @@ import androidx.compose.ui.graphics.Color
  * @property page behind a screen's content.
  * @property row list rows, plain cards, search and quick-add fields on a page.
  * @property nestedRow rows inside a highlight card (`primaryContainer`).
- * @property field text fields and pickers on a sheet or dialog.
+ * @property field text fields and pickers on a sheet (`surfaceContainerLow`).
  * @property tile the leading tile of a row without a status, such as No expiry date.
+ * @property dialogRow a dialog's choices (on `surfaceContainerHigh`): in dark [field] is the dialog's own color.
  */
 @Immutable
-data class AppSurfaces(val page: Color, val row: Color, val nestedRow: Color, val field: Color, val tile: Color)
+data class AppSurfaces(
+    val page: Color,
+    val row: Color,
+    val nestedRow: Color,
+    val field: Color,
+    val tile: Color,
+    val dialogRow: Color,
+)
 
 /** The surfaces for [scheme], which works for the fixed themes and the wallpaper's colors alike. */
 fun appSurfaces(scheme: ColorScheme, dark: Boolean): AppSurfaces = if (dark) {
@@ -32,6 +40,7 @@ fun appSurfaces(scheme: ColorScheme, dark: Boolean): AppSurfaces = if (dark) {
         nestedRow = scheme.surfaceContainerLow,
         field = scheme.surfaceContainerHigh,
         tile = scheme.surfaceContainerHighest,
+        dialogRow = scheme.surfaceContainerHighest,
     )
 } else {
     AppSurfaces(
@@ -40,6 +49,7 @@ fun appSurfaces(scheme: ColorScheme, dark: Boolean): AppSurfaces = if (dark) {
         nestedRow = scheme.surfaceContainerLowest,
         field = scheme.surfaceContainerLowest,
         tile = scheme.surfaceContainer,
+        dialogRow = scheme.surfaceContainerLowest,
     )
 }
 

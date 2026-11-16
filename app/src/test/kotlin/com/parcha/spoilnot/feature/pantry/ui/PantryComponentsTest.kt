@@ -47,35 +47,54 @@ class PantryComponentsTest {
 
     private val noActions = BatchActions({}, {}, {}, {}, {})
 
-    private fun chip(days: Long?, type: DateType = DateType.UseBy) = compose.setContent {
-        SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { StatusChip(days?.let { TODAY.plusDays(it) }, type, TODAY) }
+    /**
+     * A row for one milk that expires in [days] (DESIGN 19.6): short status words on screen, the full wording read. The
+     * second line joins its parts with a no-break space before each "·".
+     */
+    private fun row(days: Long?, type: DateType = DateType.UseBy) {
+        val item = PantryItems.all(
+            listOf(product("milk")),
+            listOf(batch("m1", "milk", inDays = days, dateType = type)),
+            TODAY,
+        ).single()
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, {}) }
+        }
     }
 
     @Test
-    fun statusChipShowsShortTextAndReadsTheFullWording() {
-        chip(1)
-        compose.onNodeWithText("Tomorrow", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNode(hasContentDescription("Expires tomorrow")).assertIsDisplayed()
+    fun aRowShowsShortStatusWordsAndReadsTheFullWording() {
+        row(1)
+        compose.onNodeWithText("Tomorrow\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Milk, 1 piece, Expires tomorrow, Fridge")).assertIsDisplayed()
     }
 
     @Test
     fun expiredUseByTellsYouToThrowItAway() {
-        chip(-2)
-        compose.onNodeWithText("Expired", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNode(hasContentDescription("Expired 2 days ago. Throw it away")).assertIsDisplayed()
+        row(-2)
+        compose.onNodeWithText("Expired\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Expired 2 days ago. Throw it away", substring = true)).assertIsDisplayed()
     }
 
     @Test
     fun bestBeforeUsesSofterWording() {
-        chip(-2, DateType.BestBefore)
-        compose.onNodeWithText("Past best before", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNode(hasContentDescription("Past its best before date. Check before using")).assertIsDisplayed()
+        row(-2, DateType.BestBefore)
+        compose.onNodeWithText("Past best before\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Past its best before date. Check before using", substring = true))
+            .assertIsDisplayed()
     }
 
     @Test
     fun soonAndWeekCountDays() {
-        chip(3)
-        compose.onNode(hasContentDescription("Expires in 3 days")).assertIsDisplayed()
+        row(3)
+        compose.onNodeWithText("3 days\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Expires in 3 days", substring = true)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aRowWithoutADateSaysSo() {
+        row(null)
+        compose.onNodeWithText("No expiry date\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
     }
 
     private fun items(products: List<Product>, batches: List<StockBatch>) = PantryItems.all(products, batches, TODAY)
@@ -102,7 +121,7 @@ class PantryComponentsTest {
         compose.setContent {
             SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(opened, TODAY, noActions, {}) }
         }
-        compose.onNodeWithText("Opened").assertExists()
+        compose.onNodeWithText("Opened", substring = true).assertExists()
         compose.onNodeWithTag("menu_m1").performClick()
         compose.onNodeWithText("Mark opened").assertDoesNotExist()
     }
@@ -124,7 +143,7 @@ class PantryComponentsTest {
             SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
         }
         compose.onNode(hasContentDescription("Olive oil, out of stock")).assertIsDisplayed()
-        compose.onNodeWithText("Out", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithText("Out\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
         compose.onNode(hasContentDescription("Olive oil, out of stock")).performClick()
         assertTrue(opened is PantryItem.Out)
     }

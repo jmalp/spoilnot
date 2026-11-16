@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.core.designsystem.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.heading
@@ -76,14 +78,15 @@ val ListSegmentMinHeightOneLine = 56.dp
  * [content] in a row with 12 dp between the parts.
  *
  * With [onClick] the whole row is the control and the ripple keeps to the row's shape; the caller gives it its
- * sentence for screen readers (DESIGN 6.8). Inside a highlight card pass the nested row color and
- * [SpoilNotCorners.NestedOuter].
+ * sentence for screen readers (DESIGN 6.8), and [onClickLabel] says what a tap does ("double tap to Edit"). Inside a
+ * highlight card pass the nested row color and [SpoilNotCorners.NestedOuter].
  */
 @Composable
 fun ListSegment(
     position: SegmentPosition,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
     color: Color = SpoilNotSurfaces.current.row,
     outerCorner: Dp = SpoilNotCorners.GroupOuter,
     minHeight: Dp = ListSegmentMinHeight,
@@ -91,19 +94,24 @@ fun ListSegment(
     content: @Composable RowScope.() -> Unit,
 ) {
     val shape = segmentShape(position, outer = outerCorner)
-    val row: @Composable () -> Unit = {
+    // Clipped before the click, so the ripple keeps to the row's corners.
+    val click = if (onClick != null) {
+        Modifier.clip(shape).clickable(onClickLabel = onClickLabel, onClick = onClick)
+    } else {
+        Modifier
+    }
+    Surface(
+        modifier.fillMaxWidth().then(click),
+        shape = shape,
+        color = color,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
         Row(
             Modifier.heightIn(min = minHeight).padding(contentPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
-    }
-    val contentColor = MaterialTheme.colorScheme.onSurface
-    if (onClick != null) {
-        Surface(onClick, modifier.fillMaxWidth(), shape = shape, color = color, contentColor = contentColor) { row() }
-    } else {
-        Surface(modifier.fillMaxWidth(), shape = shape, color = color, contentColor = contentColor) { row() }
     }
 }
 

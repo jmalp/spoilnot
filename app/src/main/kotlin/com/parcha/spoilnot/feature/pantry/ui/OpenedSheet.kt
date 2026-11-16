@@ -1,20 +1,21 @@
 package com.parcha.spoilnot.feature.pantry.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,11 +28,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.FieldLabel
+import com.parcha.spoilnot.core.designsystem.component.FieldMinHeight
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotFilterChip
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
@@ -67,41 +76,67 @@ fun OpenedSheet(
         modifier = sheet.modifier.testTag("sheet_opened"),
     ) {
         Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Text(
-                stringResource(R.string.opened_title, batch.productName),
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            Text(stringResource(R.string.opened_title, batch.productName), style = SpoilNotText.SheetTitle)
             if (pieces) {
-                Text(stringResource(R.string.opened_how_many), style = MaterialTheme.typography.labelLarge)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { count = (count - 1).coerceAtLeast(1) }, enabled = count > 1) {
-                        Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.opened_fewer))
-                    }
-                    Text(
-                        stringResource(R.string.opened_count, count, formatQuantity(batch.quantity)),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.testTag("opened_count"),
-                    )
-                    IconButton(
-                        onClick = { count = (count + 1).coerceAtMost(batch.quantity.toInt()) },
-                        enabled = count < batch.quantity.toInt(),
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FieldLabel(stringResource(R.string.opened_how_many))
+                    // A stepper (DESIGN 19.9): − and + joined to the count.
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(ListGroupGap),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.opened_more))
+                        StepButton(
+                            Icons.Rounded.Remove,
+                            stringResource(R.string.opened_fewer),
+                            start = true,
+                            enabled = count > 1,
+                        ) { count = (count - 1).coerceAtLeast(1) }
+                        Box(
+                            Modifier
+                                .heightIn(min = FieldMinHeight)
+                                .background(
+                                    SpoilNotSurfaces.current.field,
+                                    RoundedCornerShape(SpoilNotCorners.Connected),
+                                )
+                                .padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                stringResource(R.string.opened_count, count, formatQuantity(batch.quantity)),
+                                style = SpoilNotText.FieldText,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.testTag("opened_count"),
+                            )
+                        }
+                        StepButton(
+                            Icons.Rounded.Add,
+                            stringResource(R.string.opened_more),
+                            start = false,
+                            enabled = count < batch.quantity.toInt(),
+                        ) { count = (count + 1).coerceAtMost(batch.quantity.toInt()) }
                     }
                 }
             }
-            Text(stringResource(R.string.opened_use_within), style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                choices.forEach { choice ->
-                    FilterChip(
-                        selected = days == choice,
-                        onClick = { days = choice },
-                        label = { Text(daysLabel(choice)) },
-                        modifier = Modifier.testTag("opened_days_$choice"),
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldLabel(stringResource(R.string.opened_use_within))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    choices.forEach { choice ->
+                        SpoilNotFilterChip(
+                            text = daysLabel(choice),
+                            selected = days == choice,
+                            onClick = { days = choice },
+                            modifier = Modifier.testTag("opened_days_$choice"),
+                        )
+                    }
                 }
             }
             Text(

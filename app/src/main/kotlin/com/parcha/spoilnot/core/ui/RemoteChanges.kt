@@ -10,6 +10,9 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawOutline
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import kotlinx.coroutines.delay
 
@@ -60,9 +63,12 @@ fun <T> rememberRemoteChanges(
     return active.keys.toSet()
 }
 
-/** A tonal tint that fades out over [REMOTE_HIGHLIGHT_MS], drawn over the row (rows are opaque). */
+/**
+ * A tonal tint that fades out over [REMOTE_HIGHLIGHT_MS], drawn over the row (rows are opaque) in the row's [shape], so
+ * a rounded row of a group (DESIGN 19.5) keeps its corners.
+ */
 @Composable
-fun Modifier.remoteHighlight(active: Boolean): Modifier {
+fun Modifier.remoteHighlight(active: Boolean, shape: Shape = RectangleShape): Modifier {
     val tint = MaterialTheme.colorScheme.secondaryContainer
     val reduceMotion = rememberReduceMotion()
     val alpha = remember { Animatable(0f) }
@@ -78,6 +84,10 @@ fun Modifier.remoteHighlight(active: Boolean): Modifier {
     }
     return drawWithContent {
         drawContent()
-        if (alpha.value > 0f) drawRect(tint.copy(alpha = alpha.value))
+        if (alpha.value >
+            0f
+        ) {
+            drawOutline(shape.createOutline(size, layoutDirection, this), tint.copy(alpha = alpha.value))
+        }
     }
 }

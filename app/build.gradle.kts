@@ -104,6 +104,12 @@ android {
     }
 }
 
+// java.time values are immutable, so rows and states that hold dates skip by equals instead of recomposing on every
+// snapshot (review PERF-07, DECISIONS 2026-11-16).
+composeCompiler {
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("compose-stability.conf"))
+}
+
 // Only dev debug (and dev benchmark) builds talk to the Firebase Emulator Suite (DESIGN 7.4). The Android emulator reaches the
 // host at 10.0.2.2; pass -Pspoilnot.emulatorHost=<LAN IP> to use a physical phone.
 val emulatorHost = providers.gradleProperty("spoilnot.emulatorHost").orElse("10.0.2.2")

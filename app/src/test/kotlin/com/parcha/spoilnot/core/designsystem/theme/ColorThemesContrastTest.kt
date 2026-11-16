@@ -126,6 +126,17 @@ class ColorThemesContrastTest {
                 "onSurface/surfaceContainerHighest (offline banner)" to (c.onSurface to c.surfaceContainerHighest),
                 "primaryContainer/onPrimaryContainer (Needs attention's count)" to
                     (c.primaryContainer to c.onPrimaryContainer),
+                // Step 3 (DESIGN 19.10, 19.11): a field's label, focused or in error, and its message; a stepper's
+                // buttons; the chosen location tile and filter chip; a dialog's choices.
+                "primary/field (focused label)" to (c.primary to s.field),
+                "error/field (error label)" to (c.error to s.field),
+                "error/surfaceContainerLow (error message on a sheet)" to (c.error to c.surfaceContainerLow),
+                "onSecondaryContainer/secondaryContainer (stepper)" to
+                    (c.onSecondaryContainer to c.secondaryContainer),
+                "onPrimaryContainer/primaryContainer (chosen location)" to
+                    (c.onPrimaryContainer to c.primaryContainer),
+                "onPrimary/primary (chosen filter chip)" to (c.onPrimary to c.primary),
+                "onSurface/dialogRow" to (c.onSurface to s.dialogRow),
             ).mapNotNull { (pair, colors) -> check(name, pair, colors.first, colors.second, TEXT) }
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
@@ -171,8 +182,15 @@ class ColorThemesContrastTest {
     fun `the 2026-11 look's rows are one step away from the page in every theme`() {
         val failures = cases.mapNotNull { (name, c, _, dark) ->
             val s = appSurfaces(c, dark)
-            // Lighter in both modes: white on the tinted page in light, a raised surface on the dark page.
-            if (s.row.luminance() > s.page.luminance()) null else "$name: rows don't stand off the page"
+            // Lighter in both modes: white on the tinted page in light, a raised surface on the dark page. The same
+            // for fields on a sheet and a dialog's choices on the dialog.
+            listOfNotNull(
+                "$name: rows don't stand off the page".takeUnless { s.row.luminance() > s.page.luminance() },
+                "$name: fields don't stand off a sheet"
+                    .takeUnless { s.field.luminance() > c.surfaceContainerLow.luminance() },
+                "$name: a dialog's choices don't stand off the dialog"
+                    .takeUnless { s.dialogRow.luminance() > c.surfaceContainerHigh.luminance() },
+            ).joinToString("\n").ifEmpty { null }
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
     }
