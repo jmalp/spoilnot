@@ -55,6 +55,45 @@ fun SearchField(
     clearLabel: String,
     modifier: Modifier = Modifier,
 ) {
+    PillField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = placeholder,
+        leadingIcon = Icons.Rounded.Search,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        modifier = modifier,
+    ) {
+        if (value.isNotEmpty()) {
+            IconButton(onClick = { onValueChange("") }) {
+                Icon(
+                    Icons.Rounded.Clear,
+                    contentDescription = clearLabel,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            // Keeps the height the clear button gives, so the field doesn't move when it appears.
+            Box(Modifier.size(48.dp))
+        }
+    }
+}
+
+/**
+ * The round field of a page (DESIGN 19.10), under the search field and the quick-add field: 56 dp, fully round, on the
+ * `row` color without an outline, a 2 dp `primary` border while it has the keyboard, an optional [leadingIcon], and
+ * [trailing] at the end. [placeholder] names it for screen readers too, as Material's placeholder does.
+ */
+@Composable
+fun PillField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    trailing: @Composable () -> Unit = {},
+) {
     val colors = MaterialTheme.colorScheme
     val style = MaterialTheme.typography.bodyLarge.merge(TextStyle(fontWeight = FontWeight.Medium))
     val interactions = remember { MutableInteractionSource() }
@@ -66,8 +105,8 @@ fun SearchField(
         singleLine = true,
         textStyle = style.merge(TextStyle(color = colors.onSurface)),
         cursorBrush = SolidColor(colors.primary),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions.Default,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
         interactionSource = interactions,
         decorationBox = { inner ->
             Row(
@@ -78,19 +117,17 @@ fun SearchField(
                     .padding(start = 20.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.onSurfaceVariant)
-                Box(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 14.dp)) {
+                leadingIcon?.let { Icon(it, contentDescription = null, tint = colors.onSurfaceVariant) }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .padding(start = if (leadingIcon != null) 12.dp else 0.dp, end = 12.dp)
+                        .padding(vertical = 14.dp),
+                ) {
                     if (value.isEmpty()) Text(placeholder, style = style, color = colors.onSurfaceVariant, maxLines = 1)
                     inner()
                 }
-                if (value.isNotEmpty()) {
-                    IconButton(onClick = { onValueChange("") }) {
-                        Icon(Icons.Rounded.Clear, contentDescription = clearLabel, tint = colors.onSurfaceVariant)
-                    }
-                } else {
-                    // Keeps the height the clear button gives, so the field doesn't move when it appears.
-                    Box(Modifier.size(48.dp))
-                }
+                trailing()
             }
         },
     )

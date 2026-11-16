@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.feature.grocery.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -34,20 +35,30 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.FieldLabel
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SegmentPosition
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.designsystem.component.segmentPosition
+import com.parcha.spoilnot.core.designsystem.component.segmentShape
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.feature.grocery.domain.AddToPantryRules
 import com.parcha.spoilnot.feature.grocery.domain.EntryDefaults
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
@@ -61,6 +72,7 @@ import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.ui.DateChips
 import com.parcha.spoilnot.feature.pantry.ui.EnumDropdown
 import com.parcha.spoilnot.feature.pantry.ui.LocationChoice
+import com.parcha.spoilnot.feature.pantry.ui.QuantityStepper
 import com.parcha.spoilnot.feature.pantry.ui.amountDescription
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatDate
@@ -137,26 +149,31 @@ internal fun AddToPantryContent(
 
     Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
         Column(
-            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
                 stringResource(R.string.grocery_add_to_pantry_title),
-                style = MaterialTheme.typography.headlineSmall,
+                style = SpoilNotText.SheetTitle,
+                modifier = Modifier.padding(horizontal = 4.dp),
             )
-            Column {
-                lines.forEach { line ->
+            // One group of rows on the field color (DESIGN 19.5, 19.11): each opens in place.
+            Column(verticalArrangement = Arrangement.spacedBy(ListGroupGap)) {
+                lines.forEachIndexed { index, line ->
                     EntryRow(
                         line,
                         today,
+                        position = segmentPosition(index, lines.size),
                         onChange = { drafts.set(line.item.id, it) },
                         onToggle = { drafts.setExpanded(line.item.id, !line.expanded) },
                     )
-                    HorizontalDivider()
                 }
             }
         }
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 16.dp)) {
             PrimaryButton(
                 text = if (count == 0) {
                     stringResource(R.string.grocery_remove_skipped)
@@ -223,11 +240,24 @@ private fun entryDescription(line: EntryLine, today: LocalDate, summary: String)
 }
 
 @Composable
-private fun EntryRow(line: EntryLine, today: LocalDate, onChange: (EntryEdit) -> Unit, onToggle: () -> Unit) {
+private fun EntryRow(
+    line: EntryLine,
+    today: LocalDate,
+    position: SegmentPosition,
+    onChange: (EntryEdit) -> Unit,
+    onToggle: () -> Unit,
+) {
     val summary = entrySummary(line, today)
     val description = entryDescription(line, today, summary)
     val state = stringResource(if (line.expanded) R.string.state_expanded else R.string.state_collapsed)
-    Column(Modifier.fillMaxWidth().testTag("entry_${line.item.id}")) {
+    val shape = segmentShape(position)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(SpoilNotSurfaces.current.field)
+            .testTag("entry_${line.item.id}"),
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -242,16 +272,16 @@ private fun EntryRow(line: EntryLine, today: LocalDate, onChange: (EntryEdit) ->
                     contentDescription = description
                     stateDescription = state
                 }
-                .heightIn(min = 56.dp)
-                .padding(vertical = 8.dp),
+                .heightIn(min = EntryRowHeight)
+                .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(line.item.name, style = MaterialTheme.typography.titleMedium)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(line.item.name, style = SpoilNotText.RowTitle)
                 Text(
                     summary,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = SpoilNotText.RowSupporting,
                     color = if (line.valid) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
@@ -262,24 +292,32 @@ private fun EntryRow(line: EntryLine, today: LocalDate, onChange: (EntryEdit) ->
             Icon(
                 if (line.expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                 contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (line.expanded) EntryEditor(line, today, onChange)
     }
 }
 
+/** A line of Add to pantry, two lines of text (DESIGN 19.5). */
+private val EntryRowHeight = 72.dp
+
 @Composable
 private fun EntryEditor(line: EntryLine, today: LocalDate, onChange: (EntryEdit) -> Unit) {
     val value = line.value
     val id = line.item.id
-    Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(
+        Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 stringResource(R.string.grocery_skip_help),
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            Text(stringResource(R.string.grocery_skip), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.grocery_skip), style = SpoilNotText.RowTitle)
             Switch(
                 checked = value.skip,
                 onCheckedChange = { onChange(value.copy(skip = it)) },
@@ -287,26 +325,24 @@ private fun EntryEditor(line: EntryLine, today: LocalDate, onChange: (EntryEdit)
             )
         }
         if (!value.skip) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                FormTextField(
-                    value = value.quantity,
-                    onValueChange = { onChange(value.copy(quantity = it)) },
-                    label = stringResource(R.string.field_quantity),
-                    error = if (parseQuantity(value.quantity)?.let { it > 0 } != true) {
-                        stringResource(R.string.error_quantity)
-                    } else {
-                        null
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Decimal,
-                        imeAction = ImeAction.Next,
-                    ),
-                    modifier = Modifier.width(140.dp).testTag("entry_quantity_$id"),
+            // The same stepper and unit as Add item (DESIGN 19.9), stacked from 1.5x text.
+            val qtyError = if (parseQuantity(value.quantity)?.let { it > 0 } != true) {
+                stringResource(R.string.error_quantity)
+            } else {
+                null
+            }
+            val large = isLargeText()
+            val stepper = @Composable {
+                QuantityStepper(
+                    value.quantity,
+                    { onChange(value.copy(quantity = it)) },
+                    qtyError,
+                    fill = large,
+                    tag = "entry_quantity_$id",
                 )
-                Column(Modifier.weight(1f)) {
+            }
+            val unit = @Composable { modifier: Modifier ->
+                Column(modifier) {
                     EnumDropdown(
                         label = stringResource(R.string.field_unit),
                         value = value.unit,
@@ -318,11 +354,25 @@ private fun EntryEditor(line: EntryLine, today: LocalDate, onChange: (EntryEdit)
                     )
                 }
             }
-            Text(
-                value.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            DateChips(value.expiry, today) { onChange(value.copy(expiry = it)) }
+            if (large) {
+                stepper()
+                unit(Modifier.fillMaxWidth())
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    stepper()
+                    unit(Modifier.weight(1f))
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // The label, then the date the chips set ("No expiry date" when none).
+                FieldLabel(stringResource(R.string.field_expiry))
+                Text(
+                    value.expiry?.let { formatDate(it, today) } ?: stringResource(R.string.status_no_date),
+                    style = SpoilNotText.FieldText,
+                    fontWeight = FontWeight.Bold,
+                )
+                DateChips(value.expiry, today) { onChange(value.copy(expiry = it)) }
+            }
             LocationChoice(value.location) { onChange(value.copy(location = it)) }
         }
     }
@@ -359,10 +409,14 @@ fun EditItemSheet(
         contentWindowInsets = sheet.contentWindowInsets,
     ) {
         Column(
-            Modifier.fillMaxWidth().imePadding().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Text(stringResource(R.string.grocery_edit_item, item.name), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.grocery_edit_item, item.name), style = SpoilNotText.SheetTitle)
             // Why the app put it here (after v1, UX-08): the row's badge says only "Added automatically".
             reason?.let {
                 Text(
@@ -407,7 +461,7 @@ fun EditItemSheet(
                 ) {
                     onSave(name, qty, if (qty != null) unit else null, note, category)
                 }
-            }, modifier = Modifier.heightIn(min = 48.dp))
+            })
         }
     }
 }

@@ -476,6 +476,17 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     appears. Settings > Accessibility > Larger Text at the largest size: "× 2" joins the second line, the quick dates
     are a list of radio buttons and the locations a 2 by 2 grid. Sign in, the gate and Groceries' Edit show the new
     fields; Groceries' quick add and Recipes' search keep the outlined ones.
+67. The new look, step 4: Groceries (Android, after v1, 2026-11-16, DESIGN 5.3, 19.5, 19.10): with four items to buy
+    and one in the cart, the header says "4 to buy" over the list's name, and tapping the name still switches lists.
+    The quick-add field is round with a filled +, grey until something is typed; typing "mi" suggests Milk. Each aisle
+    is a group of rows under its heading (pinned while scrolling; TalkBack's headings jump between aisles), every row
+    with its checkbox, "× 12" beside the name and its source as a chip ("Added automatically", "Meal plan",
+    "Recipe"). In cart (1) is grey with Clear cart beside it; its row is darker and struck through; tapping In cart
+    folds it. Swipe right and left: the background fills the row's rounded shape. With a second phone, scroll the list
+    slowly while the other checks something off: the rows under your finger don't move until the scroll stops. Add to
+    pantry: its lines are rounded rows that open in place with the joined − and + stepper, the unit, the date's label
+    and the quick dates; Skip has room before it at 2× text. Edit: the sheet title and labels above the fields. Dark
+    mode and Fiery Palette: the same in their colors.
 
 ## 3. Conditions
 
