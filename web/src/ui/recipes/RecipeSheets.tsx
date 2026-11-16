@@ -80,6 +80,7 @@ export function CookedSheet({
                     </span>
                   </label>
                   <TextField
+                    outlined
                     label={unitLabel(line.product.unit)}
                     value={amountOf(line)}
                     onValueChange={(v) => {
@@ -299,6 +300,7 @@ export function RenameDialog({
     >
       <p className="t-body-medium">{candidate.ingredient.raw}</p>
       <TextField
+        outlined
         label={str('field_name')}
         value={text}
         onValueChange={(v) => setText(v.slice(0, GroceryRules.MAX_NAME_LENGTH))}

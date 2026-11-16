@@ -1,9 +1,142 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
+import { appliedTextScale, LARGE_TEXT_SCALE } from '../../theme/textScale';
 import { Icon, type IconName } from './Icon';
+import { IconButton } from './IconButton';
+import { ripple } from './ripple';
 import './look.css';
 
 // The shared pieces of the 2026-11 look (DESIGN 19; core/designsystem in the app). The web adds each piece with the
-// first screen that uses it: these are the ones the shell and Home use.
+// first screen that uses it: the shell and Home brought the cards, groups and tiles; Pantry (step 3) the search
+// field, the filter chip and the connected button group.
+
+/**
+ * A search field on a page (DESIGN 19.10; SearchField in the app): 56 px, fully round, on the row color without an
+ * outline, a search icon at the start and a clear button ([clearLabel]) once something is typed. [placeholder] names
+ * it for VoiceOver too.
+ */
+export function SearchField({
+  value,
+  onValueChange,
+  placeholder,
+  clearLabel,
+  testId,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder: string;
+  clearLabel: string;
+  testId?: string;
+}) {
+  return (
+    <div className="sn-search">
+      <Icon name="round/search" />
+      <input
+        type="search"
+        enterKeyHint="search"
+        className="sn-search__input"
+        aria-label={placeholder}
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+        data-testid={testId}
+      />
+      {value ? (
+        <IconButton icon="round/clear" label={clearLabel} onClick={() => onValueChange('')} />
+      ) : (
+        // Keeps the height the clear button gives, so the field doesn't move when it appears.
+        <span className="sn-search__spacer" />
+      )}
+    </div>
+  );
+}
+
+/**
+ * A filter chip of the 2026-11 look (DESIGN 19.10; SpoilNotFilterChip in the app): 44 px, on the row color with 12 px
+ * corners and an optional [icon]; chosen, fully round and primary with a check. A toggle button for VoiceOver, or with
+ * [radio] one of a group where only one can be chosen.
+ */
+export function SpoilNotFilterChip({
+  label,
+  selected,
+  icon,
+  radio = false,
+  className,
+  ...rest
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
+  label: string;
+  selected: boolean;
+  icon?: IconName;
+  radio?: boolean;
+}) {
+  const leading = selected ? 'round/check' : icon;
+  return (
+    <button
+      type="button"
+      className={`sn-filter-chip m3-state t-button-medium ${leading ? 'sn-filter-chip--icon' : ''} ${className ?? ''}`}
+      role={radio ? 'radio' : undefined}
+      aria-checked={radio ? selected : undefined}
+      aria-pressed={radio ? undefined : selected}
+      onPointerDown={ripple}
+      {...rest}
+    >
+      {leading && <Icon name={leading} size={18} />}
+      {label}
+    </button>
+  );
+}
+
+/**
+ * A single choice as joined buttons (DESIGN 19.9; ConnectedButtonGroup in the app): equal widths, 2 px apart, the
+ * outside corners fully round and the joined ones 8 px; the chosen button is fully round and primary. From 1.5× text
+ * it is a list of radio buttons, so labels are never cut off. Each is a radio button for VoiceOver either way; tapping
+ * the chosen one calls [onPick] too, so a caller can clear the choice. [optionTestId] tags each for tests.
+ */
+export function ConnectedButtonGroup<T>({
+  label,
+  options,
+  selected,
+  optionLabel,
+  onPick,
+  optionKey,
+  optionTestId,
+}: {
+  label: string;
+  options: readonly T[];
+  selected: T | null;
+  optionLabel: (option: T) => string;
+  onPick: (option: T) => void;
+  optionKey: (option: T) => string;
+  optionTestId?: (option: T) => string;
+}) {
+  const list = appliedTextScale() >= LARGE_TEXT_SCALE;
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={list ? 'sn-connected-list' : 'sn-connected'}
+      data-testid={list ? 'connected_list' : 'connected_row'}
+    >
+      {options.map((option) => {
+        const chosen = option === selected;
+        return (
+          <button
+            key={optionKey(option)}
+            type="button"
+            role="radio"
+            aria-checked={chosen}
+            className={list ? 'sn-connected-list__option m3-state t-body-large' : 'sn-connected__button m3-state'}
+            data-testid={optionTestId?.(option)}
+            onPointerDown={ripple}
+            onClick={() => onPick(option)}
+          >
+            {list && <span className="sn-radio-mark" aria-hidden />}
+            <span className="sn-connected__label">{optionLabel(option)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * A group of rows (DESIGN 19.5; ListSegment in the app): rows 2 px apart, 20 px outside corners and 6 px where two

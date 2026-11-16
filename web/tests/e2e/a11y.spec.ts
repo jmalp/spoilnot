@@ -123,11 +123,16 @@ test('at the largest text size what sits beside a name goes under it, and nothin
   await expectInside(join.getByRole('button', { name: 'Review' }), join);
   await shot(page, 'home_font3.png');
 
-  // Pantry: the Low badge under the name; the last row clears the floating button (measured, as on Android).
+  // Pantry: the amount leaves the end of the row and joins the second line under the name, inside the row (DESIGN
+  // 19.6); the last row clears the floating button (measured, as on Android).
   await tab(page, 'Pantry').click();
-  const oil = page.getByTestId('pantry_item_out_p-oil');
-  await expect(oil).toBeVisible();
-  await expectBelow(oil.locator('.sn-badge'), oil.locator('.sn-pantry-row__name-text'));
+  const milk = page.getByTestId('pantry_item_milk');
+  await expect(milk).toBeVisible();
+  await expect(milk.locator('.sn-pantry-row__amount')).toBeHidden();
+  await expect(milk.locator('.sn-pantry-row__amount-inline')).toBeVisible();
+  await expectBelow(milk.locator('.sn-pantry-row__second'), milk.locator('.sn-pantry-row__name-text'));
+  await expectInside(milk.locator('.sn-pantry-row__second'), milk);
+  await expect(page.getByTestId('pantry_item_out_p-oil')).toContainText('Out');
   await expect(page.locator('[data-remote]')).toHaveCount(0);
   await shot(page, 'pantry_font3.png');
   const list = page.getByTestId('screen_pantry').locator('.sn-pantry-list');

@@ -98,6 +98,9 @@ test('Cooked offline loses to a phone that marked the meal cooked first, and say
   await page.context().setOffline(true);
   await meal.click();
   await page.getByTestId('plan_cook_meal').click();
+  // A finger lifts after the tap; the mouse would stay where Cooked's Undo snackbar appears (the 2026-11 sheet is
+  // taller), and the snackbar's timer waits while the pointer is over it, so the refusal's message would queue behind.
+  await page.mouse.move(1, 1);
   // The sheet closes; the mark itself shows once the server time is known.
   await expect(page.getByTestId('plan_cook_meal')).toHaveCount(0);
   // Blake marks the same dinner cooked first.

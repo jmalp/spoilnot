@@ -123,3 +123,149 @@
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
+
+/* The search field on a page (DESIGN 19.10): 56 px, fully round, on the row color; a 2 px primary border while it has
+   the keyboard (DECISIONS 2026-11-16). */
+.sn-search {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 4px 0 20px;
+  border-radius: 28px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-search:focus-within {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+.sn-search__input {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  padding: 14px 12px;
+  border: none;
+  background: transparent;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  color: var(--md-sys-color-on-surface);
+  caret-color: var(--md-sys-color-primary);
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 500;
+}
+.sn-search__input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-search__input::-webkit-search-cancel-button {
+  display: none;
+}
+.sn-search__spacer {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+
+/* Filter chips (DESIGN 19.10): 44 px on the row color with 12 px corners; chosen, fully round and primary. */
+.sn-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+.sn-filter-chip--icon {
+  padding-left: 12px;
+}
+.sn-filter-chip[aria-pressed='true'],
+.sn-filter-chip[aria-checked='true'] {
+  border-radius: 999px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-weight: 800;
+}
+
+/* A connected button group (DESIGN 19.9): 48 px, 2 px apart, round outside and 8 px joins; the chosen one round and
+   primary. A label may take two lines before 1.5x text turns the group into a list. */
+.sn-connected {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+.sn-connected__button {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: 4px;
+  border: none;
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 700;
+  text-align: center;
+}
+.sn-connected__button:first-child {
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+.sn-connected__button:last-child {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+.sn-connected__button[aria-checked='true'] {
+  border-radius: 999px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-weight: 800;
+}
+.sn-connected__label {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sn-connected-list {
+  display: flex;
+  flex-direction: column;
+}
+.sn-connected-list__option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 4px 0 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+}
+/* A radio button drawn as Material's: the ring, and the dot when chosen. */
+.sn-radio-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-on-surface-variant);
+}
+[aria-checked='true'] > .sn-radio-mark {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+[aria-checked='true'] > .sn-radio-mark::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--md-sys-color-primary);
+}

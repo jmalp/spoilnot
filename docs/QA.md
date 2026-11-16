@@ -468,6 +468,14 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     dates are radio buttons, "× 2" never breaks, the location tiles are a 2 by 2 grid. Sign in, the gate and Edit on
     Groceries show the same fields. Dark mode and Fiery Palette: the same in their colors; a dialog's rows stand off
     the dialog.
+66. The new look, step 3 on the iPhone (web, after v1, 2026-11-16, DESIGN 18.2, 19.6, 19.9 to 19.12): flow 65 in the
+    Home Screen app on an iPhone, with VoiceOver instead of TalkBack: Pantry's header counts the items, the list has
+    Use first and Everything else (the rotor's headings jump between them), each row reads as one sentence, and the
+    quick dates and locations are radio buttons. With a second phone, scroll Pantry slowly while the other adds an
+    item that sorts near the top: the rows under your finger don't move until the scroll stops, then the new row
+    appears. Settings > Accessibility > Larger Text at the largest size: "× 2" joins the second line, the quick dates
+    are a list of radio buttons and the locations a 2 by 2 grid. Sign in, the gate and Groceries' Edit show the new
+    fields; Groceries' quick add and Recipes' search keep the outlined ones.
 
 ## 3. Conditions
 

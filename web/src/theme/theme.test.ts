@@ -41,9 +41,11 @@ describe('theme', () => {
     expect(dark['--sn-surface-row']).toBe(dark['--md-sys-color-surface-container']);
     expect(dark['--sn-surface-nested-row']).toBe(dark['--md-sys-color-surface-container-low']);
     expect(dark['--sn-surface-field']).toBe(dark['--md-sys-color-surface-container-high']);
+    expect(light['--sn-surface-dialog-row']).toBe(light['--md-sys-color-surface-container-lowest']);
+    expect(dark['--sn-surface-dialog-row']).toBe(dark['--md-sys-color-surface-container-highest']);
   });
 
-  it('keeps rows lighter than the page in every theme, light and dark', () => {
+  it('keeps rows lighter than the page, fields than a sheet and choices than a dialog, in every theme', () => {
     const luminance = (hex: string) => {
       const channel = (i: number) => {
         const c = parseInt(hex.slice(i, i + 2), 16) / 255;
@@ -54,8 +56,14 @@ describe('theme', () => {
     for (const id of THEME_IDS) {
       for (const dark of [false, true]) {
         const vars = themeVariables(id, dark);
-        expect(luminance(vars['--sn-surface-row']!), `${id} ${dark ? 'dark' : 'light'}`).toBeGreaterThan(
-          luminance(vars['--sn-surface-page']!),
+        const name = `${id} ${dark ? 'dark' : 'light'}`;
+        expect(luminance(vars['--sn-surface-row']!), name).toBeGreaterThan(luminance(vars['--sn-surface-page']!));
+        // Fields stand off a sheet, and a dialog's choices off the dialog (step 3).
+        expect(luminance(vars['--sn-surface-field']!), name).toBeGreaterThan(
+          luminance(vars['--md-sys-color-surface-container-low']!),
+        );
+        expect(luminance(vars['--sn-surface-dialog-row']!), name).toBeGreaterThan(
+          luminance(vars['--md-sys-color-surface-container-high']!),
         );
       }
     }

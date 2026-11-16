@@ -37,6 +37,8 @@ export function surfaces(scheme: SurfaceRoles, dark: boolean) {
         nestedRow: scheme.surfaceContainerLow,
         field: scheme.surfaceContainerHigh,
         tile: scheme.surfaceContainerHighest,
+        // A dialog's choices (step 3): in dark, field is the dialog's own color.
+        dialogRow: scheme.surfaceContainerHighest,
       }
     : {
         page: scheme.surfaceContainerLow,
@@ -44,6 +46,7 @@ export function surfaces(scheme: SurfaceRoles, dark: boolean) {
         nestedRow: scheme.surfaceContainerLowest,
         field: scheme.surfaceContainerLowest,
         tile: scheme.surfaceContainer,
+        dialogRow: scheme.surfaceContainerLowest,
       };
 }
 

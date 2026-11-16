@@ -46,6 +46,7 @@ round/clear
 round/delete_outline
 round/schedule
 round/remove
+round/remove_circle_outline
 round/lock_open
 round/done
 outlined/ac_unit

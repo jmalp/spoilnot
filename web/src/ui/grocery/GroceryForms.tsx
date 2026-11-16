@@ -7,7 +7,7 @@ import { CATEGORIES, unitMenu, type Category, type PantryData } from '../../doma
 import type { QuantityUnit } from '../../domain/pantry/models';
 import type { LocalDate } from '../../domain/time';
 import { BottomSheet, Button, Icon, SelectField, Switch, TextField } from '../kit';
-import { DateChips, FormSheetColumn, largeText, LocationChoice, parseQuantity } from '../pantry/ItemForm';
+import { DateChips, FormSheetColumn, LocationChoice, parseQuantity } from '../pantry/ItemForm';
 import {
   amountDescription,
   amountText,
@@ -202,17 +202,8 @@ function EntryRow({
               <span className="t-label-large">
                 {draft.expiry ? formatDate(draft.expiry, today) : str('status_no_date')}
               </span>
-              <DateChips
-                value={draft.expiry}
-                today={today}
-                twoRows={largeText()}
-                onChange={(expiry) => onChange({ expiry })}
-              />
-              <LocationChoice
-                selected={draft.location}
-                grid={largeText()}
-                onPick={(location) => onChange({ location })}
-              />
+              <DateChips value={draft.expiry} today={today} onChange={(expiry) => onChange({ expiry })} />
+              <LocationChoice selected={draft.location} onPick={(location) => onChange({ location })} />
             </>
           )}
         </div>
