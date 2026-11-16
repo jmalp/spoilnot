@@ -17,6 +17,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
 import com.parcha.spoilnot.feature.grocery.domain.GroceryService
 import com.parcha.spoilnot.feature.grocery.domain.GroceryView
+import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.grocery.domain.PantryEntry
 import com.parcha.spoilnot.feature.grocery.domain.QuickAddResult
 import com.parcha.spoilnot.feature.grocery.domain.RestockEngine
@@ -68,7 +69,7 @@ class GroceriesViewModel @Inject constructor(
     households: HouseholdRepository,
     private val service: GroceryService,
     clock: Clock,
-    savedState: SavedStateHandle,
+    private val savedState: SavedStateHandle,
     private val preferences: AppPreferences,
 ) : ViewModel() {
     /** What was typed in the Add to pantry sheet, by item id (after v1, REL-08). */
@@ -84,6 +85,8 @@ class GroceriesViewModel @Inject constructor(
         val items: List<GroceryItem> = emptyList(),
         val view: GroceryView = GroceryView(emptyList(), emptyList()),
         val backInStock: Set<String> = emptySet(),
+        /** Who typed each item in, by item id, when it was someone else (precomputed for the rows, review PERF-04). */
+        val addedBy: Map<String, String> = emptyMap(),
         val memberNames: Map<String, String> = emptyMap(),
         val pantry: PantryData = PantryData(emptyList(), emptyList(), fromCache = true),
         val today: LocalDate = LocalDate.MIN,
@@ -96,6 +99,9 @@ class GroceriesViewModel @Inject constructor(
          * this tab always has, hasn't heard from the server, as on the web.
          */
         val offline: Boolean get() = !loading && pantry.fromCache
+
+        /** Items still to buy, for the line above the title (DESIGN 19.7). */
+        val toBuy: Int get() = items.count { !it.checked }
     }
 
     /** "Couldn't load. Retry" (DESIGN 6.7): the lists, items and pantry listen again instead of ending (REL-04). */
@@ -151,6 +157,7 @@ class GroceriesViewModel @Inject constructor(
             items = itemsNow,
             view = StoreOrder.sort(GroceryLayout.of(itemsNow), list?.aisleOrder.orEmpty()),
             backInStock = itemsNow.filter { RestockEngine.isBackInStock(it, data) }.map { it.id }.toSet(),
+            addedBy = addedBy(itemsNow, me.value?.user?.uid.orEmpty(), names),
             memberNames = names,
             pantry = data,
             today = today,
@@ -173,6 +180,23 @@ class GroceriesViewModel @Inject constructor(
     fun dismissAisleHint() {
         viewModelScope.launch { preferences.setAisleHintDone() }
     }
+
+    /** What is typed in the quick-add field, kept across rotation. */
+    val quickAddText: StateFlow<String> = savedState.getStateFlow(QUICK_ADD_KEY, "")
+
+    fun setQuickAddText(text: String) {
+        savedState[QUICK_ADD_KEY] = text
+    }
+
+    /**
+     * Pantry products and names already used for what is typed (DESIGN 5.3), worked out here off the main thread
+     * instead of on every recomposition of the screen (review PERF-04).
+     */
+    val suggestions: StateFlow<List<String>> = combine(quickAddText, state) { text, s ->
+        GroceryLayout.suggestions(text, s.items, s.pantry)
+    }.distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), emptyList())
 
     /** "Already on the list" waiting for an answer, and the text that was typed. */
     val duplicate = MutableStateFlow<QuickAddResult.AlreadyOnList?>(null)
@@ -325,5 +349,16 @@ class GroceriesViewModel @Inject constructor(
     private companion object {
         /** DESIGN 9.1: item listeners stay while visible, plus 30 s. */
         const val LIST_LINGER_MS = 30_000L
+
+        const val QUICK_ADD_KEY = "quickAdd"
     }
 }
+
+/** "added by Sam" for items someone else typed in, by item id; what the app added itself names no one. */
+internal fun addedBy(items: List<GroceryItem>, myUid: String, names: Map<String, String>): Map<String, String> =
+    items.mapNotNull { item ->
+        item.createdBy
+            ?.takeIf { it != myUid && item.source == ItemSource.Manual }
+            ?.let(names::get)
+            ?.let { item.id to it }
+    }.toMap()

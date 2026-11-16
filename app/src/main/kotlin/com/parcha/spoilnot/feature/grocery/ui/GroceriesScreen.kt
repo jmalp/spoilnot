@@ -16,13 +16,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.automirrored.rounded.TrendingDown
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.outlined.ShoppingCart
@@ -46,11 +48,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
@@ -69,7 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -80,6 +82,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
@@ -90,30 +93,40 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
+import com.parcha.spoilnot.core.designsystem.component.GroupHeading
+import com.parcha.spoilnot.core.designsystem.component.LabelChip
+import com.parcha.spoilnot.core.designsystem.component.LabelChipKind
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
+import com.parcha.spoilnot.core.designsystem.component.ListSegment
 import com.parcha.spoilnot.core.designsystem.component.LoadError
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner
+import com.parcha.spoilnot.core.designsystem.component.PillField
+import com.parcha.spoilnot.core.designsystem.component.SegmentPosition
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotFab
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.component.listBottomPadding
+import com.parcha.spoilnot.core.designsystem.component.segmentPosition
+import com.parcha.spoilnot.core.designsystem.component.segmentShape
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.core.ui.MessageEffect
+import com.parcha.spoilnot.core.ui.rememberHeldWhileScrolling
 import com.parcha.spoilnot.core.ui.rememberRemoteChanges
 import com.parcha.spoilnot.core.ui.remoteHighlight
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
-import com.parcha.spoilnot.feature.grocery.domain.GroceryLayout
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
+import com.parcha.spoilnot.feature.grocery.domain.GroceryView
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.grocery.domain.RestockEngine
 import com.parcha.spoilnot.feature.pantry.ui.amountDescription
 import com.parcha.spoilnot.feature.pantry.ui.amountText
-import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
 import com.parcha.spoilnot.feature.tutorial.domain.TourTarget
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GroceriesScreen(
     onOpenSettings: () -> Unit,
@@ -123,119 +136,46 @@ fun GroceriesScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val duplicate by viewModel.duplicate.collectAsStateWithLifecycle()
     val aisleHint by viewModel.aisleHint.collectAsStateWithLifecycle()
+    val text by viewModel.quickAddText.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    var text by rememberSaveable { mutableStateOf("") }
-    var cartOpen by rememberSaveable { mutableStateOf(true) }
     var shopping by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<GroceryItem?>(null) }
     var listDialog by remember { mutableStateOf<ListDialog?>(null) }
+    val listState = rememberLazyListState()
+    val clearText = { viewModel.setQuickAddText("") }
 
     MessageEffect(viewModel.messages, snackbar, viewModel::undo)
 
-    val checkedCount = state.view.inCart.size
-    TabScaffold(
-        title = state.list?.name ?: stringResource(R.string.tab_groceries),
+    GroceriesTab(
+        state = state,
+        text = text,
+        suggestions = suggestions,
+        aisleHint = aisleHint,
+        snackbar = snackbar,
         onOpenSettings = onOpenSettings,
-        modifier = modifier.testTag("screen_groceries"),
-        // The list's name is the switcher (after v1; a bare list icon did not say which list this is).
-        titleContent = { ListMenu(state, viewModel::selectList) { listDialog = it } },
-        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
-        floatingActionButton = {
-            if (checkedCount > 0) {
-                SpoilNotFab(
-                    text = pluralStringResource(R.plurals.grocery_add_to_pantry, checkedCount, checkedCount),
-                    icon = Icons.Rounded.Inventory2,
-                    onClick = { shopping = true },
-                    modifier = Modifier.testTag("fab_add_to_pantry"),
-                )
-            }
-        },
-    ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            if (state.loadFailed) {
-                LoadError(onRetry = viewModel::retryLoad)
-            } else if (state.offline) {
-                OfflineBanner()
-            }
-            QuickAddField(
-                text = text,
-                onText = { text = it },
-                suggestions = GroceryLayout.suggestions(text, state.items, state.pantry),
-                onAdd = { value -> if (value.isNotBlank()) viewModel.quickAdd(value) { text = "" } },
-            )
-            when {
-                state.loading -> Box(
-                    Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) { if (!state.loadFailed) CircularProgressIndicator() }
-
-                state.items.isEmpty() -> EmptyState(Icons.Outlined.ShoppingCart, stringResource(R.string.grocery_empty))
-
-                else -> {
-                    // Rows another phone changed get a short highlight (DESIGN 6.4).
-                    val remote = rememberRemoteChanges(
-                        state.items,
-                        id = { it.id },
-                        pending = { it.pendingSync },
-                        content = { it.copy(pendingSync = false) },
-                    )
-                    LazyColumn(
-                        contentPadding = PaddingValues(bottom = listBottomPadding()),
-                        modifier = Modifier.testTag("grocery_list"),
-                    ) {
-                        state.view.aisles.forEachIndexed { index, (category, items) ->
-                            // Sentence case, as everywhere else (DESIGN 6.9; after v1 it was in capitals, UX-18).
-                            stickyHeader(key = "aisle-$category") { SectionHeader(stringResource(category.label())) }
-                            // Under the first aisle, once: why the aisles move (after v1, UX-08).
-                            if (index == 0 && aisleHint) {
-                                item(key = "aisle-hint") {
-                                    AisleHint(viewModel::dismissAisleHint, Modifier.animateItem())
-                                }
-                            }
-                            items(items, key = { it.id }) { item ->
-                                GroceryRow(
-                                    item,
-                                    state,
-                                    viewModel::toggle,
-                                    viewModel::delete,
-                                    { editing = it },
-                                    Modifier.animateItem().remoteHighlight(item.id in remote),
-                                )
-                            }
-                        }
-                        if (state.view.inCart.isNotEmpty()) {
-                            item(key = "cart-header") {
-                                CartHeader(
-                                    checkedCount,
-                                    cartOpen,
-                                    onToggle = { cartOpen = !cartOpen },
-                                    onClear = viewModel::clearChecked,
-                                )
-                            }
-                            if (cartOpen) {
-                                items(state.view.inCart, key = { it.id }) { item ->
-                                    GroceryRow(
-                                        item,
-                                        state,
-                                        viewModel::toggle,
-                                        viewModel::delete,
-                                        { editing = it },
-                                        Modifier.animateItem().remoteHighlight(item.id in remote),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+        modifier = modifier,
+        listState = listState,
+        handlers = GroceriesHandlers(
+            onSelectList = viewModel::selectList,
+            onListDialog = { listDialog = it },
+            onShop = { shopping = true },
+            onRetry = viewModel::retryLoad,
+            onText = viewModel::setQuickAddText,
+            onAdd = { value -> if (value.isNotBlank()) viewModel.quickAdd(value, onAdded = clearText) },
+            onClearCart = viewModel::clearChecked,
+            onDismissHint = viewModel::dismissAisleHint,
+            onToggle = viewModel::toggle,
+            onDelete = viewModel::delete,
+            onEdit = { editing = it },
+        ),
+    )
 
     duplicate?.let { pending ->
         val canIncrease = pending.request.canIncrease(pending.existing)
         AlertDialog(
             onDismissRequest = viewModel::dismissDuplicate,
-            title = { Text(stringResource(R.string.grocery_already_title)) },
+            title = { Text(stringResource(R.string.grocery_already_title), style = SpoilNotText.DialogTitle) },
             text = {
                 // Amounts in another unit aren't added together (no conversion, DESIGN 2; after v1, LOGIC-08).
                 val existing = pending.existing
@@ -255,7 +195,7 @@ fun GroceriesScreen(
             confirmButton = {
                 if (canIncrease) {
                     TextButton(
-                        onClick = { viewModel.increaseDuplicate { text = "" } },
+                        onClick = { viewModel.increaseDuplicate(clearText) },
                     ) { Text(stringResource(R.string.grocery_increase)) }
                 }
             },
@@ -263,7 +203,7 @@ fun GroceriesScreen(
                 Row {
                     TextButton(onClick = viewModel::dismissDuplicate) { Text(stringResource(R.string.action_cancel)) }
                     TextButton(
-                        onClick = { viewModel.addDuplicateAnyway { text = "" } },
+                        onClick = { viewModel.addDuplicateAnyway(clearText) },
                     ) { Text(stringResource(R.string.grocery_add_anyway)) }
                 }
             },
@@ -305,19 +245,207 @@ fun GroceriesScreen(
     }
 }
 
+/** What the Groceries tab does with a tap, so [GroceriesTab] can be drawn without its view model. */
+internal data class GroceriesHandlers(
+    val onSelectList: (GroceryList) -> Unit,
+    val onListDialog: (ListDialog) -> Unit,
+    val onShop: () -> Unit,
+    val onRetry: () -> Unit,
+    val onText: (String) -> Unit,
+    val onAdd: (String) -> Unit,
+    val onClearCart: () -> Unit,
+    val onDismissHint: () -> Unit,
+    val onToggle: (GroceryItem) -> Unit,
+    val onDelete: (GroceryItem) -> Unit,
+    val onEdit: (GroceryItem) -> Unit,
+)
+
+/**
+ * The Groceries tab (DESIGN 5.3, 19.7): what is left to buy above the list's name, which switches lists, the
+ * quick-add field, and the list in aisles, then In cart.
+ */
+@Composable
+internal fun GroceriesTab(
+    state: GroceriesViewModel.UiState,
+    text: String,
+    suggestions: List<String>,
+    aisleHint: Boolean,
+    snackbar: SnackbarHostState,
+    onOpenSettings: () -> Unit,
+    handlers: GroceriesHandlers,
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
+) {
+    var cartOpen by rememberSaveable { mutableStateOf(true) }
+    val checkedCount = state.view.inCart.size
+    TabScaffold(
+        title = state.list?.name ?: stringResource(R.string.tab_groceries),
+        // What is left to buy (DESIGN 19.7).
+        eyebrow = if (state.loading) {
+            null
+        } else {
+            pluralStringResource(R.plurals.grocery_eyebrow_to_buy, state.toBuy, state.toBuy)
+        },
+        onOpenSettings = onOpenSettings,
+        modifier = modifier.testTag("screen_groceries"),
+        // The list's name is the switcher (after v1; a bare list icon did not say which list this is).
+        titleContent = { ListMenu(state, handlers.onSelectList, handlers.onListDialog) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
+        floatingActionButton = {
+            if (checkedCount > 0) {
+                SpoilNotFab(
+                    text = pluralStringResource(R.plurals.grocery_add_to_pantry, checkedCount, checkedCount),
+                    icon = Icons.Rounded.Inventory2,
+                    onClick = handlers.onShop,
+                    modifier = Modifier.testTag("fab_add_to_pantry"),
+                )
+            }
+        },
+    ) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            if (state.loadFailed) {
+                LoadError(onRetry = handlers.onRetry)
+            } else if (state.offline) {
+                OfflineBanner()
+            }
+            QuickAddField(text = text, onText = handlers.onText, suggestions = suggestions, onAdd = handlers.onAdd)
+            when {
+                state.loading -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) { if (!state.loadFailed) CircularProgressIndicator() }
+
+                state.items.isEmpty() -> EmptyState(Icons.Outlined.ShoppingCart, stringResource(R.string.grocery_empty))
+
+                else -> GroceryList(
+                    state = state,
+                    listState = listState,
+                    aisleHint = aisleHint,
+                    cartOpen = cartOpen,
+                    onToggleCart = { cartOpen = !cartOpen },
+                    onClearCart = handlers.onClearCart,
+                    onDismissHint = handlers.onDismissHint,
+                    onToggle = handlers.onToggle,
+                    onDelete = handlers.onDelete,
+                    onEdit = handlers.onEdit,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The list in aisles, then In cart (DESIGN 5.3, 19.5): each aisle a group of rows under its heading, pinned while its
+ * rows scroll. Another phone's change waits while the list moves (DESIGN 6.4, review CODE-09), and each row gets only
+ * its own facts, so a change redraws only the rows it touches (PERF-04).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GroceryList(
+    state: GroceriesViewModel.UiState,
+    listState: LazyListState,
+    aisleHint: Boolean,
+    cartOpen: Boolean,
+    onToggleCart: () -> Unit,
+    onClearCart: () -> Unit,
+    onDismissHint: () -> Unit,
+    onToggle: (GroceryItem) -> Unit,
+    onDelete: (GroceryItem) -> Unit,
+    onEdit: (GroceryItem) -> Unit,
+) {
+    val view: GroceryView = rememberHeldWhileScrolling(state.view, listState)
+    // Rows another phone changed get a short highlight (DESIGN 6.4).
+    val shown = remember(view) { view.aisles.flatMap { it.second } + view.inCart }
+    val remote = rememberRemoteChanges(
+        shown,
+        id = { it.id },
+        pending = { it.pendingSync },
+        content = { it.copy(pendingSync = false) },
+    )
+    val page = SpoilNotSurfaces.current.page
+    val row = @Composable { item: GroceryItem, index: Int, count: Int, modifier: Modifier ->
+        val position = segmentPosition(index, count)
+        GroceryRow(
+            item = item,
+            backInStock = item.id in state.backInStock,
+            addedBy = state.addedBy[item.id],
+            onToggle = onToggle,
+            onDelete = onDelete,
+            onEdit = onEdit,
+            modifier = modifier
+                .padding(top = if (index > 0) ListGroupGap else 0.dp)
+                .remoteHighlight(item.id in remote, segmentShape(position)),
+            position = position,
+        )
+    }
+    LazyColumn(
+        state = listState,
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = listBottomPadding()),
+        modifier = Modifier.testTag("grocery_list"),
+    ) {
+        view.aisles.forEachIndexed { index, (category, items) ->
+            // Sentence case, as everywhere else (DESIGN 6.9). TalkBack's headings navigation jumps from aisle to
+            // aisle in the shop (review A11Y-09).
+            stickyHeader(key = "aisle-$category", contentType = "heading") {
+                GroupHeading(
+                    stringResource(category.label()),
+                    Modifier
+                        .fillMaxWidth()
+                        .background(page)
+                        .padding(top = if (index == 0) 0.dp else AisleGap, bottom = 6.dp),
+                )
+            }
+            // Under the first aisle's heading, once: why the aisles move (after v1, UX-08).
+            if (index == 0 && aisleHint) {
+                item(key = "aisle-hint", contentType = "hint") {
+                    AisleHint(onDismissHint, Modifier.animateItem().padding(bottom = 8.dp))
+                }
+            }
+            itemsIndexed(items, key = { _, item -> item.id }, contentType = { _, _ -> "item" }) { i, item ->
+                row(item, i, items.size, Modifier.animateItem())
+            }
+        }
+        if (view.inCart.isNotEmpty()) {
+            item(key = "cart-header", contentType = "cart-header") {
+                CartHeader(
+                    view.inCart.size,
+                    cartOpen,
+                    onToggle = onToggleCart,
+                    onClear = onClearCart,
+                    modifier = Modifier.animateItem().padding(top = if (view.aisles.isEmpty()) 0.dp else AisleGap),
+                )
+            }
+            if (cartOpen) {
+                itemsIndexed(view.inCart, key = { _, item -> item.id }, contentType = { _, _ -> "item" }) { i, item ->
+                    row(item, i, view.inCart.size, Modifier.animateItem())
+                }
+            }
+        }
+    }
+}
+
+/** The space between two aisles, and above In cart. */
+private val AisleGap = 12.dp
+
+/** A row with a checkbox is at least 64 dp tall (DESIGN 19.5). */
+private val CheckboxRowHeight = 64.dp
+
 /**
  * A tap checks the item off; it moves to the In cart section (DESIGN 5.3). After v1 (UX-10) a swipe right checks it
  * off too (or puts it back from the cart) and a swipe left deletes it with Undo, each shown under the row as it moves;
- * the tap and the ⋮ menu do the same (DESIGN 6.8).
+ * the tap and the ⋮ menu do the same (DESIGN 6.8). A row of its aisle's group (19.5), on a darker surface in the cart.
+ * It takes only its own facts, [backInStock] and [addedBy], so it is drawn again only when they change (PERF-04).
  */
 @Composable
 internal fun GroceryRow(
     item: GroceryItem,
-    state: GroceriesViewModel.UiState,
+    backInStock: Boolean,
+    addedBy: String?,
     onToggle: (GroceryItem) -> Unit,
     onDelete: (GroceryItem) -> Unit,
     onEdit: (GroceryItem) -> Unit,
     modifier: Modifier = Modifier,
+    position: SegmentPosition = SegmentPosition.Only,
 ) {
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -328,8 +456,6 @@ internal fun GroceryRow(
         haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
         onToggle(item)
     }
-    val backInStock = item.id in state.backInStock
-    val by = addedBy(item, state)
     // One sentence for TalkBack, as Pantry's rows (review A11Y-07): "Bananas, 6 pieces, added automatically, added by
     // Sam, ripe ones". The checkbox state is read with it; Remove and ⋮ stay their own stops.
     val description = listOfNotNull(
@@ -342,13 +468,14 @@ internal fun GroceryRow(
             ItemSource.Manual -> null
         },
         if (backInStock) stringResource(R.string.grocery_back_in_stock) else null,
-        by?.let { stringResource(R.string.grocery_added_by, it) },
+        addedBy?.let { stringResource(R.string.grocery_added_by, it) },
         item.note,
     ).joinToString(", ")
+    val shape = segmentShape(position)
     SwipeToDismissBox(
         state = swipe,
         modifier = modifier.testTag("grocery_item_${item.id}"),
-        backgroundContent = { GrocerySwipeBackground(swipe.dismissDirection, item.checked) },
+        backgroundContent = { GrocerySwipeBackground(swipe.dismissDirection, item.checked, shape) },
         onDismiss = { direction ->
             when (direction) {
                 SwipeToDismissBoxValue.StartToEnd -> toggle()
@@ -363,93 +490,96 @@ internal fun GroceryRow(
             scope.launch { swipe.reset() }
         },
     ) {
-        Surface {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp)
-                    .toggleable(value = item.checked, role = Role.Checkbox, onValueChange = { toggle() })
-                    .semantics { contentDescription = description }
-                    .padding(start = 8.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(checked = item.checked, onCheckedChange = null, modifier = Modifier.padding(8.dp))
-                Column(Modifier.weight(1f).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    // The amount wraps under a long name instead of being squeezed out (review A11Y-04).
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            item.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            textDecoration = if (item.checked) TextDecoration.LineThrough else null,
-                            color = nameColor(item.checked),
-                        )
-                        item.quantity?.let {
-                            Text(
-                                "× ${amountText(it, item.unit)}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (item.pendingSync) {
-                            Icon(
-                                Icons.Rounded.CloudOff,
-                                stringResource(R.string.pending_sync),
-                                Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // Each source has its own icon, so the two look different without relying on color.
-                        when (item.source) {
-                            // What the app did by itself says so (after v1, UX-08; it said "Low stock", which read
-                            // as a status). Back in stock replaces it: one line, "Back in stock · Remove".
-                            ItemSource.LowStock -> if (!backInStock) {
-                                SourceBadge(
-                                    stringResource(R.string.grocery_source_low_stock),
-                                    Icons.AutoMirrored.Rounded.TrendingDown,
-                                )
-                            }
-
-                            ItemSource.Recipe -> SourceBadge(
-                                stringResource(R.string.grocery_source_recipe),
-                                Icons.Rounded.RestaurantMenu,
-                            )
-
-                            // The recipe icon with its own word (DESIGN 5.9): it comes from planned recipes.
-                            ItemSource.MealPlan -> SourceBadge(
-                                stringResource(R.string.grocery_source_meal_plan),
-                                Icons.Rounded.RestaurantMenu,
-                            )
-
-                            ItemSource.Manual -> Unit
-                        }
-                        if (backInStock) BackInStockLine(item.name) { onDelete(item) }
-                        if (by != null) {
-                            Text(
-                                stringResource(R.string.grocery_added_by, by),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        item.note?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-                ItemMenu(item, onEdit, onDelete)
+        ListSegment(
+            position = position,
+            modifier = Modifier
+                .clip(shape)
+                .toggleable(value = item.checked, role = Role.Checkbox, onValueChange = { toggle() })
+                .semantics { contentDescription = description },
+            // The cart is the shop's done pile: a step darker, its names struck through (DESIGN 19.5).
+            color = if (item.checked) MaterialTheme.colorScheme.surfaceContainerHigh else SpoilNotSurfaces.current.row,
+            minHeight = CheckboxRowHeight,
+            contentPadding = PaddingValues(start = 8.dp, end = 4.dp),
+        ) {
+            Checkbox(checked = item.checked, onCheckedChange = null, modifier = Modifier.padding(4.dp))
+            Column(Modifier.weight(1f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                NameLine(item)
+                SecondLine(item, backInStock, addedBy, onRemove = { onDelete(item) })
             }
+            ItemMenu(item, onEdit, onDelete)
+        }
+    }
+}
+
+/** "Eggs × 12" and the pending icon; the amount wraps under a long name instead of being squeezed out (A11Y-04). */
+@Composable
+private fun NameLine(item: GroceryItem) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            item.name,
+            style = SpoilNotText.RowTitle,
+            textDecoration = if (item.checked) TextDecoration.LineThrough else null,
+            color = nameColor(item.checked),
+        )
+        item.quantity?.let {
+            Text(
+                "× ${amountText(it, item.unit)}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (item.pendingSync) {
+            Icon(
+                Icons.Rounded.CloudOff,
+                stringResource(R.string.pending_sync),
+                Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Where the item came from as a label chip, Back in stock, who added it and its note (DESIGN 19.10). */
+@Composable
+private fun SecondLine(item: GroceryItem, backInStock: Boolean, addedBy: String?, onRemove: () -> Unit) {
+    val source = when (item.source) {
+        // What the app did by itself says so (after v1, UX-08; it said "Low stock", which read as a status). Back
+        // in stock replaces it: one line, "Back in stock · Remove".
+        ItemSource.LowStock -> if (backInStock) {
+            null
+        } else {
+            stringResource(R.string.grocery_source_low_stock) to Icons.AutoMirrored.Rounded.TrendingDown
+        }
+
+        ItemSource.Recipe -> stringResource(R.string.grocery_source_recipe) to Icons.Rounded.RestaurantMenu
+
+        // The recipe icon with its own word (DESIGN 5.9): it comes from planned recipes.
+        ItemSource.MealPlan -> stringResource(R.string.grocery_source_meal_plan) to Icons.Rounded.RestaurantMenu
+
+        ItemSource.Manual -> null
+    }
+    if (source == null && !backInStock && addedBy == null && item.note == null) return
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Each source has its own icon and word, so the chips differ without relying on color.
+        source?.let { (text, icon) -> LabelChip(text, icon = icon) }
+        if (backInStock) BackInStockLine(item.name, onRemove)
+        addedBy?.let {
+            Text(
+                stringResource(R.string.grocery_added_by, it),
+                style = SpoilNotText.RowSupporting,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        item.note?.let {
+            Text(it, style = SpoilNotText.RowSupporting, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -462,16 +592,21 @@ private fun BackInStockLine(name: String, onRemove: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        SourceBadge(stringResource(R.string.grocery_back_in_stock), Icons.Rounded.CheckCircle, good = true)
+        // Good news in the person chip's colors, with its own icon.
+        LabelChip(
+            stringResource(R.string.grocery_back_in_stock),
+            icon = Icons.Rounded.CheckCircle,
+            kind = LabelChipKind.Person,
+        )
         Text("·", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         val description = stringResource(R.string.grocery_back_in_stock_remove, name)
         Text(
             stringResource(R.string.grocery_remove),
-            style = MaterialTheme.typography.labelLarge,
+            style = SpoilNotText.ButtonMedium,
             color = MaterialTheme.colorScheme.primary,
             softWrap = false,
             modifier = Modifier
-                .clip(MaterialTheme.shapes.small)
+                .clip(RoundedCornerShape(12.dp))
                 .clickable(role = Role.Button) { onRemove() }
                 .semantics { contentDescription = description }
                 .heightIn(min = 48.dp)
@@ -482,11 +617,11 @@ private fun BackInStockLine(name: String, onRemove: () -> Unit) {
 }
 
 /**
- * What a swipe does, under the row as it moves (after v1, UX-10): right checks off (or puts back), left deletes.
- * Icon and word, never color alone (DESIGN 6.1).
+ * What a swipe does, under the row as it moves (after v1, UX-10): right checks off (or puts back), left deletes, in
+ * the row's [shape]. Icon and word, never color alone (DESIGN 6.1).
  */
 @Composable
-private fun GrocerySwipeBackground(direction: SwipeToDismissBoxValue, checked: Boolean) {
+private fun GrocerySwipeBackground(direction: SwipeToDismissBoxValue, checked: Boolean, shape: Shape) {
     val colors = MaterialTheme.colorScheme
     val (container, content) = when (direction) {
         SwipeToDismissBoxValue.StartToEnd -> colors.primaryContainer to colors.onPrimaryContainer
@@ -499,12 +634,17 @@ private fun GrocerySwipeBackground(direction: SwipeToDismissBoxValue, checked: B
         else -> Icons.Rounded.Check to R.string.grocery_swipe_check
     }
     Box(
-        Modifier.fillMaxSize().background(container).padding(horizontal = 20.dp),
+        Modifier.fillMaxSize().background(container, shape).padding(horizontal = 20.dp),
         contentAlignment = swipeAlignment(direction),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, contentDescription = null, tint = content)
-            Text(stringResource(label), color = content, style = MaterialTheme.typography.labelLarge)
+            Text(
+                stringResource(label),
+                color = content,
+                style = SpoilNotText.ButtonMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
         }
     }
 }
@@ -514,8 +654,8 @@ private fun GrocerySwipeBackground(direction: SwipeToDismissBoxValue, checked: B
 private fun AisleHint(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = MaterialTheme.shapes.medium,
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).testTag("grocery_aisle_hint"),
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.fillMaxWidth().testTag("grocery_aisle_hint"),
     ) {
         Row(
             Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
@@ -546,35 +686,16 @@ private fun swipeAlignment(direction: SwipeToDismissBoxValue) =
 @Composable
 private fun existingAmount(existing: GroceryItem): String = amountText(existing.quantity ?: 1.0, existing.unit)
 
-/** "added by Sam" for items someone else typed in. */
-private fun addedBy(item: GroceryItem, state: GroceriesViewModel.UiState): String? = item.createdBy
-    ?.takeIf { it != state.myUid && item.source == ItemSource.Manual }
-    ?.let { state.memberNames[it] }
-
-/**
- * A small label with an icon: tertiary for where an item came from, secondary for good news such as Back in stock.
- */
-@Composable
-private fun SourceBadge(text: String, icon: ImageVector, good: Boolean = false) {
-    val colors = MaterialTheme.colorScheme
-    val container = if (good) colors.secondaryContainer else colors.tertiaryContainer
-    val content = if (good) colors.onSecondaryContainer else colors.onTertiaryContainer
-    Row(
-        Modifier.background(container, MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
-        Text(text, style = MaterialTheme.typography.labelMedium, color = content)
-    }
-}
-
 @Composable
 private fun ItemMenu(item: GroceryItem, onEdit: (GroceryItem) -> Unit, onDelete: (GroceryItem) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.grocery_item_options, item.name))
+            Icon(
+                Icons.Rounded.MoreVert,
+                contentDescription = stringResource(R.string.grocery_item_options, item.name),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text(stringResource(R.string.action_edit)) }, onClick = {
@@ -589,82 +710,90 @@ private fun ItemMenu(item: GroceryItem, onEdit: (GroceryItem) -> Unit, onDelete:
     }
 }
 
+/**
+ * "In cart (1)" with Clear cart (DESIGN 5.3, 19.5): a heading in `onSurfaceVariant`, the cart being done; a tap
+ * folds the cart away or shows it.
+ */
 @Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.fillMaxWidth().background(
-            MaterialTheme.colorScheme.surface,
-        ).padding(horizontal = 16.dp, vertical = 8.dp)
-            // TalkBack's headings navigation jumps from aisle to aisle in the shop (review A11Y-09).
-            .semantics { heading() },
-    )
-}
-
-@Composable
-private fun CartHeader(count: Int, open: Boolean, onToggle: () -> Unit, onClear: () -> Unit) {
-    Column {
-        HorizontalDivider()
-        val state = stringResource(if (open) R.string.state_expanded else R.string.state_collapsed)
+private fun CartHeader(
+    count: Int,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state = stringResource(if (open) R.string.state_expanded else R.string.state_collapsed)
+    Row(
+        modifier.fillMaxWidth().padding(bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
-            Modifier.fillMaxWidth().clickable(
-                onClick = onToggle,
-            ).semantics {
-                heading()
-                stateDescription = state
-            }.heightIn(min = 48.dp).padding(start = 16.dp, end = 8.dp),
+            Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onToggle)
+                .semantics {
+                    heading()
+                    stateDescription = state
+                }
+                .heightIn(min = 48.dp)
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 pluralStringResource(R.plurals.grocery_in_cart, count, count),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f),
+                style = SpoilNotText.GroupHeading,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null)
-            TextButton(
-                onClick = onClear,
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) { Text(stringResource(R.string.grocery_clear_checked)) }
+            Icon(
+                if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = onClear, modifier = Modifier.heightIn(min = 44.dp)) {
+            Text(stringResource(R.string.grocery_clear_checked), style = SpoilNotText.ButtonMedium)
         }
     }
 }
 
-/** The quick-add field stays at the top; typing suggests pantry products and names already used (DESIGN 5.3). */
+/**
+ * The quick-add field stays at the top (DESIGN 5.3, 19.10): the page's round field with a filled + at its end;
+ * typing suggests pantry products and names already used, which the view model works out (review PERF-04).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QuickAddField(text: String, onText: (String) -> Unit, suggestions: List<String>, onAdd: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = open && suggestions.isNotEmpty(), onExpandedChange = { open = it }) {
-        OutlinedTextField(
+        PillField(
             value = text,
             onValueChange = {
                 onText(it)
                 open = true
             },
-            placeholder = { Text(stringResource(R.string.grocery_quick_add)) },
-            // The same pill as Pantry's search (after v1).
-            shape = CircleShape,
-            singleLine = true,
-            trailingIcon = {
-                IconButton(onClick = { onAdd(text) }, enabled = text.isNotBlank()) {
-                    Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.grocery_add_to_list))
-                }
-            },
+            placeholder = stringResource(R.string.grocery_quick_add),
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Sentences,
                 imeAction = ImeAction.Done,
             ),
             keyboardActions = KeyboardActions(onDone = { onAdd(text) }),
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
                 .testTag("grocery_quick_add")
                 .coachMark(TourTarget.QuickAdd.key),
-        )
+        ) {
+            FilledIconButton(
+                onClick = { onAdd(text) },
+                enabled = text.isNotBlank(),
+                shape = CircleShape,
+                modifier = Modifier.size(48.dp),
+            ) {
+                Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.grocery_add_to_list))
+            }
+        }
         ExposedDropdownMenu(expanded = open && suggestions.isNotEmpty(), onDismissRequest = { open = false }) {
             suggestions.forEach { name ->
                 DropdownMenuItem(text = { Text(name) }, onClick = {
@@ -676,7 +805,7 @@ private fun QuickAddField(text: String, onText: (String) -> Unit, suggestions: L
     }
 }
 
-private enum class ListDialog { Create, Rename, Delete }
+internal enum class ListDialog { Create, Rename, Delete }
 
 /** List switcher and list management (DESIGN 5.3: users can add, rename and delete lists). */
 @Composable
@@ -701,7 +830,8 @@ private fun ListMenu(
         ) {
             Text(
                 name,
-                style = MaterialTheme.typography.headlineSmall,
+                // The header's title (DESIGN 19.7): the list's name is the screen's title.
+                style = SpoilNotText.ScreenTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
@@ -752,7 +882,9 @@ private fun ListDialogs(
     if (dialog == ListDialog.Delete) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(stringResource(R.string.grocery_delete_list_title, currentName)) },
+            title = {
+                Text(stringResource(R.string.grocery_delete_list_title, currentName), style = SpoilNotText.DialogTitle)
+            },
             text = { Text(stringResource(R.string.grocery_delete_list_body)) },
             confirmButton = {
                 TextButton(onClick = {
@@ -779,6 +911,7 @@ private fun ListDialogs(
                         R.string.grocery_rename_list
                     },
                 ),
+                style = SpoilNotText.DialogTitle,
             )
         },
         text = {

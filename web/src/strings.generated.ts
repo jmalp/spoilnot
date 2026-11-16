@@ -693,6 +693,10 @@ export const PLURALS = {
     "one": "In cart (%d)",
     "other": "In cart (%d)"
   },
+  "grocery_eyebrow_to_buy": {
+    "one": "%d to buy",
+    "other": "%d to buy"
+  },
   "grocery_add_to_pantry": {
     "one": "Add %d to pantry",
     "other": "Add %d to pantry"

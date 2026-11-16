@@ -331,6 +331,11 @@
         <item quantity="one">In cart (%d)</item>
         <item quantity="other">In cart (%d)</item>
     </plurals>
+    <!-- The line above the list's name (DESIGN 19.7): items not in the cart yet. -->
+    <plurals name="grocery_eyebrow_to_buy">
+        <item quantity="one">%d to buy</item>
+        <item quantity="other">%d to buy</item>
+    </plurals>
     <string name="grocery_clear_checked">Clear cart</string>
     <plurals name="grocery_add_to_pantry">
         <item quantity="one">Add %d to pantry</item>

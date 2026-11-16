@@ -624,10 +624,16 @@ private fun NameField(
 /**
  * Quantity as a stepper (DESIGN 19.9): − and + joined to the typed amount, its label above; decimals allowed (5.2).
  * One text field for screen readers, named by its label, with − and + as their own buttons. [fill] stretches the
- * amount across the row, at large text sizes.
+ * amount across the row, at large text sizes; Add to pantry gives each line's stepper its own [tag].
  */
 @Composable
-private fun QuantityStepper(value: String, onChange: (String) -> Unit, error: String?, fill: Boolean = false) {
+internal fun QuantityStepper(
+    value: String,
+    onChange: (String) -> Unit,
+    error: String?,
+    fill: Boolean = false,
+    tag: String = "field_quantity",
+) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val colors = MaterialTheme.colorScheme
@@ -639,7 +645,7 @@ private fun QuantityStepper(value: String, onChange: (String) -> Unit, error: St
             .then(if (fill) Modifier.fillMaxWidth() else Modifier)
             .semantics(mergeDescendants = true) {}
             .errorSemantics(error)
-            .testTag("field_quantity"),
+            .testTag(tag),
         singleLine = true,
         textStyle = StepperValue.merge(TextStyle(color = colors.onSurface, textAlign = TextAlign.Center)),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
