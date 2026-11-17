@@ -13,11 +13,12 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
+import com.parcha.spoilnot.core.designsystem.motion.Motion
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import kotlinx.coroutines.delay
 
 /** How long a row changed on another phone stays highlighted (DESIGN 6.4). */
-const val REMOTE_HIGHLIGHT_MS = 1_500
+const val REMOTE_HIGHLIGHT_MS = Motion.HIGHLIGHT_MS
 
 /**
  * Tells which rows another phone changed. This phone's own writes always show up first with pending writes, so a

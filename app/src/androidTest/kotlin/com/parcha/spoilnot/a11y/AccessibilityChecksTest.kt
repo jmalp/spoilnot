@@ -337,7 +337,12 @@ class AccessibilityChecksTest {
         compose.onNode(hasContentDescription(str(R.string.open_settings))).performClick()
         awaitTag("screen_settings")
         check("Settings")
-        semantics("Settings headings") { compose.assertHeading(str(R.string.settings_account)) }
+        // The account card has no title in the 2026-11 look (DESIGN 19.12); its groups have headings.
+        semantics("Settings headings") {
+            compose.assertHeading(str(R.string.settings))
+            compose.assertHeading(str(R.string.settings_appearance))
+            compose.assertHeading(str(R.string.settings_data))
+        }
         awaitTag("row_household").performScrollTo().performClick()
         awaitTag("screen_household")
         check("Household")

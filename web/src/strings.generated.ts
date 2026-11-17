@@ -465,6 +465,8 @@ export const STRINGS = {
   "insights_section_reasons": "Why things were thrown away",
   "insights_reasons_none": "Nothing thrown away in the last 6 months.",
   "insights_section_streak": "Streak",
+  "insights_streak_rest": "with nothing thrown away",
+  "insights_streak_never_rest": "of counting, with nothing thrown away",
   "insights_streak_today": "Something was thrown away today. Tomorrow starts a new streak.",
   "insights_streak_none": "Your streak starts when you use up or throw away an item.",
   "insights_best_month": "Best month: %1$s, %2$d%% used",
@@ -759,6 +761,10 @@ export const PLURALS = {
   "insights_streak_never": {
     "one": "Nothing thrown away in %d day of counting",
     "other": "Nothing thrown away in %d days of counting"
+  },
+  "insights_streak_count": {
+    "one": "%d day",
+    "other": "%d days"
   },
   "activity_grocery_added_from_recipe": {
     "one": "%1$s added %2$d ingredient from %3$s to %4$s",

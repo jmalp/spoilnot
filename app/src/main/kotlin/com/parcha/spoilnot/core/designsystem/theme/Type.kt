@@ -65,6 +65,12 @@ object SpoilNotText {
     /** The one large number of a card, such as the month's percentage. */
     val BigNumber = text(FontWeight.ExtraBold, size = 48, lineHeight = 54, letterSpacing = -1.5)
 
+    /** The month's percentage on Your kitchen, the screen it is the point of. */
+    val HeroNumber = text(FontWeight.ExtraBold, size = 64, lineHeight = 70, letterSpacing = -2.0)
+
+    /** The number of an accent card, such as the streak's days. */
+    val AccentNumber = text(FontWeight.ExtraBold, size = 26, lineHeight = 32, letterSpacing = -0.3)
+
     /** The label of a large filled button and of the floating button. */
     val ButtonLarge = text(FontWeight.ExtraBold, size = 16, lineHeight = 24)
 

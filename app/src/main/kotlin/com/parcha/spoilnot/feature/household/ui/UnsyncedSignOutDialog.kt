@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 
 /**
  * Sign out found changes that haven't reached the server (after v1, SYNC-09): signing out clears this phone's copy,
@@ -19,15 +20,19 @@ import com.parcha.spoilnot.R
 internal fun UnsyncedSignOutDialog(onSignOut: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.sign_out_unsynced_title)) },
+        title = { Text(stringResource(R.string.sign_out_unsynced_title), style = SpoilNotText.DialogTitle) },
         text = { Text(stringResource(R.string.sign_out_unsynced_body)) },
         confirmButton = {
             TextButton(
                 onClick = onSignOut,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.testTag("sign_out_anyway"),
-            ) { Text(stringResource(R.string.action_sign_out_anyway)) }
+            ) { Text(stringResource(R.string.action_sign_out_anyway), style = SpoilNotText.ButtonMedium) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel), style = SpoilNotText.ButtonMedium)
+            }
+        },
     )
 }

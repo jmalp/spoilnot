@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.core.designsystem.theme.LeafShape
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
 
 /**
  * The one card a screen wants read first (DESIGN 19.8): Home's Needs attention, Plan's today, the account in Settings.
@@ -70,6 +72,27 @@ fun AccentCard(
         Surface(onClick, modifier.fillMaxWidth(), shape = shape, color = color, contentColor = contentColor) { row() }
     } else {
         Surface(modifier.fillMaxWidth(), shape = shape, color = color, contentColor = contentColor) { row() }
+    }
+}
+
+/**
+ * A card for content that isn't the screen's highlight (DESIGN 19.8), such as a chart or the appearance choices: the
+ * `row` color with 24 dp corners, its [content] in a column with 12 dp between the parts.
+ */
+@Composable
+fun PlainCard(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(18.dp),
+    spacing: Dp = 12.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(SpoilNotCorners.Card),
+        color = SpoilNotSurfaces.current.row,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
     }
 }
 

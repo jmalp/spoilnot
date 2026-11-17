@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -67,14 +68,15 @@ fun BackButton(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
 /**
  * Scaffold for a pushed screen in the 2026-11 look (DESIGN 19.7): the round Back on its own line with the screen's
- * [actions] at its end, then the [title] in [SpoilNotText.ScreenTitle], all on the page's color and pinned. Screens
- * keep [DetailScaffold] until their step.
+ * [actions] at its end, then the [title] in [SpoilNotText.ScreenTitle], with an optional [eyebrow] line above it (Your
+ * kitchen's month), all on the page's color and pinned. Screens keep [DetailScaffold] until their step.
  */
 @Composable
 fun PushedScaffold(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    eyebrow: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
     snackbarHost: @Composable () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
@@ -100,10 +102,20 @@ fun PushedScaffold(
                     Spacer(Modifier.weight(1f))
                     actions()
                 }
+                if (eyebrow != null) {
+                    Text(
+                        eyebrow,
+                        style = SpoilNotText.ScreenEyebrow,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp).testTag("screen_eyebrow"),
+                    )
+                }
                 Text(
                     title,
                     style = SpoilNotText.ScreenTitle,
-                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp).semantics { heading() },
+                    modifier = Modifier
+                        .padding(start = 8.dp, end = 8.dp, top = if (eyebrow != null) 0.dp else 8.dp)
+                        .semantics { heading() },
                 )
             }
         },

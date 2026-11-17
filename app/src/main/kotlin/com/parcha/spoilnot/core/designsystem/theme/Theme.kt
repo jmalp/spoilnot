@@ -9,6 +9,8 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
+import com.parcha.spoilnot.core.designsystem.motion.LocalReduceMotion
+import com.parcha.spoilnot.core.designsystem.motion.observeReduceMotion
 
 /**
  * Settings > Appearance > Colors (DESIGN 6.4): the wallpaper's Material You colors, the Spoil Not green, or one of
@@ -67,6 +69,8 @@ fun SpoilNotTheme(
         LocalStatusColors provides if (darkTheme) DarkStatusColors else LightStatusColors,
         // The page and row surfaces of the 2026-11 look take different roles in light and dark (DESIGN 19.2).
         LocalAppSurfaces provides appSurfaces(scheme, darkTheme),
+        // Remove animations, followed while the app runs (DESIGN 6.4, review PERF-10).
+        LocalReduceMotion provides observeReduceMotion(),
     ) {
         MaterialTheme(
             colorScheme = scheme,

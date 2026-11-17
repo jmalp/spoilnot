@@ -1,12 +1,7 @@
 package com.parcha.spoilnot.core.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +32,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.CoachMarks
@@ -44,6 +40,7 @@ import com.parcha.spoilnot.core.designsystem.component.LocalCoachMarks
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.component.rememberScreenReaderOn
+import com.parcha.spoilnot.core.designsystem.motion.Motion
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
@@ -150,7 +147,7 @@ fun AppShell(
     }
     val openRecipe = { id: String -> navigator.navigate(RecipeDetailRoute(id, navigator.currentTab)) }
     val provider = entryProvider<NavKey> {
-        entry<HomeRoute> {
+        entry<HomeRoute>(metadata = onTab(TopLevelDestination.Home)) {
             HomeScreen(
                 navigation = HomeNavigation(
                     openSettings = openSettings,
@@ -166,9 +163,11 @@ fun AppShell(
                 remindersOff = reminders.offOnThisPhone,
             )
         }
-        entry<PantryRoute> { PantryScreen(onOpenSettings = openSettings) }
-        entry<PlanRoute> { PlanScreen(PlanNavigation(openSettings = openSettings, openRecipe = openRecipe)) }
-        entry<RecipesRoute> {
+        entry<PantryRoute>(metadata = onTab(TopLevelDestination.Pantry)) { PantryScreen(onOpenSettings = openSettings) }
+        entry<PlanRoute>(metadata = onTab(TopLevelDestination.Plan)) {
+            PlanScreen(PlanNavigation(openSettings = openSettings, openRecipe = openRecipe))
+        }
+        entry<RecipesRoute>(metadata = onTab(TopLevelDestination.Recipes)) {
             RecipesScreen(
                 RecipesNavigation(
                     openSettings = openSettings,
@@ -179,7 +178,7 @@ fun AppShell(
                 ),
             )
         }
-        entry<RecipeDetailRoute> { key ->
+        entry<RecipeDetailRoute>(metadata = ::onItsTab) { key ->
             RecipeDetailScreen(
                 recipeId = key.recipeId,
                 onBack = { navigator.goBack() },
@@ -187,7 +186,7 @@ fun AppShell(
                 onCook = { servings -> navigator.navigate(CookModeRoute(key.recipeId, servings, key.tab)) },
             )
         }
-        entry<RecipeEditRoute> { key ->
+        entry<RecipeEditRoute>(metadata = ::onItsTab) { key ->
             RecipeEditScreen(
                 recipeId = key.recipeId,
                 prefill = key.prefill(),
@@ -197,7 +196,7 @@ fun AppShell(
                 },
             )
         }
-        entry<RecipeImportRoute> { key ->
+        entry<RecipeImportRoute>(metadata = ::onItsTab) { key ->
             RecipeImportScreen(
                 url = key.url,
                 onBack = { navigator.goBack() },
@@ -218,7 +217,7 @@ fun AppShell(
                 },
             )
         }
-        entry<RecipeBrowserRoute> { key ->
+        entry<RecipeBrowserRoute>(metadata = ::onItsTab) { key ->
             RecipeBrowserScreen(
                 url = key.url,
                 fallback = key.fallback,
@@ -244,11 +243,13 @@ fun AppShell(
                 },
             )
         }
-        entry<CookModeRoute> { key ->
+        entry<CookModeRoute>(metadata = ::onItsTab) { key ->
             CookModeScreen(recipeId = key.recipeId, servings = key.servings, onBack = { navigator.goBack() })
         }
-        entry<GroceriesRoute> { GroceriesScreen(onOpenSettings = openSettings) }
-        entry<SettingsRoute> {
+        entry<GroceriesRoute>(metadata = onTab(TopLevelDestination.Groceries)) {
+            GroceriesScreen(onOpenSettings = openSettings)
+        }
+        entry<SettingsRoute>(metadata = ::onItsTab) {
             SettingsScreen(
                 onBack = { navigator.goBack() },
                 onOpenHousehold = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
@@ -256,10 +257,14 @@ fun AppShell(
                 onOpenAbout = { navigator.navigate(AboutRoute(navigator.currentTab)) },
             )
         }
-        entry<AboutRoute> { AboutScreen(onBack = { navigator.goBack() }) }
-        entry<InsightsRoute> { InsightsScreen(onBack = { navigator.goBack() }) }
-        entry<NotificationSettingsRoute> { NotificationSettingsScreen(onBack = { navigator.goBack() }) }
-        entry<HouseholdSettingsRoute> { HouseholdSettingsScreen(onBack = { navigator.goBack() }) }
+        entry<AboutRoute>(metadata = ::onItsTab) { AboutScreen(onBack = { navigator.goBack() }) }
+        entry<InsightsRoute>(metadata = ::onItsTab) { InsightsScreen(onBack = { navigator.goBack() }) }
+        entry<NotificationSettingsRoute>(metadata = ::onItsTab) {
+            NotificationSettingsScreen(onBack = { navigator.goBack() })
+        }
+        entry<HouseholdSettingsRoute>(metadata = ::onItsTab) {
+            HouseholdSettingsScreen(onBack = { navigator.goBack() })
+        }
     }
 
     // Decorate every tab's stack on every composition so saved state and ViewModels of hidden tabs survive.
@@ -307,9 +312,9 @@ fun AppShell(
                 entries = visibleEntries,
                 onBack = { navigator.goBack() },
                 modifier = Modifier.fillMaxSize(),
-                transitionSpec = { sharedAxis(forward = true, reduceMotion) },
-                popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
-                predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
+                transitionSpec = { screenChange(forward = true, newOnTop = true, reduceMotion) },
+                popTransitionSpec = { screenChange(forward = false, newOnTop = false, reduceMotion) },
+                predictivePopTransitionSpec = { screenChange(forward = false, newOnTop = false, reduceMotion) },
             )
             // Refused writes from any screen (after v1, REL-13), above the navigation bar.
             SpoilNotSnackbarHost(shellSnackbar, Modifier.align(Alignment.BottomCenter))
@@ -379,15 +384,30 @@ private fun RecipeEditRoute.prefill(): RecipeContent? =
     }
 
 /**
- * Material shared axis X (DESIGN 6.4): a short slide with a fade, 250 ms; only a fade when the system's Remove
- * animations setting is on.
+ * How the shell moves between two screens (DESIGN 6.4): Material's shared axis within a tab, a single fade between
+ * tabs (after v1, review PERF-09). [newOnTop] is false for a pop, which the navigation draws under the old screen.
  */
-private fun sharedAxis(forward: Boolean, reduceMotion: Boolean): ContentTransform {
-    if (reduceMotion) return fadeIn(tween(120)) togetherWith fadeOut(tween(120))
-    val sign = if (forward) 1 else -1
-    return (slideInHorizontally(tween(250)) { sign * it / 8 } + fadeIn(tween(250, delayMillis = 50))) togetherWith
-        (slideOutHorizontally(tween(250)) { -sign * it / 8 } + fadeOut(tween(150)))
+private fun AnimatedContentTransitionScope<Scene<NavKey>>.screenChange(
+    forward: Boolean,
+    newOnTop: Boolean,
+    reduceMotion: Boolean,
+): ContentTransform = if (initialState.tab() != targetState.tab()) {
+    Motion.tabSwitch(newOnTop, reduceMotion)
+} else {
+    Motion.sharedAxis(forward, reduceMotion)
 }
+
+/** The tab a scene's screen belongs to, from its entry's [TAB_METADATA]. */
+private fun Scene<NavKey>.tab(): Any? = entries.lastOrNull()?.metadata?.get(TAB_METADATA)
+
+/** An entry's metadata key for its tab, so a transition can tell a tab switch from a push. */
+private const val TAB_METADATA = "spoilnot.tab"
+
+/** The metadata of a tab's root on [tab]. */
+private fun onTab(tab: TopLevelDestination): Map<String, Any> = mapOf(TAB_METADATA to tab)
+
+/** The metadata of a pushed screen, on the tab it was opened on. */
+private fun onItsTab(key: PushedRoute): Map<String, Any> = onTab(key.tab)
 
 /** Settings and its pages close when their tab is left. */
 private fun isSettingsScreen(key: NavKey) =

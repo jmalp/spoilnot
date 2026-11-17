@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.ErrorText
 import com.parcha.spoilnot.core.designsystem.component.PasswordField
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 
 /** Delete account's password dialog (DESIGN 5.1), from Settings or the household gate. */
 @Composable
@@ -24,7 +25,7 @@ internal fun DeleteAccountDialog(busy: Boolean, error: Int?, onDismiss: () -> Un
     var password by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.delete_account_title)) },
+        title = { Text(stringResource(R.string.delete_account_title), style = SpoilNotText.DialogTitle) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.delete_account_body))
@@ -37,8 +38,12 @@ internal fun DeleteAccountDialog(busy: Boolean, error: Int?, onDismiss: () -> Un
                 onClick = { onDelete(password) },
                 enabled = !busy && password.isNotEmpty(),
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) { Text(stringResource(R.string.action_delete)) }
+            ) { Text(stringResource(R.string.action_delete), style = SpoilNotText.ButtonMedium) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel), style = SpoilNotText.ButtonMedium)
+            }
+        },
     )
 }
