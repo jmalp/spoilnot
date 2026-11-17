@@ -76,11 +76,11 @@ class HouseholdScreenshotTest(private val dark: Boolean, private val fontScale: 
             ),
         )
         compose.setThemed(dark, fontScale) {
-            HouseholdCards(
+            HouseholdPage(
                 content,
-                content.household!!,
                 HouseholdViewModel.Actions(),
                 remember { SnackbarHostState() },
+                onBack = {},
                 onApprove = {},
                 onDecline = {},
                 onConfirm = {},

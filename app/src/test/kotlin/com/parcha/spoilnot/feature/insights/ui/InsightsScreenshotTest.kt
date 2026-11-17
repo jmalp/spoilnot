@@ -1,6 +1,5 @@
 package com.parcha.spoilnot.feature.insights.ui
 
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -21,10 +20,13 @@ import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** The Insights screen (DESIGN 5.7) with six months of counts, light and dark, font scale 1.0 and 2.0. */
+/**
+ * Your kitchen (DESIGN 5.7, 19.8) with six months of counts, and with nothing counted yet: the whole page with its
+ * month above the title, light and dark, font scale 1.0 and 2.0.
+ */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = "w411dp-h1500dp-xxhdpi")
+@Config(qualifiers = "w411dp-h2000dp-xxhdpi")
 class InsightsScreenshotTest(private val dark: Boolean, private val fontScale: Float) {
     companion object {
         @JvmStatic
@@ -52,7 +54,7 @@ class InsightsScreenshotTest(private val dark: Boolean, private val fontScale: F
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
-                    Surface { InsightsContent(summary) }
+                    InsightsPage(summary, onBack = {})
                 }
             }
         }

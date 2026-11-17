@@ -95,6 +95,7 @@ import com.parcha.spoilnot.core.designsystem.component.TabScaffold
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.component.segmentPosition
+import com.parcha.spoilnot.core.designsystem.motion.Motion
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
@@ -106,6 +107,7 @@ import com.parcha.spoilnot.feature.home.domain.ActivityType
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
 import com.parcha.spoilnot.feature.household.domain.Member
 import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
+import com.parcha.spoilnot.feature.insights.ui.OnPrimaryLegend
 import com.parcha.spoilnot.feature.insights.ui.UsageRing
 import com.parcha.spoilnot.feature.insights.ui.UsageRingColors
 import com.parcha.spoilnot.feature.insights.ui.moodText
@@ -503,7 +505,7 @@ private fun KitchenCard(insights: InsightsSummary, onOpen: () -> Unit) {
                         Text(moodText(insights.mood), style = MaterialTheme.typography.bodyMedium)
                     } else {
                         Text(stringResource(R.string.insights_percent, percent(share)), style = SpoilNotText.BigNumber)
-                        KitchenLegend(month.used, month.thrownTotal)
+                        OnPrimaryLegend(month.used, month.thrownTotal)
                     }
                 }
             }
@@ -513,35 +515,9 @@ private fun KitchenCard(insights: InsightsSummary, onOpen: () -> Unit) {
                 centerText = "",
                 description = description,
                 size = 84.dp,
-                colors = UsageRingColors(
-                    used = colors.primaryContainer,
-                    thrown = colors.onPrimary,
-                    track = colors.onPrimary.copy(alpha = 0.24f).compositeOver(colors.primary),
-                ),
+                colors = UsageRingColors.onPrimary(),
             )
         }
-    }
-}
-
-/** "Used 3" with a solid swatch and "Thrown away 1" with an outlined one, so the two differ by more than color. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun KitchenLegend(used: Int, thrown: Int) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        LegendEntry(stringResource(R.string.insights_legend_used) + " " + used) {
-            Box(Modifier.size(12.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp)))
-        }
-        LegendEntry(stringResource(R.string.insights_legend_thrown) + " " + thrown) {
-            Box(Modifier.size(12.dp).border(2.dp, LocalContentColor.current, RoundedCornerShape(4.dp)))
-        }
-    }
-}
-
-@Composable
-private fun LegendEntry(text: String, swatch: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        swatch()
-        Text(text, style = SpoilNotText.RowSupporting)
     }
 }
 
@@ -821,7 +797,10 @@ private fun SkeletonCard() {
         transition.animateFloat(
             initialValue = 0.4f,
             targetValue = 0.9f,
-            animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing), RepeatMode.Reverse),
+            animationSpec = infiniteRepeatable(
+                tween(Motion.SKELETON_PULSE_MS, easing = LinearEasing),
+                RepeatMode.Reverse,
+            ),
             label = "skeleton alpha",
         ).value
     }

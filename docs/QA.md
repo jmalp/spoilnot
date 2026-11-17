@@ -536,6 +536,24 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     chip; Change: the pantry's products as chips. Edit: the round Back over Edit recipe, and the ingredients and steps
     in tall fields with their labels above. Settings > Accessibility > Larger Text at the largest size: the servings
     stepper goes under Ingredients, the two buttons stack, and cook mode's Ingredients has its own line.
+73. The new look, step 7: Your kitchen and Settings (Android, after v1, 2026-11-17, DESIGN 5.6, 5.7, 6.4, 19.12):
+    Home > Your kitchen: round Back, this month's name over Your kitchen, then the green card with the percentage
+    large, Used and Thrown away beside their swatches, the ring at the end and the friendly sentence under them; the
+    charts grow once without stutter, and with Remove animations on they are drawn at once. Last 6 months: tap another
+    month, its background turns tinted, and its details in the rounded box below change (TalkBack reads them); the best
+    month has a trophy. The streak is a blue card with the fire in a leaf and "15 days" large; the reasons are striped
+    bars. Settings: the account card with the initial in a leaf (and Email not verified with Resend email when it
+    isn't); Household and Notifications as rounded rows with tiles and chevrons ("Off on this phone" when blocked);
+    Appearance: Theme and Units as joined buttons, the colors in a grid of four with a ring and a check on the choice;
+    Data: tap Export household data to save the file, and the crash reports row turns its switch; the tour and About;
+    Sign out is a wide tonal button, Delete account and (owner) Clear household data red text buttons. Household: the
+    name as the title with a round Rename, join requests on the green card with Approve and Decline, the code large
+    with Copy and Share, the members as rows with their initials. Notifications: the reminder and Meals I'm cooking as
+    switch rows, Time, then rounded check and radio rows; Send test notification is tonal. About: the version row,
+    Privacy on a card, the licenses below. Switching tabs: the new tab fades in, without the sideways slide that opening
+    a screen still has; back from a tab to Home fades the tab out; turn on Remove animations with the app open and
+    switch tabs: no fade at once, without restarting. Larger text at 2×: the ring goes under the numbers, Theme and
+    Units become radio buttons, the colors two to a row. Dark mode and Fiery Palette: the same in their colors.
 
 ## 3. Conditions
 

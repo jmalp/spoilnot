@@ -1,13 +1,19 @@
 package com.parcha.spoilnot.feature.insights.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.EmojiEvents
@@ -15,7 +21,7 @@ import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,12 +38,19 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
-import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
+import com.parcha.spoilnot.core.designsystem.component.AccentCard
+import com.parcha.spoilnot.core.designsystem.component.LeafBadge
+import com.parcha.spoilnot.core.designsystem.component.PlainCard
+import com.parcha.spoilnot.core.designsystem.component.PushedScaffold
 import com.parcha.spoilnot.core.designsystem.component.isLargeText
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
 import com.parcha.spoilnot.feature.insights.domain.MonthStats
 import com.parcha.spoilnot.feature.insights.domain.Mood
@@ -50,16 +63,25 @@ import kotlin.math.roundToInt
 @Composable
 fun InsightsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, viewModel: InsightsViewModel = hiltViewModel()) {
     val summary by viewModel.summary.collectAsStateWithLifecycle()
-    DetailScaffold(
+    InsightsPage(summary, onBack, modifier)
+}
+
+/**
+ * Your kitchen (DESIGN 5.7, 19.8): a pushed screen with this month's name above its title, then this month on the
+ * `primary` card, the last six months, the streak and why things were thrown away.
+ */
+@Composable
+internal fun InsightsPage(summary: InsightsSummary?, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    PushedScaffold(
         title = stringResource(R.string.insights_title),
         onBack = onBack,
+        eyebrow = summary?.let { monthName(it.current.month, TextStyle.FULL, it.current.month) },
         modifier = modifier.testTag("screen_insights"),
     ) { padding ->
-        val loaded = summary
-        if (loaded == null) {
+        if (summary == null) {
             Box(Modifier.padding(padding).fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
         } else {
-            InsightsContent(loaded, Modifier.padding(padding))
+            InsightsContent(summary, Modifier.padding(padding))
         }
     }
 }
@@ -67,99 +89,17 @@ fun InsightsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, viewModel:
 @Composable
 internal fun InsightsContent(summary: InsightsSummary, modifier: Modifier = Modifier) {
     Column(
-        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Section(stringResource(R.string.insights_card_title), "card_insights_month") {
-            // The ring's description already says both counts; the legend isn't read again (review A11Y-07).
-            val legend = @Composable {
-                Column(Modifier.clearAndSetSemantics { }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LegendItem(
-                        stringResource(R.string.insights_legend_used) + " " + summary.current.used,
-                        thrown = false,
-                    )
-                    LegendItem(
-                        stringResource(R.string.insights_legend_thrown) + " " + summary.current.thrownTotal,
-                        thrown = true,
-                    )
-                }
-            }
-            // From 1.5× text the legend goes under the ring.
-            if (isLargeText()) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    MonthRing(summary.current)
-                    legend()
-                }
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    MonthRing(summary.current)
-                    legend()
-                }
-            }
-            Text(moodText(summary.mood), style = MaterialTheme.typography.bodyLarge)
-        }
-        Section(stringResource(R.string.insights_section_months), "card_insights_months") {
-            if (summary.months.all { it.total == 0 }) {
-                Text(stringResource(R.string.insights_months_none), style = MaterialTheme.typography.bodyLarge)
-            } else {
-                // The latest month is selected first; tapping another shows its details (after v1).
-                var selected by rememberSaveable(summary.months.size) { mutableIntStateOf(summary.months.lastIndex) }
-                MonthBars(
-                    bars = summary.months.map {
-                        MonthBar(
-                            monthName(it.month, TextStyle.SHORT, summary.current.month),
-                            it.used,
-                            it.thrownTotal,
-                            stringResource(
-                                R.string.insights_month_entry,
-                                monthName(it.month, TextStyle.FULL, summary.current.month),
-                                it.used,
-                                it.thrownTotal,
-                            ),
-                        )
-                    },
-                    selected = selected,
-                    onSelect = { selected = it },
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    LegendItem(stringResource(R.string.insights_legend_used), thrown = false)
-                    LegendItem(stringResource(R.string.insights_legend_thrown), thrown = true)
-                }
-                summary.months.getOrNull(selected)?.let { MonthDetails(it, summary.current.month) }
-            }
-            summary.bestMonth?.let { best ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.EmojiEvents, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text(
-                        stringResource(
-                            R.string.insights_best_month,
-                            monthName(best.month, TextStyle.FULL, summary.current.month),
-                            percent(best.usedShare),
-                        ),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
-            }
-        }
-        Section(stringResource(R.string.insights_section_streak), "card_insights_streak") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Rounded.LocalFireDepartment,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    streakText(summary),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-        }
-        Section(stringResource(R.string.insights_section_reasons), "card_insights_reasons") {
+        MonthCard(summary)
+        MonthsCard(summary)
+        StreakCard(summary)
+        PlainCard(Modifier.testTag("card_insights_reasons")) {
+            CardHeading(stringResource(R.string.insights_section_reasons))
             if (summary.reasons.isEmpty()) {
                 Text(stringResource(R.string.insights_reasons_none), style = MaterialTheme.typography.bodyLarge)
             } else {
@@ -170,21 +110,170 @@ internal fun InsightsContent(summary: InsightsSummary, modifier: Modifier = Modi
             stringResource(R.string.insights_counting_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 6.dp),
         )
     }
 }
 
-/** The tapped month: its counts, the share used and why things were thrown away (after v1). */
+/**
+ * This month on `primary` (DESIGN 19.8), like Home's card: the percentage used in [SpoilNotText.HeroNumber], the
+ * counts as a legend, the ring at the end and the friendly sentence under them. TalkBack reads the title, the ring's
+ * sentence and the friendly one; the numbers written out aren't read again (review A11Y-07). From 1.5× text the ring
+ * goes under the numbers.
+ */
+@Composable
+private fun MonthCard(summary: InsightsSummary) {
+    val month = summary.current
+    val share = month.usedShare
+    val description = if (share == null) {
+        stringResource(R.string.insights_ring_empty)
+    } else {
+        stringResource(R.string.insights_ring_description, month.used, month.thrownTotal, percent(share))
+    }
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        Modifier.fillMaxWidth().testTag("card_insights_month"),
+        shape = RoundedCornerShape(SpoilNotCorners.Highlight),
+        color = colors.primary,
+        contentColor = colors.onPrimary,
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val numbers = @Composable {
+                Column {
+                    // onPrimary, not primaryContainer: that is under 4.5:1 on four light themes' primary (19.8).
+                    Text(
+                        stringResource(R.string.insights_card_title),
+                        style = SpoilNotText.RowSupporting,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    if (share != null) {
+                        Column(Modifier.clearAndSetSemantics { }) {
+                            Text(
+                                stringResource(R.string.insights_percent, percent(share)),
+                                style = SpoilNotText.HeroNumber,
+                            )
+                            OnPrimaryLegend(month.used, month.thrownTotal)
+                        }
+                    }
+                }
+            }
+            val ring = @Composable {
+                UsageRing(
+                    used = month.used,
+                    thrown = month.thrownTotal,
+                    centerText = "",
+                    description = description,
+                    size = 112.dp,
+                    colors = UsageRingColors.onPrimary(),
+                )
+            }
+            if (isLargeText()) {
+                numbers()
+                ring()
+            } else {
+                // With nothing counted the title alone sits at the top, not in the middle beside the ring.
+                Row(
+                    verticalAlignment = if (share == null) Alignment.Top else Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Box(Modifier.weight(1f)) { numbers() }
+                    ring()
+                }
+            }
+            Text(
+                moodText(summary.mood),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+/** The last six months on a plain card: the bars, their legend, the chosen month's details and the best month. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MonthsCard(summary: InsightsSummary) {
+    PlainCard(
+        Modifier.testTag("card_insights_months"),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 18.dp),
+    ) {
+        CardHeading(stringResource(R.string.insights_section_months), Modifier.padding(horizontal = 6.dp))
+        if (summary.months.all { it.total == 0 }) {
+            Text(
+                stringResource(R.string.insights_months_none),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(horizontal = 6.dp),
+            )
+        } else {
+            // The latest month is selected first; tapping another shows its details (after v1).
+            var selected by rememberSaveable(summary.months.size) { mutableIntStateOf(summary.months.lastIndex) }
+            MonthBars(
+                bars = summary.months.map {
+                    MonthBar(
+                        monthName(it.month, TextStyle.SHORT, summary.current.month),
+                        it.used,
+                        it.thrownTotal,
+                        stringResource(
+                            R.string.insights_month_entry,
+                            monthName(it.month, TextStyle.FULL, summary.current.month),
+                            it.used,
+                            it.thrownTotal,
+                        ),
+                    )
+                },
+                selected = selected,
+                onSelect = { selected = it },
+            )
+            FlowRow(
+                Modifier.padding(horizontal = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                LegendItem(stringResource(R.string.insights_legend_used), thrown = false)
+                LegendItem(stringResource(R.string.insights_legend_thrown), thrown = true)
+            }
+            summary.months.getOrNull(selected)?.let { MonthDetails(it, summary.current.month) }
+        }
+        summary.bestMonth?.let { best ->
+            Row(
+                Modifier.padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.Rounded.EmojiEvents, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    stringResource(
+                        R.string.insights_best_month,
+                        monthName(best.month, TextStyle.FULL, summary.current.month),
+                        percent(best.usedShare),
+                    ),
+                    style = SpoilNotText.RowTitle,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The tapped month in a box of the page's color: its counts, the share used and why things were thrown away (after
+ * v1). It is a polite live region, so TalkBack reads the new month when another is tapped.
+ */
 @Composable
 private fun MonthDetails(stats: MonthStats, thisMonth: YearMonth) {
     Column(
-        Modifier.fillMaxWidth().testTag("insights_month_details").semantics(mergeDescendants = true) {
-            liveRegion =
-                LiveRegionMode.Polite
-        },
+        Modifier
+            .fillMaxWidth()
+            .background(SpoilNotSurfaces.current.page, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .testTag("insights_month_details")
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(monthName(stats.month, TextStyle.FULL, thisMonth), style = MaterialTheme.typography.titleSmall)
+        Text(
+            monthName(stats.month, TextStyle.FULL, thisMonth),
+            style = SpoilNotText.RowTitle,
+            fontWeight = FontWeight.ExtraBold,
+        )
         Text(
             if (stats.total == 0) {
                 stringResource(R.string.insights_month_nothing)
@@ -211,23 +300,56 @@ private fun MonthDetails(stats: MonthStats, thisMonth: YearMonth) {
     }
 }
 
-/** This month's ring with its percentage, shared by Home and Insights. */
+/**
+ * The streak as an accent card (DESIGN 19.8): the fire in a leaf, "Streak", then the days in
+ * [SpoilNotText.AccentNumber] over what they mean, read together. Before a streak can be counted, or on a day something was thrown away, a
+ * sentence says so instead.
+ */
 @Composable
-fun MonthRing(stats: MonthStats, modifier: Modifier = Modifier, small: Boolean = false) {
-    val share = stats.usedShare
-    UsageRing(
-        used = stats.used,
-        thrown = stats.thrownTotal,
-        centerText = if (share == null) "–" else stringResource(R.string.insights_percent, percent(share)),
-        description = if (share == null) {
-            stringResource(R.string.insights_ring_empty)
-        } else {
-            stringResource(R.string.insights_ring_description, stats.used, stats.thrownTotal, percent(share))
-        },
-        modifier = modifier,
-        size = if (small) 72.dp else 140.dp,
-        centerStyle = if (small) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineMedium,
-    )
+private fun StreakCard(summary: InsightsSummary) {
+    AccentCard(Modifier.testTag("card_insights_streak")) {
+        LeafBadge(size = 56.dp) {
+            Icon(Icons.Rounded.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(28.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.insights_section_streak),
+                style = SpoilNotText.RowSupporting,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
+            val days = summary.daysWithoutWaste
+            when {
+                days == null -> StreakSentence(stringResource(R.string.insights_streak_none))
+
+                days == 0 && !summary.neverThrown -> StreakSentence(stringResource(R.string.insights_streak_today))
+
+                else -> Column(Modifier.semantics(mergeDescendants = true) { }) {
+                    Text(
+                        pluralStringResource(R.plurals.insights_streak_count, days, days),
+                        style = SpoilNotText.AccentNumber,
+                    )
+                    val rest = if (summary.neverThrown) {
+                        R.string.insights_streak_never_rest
+                    } else {
+                        R.string.insights_streak_rest
+                    }
+                    StreakSentence(stringResource(rest))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreakSentence(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+}
+
+/** A plain card's title, a heading for screen readers. */
+@Composable
+private fun CardHeading(text: String, modifier: Modifier = Modifier) {
+    Text(text, style = SpoilNotText.SectionTitle, modifier = modifier.semantics { heading() })
 }
 
 @Composable
@@ -241,16 +363,6 @@ fun moodText(mood: Mood): String = stringResource(
     },
 )
 
-@Composable
-private fun streakText(summary: InsightsSummary): String {
-    val days = summary.daysWithoutWaste ?: return stringResource(R.string.insights_streak_none)
-    return when {
-        summary.neverThrown -> pluralStringResource(R.plurals.insights_streak_never, days, days)
-        days == 0 -> stringResource(R.string.insights_streak_today)
-        else -> pluralStringResource(R.plurals.insights_streak_days, days, days)
-    }
-}
-
 /** A whole percentage; 99.6 % shows as 99, not 100, so "100 %" means nothing was thrown away. */
 fun percent(share: Float?): Int {
     val value = ((share ?: 0f) * 100)
@@ -261,14 +373,4 @@ fun percent(share: Float?): Int {
 private fun monthName(month: YearMonth, style: TextStyle, thisMonth: YearMonth): String {
     val name = month.month.getDisplayName(style, Locale.getDefault())
     return if (style == TextStyle.SHORT || month.year == thisMonth.year) name else "$name ${month.year}"
-}
-
-@Composable
-private fun Section(title: String, tag: String, content: @Composable () -> Unit) {
-    OutlinedCard(Modifier.fillMaxWidth().testTag(tag)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-            content()
-        }
-    }
 }

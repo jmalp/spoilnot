@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
 import com.parcha.spoilnot.feature.notifications.ui.formatHour
@@ -50,7 +51,7 @@ class NotificationsRowScreenshotTest(private val dark: Boolean, private val font
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = ColorTheme.SpoilNot) {
-                    Surface {
+                    Surface(color = SpoilNotSurfaces.current.page) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             NotificationsRow(on, allowed = true, onOpen = {})
                             NotificationsRow(on, allowed = false, onOpen = {})

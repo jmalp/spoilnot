@@ -621,6 +621,13 @@
         <item quantity="one">Nothing thrown away in %d day of counting</item>
         <item quantity="other">Nothing thrown away in %d days of counting</item>
     </plurals>
+    <!-- The streak card of the 2026-11 look (DESIGN 19.8): the days large, then what they mean. -->
+    <plurals name="insights_streak_count">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="insights_streak_rest">with nothing thrown away</string>
+    <string name="insights_streak_never_rest">of counting, with nothing thrown away</string>
     <string name="insights_streak_today">Something was thrown away today. Tomorrow starts a new streak.</string>
     <string name="insights_streak_none">Your streak starts when you use up or throw away an item.</string>
     <string name="insights_best_month">Best month: %1$s, %2$d%% used</string>

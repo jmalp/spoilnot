@@ -6,13 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
-import com.parcha.spoilnot.core.designsystem.component.Segmented
+import com.parcha.spoilnot.core.designsystem.component.ConnectedButtonGroup
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import org.junit.Rule
@@ -21,10 +22,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Segmented stacks its options at large text sizes, so labels are never cut off (after v1). */
+/**
+ * A connected button group (DESIGN 19.9) stacks its options as radio buttons at large text sizes, so labels are never
+ * cut off; it replaced the segmented buttons, which did the same (after v1), with Settings' step of the new look.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
-class SegmentedTest {
+class ConnectedButtonGroupTest {
     @get:Rule
     val compose = createComposeRule()
 
@@ -33,8 +37,7 @@ class SegmentedTest {
         CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
             SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
                 var picked by remember { mutableStateOf("Metric (g, kg, ml)") }
-                Segmented(
-                    label = "Units",
+                ConnectedButtonGroup(
                     options = listOf("Metric (g, kg, ml)", "Imperial (oz, lb)"),
                     selected = picked,
                     optionLabel = { it },
@@ -45,16 +48,19 @@ class SegmentedTest {
     }
 
     @Test
-    fun normalTextUsesSegmentedButtons() {
+    fun normalTextJoinsTheButtonsAndPicks() {
         show(1f)
-        compose.onNodeWithTag("segmented_row").assertExists()
-        compose.onNodeWithTag("segmented_list").assertDoesNotExist()
+        compose.onNodeWithTag("connected_row").assertExists()
+        compose.onNodeWithTag("connected_list").assertDoesNotExist()
+        compose.onNodeWithText("Imperial (oz, lb)").performClick().assertIsSelected()
+        compose.onNodeWithText("Metric (g, kg, ml)").assertIsNotSelected()
     }
 
     @Test
     fun largeTextStacksTheOptionsAndStillPicks() {
         show(2f)
-        compose.onNodeWithTag("segmented_list").assertExists()
+        compose.onNodeWithTag("connected_list").assertExists()
+        compose.onNodeWithTag("connected_row").assertDoesNotExist()
         compose.onNodeWithText("Imperial (oz, lb)").performClick()
         compose.onNodeWithText("Imperial (oz, lb)").assertIsSelected()
     }

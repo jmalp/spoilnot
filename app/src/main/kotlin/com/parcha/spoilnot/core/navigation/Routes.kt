@@ -3,6 +3,14 @@ package com.parcha.spoilnot.core.navigation
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
+/**
+ * A screen pushed on a tab's stack. It keeps the tab it was opened on, so the same screen on two tabs has two keys
+ * (and two saved states), and the shell can tell a push within a tab from a tab switch (DESIGN 6.4).
+ */
+interface PushedRoute : NavKey {
+    val tab: TopLevelDestination
+}
+
 @Serializable
 data object HomeRoute : NavKey
 
@@ -24,19 +32,19 @@ data object GroceriesRoute : NavKey
  * of the key so two tabs can each have Settings open without sharing saved state.
  */
 @Serializable
-data class SettingsRoute(val tab: TopLevelDestination) : NavKey
+data class SettingsRoute(override val tab: TopLevelDestination) : PushedRoute
 
 /** Settings > Household, pushed on the same tab as Settings. */
 @Serializable
-data class HouseholdSettingsRoute(val tab: TopLevelDestination) : NavKey
+data class HouseholdSettingsRoute(override val tab: TopLevelDestination) : PushedRoute
 
 /** Settings > Notifications, pushed on the same tab as Settings. */
 @Serializable
-data class NotificationSettingsRoute(val tab: TopLevelDestination) : NavKey
+data class NotificationSettingsRoute(override val tab: TopLevelDestination) : PushedRoute
 
 /** A saved recipe (DESIGN 5.5), pushed on the tab that opened it. */
 @Serializable
-data class RecipeDetailRoute(val recipeId: String, val tab: TopLevelDestination) : NavKey
+data class RecipeDetailRoute(val recipeId: String, override val tab: TopLevelDestination) : PushedRoute
 
 /**
  * Create manually ([recipeId] null) or edit. A failed import prefills the title, image and link (DESIGN 11.2).
@@ -44,15 +52,15 @@ data class RecipeDetailRoute(val recipeId: String, val tab: TopLevelDestination)
 @Serializable
 data class RecipeEditRoute(
     val recipeId: String?,
-    val tab: TopLevelDestination,
+    override val tab: TopLevelDestination,
     val prefillTitle: String? = null,
     val prefillImageUrl: String? = null,
     val prefillSourceUrl: String? = null,
-) : NavKey
+) : PushedRoute
 
 /** The preview of a recipe fetched from a link (Paste link and the share sheet). */
 @Serializable
-data class RecipeImportRoute(val url: String?, val tab: TopLevelDestination) : NavKey
+data class RecipeImportRoute(val url: String?, override val tab: TopLevelDestination) : PushedRoute
 
 /**
  * The built-in browser (DESIGN 5.5). [fallback] is true when a fetched page had no recipe, so a page without one
@@ -61,20 +69,20 @@ data class RecipeImportRoute(val url: String?, val tab: TopLevelDestination) : N
 @Serializable
 data class RecipeBrowserRoute(
     val url: String?,
-    val tab: TopLevelDestination,
+    override val tab: TopLevelDestination,
     val fallback: Boolean = false,
     val prefillTitle: String? = null,
     val prefillImageUrl: String? = null,
-) : NavKey
+) : PushedRoute
 
 /** Cook mode at [servings] (the detail screen's stepper). */
 @Serializable
-data class CookModeRoute(val recipeId: String, val servings: Int?, val tab: TopLevelDestination) : NavKey
+data class CookModeRoute(val recipeId: String, val servings: Int?, override val tab: TopLevelDestination) : PushedRoute
 
 /** Insights (DESIGN 5.7), opened from Home's "Your kitchen this month" card. */
 @Serializable
-data class InsightsRoute(val tab: TopLevelDestination) : NavKey
+data class InsightsRoute(override val tab: TopLevelDestination) : PushedRoute
 
 /** Settings > About, pushed on the same tab as Settings. */
 @Serializable
-data class AboutRoute(val tab: TopLevelDestination) : NavKey
+data class AboutRoute(override val tab: TopLevelDestination) : PushedRoute
