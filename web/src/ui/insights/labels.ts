@@ -30,10 +30,16 @@ export function moodText(mood: Mood): string {
   }
 }
 
-export function streakText(summary: InsightsSummary): string {
+/**
+ * The streak card's words (DESIGN 19.8): the [days] large ("15 days") over the [sentence] that says what they mean, or
+ * only a sentence before a streak can be counted or on a day something was thrown away.
+ */
+export function streakParts(summary: InsightsSummary): { days: string | null; sentence: string } {
   const days = summary.daysWithoutWaste;
-  if (days === null) return str('insights_streak_none');
-  if (summary.neverThrown) return plural('insights_streak_never', days, days);
-  if (days === 0) return str('insights_streak_today');
-  return plural('insights_streak_days', days, days);
+  if (days === null) return { days: null, sentence: str('insights_streak_none') };
+  if (days === 0 && !summary.neverThrown) return { days: null, sentence: str('insights_streak_today') };
+  return {
+    days: plural('insights_streak_count', days, days),
+    sentence: str(summary.neverThrown ? 'insights_streak_never_rest' : 'insights_streak_rest'),
+  };
 }

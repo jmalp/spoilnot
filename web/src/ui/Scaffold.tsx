@@ -152,6 +152,7 @@ export function DetailScaffold({
   bottomBar,
   testId,
   header = 'bar',
+  eyebrow,
   children,
 }: {
   title: string;
@@ -163,6 +164,8 @@ export function DetailScaffold({
   bottomBar?: ReactNode;
   testId?: string;
   header?: 'bar' | 'pushed' | 'overlay';
+  /** With header 'pushed', a line above the title (PushedScaffold's eyebrow in the app): Your kitchen's month. */
+  eyebrow?: string;
   children: ReactNode;
 }) {
   // Snackbars show above the FAB or the bar; screens before sign-in have neither.
@@ -183,7 +186,16 @@ export function DetailScaffold({
           <span className="sn-pushed-header__spacer" />
           {actions}
         </div>
-        {title && <h1 className="t-screen-title sn-pushed-header__title">{title}</h1>}
+        {eyebrow && (
+          <p className="t-screen-eyebrow c-on-surface-variant sn-pushed-header__eyebrow" data-testid="screen_eyebrow">
+            {eyebrow}
+          </p>
+        )}
+        {title && (
+          <h1 className={`t-screen-title sn-pushed-header__title ${eyebrow ? 'sn-pushed-header__title--under' : ''}`}>
+            {title}
+          </h1>
+        )}
       </header>
     ) : header === 'overlay' ? (
       // Pinned with no height of its own, so the content starts at the very top and scrolls under the buttons.

@@ -554,6 +554,16 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     a screen still has; back from a tab to Home fades the tab out; turn on Remove animations with the app open and
     switch tabs: no fade at once, without restarting. Larger text at 2×: the ring goes under the numbers, Theme and
     Units become radio buttons, the colors two to a row. Dark mode and Fiery Palette: the same in their colors.
+74. The new look, step 7 on the iPhone (web, after v1, 2026-11-17, DESIGN 18.2, 19.12): flow 73 in the Home Screen app
+    on an iPhone, without what the web doesn't have (crash reports, the tour, the app's tab fade), with VoiceOver
+    instead of TalkBack: Your kitchen's ring reads "This month: 3 used, 1 thrown away, 75% used", "Your kitchen this
+    month" and "Streak" are headings, and the charts sweep and grow in once (at once with Reduce Motion on). Settings:
+    the account card with the initial, Household read as one button with its summary, Appearance with Theme and Units
+    as joined buttons, the colors four to a row, Week starts on under them, Data with Export household data as a row,
+    About, and a wide tonal Sign out. Household, Notifications and About: the round Back over the title; Notifications
+    in Safari shows the rounded red banner about adding the app to the Home Screen. Settings > Accessibility > Larger
+    Text at the largest size: the ring under the numbers, Theme and Units as radio buttons, the colors two to a row,
+    Resend email under its words.
 
 ## 3. Conditions
 

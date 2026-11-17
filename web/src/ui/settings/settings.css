@@ -1,51 +1,105 @@
-/* Settings (DESIGN 5.6): the Appearance, Data and About cards. */
-.sn-settings__card-title {
-  margin: 0;
-  padding: 16px 16px 0;
-}
-.sn-settings__appearance {
+/* Settings (DESIGN 5.6, 19.12) in the 2026-11 look: cards and groups of rows 12 px apart on the page. */
+.sn-settings {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
+  gap: 12px;
+  padding: 8px 16px 24px;
+}
+.sn-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .sn-settings__help {
   margin: 0;
   color: var(--md-sys-color-on-surface-variant);
 }
-.sn-settings__card-action {
-  padding: 0 16px 16px;
+.sn-settings__sign-out {
+  min-height: 56px;
+  margin-top: 4px;
 }
 
-/* The color theme swatches (ColorThemePicker): a 42 px circle in quarters, a 3 px ring and a check when chosen. */
+/* The account: the initial in a leaf, the name and the email, and Email not verified as a nested row. */
+.sn-account-card__who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 4px;
+}
+.sn-account-card__names {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+.sn-account-card__email {
+  font-weight: 600;
+}
+.sn-account-card__unverified {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 6px 0 16px;
+}
+/* From 1.5x text Resend email goes under the words, so neither is squeezed (A11Y-04). */
+:root[data-large-text] .sn-account-card__unverified {
+  flex-direction: column;
+  align-items: flex-start;
+  padding-bottom: 6px;
+}
+
+/* Appearance: a plain card, its choices 18 px apart. */
+.sn-settings__appearance {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+}
+.sn-settings__choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The color theme swatches (ColorThemePicker): a 56 px circle in quarters in a grid of up to four, a 3 px ring
+   outside a 3 px gap and a check on a dot of the page's text color when chosen. */
 .sn-color-themes {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.sn-color-themes__row {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: 4px;
-  row-gap: 8px;
+.sn-color-themes__grid {
+  display: grid;
+  /* At least a cell (76 px times the text size), and at most four to a row. */
+  grid-template-columns: repeat(auto-fill, minmax(max(var(--sn-swatch-cell), calc((100% - 12px) / 4)), 1fr));
+  gap: 8px 4px;
 }
 .sn-swatch {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 6px 0;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 2px;
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   background: transparent;
-  color: var(--md-sys-color-on-surface);
+  color: var(--md-sys-color-on-surface-variant);
   font-family: inherit;
+}
+.sn-swatch[aria-checked='true'] {
+  color: var(--md-sys-color-on-surface);
+}
+.sn-swatch[aria-checked='true'] .sn-swatch__label {
+  font-weight: 800;
 }
 .sn-swatch__ring {
   display: grid;
-  width: 52px;
-  height: 52px;
-  padding: 5px;
+  width: 68px;
+  height: 68px;
+  padding: 6px;
   box-sizing: border-box;
   border-radius: 50%;
 }
@@ -55,18 +109,18 @@
 .sn-swatch__colors {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
 }
 .sn-swatch__check {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  box-sizing: border-box;
-  border: 1.5px solid;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
+  background: var(--md-sys-color-on-surface);
+  color: var(--md-sys-color-surface);
 }
 /* Every label takes two lines, so the swatches in a row line up. */
 .sn-swatch__label {
@@ -75,24 +129,33 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
   min-height: calc(2 * var(--sp-16));
+  font-weight: 600;
   text-align: center;
 }
 
-/* About: the version, the privacy summary and the open source licenses. */
+/* About: the version row, privacy on a plain card, then the licenses on the page's color. */
 .sn-about {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 8px 16px 4px;
 }
-.sn-about h2 {
-  margin: 0;
-}
+.sn-about h2,
 .sn-about p {
   margin: 0;
 }
-.sn-about__licenses-title {
-  padding-top: 8px;
+.sn-about__version {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 12px;
+}
+.sn-about__privacy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
 }
 .sn-licenses {
   display: flex;

@@ -34,6 +34,14 @@ test('theme, colors and units: chosen in Settings, kept after the app opens agai
   await openSettings(page);
   const root = page.locator('html');
   await expect(root).toHaveAttribute('data-mode', 'light');
+  // The 2026-11 look (DESIGN 19.12): the account card with the initial, the rows as one button each with both lines,
+  // and the groups' headings.
+  await expect(page.getByTestId('card_account')).toContainText('Sam');
+  await expect(page.getByTestId('row_household')).toHaveRole('button');
+  await expect(page.getByTestId('row_household')).toHaveAccessibleName(/^Household Looks/);
+  for (const heading of ['Settings', 'Appearance', 'Data']) {
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+  }
 
   const appearance = page.getByTestId('card_appearance');
   await appearance.getByRole('radio', { name: 'Dark' }).click();

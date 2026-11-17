@@ -1,4 +1,5 @@
-/* Insights (DESIGN 5.7): the ring, month bars and reason bars, as InsightsCharts draws them. */
+/* Your kitchen (DESIGN 5.7, 19.8): the ring, month bars and reason bars, as InsightsCharts draws them, and the screen's
+   cards. */
 .sn-ring {
   position: relative;
   display: grid;
@@ -13,60 +14,132 @@
   position: relative;
   text-align: center;
 }
+
+/* Growing in when first shown (Motion.CHART_GROW_MS, standard easing): CSS, not React state per frame (WEB-13). */
+@keyframes sn-ring-sweep {
+  from {
+    stroke-dashoffset: var(--sn-ring-length);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes sn-grow-up {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes sn-grow-right {
+  from {
+    transform: scaleX(0);
+  }
+}
+.sn-ring__sweep {
+  animation: sn-ring-sweep 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sn-grow-up {
+  transform-origin: bottom;
+  animation: sn-grow-up 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sn-grow-right {
+  transform-origin: left;
+  animation: sn-grow-right 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sn-ring__sweep,
+  .sn-grow-up,
+  .sn-grow-right {
+    animation: none;
+  }
+}
+
+/* The bars: used solid primary; thrown away striped tertiary on tertiaryContainer inside a 2 px outline. */
+.sn-bar__solid {
+  display: block;
+  border-radius: 4px;
+  background: var(--md-sys-color-primary);
+}
+.sn-bar__striped {
+  display: block;
+  box-sizing: border-box;
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--md-sys-color-tertiary) 0 2px,
+    var(--md-sys-color-tertiary-container) 2px 5px
+  );
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-tertiary);
+}
 .sn-month-bars {
-  display: flex;
-  justify-content: space-evenly;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
   width: 100%;
 }
 .sn-month-bar {
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   align-items: center;
-  padding: 4px;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 0;
   border: none;
-  border-radius: 8px;
+  border-radius: 16px;
   background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  font: inherit;
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
   cursor: pointer;
 }
 .sn-month-bar--selected {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
+.sn-month-bar__label {
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
 .sn-month-bar--selected .sn-month-bar__label {
-  font-weight: 700;
+  color: var(--md-sys-color-on-secondary-container);
+  font-weight: 800;
 }
 .sn-month-bar__pair {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-}
-.sn-month-bar__label {
-  padding-top: 4px;
+  gap: 4px;
 }
 .sn-bar {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 2px;
+  white-space: nowrap;
 }
-.sn-bar svg,
-.sn-legend svg,
-.sn-striped {
-  display: block;
-  flex: none;
+.sn-bar .sn-bar__solid,
+.sn-bar .sn-bar__striped {
+  width: 16px;
 }
 .sn-legend {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+.sn-legend__swatch {
+  width: 12px;
+  height: 12px;
+  flex: none;
 }
 .sn-reason-bars {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
+}
+.sn-reason-bars__reason {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .sn-reason-bars__head {
   display: flex;
@@ -75,53 +148,138 @@
 .sn-reason-bars__head > :first-child {
   flex: 1;
 }
-.sn-reason-bars__track {
-  padding-top: 2px;
+.sn-reason-bars__count {
+  font-weight: 800;
 }
+.sn-reason-bars__bar {
+  height: 12px;
+  min-width: 2px;
+}
+/* A reason's name and count: the row title's size at the second line's weight (ReasonText in the app). */
+.t-reason {
+  font-size: var(--sp-16);
+  line-height: calc(var(--sp-16) * 1.375);
+  font-weight: 600;
+}
+
+/* The month card's legend on primary (Home's card and Your kitchen's): a solid swatch for used, an outlined one for
+   thrown away, so they differ by more than color. */
+.sn-kitchen-card__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+.sn-kitchen-card__entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sn-kitchen-card__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--md-sys-color-primary-container);
+}
+.sn-kitchen-card__swatch--outlined {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-on-primary);
+}
+
+/* The screen (InsightsScreen in the app): cards 12 px apart on the page. */
 .sn-insights {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 8px 16px 24px;
 }
-.sn-insights p {
+.sn-insights p,
+.sn-insights h2 {
   margin: 0;
 }
-.sn-insights__ring-row {
+/* This month on primary, 28 px corners: the title and numbers beside the ring, the friendly sentence under them. */
+.sn-month-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 28px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+.sn-month-card__row {
   display: flex;
   align-items: center;
   gap: 16px;
 }
-.sn-insights__legend-column {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* With nothing counted the title alone sits at the top, not in the middle beside the ring. */
+.sn-month-card__row--empty {
+  align-items: flex-start;
 }
-/* From 1.5x text the legend goes under the ring (after v1, review A11Y-04). */
-:root[data-large-text] .sn-insights__ring-row {
+.sn-month-card__numbers {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+/* From 1.5x text the ring goes under the numbers (A11Y-04). */
+:root[data-large-text] .sn-month-card__row {
   flex-direction: column;
   align-items: flex-start;
 }
+.sn-month-card__mood {
+  font-weight: 600;
+}
+.sn-insights-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+.sn-insights-card--months {
+  padding: 18px 12px;
+}
+.sn-insights-card--months > .sn-insights-card__inset {
+  padding: 0 6px;
+}
 .sn-insights__legend-row {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
 }
+/* The chosen month's details in a box of the page's color. */
 .sn-insights__month-details {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--sn-surface-page);
+}
+.sn-insights__month-name {
+  font-weight: 800;
 }
 .sn-icon-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
-.sn-insights-section {
+/* The streak: the fire in a 56 px leaf, the days large over what they mean. */
+.sn-streak .sn-leaf-badge {
+  width: 56px;
+  height: 56px;
+}
+.sn-streak__text {
   display: flex;
+  flex: 1;
+  min-width: 0;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
 }
-.sn-insights-section h2 {
-  margin: 0;
+.sn-streak__title {
+  font-weight: 700;
+}
+.sn-streak__sentence {
+  font-weight: 600;
+}
+.sn-insights__note {
+  padding: 0 6px;
 }

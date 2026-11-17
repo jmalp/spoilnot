@@ -55,6 +55,7 @@ function DeleteAccountDialog({
   const [password, setPassword] = useState('');
   return (
     <Dialog
+      titleClassName="t-dialog-title"
       title={str('delete_account_title')}
       onDismiss={onDismiss}
       actions={

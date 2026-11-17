@@ -23,12 +23,15 @@ export { TextArea, TextField } from './TextField';
 export { ErrorText, ListItem } from './ListItem';
 export { DatePickerDialog } from './DatePicker';
 export { SelectField } from './SelectField';
-export { Segmented, SEGMENTED_STACK_SCALE } from './Segmented';
 export {
   AccentCard,
+  ActionRow,
+  ChoiceRow,
   ConnectedButtonGroup,
   CountStepper,
+  GroupHeading,
   HighlightCard,
+  IconTile,
   LabelChip,
   LeafBadge,
   ListGroup,
@@ -39,4 +42,5 @@ export {
   SpoilNotFilterChip,
   StatusTile,
   StepButton,
+  SwitchRow,
 } from './Look';

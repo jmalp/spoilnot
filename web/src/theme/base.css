@@ -30,6 +30,7 @@
   --sp-54: 54px;
   --sp-57: 57px;
   --sp-64: 64px;
+  --sp-70: 70px;
   --sn-safe-top: env(safe-area-inset-top, 0px);
   --sn-safe-bottom: env(safe-area-inset-bottom, 0px);
   --sn-safe-left: env(safe-area-inset-left, 0px);
@@ -242,6 +243,19 @@ button {
   line-height: var(--sp-54);
   font-weight: 800;
   letter-spacing: -0.09375rem;
+}
+/* Step 7: the month's percentage on Your kitchen, and an accent card's number (the streak's days, the invite code). */
+.t-hero-number {
+  font-size: var(--sp-64);
+  line-height: var(--sp-70);
+  font-weight: 800;
+  letter-spacing: -0.125rem;
+}
+.t-accent-number {
+  font-size: var(--sp-26);
+  line-height: var(--sp-32);
+  font-weight: 800;
+  letter-spacing: -0.3px;
 }
 .t-button-large {
   font-size: var(--sp-16);

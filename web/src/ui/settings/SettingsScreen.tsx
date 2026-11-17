@@ -7,14 +7,15 @@ import { useHouseholdSession, usePreferences, useServices } from '../../core/ser
 import { NotificationPrompt, NotificationRules } from '../../domain/notifications';
 import { ExportFormat } from '../../domain/settings/export';
 import { today } from '../../domain/time';
-import { Button, Card, Dialog, ErrorText, Icon, ListItem, useSnackbars } from '../kit';
+import { ActionRow, Button, Dialog, ErrorText, HighlightCard, LeafBadge, ListGroup, useSnackbars } from '../kit';
 import { PasswordField } from '../forms';
 import { DetailScaffold } from '../Scaffold';
 import { formatHour, useNotificationPrefs, usePushStatus } from '../notifications/reminders';
-import { AboutCard, AppearanceCard, DataCard } from './SettingsSections';
+import { AboutGroup, AppearanceCard, DataSection } from './SettingsSections';
 import { useDeleteAccount } from './DeleteAccount';
 import { UnsyncedSignOutDialog } from '../household/UnsyncedSignOut';
 import '../household/household.css';
+import './settings.css';
 
 /** The steps of Clear household data: an "are you sure" step, then the owner's password. */
 type ClearStep = 'none' | 'areYouSure' | 'password';
@@ -32,8 +33,9 @@ function download(name: string, text: string) {
 }
 
 /**
- * Settings (DESIGN 5.6): the account, the household, notifications, appearance and units, export and About, signing
- * out, deleting the account and, for the owner, clearing the household's data.
+ * Settings (DESIGN 5.6, 19.12) in the 2026-11 look: the account as the highlight card, Household and Notifications,
+ * Appearance, Data and About as groups of rows, then Sign out as a full-width tonal button, Delete account and, for the
+ * owner, Clear household data.
  */
 export function SettingsScreen({
   onBack,
@@ -83,56 +85,41 @@ export function SettingsScreen({
   }, [auth]);
 
   return (
-    <DetailScaffold title={str('settings')} onBack={onBack} testId="screen_settings">
-      <div className="sn-stack">
+    <DetailScaffold title={str('settings')} onBack={onBack} header="pushed" testId="screen_settings">
+      <div className="sn-settings">
         <ErrorText text={clearStep === 'none' && action.error ? str(action.error) : null} />
-        <Card>
-          <h2 className="t-title-medium sn-settings__card-title">{str('settings_account')}</h2>
-          <ListItem
-            headline={me.displayName}
-            supporting={<span data-testid="account_email">{me.user.email ?? ''}</span>}
-            leading={<Icon name="round/person" />}
-          />
-          {!verified && (
-            <ListItem
-              headline={str('email_unverified')}
-              supporting={verificationSent ? str('verification_sent') : undefined}
-              trailing={
-                <Button
-                  variant="text"
-                  disabled={action.busy || verificationSent}
-                  onClick={() =>
-                    void action.run(async () => {
-                      await auth.sendEmailVerification();
-                      setVerificationSent(true);
-                    })
-                  }
-                >
-                  {str('action_resend_verification')}
-                </Button>
-              }
-            />
-          )}
-        </Card>
-        <Card>
-          <ListItem
-            headline={str('settings_household')}
-            supporting={
+        <AccountCard
+          name={me.displayName}
+          email={me.user.email ?? ''}
+          verified={verified}
+          verificationSent={verificationSent}
+          busy={action.busy}
+          onResend={() =>
+            void action.run(async () => {
+              await auth.sendEmailVerification();
+              setVerificationSent(true);
+            })
+          }
+        />
+        <ListGroup>
+          <ActionRow
+            icon="round/group"
+            title={str('settings_household')}
+            summary={
               household
                 ? plural('settings_household_summary', household.memberCount, household.name, household.memberCount)
                 : undefined
             }
-            leading={<Icon name="round/group" />}
-            trailing={<Icon name="round/keyboard_arrow_right" />}
+            summaryTestId="household_summary"
             onClick={onOpenHousehold}
+            opensPage
             testId="row_household"
           />
-        </Card>
-        <Card>
-          <ListItem
-            headline={str('settings_notifications')}
+          <ActionRow
+            icon={blocked ? 'round/notifications_off' : 'round/notifications'}
+            title={str('settings_notifications')}
             // "Off on this phone" when the reminder is on but this phone can't show it (after v1, review UX-02).
-            supporting={
+            summary={
               notifications &&
               (!notifications.enabled
                 ? str('settings_notifications_off')
@@ -140,12 +127,11 @@ export function SettingsScreen({
                   ? str('settings_notifications_blocked')
                   : str('settings_notifications_on', formatHour(NotificationRules.hour(notifications))))
             }
-            leading={<Icon name={blocked ? 'round/notifications_off' : 'round/notifications'} />}
-            trailing={<Icon name="round/keyboard_arrow_right" />}
             onClick={onOpenNotifications}
+            opensPage
             testId="row_notifications"
           />
-        </Card>
+        </ListGroup>
         <AppearanceCard
           themeMode={themeMode}
           colorTheme={colorTheme}
@@ -156,7 +142,7 @@ export function SettingsScreen({
           onUnits={(units) => void action.run(() => users.setUnits(me.user.uid, units))}
           onWeekStart={(choice) => preferences.set({ weekStart: choice })}
         />
-        <DataCard
+        <DataSection
           busy={action.busy}
           onExport={() =>
             void action.run(async () => {
@@ -174,8 +160,16 @@ export function SettingsScreen({
             })
           }
         />
-        <AboutCard onOpenAbout={onOpenAbout} />
-        <Button variant="outlined" full large disabled={action.busy} onClick={() => signOut()}>
+        <AboutGroup onOpenAbout={onOpenAbout} />
+        <Button
+          variant="tonal"
+          full
+          large
+          icon="round/logout"
+          className="t-button-medium sn-settings__sign-out"
+          disabled={action.busy}
+          onClick={() => signOut()}
+        >
           {str('action_sign_out')}
         </Button>
         <Button
@@ -189,7 +183,7 @@ export function SettingsScreen({
             deleteAccount.open();
           }}
         >
-          {str('action_delete_account')}
+          <span className="t-button-medium">{str('action_delete_account')}</span>
         </Button>
         {me.role === 'owner' && (
           <Button
@@ -204,13 +198,14 @@ export function SettingsScreen({
             }}
             data-testid="button_clear_household"
           >
-            {str('action_clear_household')}
+            <span className="t-button-medium">{str('action_clear_household')}</span>
           </Button>
         )}
       </div>
       {clearStep === 'areYouSure' && (
         <Dialog
           title={str('clear_household_title')}
+          titleClassName="t-dialog-title"
           onDismiss={() => setClearStep('none')}
           actions={
             <>
@@ -253,6 +248,56 @@ export function SettingsScreen({
   );
 }
 
+/**
+ * The account as Settings' highlight card (DESIGN 19.8, 19.12): the name's initial in a leaf, the name and the email,
+ * and while the email isn't verified a nested row with Resend email (under the words from 1.5× text).
+ */
+function AccountCard({
+  name,
+  email,
+  verified,
+  verificationSent,
+  busy,
+  onResend,
+}: {
+  name: string;
+  email: string;
+  verified: boolean;
+  verificationSent: boolean;
+  busy: boolean;
+  onResend: () => void;
+}) {
+  const initial = name.trim().charAt(0).toUpperCase();
+  return (
+    <HighlightCard className="sn-account-card" data-testid="card_account">
+      <div className="sn-account-card__who">
+        <LeafBadge highlight size={56} letter={initial || undefined} icon="round/person" />
+        <div className="sn-account-card__names">
+          <span className="t-card-title">{name}</span>
+          <span className="t-body-medium sn-account-card__email" data-testid="account_email">
+            {email}
+          </span>
+        </div>
+      </div>
+      {!verified && (
+        <ListGroup nested>
+          <div className="sn-segment sn-account-card__unverified" data-testid="row_email_unverified">
+            <span className="sn-row-lines">
+              <span className="t-row-title">{str('email_unverified')}</span>
+              {verificationSent && (
+                <span className="t-row-supporting c-on-surface-variant">{str('verification_sent')}</span>
+              )}
+            </span>
+            <Button variant="text" className="t-button-medium" disabled={busy || verificationSent} onClick={onResend}>
+              {str('action_resend_verification')}
+            </Button>
+          </div>
+        </ListGroup>
+      )}
+    </HighlightCard>
+  );
+}
+
 /** A password field with a destructive action, for the last step of Clear household data. */
 function PasswordConfirmDialog({
   title,
@@ -275,6 +320,7 @@ function PasswordConfirmDialog({
   return (
     <Dialog
       title={title}
+      titleClassName="t-dialog-title"
       onDismiss={onDismiss}
       actions={
         <>

@@ -754,14 +754,6 @@ export const PLURALS = {
     "one": "%d item",
     "other": "%d items"
   },
-  "insights_streak_days": {
-    "one": "%d day with nothing thrown away",
-    "other": "%d days with nothing thrown away"
-  },
-  "insights_streak_never": {
-    "one": "Nothing thrown away in %d day of counting",
-    "other": "Nothing thrown away in %d days of counting"
-  },
   "insights_streak_count": {
     "one": "%d day",
     "other": "%d days"

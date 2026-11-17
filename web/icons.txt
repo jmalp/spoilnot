@@ -98,3 +98,7 @@ round/sync
 # After v1 (B16, B17 web port): reminders off, the grocery swipes and the aisle hint
 round/undo
 round/swap_vert
+
+# The new look, step 7 (Settings and Notifications)
+round/logout
+round/notifications_active

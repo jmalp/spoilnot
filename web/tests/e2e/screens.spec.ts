@@ -103,8 +103,10 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('insights_month_details')).toContainText('3 used');
       await page.waitForTimeout(800);
       const barLabels = page.locator('.sn-month-bar__label');
-      const detailsTitle = page.getByTestId('insights_month_details').locator('.t-title-small');
-      const monthNames = [barLabels, detailsTitle];
+      const detailsTitle = page.getByTestId('insights_month_details').locator('.sn-insights__month-name');
+      // The line above the title is this month's name too (DESIGN 19.7).
+      const eyebrow = page.getByTestId('screen_eyebrow');
+      const monthNames = [barLabels, detailsTitle, eyebrow];
       // At 200% a month label's width decides where its column sits, so a mask alone left the bars moving from
       // one month to the next (review 00, BASE-01). Fixed names, like the invite code's below, keep the layout of
       // the October recording: May to October, October selected.
@@ -112,6 +114,7 @@ for (const dark of [false, true]) {
         labels.forEach((el, i) => (el.textContent = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'][i] ?? '')),
       );
       await detailsTitle.evaluate((el) => (el.textContent = 'October'));
+      await eyebrow.evaluate((el) => (el.textContent = 'October'));
       await shot(page, `insights_${suffix}`, monthNames);
       await expect(page.getByTestId('card_insights_months')).toHaveScreenshot(`insights_months_${suffix}.png`, {
         mask: monthNames,
@@ -120,10 +123,7 @@ for (const dark of [false, true]) {
 
       await page.getByRole('button', { name: /Open settings/ }).click();
       await expect(page.getByTestId('row_household')).toContainText('The Smiths');
-      await page
-        .getByTestId('row_household')
-        .locator('.m3-list-item__supporting')
-        .evaluate((el) => (el.textContent = 'The Smiths · 1 member'));
+      await page.getByTestId('household_summary').evaluate((el) => (el.textContent = 'The Smiths · 1 member'));
       await page.getByTestId('account_email').evaluate((el) => (el.textContent = 'sam@example.com'));
       await shot(page, `settings_${suffix}`);
 
@@ -141,7 +141,9 @@ for (const dark of [false, true]) {
       await page.getByTestId('card_appearance').evaluate((card) => {
         const screen = card.closest('.sn-screen')!;
         const bar = screen.querySelector('header')!.getBoundingClientRect().bottom;
-        screen.scrollTop += card.getBoundingClientRect().top - bar - 8;
+        // The card with its group heading above it (DESIGN 19.5).
+        const section = card.parentElement!;
+        screen.scrollTop += section.getBoundingClientRect().top - bar - 8;
       });
       await shot(page, `settings_appearance_${suffix}`);
       await page.getByTestId('row_about').click();

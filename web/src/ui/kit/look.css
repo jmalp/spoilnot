@@ -357,3 +357,71 @@
 .sn-filter-chip--field:not([aria-pressed='true']):not([aria-checked='true']) {
   background: var(--sn-surface-field);
 }
+
+/* The account's initial (Settings): the leaf in the highlight card's colors, swapped. */
+.sn-leaf-badge--highlight {
+  background: var(--md-sys-color-on-primary-container);
+  color: var(--md-sys-color-primary-container);
+}
+
+/* Settings' kind of row (DESIGN 19.5; ActionRow, SwitchRow and IconTile in the app): an icon on a 40 px tile, two
+   lines, and a chevron or a switch at the end; 68 px with two lines, 56 px with one. */
+.sn-icon-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-icon-tile__letter {
+  font-weight: 800;
+}
+.sn-row-lines {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  text-align: start;
+}
+.sn-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sn-action-row--one-line {
+  min-height: 56px;
+}
+.sn-action-row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.sn-action-row__chevron {
+  display: grid;
+  flex: none;
+}
+/* One-line rows with a checkbox or a radio button at the start (Notifications' stages and expired food). */
+.sn-choice-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 0 16px 0 4px;
+  cursor: pointer;
+}
+.sn-group-heading {
+  margin: 0;
+  padding: 4px 8px 0;
+  color: var(--md-sys-color-primary);
+}

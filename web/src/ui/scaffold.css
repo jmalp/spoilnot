@@ -223,6 +223,14 @@
   padding: 8px 8px 0;
   overflow-wrap: break-word;
 }
+/* The line above a pushed screen's title (Your kitchen's month), and the title right under it. */
+.sn-pushed-header__eyebrow {
+  margin: 0;
+  padding: 8px 8px 0;
+}
+.sn-pushed-header__title--under {
+  padding-top: 0;
+}
 /* The round buttons over a recipe's hero: pinned with no height, so the hero starts at the very top. */
 .sn-overlay-header {
   position: sticky;
