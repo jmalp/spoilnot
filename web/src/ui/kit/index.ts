@@ -34,6 +34,7 @@ export {
   ListGroup,
   PillField,
   PlainCard,
+  RoundIconButton,
   SearchField,
   SpoilNotFilterChip,
   StatusTile,

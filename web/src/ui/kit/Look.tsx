@@ -291,6 +291,7 @@ export function StepButton({
 /**
  * A stepper for a count that isn't typed (DESIGN 19.9; CountStepper in the app): − and + joined to the [value] shown
  * between them on the field color, such as how many pieces to open or a meal's servings. [valueTestId] tags the value.
+ * [announce] has VoiceOver say the value when it changes, where nothing else on screen says it (a recipe's servings).
  */
 export function CountStepper({
   value,
@@ -301,6 +302,7 @@ export function CountStepper({
   minusDisabled = false,
   plusDisabled = false,
   valueTestId,
+  announce = false,
 }: {
   value: string;
   minusLabel: string;
@@ -310,14 +312,44 @@ export function CountStepper({
   minusDisabled?: boolean;
   plusDisabled?: boolean;
   valueTestId?: string;
+  announce?: boolean;
 }) {
   return (
     <div className="sn-joined-stepper">
       <StepButton icon="round/remove" label={minusLabel} start disabled={minusDisabled} onClick={onMinus} />
-      <span className="sn-joined-stepper__count t-field-text" data-testid={valueTestId}>
+      <span
+        className="sn-joined-stepper__count t-field-text"
+        data-testid={valueTestId}
+        aria-live={announce ? 'polite' : undefined}
+      >
         {value}
       </span>
       <StepButton icon="round/add" label={plusLabel} disabled={plusDisabled} onClick={onPlus} />
     </div>
+  );
+}
+
+/**
+ * A round icon button that sits over a header or a picture (DESIGN 19.7, 19.9; RoundIconButton in the app): 48 px on
+ * the row color, so it stands out from whatever is under it. [label] names it; with aria-pressed it is a toggle, such
+ * as a recipe's star, primary while on.
+ */
+export function RoundIconButton({
+  icon,
+  label,
+  className,
+  ...rest
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & { icon: IconName; label: string }) {
+  return (
+    <button
+      type="button"
+      className={`sn-round-button m3-state ${className ?? ''}`}
+      aria-label={label}
+      title={label}
+      onPointerDown={ripple}
+      {...rest}
+    >
+      <Icon name={icon} />
+    </button>
   );
 }

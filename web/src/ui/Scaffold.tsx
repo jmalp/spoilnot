@@ -1,6 +1,15 @@
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { plural, str } from '../core/i18n';
-import { Button, Icon, IconButton, TopAppBar, useOptionalSnackbars, useSnackbars, type IconName } from './kit';
+import {
+  Button,
+  Icon,
+  IconButton,
+  RoundIconButton,
+  TopAppBar,
+  useOptionalSnackbars,
+  useSnackbars,
+  type IconName,
+} from './kit';
 import { ripple } from './kit/ripple';
 import './scaffold.css';
 
@@ -130,6 +139,10 @@ function useFabSpace(hasFab: boolean): [(el: HTMLDivElement | null) => void, CSS
  * A pushed screen (DetailScaffold): a titleLarge title with a back button, and an optional extended FAB or a bar under
  * the content (after v1, UX-12: a bar never covers what scrolls above it). On the page's color, the bar too, until the
  * screen's own step of the new look (DESIGN 19.7).
+ *
+ * [header] picks the 2026-11 look's tops: 'pushed' is the round Back on its own line with the [actions] at its end, the
+ * [title] under it (PushedScaffold in the app); 'overlay' puts the round Back and the actions over the content, which
+ * runs under the status bar (a recipe's hero). Both take the look's bar for the main button ([bottomBar]).
  */
 export function DetailScaffold({
   title,
@@ -138,6 +151,7 @@ export function DetailScaffold({
   fab,
   bottomBar,
   testId,
+  header = 'bar',
   children,
 }: {
   title: string;
@@ -148,24 +162,49 @@ export function DetailScaffold({
   /** Across the bottom, under the content, which scrolls clear of it. */
   bottomBar?: ReactNode;
   testId?: string;
+  header?: 'bar' | 'pushed' | 'overlay';
   children: ReactNode;
 }) {
   // Snackbars show above the FAB or the bar; screens before sign-in have neither.
   const snackbars = useOptionalSnackbars();
-  const inset = bottomBar ? BOTTOM_BAR_PX : fab ? FAB_INSET_PX : 0;
+  const look = header !== 'bar';
+  const inset = bottomBar ? (look ? BOTTOM_BAR_LOOK_PX : BOTTOM_BAR_PX) : fab ? FAB_INSET_PX : 0;
   useEffect(() => {
     if (!inset || !snackbars) return;
     snackbars.setBottomInset(inset);
     return () => snackbars.setBottomInset(0);
   }, [inset, snackbars]);
-  const screen = (
-    <div className="sn-screen sn-screen--page" data-testid={testId}>
+  const back = <RoundIconButton icon="round/arrow_back" label={str('back')} onClick={onBack} />;
+  const top =
+    header === 'pushed' ? (
+      <header className="sn-pushed-header">
+        <div className="sn-pushed-header__row">
+          {back}
+          <span className="sn-pushed-header__spacer" />
+          {actions}
+        </div>
+        {title && <h1 className="t-screen-title sn-pushed-header__title">{title}</h1>}
+      </header>
+    ) : header === 'overlay' ? (
+      // Pinned with no height of its own, so the content starts at the very top and scrolls under the buttons.
+      <header className="sn-overlay-header">
+        <div className="sn-pushed-header__row sn-overlay-header__row">
+          {back}
+          <span className="sn-pushed-header__spacer" />
+          {actions}
+        </div>
+      </header>
+    ) : (
       <TopAppBar
         title={title}
         page
         navigation={<IconButton icon="round/arrow_back" label={str('back')} onClick={onBack} />}
         actions={actions}
       />
+    );
+  const screen = (
+    <div className="sn-screen sn-screen--page" data-testid={testId}>
+      {top}
       <main className="sn-screen__content">{children}</main>
     </div>
   );
@@ -173,7 +212,7 @@ export function DetailScaffold({
     return (
       <div className="sn-screen-frame sn-screen-frame--bar">
         <div className="sn-screen-frame__main">{screen}</div>
-        <div className="sn-bottom-bar">{bottomBar}</div>
+        <div className={`sn-bottom-bar ${look ? 'sn-bottom-bar--look' : ''}`}>{bottomBar}</div>
       </div>
     );
   }
@@ -188,6 +227,9 @@ export function DetailScaffold({
 
 /** A bottom bar's height: a 48 px button with 12 px above and below. */
 const BOTTOM_BAR_PX = 72;
+
+/** The 2026-11 look's bar: the 56 px main button with 12 px above and below (BottomActionBar in the app). */
+const BOTTOM_BAR_LOOK_PX = 80;
 
 /** A one-line explanation with an icon, and ways to start under it (EmptyState, DESIGN 6.7). */
 export function EmptyState({ icon, message, children }: { icon: IconName; message: string; children?: ReactNode }) {

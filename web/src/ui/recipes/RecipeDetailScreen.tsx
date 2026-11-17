@@ -13,16 +13,17 @@ import type { Recipe } from '../../domain/recipes/models';
 import { Scaling } from '../../domain/recipes/parser';
 import { RecipeGrocery, type GroceryCandidate } from '../../domain/recipes/service';
 import { SourceUrl } from '../../domain/recipes/text';
-import { Button, Icon, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
+import { Button, CountStepper, Icon, Menu, MenuItem, Progress, RoundIconButton, useSnackbars } from '../kit';
 import { DetailScaffold, EmptyState } from '../Scaffold';
 import {
   durationText,
-  groupHeading,
-  GroupTitle,
+  FavoriteToggle,
   IngredientChecklist,
+  InfoPill,
   RecipeImage,
   SectionTitle,
   servingsLabel,
+  StepList,
 } from './components';
 import { AddToGrocerySheet, CookedSheet } from './RecipeSheets';
 import './recipes.css';
@@ -73,10 +74,12 @@ export function RecipeDetailScreen({
       title=""
       onBack={onBack}
       testId="screen_recipe_detail"
+      // The hero runs under the status bar, with Back, the star, Edit and ⋮ as round buttons over it (DESIGN 19.12).
+      header="overlay"
       // In a bar under the content, not floating (after v1, UX-12): the floating Cook button covered I cooked this.
       bottomBar={
         recipe && recipe.content.steps.length > 0 ? (
-          <Button full large icon="round/play_arrow" data-testid="recipe_cook" onClick={() => onCook(servings)}>
+          <Button primary icon="round/play_arrow" data-testid="recipe_cook" onClick={() => onCook(servings)}>
             {str('recipe_cook')}
           </Button>
         ) : undefined
@@ -84,15 +87,13 @@ export function RecipeDetailScreen({
       actions={
         recipe && (
           <>
-            <IconButton
-              icon={recipe.favorite ? 'round/star' : 'round/star_border'}
-              // One name with its state, "Favorite, selected", as on the cards (after v1, review A11Y-08).
-              label={str('recipe_favorite_toggle')}
-              aria-pressed={recipe.favorite}
-              data-testid="recipe_favorite"
-              onClick={() => void recipeService.setFavorite(hid, actor, recipe, !recipe.favorite).catch(failed)}
+            {/* One name with its state, "Favorite, selected", as on the cards (after v1, review A11Y-08). */}
+            <FavoriteToggle
+              favorite={recipe.favorite}
+              testId="recipe_favorite"
+              onToggle={() => void recipeService.setFavorite(hid, actor, recipe, !recipe.favorite).catch(failed)}
             />
-            <IconButton icon="round/edit" label={str('recipe_edit')} onClick={onEdit} data-testid="recipe_edit" />
+            <RoundIconButton icon="round/edit" label={str('recipe_edit')} onClick={onEdit} data-testid="recipe_edit" />
             <OverflowMenu onShare={() => share(recipe)} onDelete={() => void remove(recipe)} />
           </>
         )
@@ -145,6 +146,11 @@ export function RecipeDetailScreen({
   );
 }
 
+/**
+ * A recipe (DESIGN 5.5, 19.12): the photo or the letter block, then the page with the title, the facts as pills, the
+ * ingredients as a checklist with the servings stepper beside their heading, Add to grocery list and I cooked this,
+ * and the steps with their numbers in leaves.
+ */
 function RecipeBody({
   recipe,
   servings,
@@ -162,7 +168,7 @@ function RecipeBody({
   const factor = Scaling.factor(c.servings, servings);
   const [checked, setChecked] = useState<ReadonlySet<number>>(new Set());
   const time = durationText(c.totalMinutes);
-  // One servings control (after v1, R9): the chip only when there is no stepper to show the number.
+  // One servings control (after v1, R9): the pill only when there is no stepper to show the number.
   const stepper = c.ingredients.length > 0 && c.servings !== null && servings !== null;
   const people = stepper ? null : servingsLabel(c.servings, c.servingsText);
   // Only http(s) links open (DESIGN 12.2): a stored link is data another phone wrote.
@@ -170,31 +176,51 @@ function RecipeBody({
   const site = SourceUrl.siteName(link);
   return (
     <div className="sn-recipe-detail">
-      {c.imageUrl && <RecipeImage url={c.imageUrl} title={c.title} className="sn-recipe-detail__hero" />}
-      <div className="sn-recipe-detail__body">
-        <h1 className="t-headline-small" data-testid="recipe_title">
-          {c.title}
-        </h1>
-        <div className="sn-info-chips">
-          {time && <InfoChip label={str('recipe_total_time', time)} icon="round/schedule" />}
-          {people && <InfoChip label={people} icon="round/people" />}
-          {site && link && (
-            <a className="sn-info-chip m3-state t-label-large" href={link} target="_blank" rel="noopener noreferrer">
-              <Icon name="round/language" size={18} />
-              {site}
-            </a>
+      <RecipeImage url={c.imageUrl} title={c.title} size="header" className="sn-recipe-detail__hero" />
+      <div className="sn-recipe-detail__page">
+        <div className="sn-recipe-detail__head">
+          <h1 className="t-screen-title" data-testid="recipe_title">
+            {c.title}
+          </h1>
+          <div className="sn-info-pills">
+            {time && <InfoPill label={str('recipe_total_time', time)} icon="round/schedule" />}
+            {people && <InfoPill label={people} icon="round/people" />}
+            {site && link && (
+              <a
+                className="sn-info-pill m3-state t-button-medium"
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Icon name="round/language" size={18} />
+                {site}
+              </a>
+            )}
+          </div>
+          {/* One source line (after v1, R10): "By …" only when it names someone other than the site. */}
+          {c.sourceName && !SourceUrl.namesSite(c.sourceName, SourceUrl.siteName(c.sourceUrl)) && (
+            <p className="t-body-medium c-on-surface-variant">{str('recipe_by', c.sourceName)}</p>
           )}
+          {c.description && <p className="t-body-large">{c.description}</p>}
         </div>
-        {/* One source line (after v1, R10): "By …" only when it names someone other than the site. */}
-        {c.sourceName && !SourceUrl.namesSite(c.sourceName, SourceUrl.siteName(c.sourceUrl)) && (
-          <p className="t-body-medium c-on-surface-variant">{str('recipe_by', c.sourceName)}</p>
-        )}
-        {c.description && <p className="t-body-large">{c.description}</p>}
         {c.ingredients.length > 0 && (
-          <>
+          <section className="sn-recipe-block">
             <SectionTitle text={str('recipe_ingredients')}>
               {stepper && (
-                <ServingsStepper servings={servings} max={Scaling.maxServings(c.servings)} onChange={onServings} />
+                <div className="sn-servings-stepper">
+                  {/* The servings beside Ingredients (DESIGN 19.9), announced as they change. */}
+                  <CountStepper
+                    value={plural('recipe_servings', servings, servings)}
+                    minusLabel={str('recipe_fewer_servings')}
+                    plusLabel={str('recipe_more_servings')}
+                    onMinus={() => onServings(servings - 1)}
+                    onPlus={() => onServings(servings + 1)}
+                    minusDisabled={servings <= 1}
+                    plusDisabled={servings >= Scaling.maxServings(c.servings)}
+                    valueTestId="recipe_servings"
+                    announce
+                  />
+                </div>
               )}
             </SectionTitle>
             <IngredientChecklist
@@ -207,52 +233,46 @@ function RecipeBody({
                 setChecked(next);
               }}
             />
+            {/* Tonal buttons side by side, one under the other from 1.5x text (DESIGN 19.9). */}
             <div className="sn-recipe-actions">
               <Button
-                variant="outlined"
+                variant="tonal"
+                large
                 icon="round/add_shopping_cart"
+                className="t-button-medium"
                 onClick={onAddToList}
                 data-testid="recipe_add_to_list"
               >
                 {str('recipe_add_to_list')}
               </Button>
               <Button
-                variant="outlined"
+                variant="tonal"
+                large
                 icon="round/soup_kitchen"
+                className="t-button-medium"
                 onClick={() => onCooked(factor)}
                 data-testid="recipe_cooked"
               >
                 {str('recipe_cooked_this')}
               </Button>
             </div>
-          </>
+          </section>
         )}
         {c.steps.length > 0 && (
-          <>
+          <section className="sn-recipe-block">
             <SectionTitle text={str('recipe_steps')} />
-            {c.steps.map((step, index) => {
-              const heading = groupHeading(step.group, index > 0 ? c.steps[index - 1]!.group : null);
-              return (
-                <div key={index}>
-                  {heading && <GroupTitle text={heading} />}
-                  <div className="sn-recipe-step">
-                    <span className="t-title-medium c-primary sn-recipe-step__number">{index + 1}.</span>
-                    <span className="t-body-large">{step.text}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </>
+            <StepList steps={c.steps.map((step) => [step.group, step.text])} />
+          </section>
         )}
         {c.notes && (
-          <>
+          <section className="sn-recipe-block">
             <SectionTitle text={str('recipe_notes')} />
-            <p className="t-body-large">{c.notes}</p>
-          </>
+            <p className="t-body-large sn-recipe-notes">{c.notes}</p>
+          </section>
         )}
         {link && (
           <a
-            className="m3-button m3-button--text m3-button--with-icon m3-state sn-open-original"
+            className="m3-button m3-button--text m3-button--with-icon m3-state sn-open-original t-button-medium"
             href={link}
             target="_blank"
             rel="noopener noreferrer"
@@ -267,51 +287,11 @@ function RecipeBody({
   );
 }
 
-function ServingsStepper({
-  servings,
-  max,
-  onChange,
-}: {
-  servings: number;
-  max: number;
-  onChange: (servings: number) => void;
-}) {
-  return (
-    <div className="sn-stepper">
-      <IconButton
-        icon="round/remove"
-        label={str('recipe_fewer_servings')}
-        disabled={servings <= 1}
-        onClick={() => onChange(servings - 1)}
-      />
-      <span className="t-title-medium sn-stepper__label" aria-live="polite" data-testid="recipe_servings">
-        {plural('recipe_servings', servings, servings)}
-      </span>
-      <IconButton
-        icon="round/add"
-        label={str('recipe_more_servings')}
-        disabled={servings >= max}
-        onClick={() => onChange(servings + 1)}
-      />
-    </div>
-  );
-}
-
-/** A fact about the recipe, styled like a chip but not clickable. */
-function InfoChip({ label, icon }: { label: string; icon: 'round/schedule' | 'round/people' }) {
-  return (
-    <span className="sn-info-chip t-label-large">
-      <Icon name={icon} size={18} />
-      {label}
-    </span>
-  );
-}
-
 function OverflowMenu({ onShare, onDelete }: { onShare: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <span className="sn-anchor">
-      <IconButton
+      <RoundIconButton
         icon="round/more_vert"
         label={str('more_options')}
         onClick={() => setOpen(true)}
