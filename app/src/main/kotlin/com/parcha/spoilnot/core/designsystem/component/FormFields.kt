@@ -3,6 +3,7 @@ package com.parcha.spoilnot.core.designsystem.component
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
@@ -24,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -104,7 +106,7 @@ fun PasswordField(
 
 /**
  * A screen's or sheet's main button (DESIGN 19.9): full width, filled `primary`, fully round, at least 56 dp tall,
- * shows a spinner while [busy].
+ * shows a spinner while [busy]. The [icon] before the words is decoration, such as Start cooking's play arrow.
  */
 @Composable
 fun PrimaryButton(
@@ -113,13 +115,22 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     busy: Boolean = false,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
 ) {
     Button(onClick = onClick, enabled = enabled && !busy, modifier = modifier.fillMaxWidth().heightIn(min = 56.dp)) {
         Box(contentAlignment = Alignment.Center) {
-            if (busy) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Text(text, style = SpoilNotText.ButtonLarge, textAlign = TextAlign.Center)
+            when {
+                busy -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+
+                icon != null -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+                    Text(text, style = SpoilNotText.ButtonLarge, textAlign = TextAlign.Center)
+                }
+
+                else -> Text(text, style = SpoilNotText.ButtonLarge, textAlign = TextAlign.Center)
             }
         }
     }

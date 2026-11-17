@@ -9,19 +9,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LinkOff
+import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,18 +36,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
-import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
+import com.parcha.spoilnot.core.designsystem.component.BottomActionBar
+import com.parcha.spoilnot.core.designsystem.component.ListSegmentMinHeightOneLine
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.PushedScaffold
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
+import com.parcha.spoilnot.core.designsystem.component.TonalButton
+import com.parcha.spoilnot.core.designsystem.component.segmentShape
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.ExtractionMethod
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
@@ -72,7 +85,8 @@ fun RecipeImportScreen(
     }
     SaveStateEffect(saveState, onSaved, onOpenExisting, viewModel)
 
-    DetailScaffold(
+    // A pushed screen of the 2026-11 look (DESIGN 19.7): the round Back over the title.
+    PushedScaffold(
         title = stringResource(R.string.recipe_preview),
         onBack = onBack,
         modifier = modifier.testTag("screen_recipe_import"),
@@ -136,7 +150,7 @@ fun SaveStateEffect(
     if (saveState is SavingRecipeViewModel.SaveState.AlreadySaved) {
         AlertDialog(
             onDismissRequest = viewModel::dismissSaveState,
-            title = { Text(stringResource(R.string.recipe_already_saved)) },
+            title = { Text(stringResource(R.string.recipe_already_saved), style = SpoilNotText.DialogTitle) },
             text = { Text(stringResource(R.string.recipe_already_saved_body, saveState.existing.title)) },
             confirmButton = {
                 TextButton(
@@ -145,21 +159,25 @@ fun SaveStateEffect(
                         onOpenExisting(saveState.existing.id)
                     },
                     modifier = Modifier.testTag("already_saved_open"),
-                ) { Text(stringResource(R.string.action_open)) }
+                ) { Text(stringResource(R.string.action_open), style = SpoilNotText.ButtonMedium) }
             },
             dismissButton = {
                 TextButton(
                     onClick = { viewModel.save(saveState.content, saveCopy = true) },
                     modifier = Modifier.testTag("already_saved_copy"),
-                ) { Text(stringResource(R.string.recipe_save_copy)) }
+                ) { Text(stringResource(R.string.recipe_save_copy), style = SpoilNotText.ButtonMedium) }
             },
         )
     }
 }
 
+/**
+ * What was found, before saving (DESIGN 11.4, 19.12): the photo, the title and its facts as pills, the ingredients as
+ * a group of rows and the steps with their numbers in leaves, as the recipe will show them; Save in the bar below.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RecipePreview(
+internal fun RecipePreview(
     content: RecipeContent,
     method: ExtractionMethod,
     saving: Boolean,
@@ -167,64 +185,100 @@ private fun RecipePreview(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            if (content.imageUrl != null) RecipeImage(content.imageUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (method == ExtractionMethod.Heuristic) CheckThisRecipe()
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            if (method == ExtractionMethod.Heuristic) CheckThisRecipe()
+            if (content.imageUrl != null) {
+                RecipeImage(
+                    content.imageUrl,
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(SpoilNotCorners.Card)),
+                    content.title,
+                )
+            }
+            Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     content.title,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = SpoilNotText.CardTitle,
                     modifier = Modifier.semantics { heading() }.testTag("preview_title"),
                 )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    durationText(content.totalMinutes)?.let { Text(stringResource(R.string.recipe_total_time, it)) }
-                    servingsLabel(content.servings, content.servingsText)?.let { Text(it) }
-                    SourceUrl.siteName(content.sourceUrl)?.let { Text(it) }
-                }
-                if (content.ingredients.isNotEmpty()) {
-                    SectionTitle(stringResource(R.string.recipe_ingredients))
-                    var group: String? = null
-                    content.ingredients.forEach { ingredient ->
-                        if (ingredient.group != null && ingredient.group != group) GroupTitle(ingredient.group)
-                        group = ingredient.group
-                        Text("• ${ingredient.raw}", style = MaterialTheme.typography.bodyLarge)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    durationText(content.totalMinutes)?.let {
+                        InfoPill(stringResource(R.string.recipe_total_time, it), Icons.Rounded.Schedule)
                     }
+                    servingsLabel(content.servings, content.servingsText)?.let { InfoPill(it, Icons.Rounded.People) }
+                    SourceUrl.siteName(content.sourceUrl)?.let { InfoPill(it, Icons.Rounded.Language) }
                 }
-                if (content.steps.isNotEmpty()) {
-                    SectionTitle(stringResource(R.string.recipe_steps))
-                    var group: String? = null
-                    content.steps.forEachIndexed { i, step ->
-                        if (step.group != null && step.group != group) GroupTitle(step.group)
-                        group = step.group
-                        Row {
-                            Text("${i + 1}.", Modifier.widthIn(min = 32.dp), color = MaterialTheme.colorScheme.primary)
-                            Text(step.text, style = MaterialTheme.typography.bodyLarge)
+            }
+            if (content.ingredients.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionTitle(stringResource(R.string.recipe_ingredients))
+                    GroupedRows(content.ingredients.map { it.group to it.raw }) { _, line, position ->
+                        Surface(
+                            shape = segmentShape(position),
+                            color = SpoilNotSurfaces.current.row,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ) {
+                            Text(
+                                line,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = ListSegmentMinHeightOneLine)
+                                    .wrapContentHeight()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
                         }
                     }
                 }
             }
+            if (content.steps.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionTitle(stringResource(R.string.recipe_steps))
+                    StepList(content.steps.map { it.group to it.text })
+                }
+            }
         }
-        Surface(tonalElevation = 3.dp) {
+        BottomActionBar {
             PrimaryButton(
                 text = stringResource(R.string.action_save),
                 onClick = onSave,
                 busy = saving,
-                modifier = Modifier.padding(16.dp).testTag("preview_save"),
+                modifier = Modifier.testTag("preview_save"),
             )
         }
     }
 }
 
-/** DESIGN 11.4: heuristic results are labeled so the user checks them. */
+/** DESIGN 11.4: heuristic results are labeled so the user checks them, on a rounded note (DESIGN 19.11). */
 @Composable
 fun CheckThisRecipe() {
-    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Icon(Icons.Rounded.WarningAmber, contentDescription = null)
             Text(
                 stringResource(R.string.recipe_check_this),
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 8.dp).testTag("check_this_recipe"),
+                modifier = Modifier.testTag("check_this_recipe"),
             )
         }
     }
@@ -241,7 +295,7 @@ private fun Problem(
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
-            action?.let { (label, onClick) -> OutlinedButton(onClick = onClick) { Text(label) } }
+            action?.let { (label, onClick) -> TonalButton(text = label, onClick = onClick) }
         }
     }
 }

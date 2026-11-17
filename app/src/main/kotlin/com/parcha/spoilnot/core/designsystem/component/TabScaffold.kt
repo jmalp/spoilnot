@@ -190,7 +190,7 @@ fun DetailScaffold(
 }
 
 @Composable
-private fun CenteredContent(padding: PaddingValues, content: @Composable (PaddingValues) -> Unit) {
+internal fun CenteredContent(padding: PaddingValues, content: @Composable (PaddingValues) -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Box(Modifier.widthIn(max = MaxContentWidth).fillMaxSize()) { content(padding) }
     }

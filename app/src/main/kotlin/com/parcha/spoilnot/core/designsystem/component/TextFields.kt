@@ -83,6 +83,8 @@ fun SpoilNotTextField(
     enabled: Boolean = true,
     readOnly: Boolean = false,
     singleLine: Boolean = true,
+    /** The least lines a multi-line field shows ([singleLine] false), such as the recipe editor's ingredients. */
+    minLines: Int = 1,
     textStyle: TextStyle = SpoilNotText.FieldText,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
@@ -110,6 +112,7 @@ fun SpoilNotTextField(
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         singleLine = singleLine,
+        minLines = if (singleLine) 1 else minLines,
         visualTransformation = visualTransformation,
         interactionSource = interactions,
         cursorBrush = SolidColor(if (isError) colors.error else colors.primary),
@@ -125,7 +128,11 @@ fun SpoilNotTextField(
                 ) {
                     CompositionLocalProvider(LocalContentColor provides colors.onSurfaceVariant) {
                         leadingIcon?.invoke()
-                        Box(Modifier.weight(1f).padding(vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
+                        // A multi-line field starts at the top, as typing grows it downwards.
+                        Box(
+                            Modifier.weight(1f).padding(vertical = 14.dp),
+                            contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
+                        ) {
                             if (value.isEmpty() && placeholder != null) {
                                 Text(placeholder, style = textStyle, color = colors.onSurfaceVariant, maxLines = 1)
                             }

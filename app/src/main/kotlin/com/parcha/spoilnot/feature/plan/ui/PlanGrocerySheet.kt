@@ -1,5 +1,6 @@
 package com.parcha.spoilnot.feature.plan.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,9 +29,12 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.designsystem.component.segmentPosition
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.ui.PlanViewModel.WeekGroceryState
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
@@ -38,11 +42,13 @@ import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
 import com.parcha.spoilnot.feature.recipes.ui.CandidateRow
 import com.parcha.spoilnot.feature.recipes.ui.ListChips
 import com.parcha.spoilnot.feature.recipes.ui.RenameDialog
+import com.parcha.spoilnot.feature.recipes.ui.SelectAllRow
 import java.time.LocalDate
 
 /**
  * "Add to grocery list" for the week (DESIGN 5.9): the ingredients of each recipe still to cook, under the meal they
- * are for, chosen the same way as from one recipe (DESIGN 5.5). Items land with the badge Meal plan.
+ * are for, chosen the same way as from one recipe (DESIGN 5.5), each meal's a group of rows (DESIGN 19.5). Items
+ * land with the badge Meal plan.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,8 +94,8 @@ fun WeekGrocerySheet(
         contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier.testTag("sheet_week_grocery"),
     ) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-            Text(stringResource(R.string.plan_shop_title), style = MaterialTheme.typography.titleLarge)
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 16.dp)) {
+            Text(stringResource(R.string.plan_shop_title), style = SpoilNotText.SheetTitle)
             ListChips(state.lists, state.listId, onChooseList)
             when {
                 state.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -103,44 +109,41 @@ fun WeekGrocerySheet(
                 )
 
                 else -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            stringResource(R.string.recipe_pantry_hint),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                        val allChosen = all.all { (key, c) -> selected(key, c) }
-                        TextButton(onClick = { all.forEach { (key, _) -> choices[key] = !allChosen } }) {
-                            Text(
-                                stringResource(
-                                    if (allChosen) R.string.recipe_select_none else R.string.recipe_select_all,
-                                ),
-                            )
-                        }
-                    }
-                    LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 480.dp)) {
+                    SelectAllRow(
+                        all = all.all { (key, c) -> selected(key, c) },
+                        onAll = { chosenAll -> all.forEach { (key, _) -> choices[key] = chosenAll } },
+                    )
+                    LazyColumn(
+                        Modifier.weight(1f, fill = false).heightIn(max = 480.dp),
+                        verticalArrangement = Arrangement.spacedBy(ListGroupGap),
+                    ) {
                         sections.forEach { (section, lines) ->
+                            // Each meal's lines are a group under its recipe and when (DESIGN 19.5).
                             item(key = section.meal.id) {
-                                Column(Modifier.padding(top = 12.dp, bottom = 4.dp)) {
+                                Column(
+                                    Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                ) {
                                     Text(
                                         section.recipe.content.title,
-                                        style = MaterialTheme.typography.titleMedium,
+                                        style = SpoilNotText.GroupHeading,
+                                        color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.semantics { heading() },
                                     )
                                     Text(
                                         mealWhen(section.meal.slot, section.meal.date, section.meal.servings),
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = SpoilNotText.RowSupporting,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                             }
-                            itemsIndexed(lines, key = { _, (key, _) -> key }) { _, (key, candidate) ->
+                            itemsIndexed(lines, key = { _, (key, _) -> key }) { index, (key, candidate) ->
                                 CandidateRow(
                                     candidate,
                                     selected(key, candidate),
                                     onChange = { choices[key] = it },
                                     onEdit = { editing = key },
+                                    position = segmentPosition(index, lines.size),
                                 )
                             }
                         }
@@ -156,7 +159,7 @@ fun WeekGrocerySheet(
                 },
                 enabled = count > 0,
                 onClick = { if (count > 0) onAdd(chosen) },
-                modifier = Modifier.padding(top = 12.dp).testTag("plan_add_items"),
+                modifier = Modifier.padding(top = 16.dp).testTag("plan_add_items"),
             )
         }
     }

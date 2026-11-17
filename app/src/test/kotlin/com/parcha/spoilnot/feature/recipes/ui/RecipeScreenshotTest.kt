@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.parcha.spoilnot.core.designsystem.component.SegmentPosition
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
@@ -125,7 +126,8 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
     fun groceryCandidates() = snap("recipe_grocery_candidates") {
         val eggs = IngredientParser.parse("3 large eggs")
         val onions = product("onion", "Onions", unit = QuantityUnit.Pounds)
-        Column(Modifier.padding(16.dp)) {
+        // A group of rows, 2 dp apart (DESIGN 19.5).
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val egg = product("egg", "Eggs")
             CandidateRow(
                 GroceryCandidate(
@@ -141,12 +143,14 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                 false,
                 onChange = {
                 },
+                position = SegmentPosition.First,
             )
             val salt = IngredientParser.parse("Salt to taste")
             CandidateRow(
                 GroceryCandidate(salt, "Salt", null, null, "Pancakes: Salt to taste", null, null, true),
                 false,
                 onChange = {},
+                position = SegmentPosition.Middle,
             )
             val onion = IngredientParser.parse("1 extra large onion, diced")
             CandidateRow(
@@ -162,6 +166,7 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                 ),
                 true,
                 onChange = {},
+                position = SegmentPosition.Last,
             )
         }
     }

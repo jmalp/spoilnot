@@ -439,6 +439,11 @@
     <string name="recipe_sort_selected">Selected</string>
     <string name="share_target_label">Save recipe</string>
     <string name="recipe_add">Add recipe</string>
+    <!-- The line above the Recipes title (2026-11 look, DESIGN 19.7): every recipe in the box. -->
+    <plurals name="recipe_eyebrow_count">
+        <item quantity="one">%d recipe</item>
+        <item quantity="other">%d recipes</item>
+    </plurals>
     <string name="recipe_add_paste">Paste a link</string>
     <string name="recipe_add_paste_hint">Import a recipe from a web page</string>
     <string name="recipe_add_browse">Browse the web</string>
