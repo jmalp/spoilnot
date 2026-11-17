@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { messageId } from '../../core/errors';
 import { useObservable } from '../../core/hooks';
-import { str } from '../../core/i18n';
+import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import { NameKey } from '../../domain/pantry/rules';
 import { RecipeBox, type RecipeFilter, type RecipeQuery, type RecipeSort } from '../../domain/recipes/box';
 import type { Recipe } from '../../domain/recipes/models';
-import { FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
+import { Icon, IconButton, Menu, MenuItem, Progress, SearchField, SpoilNotFilterChip, useSnackbars } from '../kit';
 import { EmptyState, LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
 import { RecipeCard } from './components';
 import '../pantry/pantry.css';
 import './recipes.css';
 
 /**
- * The recipe box (DESIGN 5.5): search, Favorites and tag chips, sort, and the cards. Recipes are added in the
- * Android app (DESIGN 18.1), so there is no Add recipe button.
+ * The recipe box (DESIGN 5.5) in the 2026-11 look (19.7, 19.12): how many recipes above the title, the round search
+ * field, Favorites and tag chips, sort, and the cards with the letter in a leaf. Recipes are added in the Android app
+ * (DESIGN 18.1), so there is no Add recipe button.
  */
 export function RecipesScreen({
   onOpenSettings,
@@ -51,6 +52,12 @@ export function RecipesScreen({
   return (
     <TabScaffold
       title={str('tab_recipes')}
+      // How many recipes the box holds (DESIGN 19.7).
+      eyebrow={
+        box && box.recipes.length > 0
+          ? plural('recipe_eyebrow_count', box.recipes.length, box.recipes.length)
+          : undefined
+      }
       onOpenSettings={onOpenSettings}
       joinRequests={joinRequests}
       innerScroll
@@ -68,31 +75,14 @@ export function RecipesScreen({
         <EmptyState icon="outlined/menu_book" message={str('web_recipes_empty')} />
       ) : (
         <>
-          <div className="sn-pantry-search">
-            <TextField
-              outlined
-              label=""
-              aria-label={str('recipe_search')}
-              placeholder={str('recipe_search')}
+          {/* The page's round search field and the chips on the page (DESIGN 19.10), as on Pantry. */}
+          <div className="sn-pantry-search sn-pantry-search--look">
+            <SearchField
               value={query.search}
               onValueChange={(search) => onQueryChange({ ...query, search })}
-              type="search"
-              enterKeyHint="search"
-              data-testid="recipe_search"
-              leading={
-                <span className="sn-pantry-search__leading">
-                  <Icon name="round/search" />
-                </span>
-              }
-              trailing={
-                query.search ? (
-                  <IconButton
-                    icon="round/clear"
-                    label={str('action_clear_search')}
-                    onClick={() => onQueryChange({ ...query, search: '' })}
-                  />
-                ) : undefined
-              }
+              placeholder={str('recipe_search')}
+              clearLabel={str('action_clear_search')}
+              testId="recipe_search"
             />
           </div>
           <FilterRow
@@ -138,12 +128,14 @@ function FilterRow({
     ...tags.map((tag): [RecipeFilter, string] => [{ kind: 'tag', tag }, tag]),
   ];
   return (
-    <div className="sn-filter-row sn-filter-row--plain">
+    <div className="sn-filter-row sn-filter-row--look">
       {chips.map(([filter, label]) => (
-        <FilterChip
+        <SpoilNotFilterChip
           key={label + filter.kind}
           label={label}
           selected={sameFilter(filter, selected)}
+          // Favorites keeps its star, as the cards show it (DESIGN 19.10).
+          icon={filter.kind === 'favorites' ? 'round/star_border' : undefined}
           onClick={() => onSelect(sameFilter(filter, selected) ? { kind: 'all' } : filter)}
         />
       ))}

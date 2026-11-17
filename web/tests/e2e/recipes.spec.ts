@@ -64,6 +64,8 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
 
   // The box: newest first, search by ingredient, the Favorites chip.
   await tab(page, 'Recipes');
+  // How many recipes the box holds, above the title (DESIGN 19.7).
+  await expect(page.getByTestId('screen_eyebrow')).toHaveText('2 recipes');
   await expect(cards(page)).toHaveText([/Green curry.*1 hr 15 min/, /Apple pie/]);
   await page.getByTestId('recipe_search').fill('rice');
   await expect(cards(page)).toHaveCount(1);
@@ -87,8 +89,10 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
   await cards(page).filter({ hasText: 'Green curry' }).getByRole('button', { name: 'Green curry' }).click();
   await expect(page.getByTestId('recipe_servings')).toHaveText('2 servings');
   // One servings control (after v1, R9): no chip repeating the stepper's number.
-  await expect(page.locator('.sn-info-chips')).not.toContainText('servings');
+  await expect(page.locator('.sn-info-pills')).not.toContainText('servings');
   // Start cooking is a bar under the content and covers nothing (after v1, UX-12).
+  // Scrolled to it first: the hero (DESIGN 19.12) puts it below the fold.
+  await page.getByTestId('recipe_cooked').scrollIntoViewIfNeeded();
   const bar = (await page.getByTestId('recipe_cook').boundingBox())!;
   const cookedThis = (await page.getByTestId('recipe_cooked').boundingBox())!;
   expect(cookedThis.y + cookedThis.height).toBeLessThanOrEqual(bar.y);
@@ -131,8 +135,15 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
   await expect(page.getByRole('status')).toHaveCount(0, { timeout: 15_000 });
   await page.getByTestId('recipe_cook').click();
   await expect(page.getByTestId('cook_step')).toHaveText('Boil the rice.');
+  // The name and the step as a chip at the top (DESIGN 19.12); the step's Back is named for what it does.
+  const top = page.getByTestId('screen_cook_mode').getByRole('banner');
+  await expect(top).toContainText('Green curry');
+  await expect(top).toContainText('Step 1 of 2');
+  await expect(page.getByRole('button', { name: 'Back to the previous step' })).toBeDisabled();
   await page.getByTestId('cook_next').click();
   await expect(page.getByTestId('cook_step')).toHaveText('Fry the eggs.');
+  await expect(top).toContainText('Step 2 of 2');
+  await expect(page.getByRole('button', { name: 'Back to the previous step' })).toBeEnabled();
   await expect(page.getByTestId('cook_next')).toBeDisabled();
   await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
 

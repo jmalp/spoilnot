@@ -198,3 +198,46 @@
 .sn-quota .t-body-medium {
   font-weight: 700;
 }
+
+/* A pushed screen in the 2026-11 look (DESIGN 19.7; PushedScaffold in the app): the round Back on its own line with
+   the screen's actions at its end, the title under it; pinned, on the page's color. */
+.sn-pushed-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex: none;
+  padding: calc(8px + var(--sn-screen-top)) calc(12px + var(--sn-safe-right)) 4px calc(12px + var(--sn-safe-left));
+  background: var(--sn-surface-page);
+  color: var(--md-sys-color-on-surface);
+}
+.sn-pushed-header__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sn-pushed-header__spacer {
+  flex: 1;
+}
+.sn-pushed-header__title {
+  margin: 0;
+  padding: 8px 8px 0;
+  overflow-wrap: break-word;
+}
+/* The round buttons over a recipe's hero: pinned with no height, so the hero starts at the very top. */
+.sn-overlay-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 0;
+  flex: none;
+}
+.sn-overlay-header__row {
+  position: absolute;
+  top: calc(8px + var(--sn-screen-top));
+  left: calc(12px + var(--sn-safe-left));
+  right: calc(12px + var(--sn-safe-right));
+}
+/* The look's bar for a screen's main button (BottomActionBar in the app): the bar color, no shadow. */
+.sn-bottom-bar--look {
+  box-shadow: none;
+}

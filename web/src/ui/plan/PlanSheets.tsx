@@ -16,7 +16,6 @@ import {
   Button,
   CountStepper,
   Dialog,
-  FilterChip,
   Icon,
   ListGroup,
   SearchField,
@@ -24,7 +23,7 @@ import {
   TextField,
 } from '../kit';
 import { FormSheetColumn } from '../pantry/ItemForm';
-import { CandidateRow, RenameDialog } from '../recipes/RecipeSheets';
+import { CandidateRow, ListChips, RenameDialog, SelectAllRow } from '../recipes/RecipeSheets';
 import { dayTitle, shortDay, slotLabel } from './components';
 import type { AddMealDraft, MealDraft } from './planDrafts';
 import './plan.css';
@@ -451,7 +450,8 @@ const mealWhen = (meal: PlannedMeal) =>
 
 /**
  * "Add to grocery list" for the week: the ingredients of each recipe still to cook, under the meal they are for,
- * chosen the same way as from one recipe. Items land with the badge Meal plan.
+ * chosen the same way as from one recipe, each meal's a group of rows (DESIGN 19.5). Items land with the badge Meal
+ * plan.
  */
 export function WeekGrocerySheet({
   lists,
@@ -491,6 +491,7 @@ export function WeekGrocerySheet({
     <>
       <BottomSheet label={str('plan_shop_title')} onDismiss={onDismiss} testId="sheet_week_grocery">
         <FormSheetColumn
+          look
           title={str('plan_shop_title')}
           button={
             <Button
@@ -504,48 +505,32 @@ export function WeekGrocerySheet({
             </Button>
           }
         >
-          {lists.length > 1 && (
-            // One list at a time: radio buttons in a group for VoiceOver (after v1, review A11Y-08).
-            <div className="sn-list-chips" role="radiogroup">
-              {lists.map((list) => (
-                <FilterChip
-                  key={list.id}
-                  radio
-                  label={list.name}
-                  selected={list.id === listId}
-                  onClick={() => onChooseList(list.id)}
-                />
-              ))}
-            </div>
-          )}
+          <ListChips lists={lists} listId={listId} onChoose={onChooseList} />
           {shown.length === 0 ? (
             <p className="t-body-large">{str('plan_shop_none')}</p>
           ) : (
             <>
-              <div className="sn-sheet-hint">
-                <span className="t-body-medium c-on-surface-variant">{str('recipe_pantry_hint')}</span>
-                <Button
-                  variant="text"
-                  onClick={() => setChoices(Object.fromEntries(all.map(([k]) => [k, !allChosen])))}
-                >
-                  {str(allChosen ? 'recipe_select_none' : 'recipe_select_all')}
-                </Button>
-              </div>
+              <SelectAllRow
+                all={allChosen}
+                onAll={(chosenAll) => setChoices(Object.fromEntries(all.map(([k]) => [k, chosenAll])))}
+              />
               {shown.map(({ section, lines }) => (
-                <div key={section.meal.id}>
-                  <div className="sn-week-section">
-                    <h3 className="t-title-medium">{section.recipe.content.title}</h3>
-                    <span className="t-body-medium c-on-surface-variant">{mealWhen(section.meal)}</span>
+                <div key={section.meal.id} className="sn-week-section">
+                  <div className="sn-week-section__head">
+                    <h3 className="t-group-heading c-primary">{section.recipe.content.title}</h3>
+                    <span className="t-row-supporting c-on-surface-variant">{mealWhen(section.meal)}</span>
                   </div>
-                  {lines.map(([k, candidate]) => (
-                    <CandidateRow
-                      key={k}
-                      candidate={candidate}
-                      selected={selected(k, candidate)}
-                      onChange={(v) => setChoices({ ...choices, [k]: v })}
-                      onEdit={() => setEditing(k)}
-                    />
-                  ))}
+                  <ListGroup className="sn-group--field">
+                    {lines.map(([k, candidate]) => (
+                      <CandidateRow
+                        key={k}
+                        candidate={candidate}
+                        selected={selected(k, candidate)}
+                        onChange={(v) => setChoices({ ...choices, [k]: v })}
+                        onEdit={() => setEditing(k)}
+                      />
+                    ))}
+                  </ListGroup>
                 </div>
               ))}
             </>

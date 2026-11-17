@@ -527,6 +527,15 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     title; the editor's ingredients and steps are tall fields. The in-app browser: round Close and the round address
     field; Recipe found has rounded top corners. Larger text at 2×: the stepper goes under Ingredients, the two buttons
     stack, and cook mode's Ingredients has its own line. Dark mode and Fiery Palette: the same in their colors.
+72. The new look, step 6 on the iPhone (web, after v1, 2026-11-17, DESIGN 18.2, 19.12): flow 71 in the Home Screen app
+    on an iPhone, without the parts the web doesn't have (adding, importing, the browser), with VoiceOver instead of
+    TalkBack: a card reads "Pancakes, Total 20 min" and its star "Favorite, toggle button"; on a recipe the round
+    Back, star, Edit and More stay over the page as you scroll, and the servings are read out as + and − change them;
+    in cook mode the top reads the name, then "Step 1 of 2", the progress bar says "Step 1 of 2", and "Back to the
+    previous step" is dimmed on the first step. Add to grocery list: rounded rows on the sheet, Probably in pantry as a
+    chip; Change: the pantry's products as chips. Edit: the round Back over Edit recipe, and the ingredients and steps
+    in tall fields with their labels above. Settings > Accessibility > Larger Text at the largest size: the servings
+    stepper goes under Ingredients, the two buttons stack, and cook mode's Ingredients has its own line.
 
 ## 3. Conditions
 

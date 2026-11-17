@@ -154,10 +154,10 @@ test('at the largest text size what sits beside a name goes under it, and nothin
   await tab(page, 'Recipes').click();
   await page.getByTestId('recipe_card').first().getByRole('button').first().click();
   const section = page.locator('.sn-recipe-section').filter({ hasText: 'Ingredients' });
-  await expectBelow(section.locator('.sn-stepper'), section.getByRole('heading', { name: 'Ingredients' }));
-  await expectInside(section.locator('.sn-stepper'), page.getByTestId('screen_recipe_detail'));
+  await expectBelow(section.locator('.sn-servings-stepper'), section.getByRole('heading', { name: 'Ingredients' }));
+  await expectInside(section.locator('.sn-servings-stepper'), page.getByTestId('screen_recipe_detail'));
   await page.getByTestId('recipe_cook').click();
-  const ingredients = page.locator('.sn-cook__bar').getByRole('button', { name: 'Ingredients' });
+  const ingredients = page.locator('.sn-cook__controls').getByRole('button', { name: 'Ingredients' });
   await expectBelow(page.getByTestId('cook_next'), ingredients);
   // I cooked this: each amount under its ingredient.
   await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();

@@ -5,7 +5,17 @@ import type { Product } from '../../domain/pantry/models';
 import { NameKey } from '../../domain/pantry/rules';
 import { CookLines, type CookLine } from '../../domain/recipes/cooking';
 import { RecipeGrocery, selectedByDefault, type GroceryCandidate } from '../../domain/recipes/service';
-import { BottomSheet, Button, Checkbox, Dialog, FilterChip, Icon, Progress, TextField } from '../kit';
+import {
+  BottomSheet,
+  Button,
+  Checkbox,
+  Dialog,
+  LabelChip,
+  ListGroup,
+  Progress,
+  SpoilNotFilterChip,
+  TextField,
+} from '../kit';
 import { FormSheetColumn, parseQuantity } from '../pantry/ItemForm';
 import { amountText, formatQuantity, unitLabel } from '../pantry/labels';
 import './recipes.css';
@@ -41,6 +51,7 @@ export function CookedSheet({
   return (
     <BottomSheet label={str('recipe_cooked_title')} onDismiss={onDismiss} testId="sheet_cooked">
       <FormSheetColumn
+        look
         title={str('recipe_cooked_title')}
         button={
           <Button
@@ -68,8 +79,8 @@ export function CookedSheet({
                       onCheckedChange={(c) => setChosen({ ...chosen, [line.product.id]: c })}
                     />
                     <span className="sn-cook-row__text">
-                      <span className="t-body-large">{line.product.name}</span>
-                      <span className="t-body-medium c-on-surface-variant">
+                      <span className="t-row-title">{line.product.name}</span>
+                      <span className="t-row-supporting c-on-surface-variant">
                         {str('recipe_cooked_have', amountText(line.inStock, line.product.unit))}
                       </span>
                       {line.lines.map((l) => (
@@ -79,8 +90,8 @@ export function CookedSheet({
                       ))}
                     </span>
                   </label>
+                  {/* The amount in a field of the 2026-11 look, its unit as the label above it (DESIGN 19.10). */}
                   <TextField
-                    outlined
                     label={unitLabel(line.product.unit)}
                     value={amountOf(line)}
                     onValueChange={(v) => {
@@ -144,6 +155,7 @@ export function AddToGrocerySheet({
     <>
       <BottomSheet label={title} onDismiss={onDismiss} testId="sheet_add_to_list">
         <FormSheetColumn
+          look
           title={title}
           button={
             <Button
@@ -159,32 +171,17 @@ export function AddToGrocerySheet({
             </Button>
           }
         >
-          {lists.length > 1 && (
-            // One list at a time: radio buttons in a group for VoiceOver (after v1, review A11Y-08).
-            <div className="sn-list-chips" role="radiogroup">
-              {lists.map((list) => (
-                <FilterChip
-                  key={list.id}
-                  radio
-                  label={list.name}
-                  selected={list.id === listId}
-                  onClick={() => onChooseList(list.id)}
-                />
-              ))}
-            </div>
-          )}
-          <div className="sn-sheet-hint">
-            <span className="t-body-medium c-on-surface-variant">{str('recipe_pantry_hint')}</span>
-            <Button variant="text" onClick={() => setChoices(Object.fromEntries(candidates.map((_, i) => [i, !all])))}>
-              {str(all ? 'recipe_select_none' : 'recipe_select_all')}
-            </Button>
-          </div>
+          <ListChips lists={lists} listId={listId} onChoose={onChooseList} />
+          <SelectAllRow
+            all={all}
+            onAll={(chosen) => setChoices(Object.fromEntries(candidates.map((_, i) => [i, chosen])))}
+          />
           {loading ? (
             <div className="sn-centered">
               <Progress />
             </div>
           ) : (
-            <div className="sn-sheet-rows">
+            <ListGroup className="sn-group--field">
               {candidates.map((candidate, i) => (
                 <CandidateRow
                   key={i}
@@ -194,7 +191,7 @@ export function AddToGrocerySheet({
                   onEdit={() => setEditing(i)}
                 />
               ))}
-            </div>
+            </ListGroup>
           )}
         </FormSheetColumn>
       </BottomSheet>
@@ -214,6 +211,52 @@ export function AddToGrocerySheet({
   );
 }
 
+/**
+ * Which grocery list to add to, when there is more than one (DESIGN 19.10): filter chips on the field color, the chosen
+ * one filled with a check. One list at a time: radio buttons in a group for VoiceOver (after v1, review A11Y-08).
+ */
+export function ListChips({
+  lists,
+  listId,
+  onChoose,
+}: {
+  lists: GroceryList[];
+  listId: string | null;
+  onChoose: (id: string) => void;
+}) {
+  if (lists.length <= 1) return null;
+  return (
+    <div className="sn-list-chips" role="radiogroup">
+      {lists.map((list) => (
+        <SpoilNotFilterChip
+          key={list.id}
+          radio
+          label={list.name}
+          selected={list.id === listId}
+          className="sn-filter-chip--field"
+          onClick={() => onChoose(list.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** "Items that look like they're in your pantry start unchecked" with Select all or none beside it. */
+export function SelectAllRow({ all, onAll }: { all: boolean; onAll: (all: boolean) => void }) {
+  return (
+    <div className="sn-sheet-hint">
+      <span className="t-body-medium c-on-surface-variant">{str('recipe_pantry_hint')}</span>
+      <Button variant="text" className="t-button-medium" onClick={() => onAll(!all)}>
+        {str(all ? 'recipe_select_none' : 'recipe_select_all')}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * One recipe line to add (DESIGN 5.5, 19.5): a row of a group (on the field color in a sheet) with its checkbox, the
+ * line, what it lands on the list as with Change, and Probably in pantry or On the list as a label chip.
+ */
 export function CandidateRow({
   candidate,
   selected,
@@ -234,27 +277,25 @@ export function CandidateRow({
       : null;
   return (
     // The whole row ticks the line; Change, a button inside it, does not.
-    <label className="sn-candidate" data-testid="candidate">
+    <label className="sn-segment sn-candidate" data-testid="candidate">
       <Checkbox checked={selected} onCheckedChange={onChange} aria-label={candidate.ingredient.raw} />
       <div className="sn-candidate__text">
-        <span className="t-body-large">{candidate.ingredient.raw}</span>
+        <span className="t-row-title">{candidate.ingredient.raw}</span>
         <span className="sn-candidate__adds">
-          <span className="t-body-medium c-on-surface-variant">{str('recipe_adds_as', candidate.name + amount)}</span>
+          <span className="t-row-supporting c-on-surface-variant">
+            {str('recipe_adds_as', candidate.name + amount)}
+          </span>
           <Button
             variant="text"
             large
+            className="t-button-medium"
             onClick={onEdit}
             aria-label={str('recipe_change_item_description', candidate.ingredient.raw)}
           >
             {str('recipe_change_item')}
           </Button>
         </span>
-        {tag && (
-          <span className="sn-candidate__tag t-label-large">
-            <Icon name={tag[0]} size={18} />
-            {tag[1]}
-          </span>
-        )}
+        {tag && <LabelChip text={tag[1]} icon={tag[0]} />}
       </div>
     </label>
   );
@@ -286,39 +327,50 @@ export function RenameDialog({
   return (
     <Dialog
       title={str('recipe_change_title')}
+      titleClassName="t-dialog-title"
       onDismiss={onDismiss}
       actions={
         <>
-          <Button variant="text" onClick={onDismiss}>
+          <Button variant="text" className="t-button-medium" onClick={onDismiss}>
             {str('action_cancel')}
           </Button>
-          <Button variant="text" disabled={NameKey.clean(text) === ''} onClick={() => onSave(text)}>
+          <Button
+            variant="text"
+            className="t-button-medium"
+            disabled={NameKey.clean(text) === ''}
+            onClick={() => onSave(text)}
+          >
             {str('action_save')}
           </Button>
         </>
       }
     >
-      <p className="t-body-medium">{candidate.ingredient.raw}</p>
-      <TextField
-        outlined
-        label={str('field_name')}
-        value={text}
-        onValueChange={(v) => setText(v.slice(0, GroceryRules.MAX_NAME_LENGTH))}
-        data-testid="rename_field"
-      />
-      {suggestions.length > 0 && (
-        <>
-          <span className="t-label-large c-on-surface-variant">{str('recipe_change_in_pantry')}</span>
-          <div className="sn-rename-suggestions">
-            {suggestions.map((p) => (
-              <Button key={p.id} variant="text" onClick={() => setText(p.name)}>
-                {p.name}
-              </Button>
-            ))}
-          </div>
-        </>
-      )}
-      <p className="t-body-small c-on-surface-variant">{str('recipe_change_remembered')}</p>
+      <div className="sn-dialog-fields">
+        <p className="t-body-medium">{candidate.ingredient.raw}</p>
+        <TextField
+          label={str('field_name')}
+          value={text}
+          onValueChange={(v) => setText(v.slice(0, GroceryRules.MAX_NAME_LENGTH))}
+          data-testid="rename_field"
+        />
+        {suggestions.length > 0 && (
+          <>
+            <p className="t-field-label c-on-surface-variant">{str('recipe_change_in_pantry')}</p>
+            <div className="sn-rename-suggestions">
+              {suggestions.map((p) => (
+                <SpoilNotFilterChip
+                  key={p.id}
+                  label={p.name}
+                  selected={false}
+                  className="sn-filter-chip--dialog"
+                  onClick={() => setText(p.name)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        <p className="t-body-small c-on-surface-variant">{str('recipe_change_remembered')}</p>
+      </div>
     </Dialog>
   );
 }

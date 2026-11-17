@@ -80,7 +80,10 @@ export function FieldMessage({ id, error, helper }: { id?: string; error?: strin
   );
 }
 
-/** A multi-line OutlinedTextField (minLines in the app): the label rests on the first line until it floats. */
+/**
+ * A field of several lines in the 2026-11 look (DESIGN 19.10; SpoilNotTextField with minLines in the app): its label
+ * above, the box on the field color, at least four lines tall, the recipe editor's ingredients and steps.
+ */
 export function TextArea({
   label,
   value,
@@ -95,25 +98,21 @@ export function TextArea({
   supportingText?: string;
 }) {
   const id = useId();
-  const [focused, setFocused] = useState(false);
-  const floating = focused || value.length > 0;
   return (
-    <div className={`m3-text-field m3-text-field--multiline ${floating ? 'm3-text-field--floating' : ''}`}>
+    <div className="m3-text-field m3-text-field--look m3-text-field--multiline">
+      <label className="m3-text-field__label-above t-field-label" htmlFor={id}>
+        {label}
+      </label>
       <div className="m3-text-field__box">
         <textarea
           id={id}
-          className="m3-text-field__input"
+          className="m3-text-field__input t-field-text"
           value={value}
           rows={rows}
           onChange={(event) => onValueChange(event.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
           aria-describedby={supportingText ? `${id}-supporting` : undefined}
           {...rest}
         />
-        <label className="m3-text-field__label" htmlFor={id}>
-          {label}
-        </label>
       </div>
       {supportingText && (
         <div id={`${id}-supporting`} className="m3-text-field__supporting">

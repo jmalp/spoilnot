@@ -258,7 +258,7 @@
 .sn-cooked-row > span:nth-child(2) {
   flex: 1;
 }
-/* Move: the chips on the dialog's row color (DESIGN 19.2). */
+/* Move: the chips on the dialog's row color (DESIGN 19.2; .sn-filter-chip--dialog in look.css). */
 .sn-plan-move {
   display: flex;
   flex-direction: column;
@@ -267,15 +267,19 @@
 .sn-plan-move p {
   margin: 0;
 }
-.sn-filter-chip--dialog:not([aria-pressed='true']) {
-  background: var(--sn-surface-dialog-row);
-}
 
-/* This week's ingredients keeps its look until Recipes' step (DESIGN 19.12). */
+/* This week's ingredients, in Recipes' look (DESIGN 19.12, step 6). */
+/* A meal's lines under its recipe and when, as a group of rows on the field color (DESIGN 19.5). */
 .sn-week-section {
   display: flex;
   flex-direction: column;
-  padding: 12px 0 4px;
+  gap: 6px;
+}
+.sn-week-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 0;
 }
 .sn-week-section h3 {
   margin: 0;
