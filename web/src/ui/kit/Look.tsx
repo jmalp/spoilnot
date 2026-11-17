@@ -259,3 +259,65 @@ export function LabelChip({
     </span>
   );
 }
+
+/** − or + of a stepper: 56 px, secondaryContainer, round outside and 8 px where it joins the value (DESIGN 19.9). */
+export function StepButton({
+  icon,
+  label,
+  start = false,
+  disabled = false,
+  onClick,
+}: {
+  icon: 'round/remove' | 'round/add';
+  label: string;
+  start?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`sn-step-button m3-state ${start ? 'sn-step-button--start' : 'sn-step-button--end'}`}
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+    </button>
+  );
+}
+
+/**
+ * A stepper for a count that isn't typed (DESIGN 19.9; CountStepper in the app): − and + joined to the [value] shown
+ * between them on the field color, such as how many pieces to open or a meal's servings. [valueTestId] tags the value.
+ */
+export function CountStepper({
+  value,
+  minusLabel,
+  plusLabel,
+  onMinus,
+  onPlus,
+  minusDisabled = false,
+  plusDisabled = false,
+  valueTestId,
+}: {
+  value: string;
+  minusLabel: string;
+  plusLabel: string;
+  onMinus: () => void;
+  onPlus: () => void;
+  minusDisabled?: boolean;
+  plusDisabled?: boolean;
+  valueTestId?: string;
+}) {
+  return (
+    <div className="sn-joined-stepper">
+      <StepButton icon="round/remove" label={minusLabel} start disabled={minusDisabled} onClick={onMinus} />
+      <span className="sn-joined-stepper__count t-field-text" data-testid={valueTestId}>
+        {value}
+      </span>
+      <StepButton icon="round/add" label={plusLabel} disabled={plusDisabled} onClick={onPlus} />
+    </div>
+  );
+}

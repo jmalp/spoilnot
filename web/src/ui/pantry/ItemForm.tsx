@@ -27,6 +27,7 @@ import {
   Menu,
   MenuItem,
   SelectField,
+  StepButton,
   Switch,
   TextField,
 } from '../kit';
@@ -579,34 +580,6 @@ export function QuantityStepper({
       </div>
       <FieldMessage id={error ? `${id}-error` : undefined} error={error} />
     </div>
-  );
-}
-
-/** − or + of a stepper: 56 px, secondaryContainer, round outside and 8 px where it joins the value (DESIGN 19.9). */
-export function StepButton({
-  icon,
-  label,
-  start = false,
-  disabled = false,
-  onClick,
-}: {
-  icon: 'round/remove' | 'round/add';
-  label: string;
-  start?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`sn-step-button m3-state ${start ? 'sn-step-button--start' : 'sn-step-button--end'}`}
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <Icon name={icon} />
-    </button>
   );
 }
 

@@ -1,27 +1,81 @@
-/* The Plan tab (DESIGN 5.9), as PlanScreen and PlanSheets lay it out. */
+/* The Plan tab in the 2026-11 look (DESIGN 5.9, 19.12), as PlanScreen and PlanSheets lay it out and the app's
+   PlanScreen measures it. Rows are segments of a group (look.css). */
 
-.sn-week-header {
+/* The week bar and the row of days: above the days, which scroll under them. */
+.sn-plan-controls {
   display: flex;
-  align-items: center;
-  padding: 0 4px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 16px 0;
   flex: none;
 }
-.sn-week-header__range {
+.sn-week-bar {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
+}
+.sn-week-bar__range {
   flex: 1;
   margin: 0;
+  padding: 8px 0;
   text-align: center;
 }
 .sn-week-this {
-  flex: none;
-  align-self: stretch;
+  align-self: center;
 }
-.sn-plan-divider {
-  height: 1px;
-  margin: 0;
+
+/* Seven day buttons sharing the width; today's filled and fully round. From 1.5x text they keep their size and the
+   row scrolls sideways. */
+.sn-day-row {
+  display: flex;
+  gap: 4px;
+}
+.sn-day-button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 4px;
   border: none;
-  background: var(--md-sys-color-outline-variant);
-  flex: none;
+  border-radius: 16px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
 }
+.sn-day-button__weekday {
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+.sn-day-button--today {
+  border-radius: 999px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+.sn-day-button--today .sn-day-button__weekday {
+  color: var(--md-sys-color-on-primary);
+}
+:root[data-large-text] .sn-day-row {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:root[data-large-text] .sn-day-row::-webkit-scrollbar {
+  display: none;
+}
+:root[data-large-text] .sn-day-button {
+  flex: none;
+  min-width: 64px;
+  padding: 8px 12px;
+}
+
+/* The days, 12 px apart. */
 .sn-plan-days {
   flex: 1;
   min-height: 0;
@@ -30,77 +84,93 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 16px 16px;
 }
-.sn-day-card {
-  padding: 12px 16px;
-  scroll-margin-top: 16px;
-}
-/* Today has a thicker border and a "Today" label, never color alone. */
-.m3-card--outlined.sn-day-card--today {
-  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
-}
-.sn-day-card__header {
+/* Today: the highlight card, its title with a Today badge (under the title from 1.5x text). */
+.sn-plan-today__header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 0 8px;
 }
-.sn-day-card__header h2 {
-  margin: 0;
-  min-width: 0;
-}
-.sn-day-card--past .sn-day-card__header h2 {
-  color: var(--md-sys-color-on-surface-variant);
-}
-.sn-today-badge {
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-}
-.sn-slot-row {
-  display: flex;
-  align-items: center;
-  min-height: 48px;
-}
-.sn-slot-row > span {
+.sn-plan-today__header h2 {
   flex: 1;
+  min-width: 0;
+  margin: 0;
 }
-.sn-meal-row {
+:root[data-large-text] .sn-plan-today__header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.sn-plan-today__badge {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--md-sys-color-on-primary-container);
+  color: var(--md-sys-color-primary-container);
+  font-weight: 800;
+}
+/* Any other day: a heading over its rows. */
+.sn-plan-day {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  min-height: 48px;
-  padding: 6px 0 6px 8px;
+  gap: 6px;
+}
+.sn-plan-day__title {
+  margin: 0;
+  padding: 4px 8px 0;
+}
+/* A slot with nothing planned: its name and + on one line. */
+.sn-plan-slot {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 4px 0 16px;
+}
+.sn-plan-slot__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-plan-slot .m3-icon-button,
+.sn-plan-meal .m3-icon-button {
+  color: var(--md-sys-color-primary);
+}
+/* A meal: one button for the row, the slot's + beside it. */
+.sn-plan-meal {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+.sn-plan-meal__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 68px;
+  padding: 10px 12px 10px 16px;
   border: none;
-  border-radius: 8px;
+  border-radius: inherit;
   background: transparent;
-  color: var(--md-sys-color-on-surface);
+  color: inherit;
   text-align: start;
   font: inherit;
 }
-.sn-meal-row__title {
-  font-weight: 500;
+.sn-plan-meal__title {
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
-.sn-meal-row__details {
+.sn-plan-meal__details {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-}
-.sn-cook-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 8px;
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+  gap: 4px 6px;
+  margin-top: 4px;
 }
 .sn-cooked-label {
   display: inline-flex;
@@ -108,75 +178,105 @@
   gap: 4px;
   color: var(--md-sys-color-primary);
 }
+/* An empty week: a sentence and Copy last week on a plain card, above the days (after v1, UX-15). */
+.sn-plan-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+}
+.sn-plan-empty p {
+  margin: 0;
+}
 
+/* The sheets (DESIGN 19.11). */
 .sn-chip-flow {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.sn-other-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+.sn-plan-sheet {
+  padding-bottom: 16px;
 }
-.sn-other-row > :first-child {
-  flex: 1;
-  min-width: 0;
-}
-.sn-picker {
+.sn-plan-sheet__title {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
-.sn-picker__item {
+.sn-plan-sheet__title p {
+  margin: 0;
+}
+.sn-plan-sheet__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sn-plan-sheet__heading {
+  margin: 0;
+  padding: 4px 8px 0;
+}
+.sn-plan-sheet__recipes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* A recipe to add: a row of a group on the sheet's field color. */
+.sn-group > .sn-plan-pick {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 48px;
-  padding: 12px 0;
+  gap: 2px;
+  min-height: 56px;
+  padding: 8px 16px;
   border: none;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
+  background: var(--sn-surface-field);
   text-align: start;
   font: inherit;
 }
-.sn-picker__title {
+.sn-group > .sn-plan-pick--two {
+  min-height: 68px;
+}
+.sn-plan-pick__title {
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
-.sn-meal-servings {
+.sn-plan-sheet__actions {
   display: flex;
-  align-items: center;
-}
-.sn-meal-servings__value {
-  min-width: 48px;
-  text-align: center;
+  flex-direction: column;
+  gap: 8px;
 }
 .sn-cooked-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 48px;
 }
 .sn-cooked-row > span:nth-child(2) {
   flex: 1;
 }
+/* Move: the chips on the dialog's row color (DESIGN 19.2). */
+.sn-plan-move {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sn-plan-move p {
+  margin: 0;
+}
+.sn-filter-chip--dialog:not([aria-pressed='true']) {
+  background: var(--sn-surface-dialog-row);
+}
+
+/* This week's ingredients keeps its look until Recipes' step (DESIGN 19.12). */
 .sn-week-section {
   display: flex;
   flex-direction: column;
   padding: 12px 0 4px;
 }
 .sn-week-section h3 {
-  margin: 0;
-}
-/* An empty week: a sentence and Copy last week, above the days (after v1, UX-15). */
-.sn-plan-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-.sn-plan-empty p {
   margin: 0;
 }

@@ -2,8 +2,7 @@ import { useId, useState } from 'react';
 import { plural, str } from '../../core/i18n';
 import type { StockBatch } from '../../domain/pantry/models';
 import { addDays, type LocalDate } from '../../domain/time';
-import { BottomSheet, Button, SpoilNotFilterChip } from '../kit';
-import { StepButton } from './ItemForm';
+import { BottomSheet, Button, CountStepper, SpoilNotFilterChip } from '../kit';
 import { formatDate, formatQuantity } from './labels';
 import './form.css';
 
@@ -54,24 +53,16 @@ export function OpenedSheet({
         {pieces && (
           <div className="sn-stepper-field">
             <p className="t-field-label sn-stepper-field__label">{str('opened_how_many')}</p>
-            <div className="sn-joined-stepper">
-              <StepButton
-                icon="round/remove"
-                label={str('opened_fewer')}
-                start
-                disabled={count <= 1}
-                onClick={() => setCount(Math.max(1, count - 1))}
-              />
-              <span className="sn-joined-stepper__count t-field-text" data-testid="opened_count">
-                {str('opened_count', count, formatQuantity(batch.quantity))}
-              </span>
-              <StepButton
-                icon="round/add"
-                label={str('opened_more')}
-                disabled={count >= max}
-                onClick={() => setCount(Math.min(max, count + 1))}
-              />
-            </div>
+            <CountStepper
+              value={str('opened_count', count, formatQuantity(batch.quantity))}
+              minusLabel={str('opened_fewer')}
+              plusLabel={str('opened_more')}
+              onMinus={() => setCount(Math.max(1, count - 1))}
+              onPlus={() => setCount(Math.min(max, count + 1))}
+              minusDisabled={count <= 1}
+              plusDisabled={count >= max}
+              valueTestId="opened_count"
+            />
           </div>
         )}
         <div className="sn-field-group">

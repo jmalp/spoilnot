@@ -27,6 +27,7 @@ export { Segmented, SEGMENTED_STACK_SCALE } from './Segmented';
 export {
   AccentCard,
   ConnectedButtonGroup,
+  CountStepper,
   HighlightCard,
   LabelChip,
   LeafBadge,
@@ -36,4 +37,5 @@ export {
   SearchField,
   SpoilNotFilterChip,
   StatusTile,
+  StepButton,
 } from './Look';

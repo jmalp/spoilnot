@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { filter, firstValueFrom, map, of, switchMap, take, timeout } from 'rxjs';
 import { useSessionDraft } from '../../core/drafts';
 import { messageId } from '../../core/errors';
@@ -17,10 +17,21 @@ import { Cooking, UseItUp } from '../../domain/recipes/cooking';
 import type { Recipe } from '../../domain/recipes/models';
 import { addDays, daysBetween, sortedWith, type LocalDate } from '../../domain/time';
 import type { Undo } from '../../domain/write';
-import { Button, Card, IconButton, Menu, MenuItem, Progress, useSnackbars } from '../kit';
+import {
+  Button,
+  HighlightCard,
+  IconButton,
+  LabelChip,
+  ListGroup,
+  Menu,
+  MenuItem,
+  PlainCard,
+  Progress,
+  useSnackbars,
+} from '../kit';
 import { CookedSheet } from '../recipes/RecipeSheets';
 import { LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
-import { CookChip, CookedLabel, cookNames, dayTitle, shortDate, slotLabel, useFirstDay } from './components';
+import { CookedLabel, cookNames, dayTitle, shortDate, shortWeekday, slotLabel, useFirstDay } from './components';
 import { AddMealSheet, MealSheet, WeekGrocerySheet } from './PlanSheets';
 import { PlanDrafts, type PlanSheetDraft } from './planDrafts';
 import '../recipes/recipes.css';
@@ -111,6 +122,7 @@ export function PlanScreen({
     if (week !== start) onWeekOffset(daysBetween(thisWeek, week) / 7);
   }, [sheet, firstDay, start, thisWeek, onWeekOffset]);
   const [cookingId, setCookingId] = useState<string | null>(null);
+  const daysList = useRef<HTMLDivElement>(null);
   const [shopping, setShopping] = useState(false);
   const findMeal = (id: string | null) => (id === null ? null : (weekMeals.find((m) => m.id === id) ?? null));
   const openMeal = findMeal(openMealId);
@@ -159,6 +171,8 @@ export function PlanScreen({
   return (
     <TabScaffold
       title={str('tab_plan')}
+      // "This week" while this week shows (DESIGN 19.7).
+      eyebrow={weekOffset === 0 ? str('plan_eyebrow_this_week') : undefined}
       onOpenSettings={onOpenSettings}
       joinRequests={joinRequests}
       innerScroll
@@ -183,14 +197,26 @@ export function PlanScreen({
       }
     >
       {loadFailed ? <LoadError onRetry={() => load.retry()} /> : plan?.fromCache && <OfflineBanner />}
-      <WeekHeader
-        start={start}
-        isThisWeek={weekOffset === 0}
-        onPrevious={() => onWeekOffset(weekOffset - 1)}
-        onNext={() => onWeekOffset(weekOffset + 1)}
-        onThisWeek={() => onWeekOffset(0)}
-      />
-      <hr className="sn-plan-divider" />
+      {/* The week bar and the row of days stay above the days while they scroll (DESIGN 19.12). */}
+      <div className="sn-plan-controls">
+        <WeekSwitcher
+          start={start}
+          onPrevious={() => onWeekOffset(weekOffset - 1)}
+          onNext={() => onWeekOffset(weekOffset + 1)}
+        />
+        {weekOffset !== 0 && (
+          <Button
+            variant="text"
+            large
+            className="sn-week-this t-button-medium"
+            data-testid="plan_this_week"
+            onClick={() => onWeekOffset(0)}
+          >
+            {str('plan_this_week')}
+          </Button>
+        )}
+        <DayRow dates={MealWeek.days(start)} today={today} onPick={(date) => showDay(daysList.current, date)} />
+      </div>
       {plan === null ? (
         <div className="sn-centered">{!loadFailed && <Progress />}</div>
       ) : (
@@ -203,6 +229,7 @@ export function PlanScreen({
           onOpen={(meal) => setSheet(PlanDrafts.meal(meal))}
           loaded={plan.start === start}
           onCopyLastWeek={copyLastWeek}
+          listRef={daysList}
         />
       )}
       {adding && (
@@ -347,44 +374,60 @@ function PlanMenu({ canClear, onCopy, onClear }: { canClear: boolean; onCopy: ()
   );
 }
 
-function WeekHeader({
-  start,
-  isThisWeek,
-  onPrevious,
-  onNext,
-  onThisWeek,
-}: {
-  start: LocalDate;
-  isThisWeek: boolean;
-  onPrevious: () => void;
-  onNext: () => void;
-  onThisWeek: () => void;
-}) {
+/** "Oct 26 – Nov 1" between Previous and Next week, on a round bar of the row color (DESIGN 19.12). */
+function WeekSwitcher({ start, onPrevious, onNext }: { start: LocalDate; onPrevious: () => void; onNext: () => void }) {
   return (
-    <>
-      <div className="sn-week-header">
-        <IconButton
-          icon="round/keyboard_arrow_left"
-          label={str('plan_previous_week')}
-          data-testid="plan_previous_week"
-          onClick={onPrevious}
-        />
-        <h2 className="t-title-medium sn-week-header__range" data-testid="plan_week_range">
-          {str('plan_week_range', shortDate(start), shortDate(MealWeek.end(start)))}
-        </h2>
-        <IconButton
-          icon="round/keyboard_arrow_right"
-          label={str('plan_next_week')}
-          data-testid="plan_next_week"
-          onClick={onNext}
-        />
-      </div>
-      {!isThisWeek && (
-        <Button variant="text" large className="sn-week-this" data-testid="plan_this_week" onClick={onThisWeek}>
-          {str('plan_this_week')}
-        </Button>
-      )}
-    </>
+    <div className="sn-week-bar">
+      <IconButton
+        icon="round/keyboard_arrow_left"
+        label={str('plan_previous_week')}
+        data-testid="plan_previous_week"
+        onClick={onPrevious}
+      />
+      <h2 className="t-section-title sn-week-bar__range" data-testid="plan_week_range">
+        {str('plan_week_range', shortDate(start), shortDate(MealWeek.end(start)))}
+      </h2>
+      <IconButton
+        icon="round/keyboard_arrow_right"
+        label={str('plan_next_week')}
+        data-testid="plan_next_week"
+        onClick={onNext}
+      />
+    </div>
+  );
+}
+
+/**
+ * The week's days as buttons (DESIGN 19.12; the row of days in the app), in the week's order: the weekday's short
+ * name over the day of the month, today's filled. Each is named in full for VoiceOver ("Saturday, Nov 14, today")
+ * and shows that day. From 1.5× text the row scrolls sideways instead of shrinking (plan.css).
+ */
+function DayRow({ dates, today, onPick }: { dates: LocalDate[]; today: LocalDate; onPick: (date: LocalDate) => void }) {
+  return (
+    <div className="sn-day-row" data-testid="plan_day_row">
+      {dates.map((date) => {
+        const isToday = date === today;
+        const title = dayTitle(date);
+        return (
+          <button
+            key={date}
+            type="button"
+            className={`sn-day-button m3-state ${isToday ? 'sn-day-button--today' : ''}`}
+            aria-label={isToday ? str('plan_day_today', title) : title}
+            aria-description={str('plan_show_day')}
+            data-testid={`plan_day_button_${date}`}
+            onClick={() => onPick(date)}
+          >
+            <span className="t-chip-label sn-day-button__weekday" aria-hidden>
+              {shortWeekday(date)}
+            </span>
+            <span className="t-section-title sn-day-button__number" aria-hidden>
+              {Number(date.slice(8, 10))}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -397,6 +440,7 @@ function PlanDaysList({
   onOpen,
   loaded,
   onCopyLastWeek,
+  listRef,
 }: {
   days: PlanDay[];
   members: Member[];
@@ -407,22 +451,22 @@ function PlanDaysList({
   /** The meals are the shown week's, not the last week's while the new one loads. */
   loaded: boolean;
   onCopyLastWeek: () => void;
+  listRef: RefObject<HTMLDivElement | null>;
 }) {
-  const list = useRef<HTMLDivElement>(null);
   const firstDate = days[0]?.date;
   // An empty week says how to fill it, with Copy last week out of the ⋮ menu too (after v1, UX-15).
   const empty = loaded && days.every(PlanDays.isEmpty);
   // This week opens on today, not on the first day; an empty one at its sentence.
   useEffect(() => {
-    const node = list.current;
+    const node = listRef.current;
     if (!node || !loaded) return;
     const today = empty ? null : node.querySelector<HTMLElement>('[data-today]');
-    node.scrollTop = today ? today.offsetTop - node.offsetTop - 16 : 0;
+    node.scrollTop = today ? dayTop(node, today) : 0;
     // Once per week, when its meals arrive: the first meal added to an empty week must not move the list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstDate, loaded]);
   return (
-    <div className="sn-plan-days" data-testid="plan_days" ref={list}>
+    <div className="sn-plan-days" data-testid="plan_days" ref={listRef}>
       {empty && <EmptyWeek onCopyLastWeek={onCopyLastWeek} />}
       {days.map((day) => (
         <DayCard
@@ -439,18 +483,34 @@ function PlanDaysList({
   );
 }
 
-/** "Nothing planned this week…" with Copy last week (after v1, UX-15). */
+/** Where [day] starts in [list]'s content, less the list's 12 px of padding, so it shows at the top. */
+const dayTop = (list: HTMLElement, day: HTMLElement) => day.offsetTop - list.offsetTop - 12;
+
+/** Scrolls [list] to the card of [date]: a jump when the phone reduces motion. The last days go as far as it goes. */
+function showDay(list: HTMLElement | null, date: LocalDate) {
+  const day = list?.querySelector<HTMLElement>(`[data-day="${date}"]`);
+  if (!list || !day) return;
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  list.scrollTo({ top: dayTop(list, day), behavior: reduce ? 'auto' : 'smooth' });
+}
+
+/** "Nothing planned this week…" with Copy last week (after v1, UX-15), on a plain card (DESIGN 19.8). */
 function EmptyWeek({ onCopyLastWeek }: { onCopyLastWeek: () => void }) {
   return (
-    <div className="sn-plan-empty" data-testid="plan_week_empty">
+    <PlainCard className="sn-plan-empty" data-testid="plan_week_empty">
       <p className="t-body-large">{str('plan_week_empty')}</p>
-      <Button large data-testid="plan_empty_copy" onClick={onCopyLastWeek}>
+      <Button variant="tonal" large className="t-button-medium" data-testid="plan_empty_copy" onClick={onCopyLastWeek}>
         {str('plan_copy_last_week')}
       </Button>
-    </div>
+    </PlainCard>
   );
 }
 
+/**
+ * One day (DESIGN 5.9, 19.8): today is the highlight card with a Today badge, never color alone; any other day is a
+ * heading over a group of rows, a past day's heading in onSurfaceVariant. Each slot is a row with + to add to it, or
+ * its meals, the first of them carrying the +.
+ */
 function DayCard({
   day,
   members,
@@ -467,76 +527,116 @@ function DayCard({
   onOpen: (meal: PlannedMeal) => void;
 }) {
   const title = dayTitle(day.date);
-  return (
-    <Card
-      className={`sn-day-card ${day.isToday ? 'sn-day-card--today' : ''} ${day.isPast ? 'sn-day-card--past' : ''}`}
-      data-testid={`plan_day_${day.date}`}
-      data-today={day.isToday || undefined}
-    >
-      <div className="sn-day-card__header">
-        <h2 className="t-title-medium">{title}</h2>
-        {day.isToday && <span className="sn-today-badge t-label-medium">{str('plan_today')}</span>}
-      </div>
-      {MEAL_SLOTS.map((slot) => (
-        <div key={slot}>
-          <div className="sn-slot-row">
-            <span className="t-label-large c-on-surface-variant">{slotLabel(slot)}</span>
-            <IconButton
-              icon="round/add"
-              label={str('plan_add_to', slotLabel(slot), title)}
-              data-testid={`plan_add_${day.date}_${slot}`}
-              onClick={() => onAdd(slot)}
-            />
-          </div>
-          {day.slots[slot].map((meal) => (
-            <MealRow
-              key={meal.id}
-              meal={meal}
-              names={cookNames(meal.cooks, members, myUid)}
-              deleted={meal.recipeId !== null && !recipeIds.has(meal.recipeId)}
-              onOpen={() => onOpen(meal)}
-            />
-          ))}
+  const rows = (
+    <ListGroup nested={day.isToday}>
+      {MEAL_SLOTS.flatMap((slot) => {
+        const add = (
+          <IconButton
+            icon="round/add"
+            label={str('plan_add_to', slotLabel(slot), title)}
+            data-testid={`plan_add_${day.date}_${slot}`}
+            onClick={() => onAdd(slot)}
+          />
+        );
+        const meals = day.slots[slot];
+        if (meals.length === 0) {
+          return [
+            <div key={slot} className="sn-segment sn-plan-slot">
+              <span className="t-label-large sn-plan-slot__name">{slotLabel(slot)}</span>
+              {add}
+            </div>,
+          ];
+        }
+        return meals.map((meal, i) => (
+          <MealRow
+            key={meal.id}
+            meal={meal}
+            names={cookNames(meal.cooks, members, myUid)}
+            deleted={meal.recipeId !== null && !recipeIds.has(meal.recipeId)}
+            add={i === 0 ? add : null}
+            onOpen={() => onOpen(meal)}
+          />
+        ));
+      })}
+    </ListGroup>
+  );
+  if (day.isToday) {
+    return (
+      <HighlightCard className="sn-plan-today" data-testid={`plan_day_${day.date}`} data-day={day.date} data-today>
+        <div className="sn-plan-today__header">
+          <h2 className="t-card-title">{title}</h2>
+          <span className="sn-plan-today__badge t-chip-label">{str('plan_today')}</span>
         </div>
-      ))}
-    </Card>
+        {rows}
+      </HighlightCard>
+    );
+  }
+  return (
+    <section className="sn-plan-day" data-testid={`plan_day_${day.date}`} data-day={day.date}>
+      <h2 className={`t-section-title sn-plan-day__title ${day.isPast ? 'c-on-surface-variant' : ''}`}>{title}</h2>
+      {rows}
+    </section>
   );
 }
 
+/**
+ * A planned meal (DESIGN 5.9, 19.5): its slot over its title, then the servings, who cooks and Cooked. The row is one
+ * button read as one sentence ("Dinner: Tacos, 4 servings, cooking: Sam, Cooked"); [add], the slot's +, is its own.
+ */
 function MealRow({
   meal,
   names,
   deleted,
+  add,
   onOpen,
 }: {
   meal: PlannedMeal;
   names: string[];
   deleted: boolean;
+  add: ReactNode;
   onOpen: () => void;
 }) {
   const details = [
     deleted ? str('plan_recipe_deleted') : null,
     meal.servings !== null ? plural('plan_servings', meal.servings, meal.servings) : null,
   ].filter((d): d is string => d !== null);
+  const cooked = meal.cookedAt !== null;
+  const sentence = [
+    str('home_today_meal_description', slotLabel(meal.slot), meal.title),
+    ...details,
+    names.length > 0 ? str('home_today_cooking', names.join(', ')) : null,
+    cooked ? str('plan_cooked') : null,
+  ]
+    .filter((p): p is string => p !== null)
+    .join(', ');
   return (
-    <button
-      type="button"
-      className="sn-meal-row m3-state"
-      aria-description={str('plan_open_meal')}
-      data-testid={`plan_meal_${meal.id}`}
-      onClick={onOpen}
-    >
-      <span className="t-body-large sn-meal-row__title">{meal.title}</span>
-      {(details.length > 0 || names.length > 0 || meal.cookedAt !== null) && (
-        <span className="sn-meal-row__details">
-          {details.length > 0 && <span className="t-body-small c-on-surface-variant">{details.join(' · ')}</span>}
-          {names.map((name) => (
-            <CookChip key={name} name={name} />
-          ))}
-          {meal.cookedAt !== null && <CookedLabel />}
+    <div className="sn-segment sn-plan-meal">
+      <button
+        type="button"
+        className="sn-plan-meal__main m3-state"
+        aria-label={sentence}
+        aria-description={str('plan_open_meal')}
+        data-testid={`plan_meal_${meal.id}`}
+        onClick={onOpen}
+      >
+        <span className="t-row-supporting c-on-surface-variant" aria-hidden>
+          {slotLabel(meal.slot)}
         </span>
-      )}
-    </button>
+        <span className="t-row-title sn-plan-meal__title" aria-hidden>
+          {meal.title}
+        </span>
+        {(details.length > 0 || names.length > 0 || cooked) && (
+          <span className="sn-plan-meal__details" aria-hidden>
+            {details.length > 0 && <span className="t-row-supporting c-on-surface-variant">{details.join(' · ')}</span>}
+            {names.map((name) => (
+              <LabelChip key={name} text={name} icon="round/person" kind="person" />
+            ))}
+            {cooked && <CookedLabel />}
+          </span>
+        )}
+      </button>
+      {add}
+    </div>
   );
 }
 
