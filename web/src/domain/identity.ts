@@ -1,5 +1,6 @@
 // Rows that keep their identity across snapshots (review WEB-13): every snapshot maps every document into new
 // objects, so a memoized row would redraw anyway; keeping the previous object when nothing in it changed lets it skip.
+// Pantry's items and Groceries' items use it.
 
 /** Whether [a] and [b] hold the same plain data: primitives, arrays and plain objects, compared all the way down. */
 export function sameValue(a: unknown, b: unknown): boolean {
@@ -17,13 +18,13 @@ export function sameValue(a: unknown, b: unknown): boolean {
 }
 
 /**
- * [next] with each item replaced by [previous]'s item of the same key when the two hold the same data, so React's
- * `memo` skips rows another phone's change didn't touch.
+ * [next] with each item replaced by [previous]'s item of the same key ([keyOf]) when the two hold the same data, so
+ * React's `memo` skips rows another phone's change didn't touch.
  */
-export function keepUnchanged<T extends { key: string }>(previous: readonly T[], next: readonly T[]): T[] {
-  const before = new Map(previous.map((item) => [item.key, item]));
+export function keepUnchanged<T>(previous: readonly T[], next: readonly T[], keyOf: (item: T) => string): T[] {
+  const before = new Map(previous.map((item) => [keyOf(item), item]));
   return next.map((item) => {
-    const old = before.get(item.key);
+    const old = before.get(keyOf(item));
     return old !== undefined && sameValue(old, item) ? old : item;
   });
 }

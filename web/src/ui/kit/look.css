@@ -269,3 +269,24 @@
   border-radius: 5px;
   background: var(--md-sys-color-primary);
 }
+
+/* The round field without a leading icon (Groceries' quick add): its text starts where the icon would. */
+.sn-search--plain .sn-search__input {
+  padding-left: 0;
+}
+/* A filled + at the end of a round field (DESIGN 19.10): primary, 48 px, grey until there is something to add. */
+.sn-pill-add {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 24px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+.sn-pill-add:disabled {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+}

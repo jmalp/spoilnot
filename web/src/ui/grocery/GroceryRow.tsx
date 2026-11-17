@@ -1,18 +1,22 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { str } from '../../core/i18n';
 import type { GroceryItem } from '../../domain/grocery/models';
-import { Checkbox, Icon, IconButton, Menu, MenuItem, type IconName } from '../kit';
+import { Checkbox, Icon, IconButton, LabelChip, Menu, MenuItem, type IconName } from '../kit';
 import { amountDescription, amountText } from '../pantry/labels';
 import { useSwipe } from '../swipe';
 import './grocery.css';
 
 /**
- * One item (GroceryRow in the app). A tap checks it off and it moves to In cart. After v1 (UX-10) a swipe right checks
- * it off too (or puts it back from the cart) and a swipe left deletes it with Undo, each shown under the row as it
- * moves; the tap and the ⋮ menu do the same (DESIGN 6.8). Each source has its own icon, so Added automatically and
- * Recipe look different without relying on color.
+ * One item as a row of its aisle's group (GroceryRow in the app; DESIGN 19.5). A tap checks it off and it moves to In
+ * cart, where its row is a step darker and struck through. After v1 (UX-10) a swipe right checks it off too (or puts
+ * it back from the cart) and a swipe left deletes it with Undo, each shown under the row in its shape; the tap and the
+ * ⋮ menu do the same (DESIGN 6.8). Each source is a label chip with its own icon, so Added automatically and Recipe
+ * look different without relying on color.
+ *
+ * Memoized (review WEB-13): it takes only its own facts and handlers that keep their identity, so another phone's
+ * change to some other item doesn't redraw it.
  */
-export function GroceryRow({
+export const GroceryRow = memo(function GroceryRow({
   item,
   backInStock,
   addedBy,
@@ -63,7 +67,7 @@ export function GroceryRow({
     .join(', ');
   return (
     <div
-      className={`sn-grocery-row ${highlight ? 'sn-remote-highlight' : ''}`}
+      className={`sn-segment sn-grocery-row ${item.checked ? 'sn-grocery-row--cart' : ''} ${highlight ? 'sn-remote-highlight' : ''}`}
       data-testid={`grocery_item_${item.id}`}
       data-remote={highlight || undefined}
     >
@@ -81,9 +85,11 @@ export function GroceryRow({
           <Checkbox checked={item.checked} aria-label={description} onCheckedChange={() => onToggle(item)} />
           <span className="sn-grocery-row__text">
             <span className="sn-grocery-row__name" aria-hidden>
-              <span className={`t-body-large ${item.checked ? 'sn-grocery-row__checked' : ''}`}>{item.name}</span>
+              <span className={`t-row-title ${item.checked ? 'sn-grocery-row__checked' : ''}`}>{item.name}</span>
               {item.quantity !== null && (
-                <span className="t-body-medium c-on-surface-variant">× {amountText(item.quantity, item.unit)}</span>
+                <span className="sn-grocery-row__amount c-on-surface-variant">
+                  × {amountText(item.quantity, item.unit)}
+                </span>
               )}
               {item.pendingSync && (
                 <span className="c-on-surface-variant">
@@ -93,16 +99,16 @@ export function GroceryRow({
             </span>
             {(source || backInStock || addedBy || item.note) && (
               <span className="sn-grocery-row__details">
-                {source && <SourceBadge text={str(source[0])} icon={source[1]} />}
+                {source && <Chip text={str(source[0])} icon={source[1]} />}
                 {backInStock && (
                   <span className="sn-grocery-row__back">
-                    <SourceBadge text={str('grocery_back_in_stock')} icon="round/check_circle" good />
+                    <Chip text={str('grocery_back_in_stock')} icon="round/check_circle" person />
                     <span className="t-label-large c-on-surface-variant" aria-hidden>
                       ·
                     </span>
                     <button
                       type="button"
-                      className="sn-grocery-row__remove t-label-large m3-state"
+                      className="sn-grocery-row__remove t-button-medium m3-state"
                       aria-label={str('grocery_back_in_stock_remove', item.name)}
                       onClick={() => onDelete(item)}
                     >
@@ -111,12 +117,12 @@ export function GroceryRow({
                   </span>
                 )}
                 {addedBy && (
-                  <span className="t-body-small c-on-surface-variant" aria-hidden>
+                  <span className="t-row-supporting c-on-surface-variant" aria-hidden>
                     {str('grocery_added_by', addedBy)}
                   </span>
                 )}
                 {item.note && (
-                  <span className="t-body-small c-on-surface-variant" aria-hidden>
+                  <span className="t-row-supporting c-on-surface-variant" aria-hidden>
                     {item.note}
                   </span>
                 )}
@@ -128,7 +134,7 @@ export function GroceryRow({
       </div>
     </div>
   );
-}
+});
 
 /**
  * What a swipe does, under the row as it moves (after v1, UX-10): right checks off (or puts back), left deletes. Icon
@@ -147,20 +153,19 @@ function GrocerySwipeBackground({ right, checked }: { right: boolean; checked: b
       aria-hidden
     >
       <Icon name={icon} />
-      <span className="t-label-large">{label}</span>
+      <span className="t-button-medium">{label}</span>
     </div>
   );
 }
 
 /**
- * A small label with an icon: tertiary for where an item came from, secondary for good news such as Back in stock.
+ * Where an item came from as a label chip (DESIGN 19.10), or Back in stock in the person chip's colors ([person]).
  * VoiceOver reads it in the row's sentence, on the checkbox, so it is hidden here.
  */
-function SourceBadge({ text, icon, good = false }: { text: string; icon: IconName; good?: boolean }) {
+function Chip({ text, icon, person = false }: { text: string; icon: IconName; person?: boolean }) {
   return (
-    <span className={`sn-source-badge t-label-medium ${good ? 'sn-source-badge--good' : ''}`} aria-hidden>
-      <Icon name={icon} size={14} />
-      {text}
+    <span aria-hidden>
+      <LabelChip text={text} icon={icon} kind={person ? 'person' : 'source'} />
     </span>
   );
 }
@@ -176,7 +181,7 @@ function ItemMenu({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <span className="sn-anchor">
+    <span className="sn-anchor sn-grocery-row__menu">
       <IconButton
         icon="round/more_vert"
         label={str('grocery_item_options', item.name)}

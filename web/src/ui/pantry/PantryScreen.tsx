@@ -8,7 +8,7 @@ import { useRemoteChanges } from '../../core/remoteChanges';
 import { plural, str, type StringId } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import { pantryBlocks, type PantryHeading } from '../../domain/pantry/blocks';
-import { keepUnchanged } from '../../domain/pantry/identity';
+import { useKeepUnchanged } from '../../core/keepUnchanged';
 import {
   PantryItems,
   type PantryFilter,
@@ -57,19 +57,8 @@ const filterLocation = (filter: PantryFilter): Location | null =>
 /** How long the Edit window waits for the member list to name who removed its item. */
 const MEMBER_NAME_WAIT_MS = 3_000;
 
-/**
- * [items] with each one kept from the previous render when its data didn't change (keepUnchanged), so memoized rows
- * skip another phone's change to other rows (review WEB-13). React's pattern for information from earlier renders.
- */
-function useKeepUnchanged(items: PantryItem[]): PantryItem[] {
-  const [kept, setKept] = useState({ source: items, items });
-  if (kept.source !== items) {
-    const next = { source: items, items: keepUnchanged(kept.items, items) };
-    setKept(next);
-    return next.items;
-  }
-  return kept.items;
-}
+/** A pantry row's key, for keeping unchanged items across snapshots (review WEB-13). */
+const itemKey = (item: PantryItem) => item.key;
 
 /**
  * The Pantry tab (DESIGN 5.2, 19.12): how many rows the list has above the title, the search field, the filter chips
@@ -205,6 +194,7 @@ export function PantryScreen({
 
   const all = useKeepUnchanged(
     useMemo(() => (data ? PantryItems.all(data.products, data.batches, today) : []), [data, today]),
+    itemKey,
   );
   const groups = useMemo(() => PantryItems.group(all, query), [all, query]);
   const empty = data !== null && all.length === 0;

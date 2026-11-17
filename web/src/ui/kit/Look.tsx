@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 import { appliedTextScale, LARGE_TEXT_SCALE } from '../../theme/textScale';
 import { Icon, type IconName } from './Icon';
 import { IconButton } from './IconButton';
@@ -28,24 +28,57 @@ export function SearchField({
   testId?: string;
 }) {
   return (
-    <div className="sn-search">
-      <Icon name="round/search" />
+    <PillField
+      value={value}
+      onValueChange={onValueChange}
+      placeholder={placeholder}
+      leadingIcon="round/search"
+      type="search"
+      enterKeyHint="search"
+      data-testid={testId}
+      trailing={
+        value ? (
+          <IconButton icon="round/clear" label={clearLabel} onClick={() => onValueChange('')} />
+        ) : (
+          // Keeps the height the clear button gives, so the field doesn't move when it appears.
+          <span className="sn-search__spacer" />
+        )
+      }
+    />
+  );
+}
+
+/**
+ * The round field of a page (DESIGN 19.10; PillField in the app), under the search field and Groceries' quick-add
+ * field: 56 px, fully round, on the row color, a 2 px primary border while it has the keyboard, an optional
+ * [leadingIcon], and [trailing] at the end. [placeholder] names it for VoiceOver too.
+ */
+export function PillField({
+  value,
+  onValueChange,
+  placeholder,
+  leadingIcon,
+  trailing,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value' | 'placeholder'> & {
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder: string;
+  leadingIcon?: IconName;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className={`sn-search ${leadingIcon ? '' : 'sn-search--plain'}`}>
+      {leadingIcon && <Icon name={leadingIcon} />}
       <input
-        type="search"
-        enterKeyHint="search"
         className="sn-search__input"
         aria-label={placeholder}
         placeholder={placeholder}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
-        data-testid={testId}
+        {...rest}
       />
-      {value ? (
-        <IconButton icon="round/clear" label={clearLabel} onClick={() => onValueChange('')} />
-      ) : (
-        // Keeps the height the clear button gives, so the field doesn't move when it appears.
-        <span className="sn-search__spacer" />
-      )}
+      {trailing}
     </div>
   );
 }
