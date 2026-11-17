@@ -34,6 +34,10 @@ export function dayTitle(date: LocalDate): string {
 export const shortDate = (date: LocalDate): string =>
   new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(utc(date));
 
+/** "Thu", in the phone's language, for the row of days. */
+export const shortWeekday = (date: LocalDate): string =>
+  new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(utc(date));
+
 /** "Thu 29", for the Move chips. */
 export function shortDay(date: LocalDate): string {
   const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(utc(date));
@@ -45,16 +49,6 @@ export const slotLabel = (slot: MealSlot): string => str(`plan_slot_${slot}` as 
 /** Cooks' names in household order; members who left are not shown, and the user is "You". */
 export const cookNames = (cooks: string[], members: Member[], myUid: string): string[] =>
   members.filter((m) => cooks.includes(m.uid)).map((m) => (m.uid === myUid ? str('plan_you') : m.displayName));
-
-/** A cook's name with a person icon, so who cooks never depends on color. */
-export function CookChip({ name }: { name: string }) {
-  return (
-    <span className="sn-cook-chip t-label-medium">
-      <Icon name="round/person" size={14} />
-      {name}
-    </span>
-  );
-}
 
 /** "Cooked" with a check: an icon and a word, never color alone. */
 export function CookedLabel() {

@@ -222,12 +222,17 @@ for (const dark of [false, true]) {
       await page.getByTestId('plan_next_week').click();
       // An empty week first: its sentence and Copy last week (after v1, UX-15).
       await expect(page.getByTestId('plan_week_empty')).toBeVisible();
-      await shot(page, `plan_empty_week_${suffix}`, [
+      // The dates move every week: the range, the day buttons' numbers and the days' headings are masked.
+      const planDates = [
         page.getByTestId('plan_week_range'),
-        page.locator('.sn-day-card__header h2'),
-      ]);
-      const first = (await page.locator('[data-testid^="plan_day_"]').first().getAttribute('data-testid'))!.slice(9);
-      const second = (await page.locator('[data-testid^="plan_day_"]').nth(1).getAttribute('data-testid'))!.slice(9);
+        page.locator('.sn-day-button__number'),
+        page.locator('.sn-plan-day__title'),
+      ];
+      await shot(page, `plan_empty_week_${suffix}`, planDates);
+      // The days in the list, not the row of day buttons above it.
+      const listed = page.getByTestId('plan_days').locator('[data-testid^="plan_day_"]');
+      const first = (await listed.first().getAttribute('data-testid'))!.slice(9);
+      const second = (await listed.nth(1).getAttribute('data-testid'))!.slice(9);
       const meals = [
         {
           id: 'm2',
@@ -255,7 +260,6 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('plan_days')).toContainText('Old soup');
       await expect(page.getByTestId('plan_week_empty')).toHaveCount(0);
       await expect(page.locator('[data-remote]')).toHaveCount(0);
-      const planDates = [page.getByTestId('plan_week_range'), page.locator('.sn-day-card__header h2')];
       await shot(page, `plan_${suffix}`, planDates);
       await page.getByTestId(`plan_add_${second}_lunch`).click();
       await expect(page.getByTestId('plan_pick_pancakes')).toBeVisible();

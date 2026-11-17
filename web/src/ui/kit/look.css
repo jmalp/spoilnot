@@ -290,3 +290,41 @@
   background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
   color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
 }
+
+/* A stepper (DESIGN 19.9; StepButton and CountStepper in the app): − and + joined to the value, 56 px, 2 px apart. */
+.sn-joined-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sn-step-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border: none;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-step-button--start {
+  border-radius: 28px 8px 8px 28px;
+}
+.sn-step-button--end {
+  border-radius: 8px 28px 28px 8px;
+}
+.sn-step-button:disabled {
+  opacity: 0.5;
+}
+/* A count shown between − and +, not typed (Mark opened, a meal's servings): at least as wide as Add item's amount. */
+.sn-joined-stepper__count {
+  display: grid;
+  place-items: center;
+  min-width: 72px;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: var(--sn-surface-field);
+  font-weight: 800;
+}

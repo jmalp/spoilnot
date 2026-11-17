@@ -506,6 +506,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     the servings stepper, the chips, Note, Save and the tonal Cooked, Move and Open recipe; Move's chips have a check
     when chosen. Larger text at 2×: the day row scrolls sideways and the Today badge goes under the title. Dark mode and
     Fiery Palette: the same in their colors.
+70. The new look, step 5 on the iPhone (web, after v1, 2026-11-16, DESIGN 18.2, 19.12): flow 69 in the Home Screen app
+    on an iPhone, with VoiceOver instead of TalkBack: a day button reads "Monday, Nov 16, today, button, Show this
+    day", and double-tapping Thursday scrolls Thursday's heading to the top; a meal reads as one sentence and its + is
+    the next item; the rotor's headings jump between days. With Reduce Motion on, a day button jumps instead of
+    scrolling. Settings > Appearance > Week starts on Sunday, then Monday: the buttons follow, today's still filled.
+    Settings > Accessibility > Larger Text at the largest size: the day row scrolls sideways under the week bar, both
+    stay put while the days scroll, and the Today badge goes under the title.
 
 ## 3. Conditions
 
