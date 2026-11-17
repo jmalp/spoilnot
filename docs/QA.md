@@ -494,6 +494,18 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     lists can be chosen. With a second phone checking items off while you scroll slowly, the rows under your finger
     don't move until the scroll stops. Settings > Accessibility > Larger Text at the largest size: names wrap, chips
     and Remove stay whole, and Add to pantry's stepper and unit stack.
+69. The new look, step 5: Plan (Android, after v1, 2026-11-16, DESIGN 5.9, 19.12): this week shows "This week" over
+    Plan, the week on a round bar, and under it seven day buttons with today's filled. Tap Thursday: the list scrolls
+    to Thursday's heading; tap Sunday: it scrolls to the end, where Sunday shows. Today is the green card with a Today
+    badge; other days are a heading over their rows, past days' headings grey. Plan two dinners today: each has its
+    own row with "Dinner" over its name, and only the first has the +. TalkBack: a day button reads "Saturday, Nov 14,
+    today, double tap to show this day"; a meal reads as one sentence ("Dinner: Tacos, 4 servings, cooking: Sam") and
+    its + is the next stop; the headings jump between days. Next week: the line above the title is gone and Go to this
+    week sits between the bar and the days. Add meal: the title, Who's cooking chips, Something else with its filled +
+    (grey until something is typed), Use it up and the recipes as rounded rows under the round search field. A meal:
+    the servings stepper, the chips, Note, Save and the tonal Cooked, Move and Open recipe; Move's chips have a check
+    when chosen. Larger text at 2×: the day row scrolls sideways and the Today badge goes under the title. Dark mode and
+    Fiery Palette: the same in their colors.
 
 ## 3. Conditions
 

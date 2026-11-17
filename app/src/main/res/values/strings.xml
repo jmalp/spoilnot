@@ -725,6 +725,11 @@
     <string name="plan_previous_week">Previous week</string>
     <string name="plan_next_week">Next week</string>
     <string name="plan_this_week">Go to this week</string>
+    <!-- The line above the title while this week shows (2026-11 look, DESIGN 19.7). -->
+    <string name="plan_eyebrow_this_week">This week</string>
+    <!-- A day button's full name when it is today: "Saturday, Nov 14, today" (DESIGN 19.12). -->
+    <string name="plan_day_today">%1$s, today</string>
+    <string name="plan_show_day">Show this day</string>
     <string name="plan_today">Today</string>
     <string name="plan_slot_breakfast">Breakfast</string>
     <string name="plan_slot_lunch">Lunch</string>

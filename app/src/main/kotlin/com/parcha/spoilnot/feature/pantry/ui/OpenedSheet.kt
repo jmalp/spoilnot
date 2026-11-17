@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.CountStepper
 import com.parcha.spoilnot.core.designsystem.component.FieldLabel
 import com.parcha.spoilnot.core.designsystem.component.FieldMinHeight
 import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
@@ -87,40 +88,16 @@ fun OpenedSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     FieldLabel(stringResource(R.string.opened_how_many))
                     // A stepper (DESIGN 19.9): − and + joined to the count.
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(ListGroupGap),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        StepButton(
-                            Icons.Rounded.Remove,
-                            stringResource(R.string.opened_fewer),
-                            start = true,
-                            enabled = count > 1,
-                        ) { count = (count - 1).coerceAtLeast(1) }
-                        Box(
-                            Modifier
-                                .heightIn(min = FieldMinHeight)
-                                .background(
-                                    SpoilNotSurfaces.current.field,
-                                    RoundedCornerShape(SpoilNotCorners.Connected),
-                                )
-                                .padding(horizontal = 16.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                stringResource(R.string.opened_count, count, formatQuantity(batch.quantity)),
-                                style = SpoilNotText.FieldText,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.testTag("opened_count"),
-                            )
-                        }
-                        StepButton(
-                            Icons.Rounded.Add,
-                            stringResource(R.string.opened_more),
-                            start = false,
-                            enabled = count < batch.quantity.toInt(),
-                        ) { count = (count + 1).coerceAtMost(batch.quantity.toInt()) }
-                    }
+                    CountStepper(
+                        value = stringResource(R.string.opened_count, count, formatQuantity(batch.quantity)),
+                        minusLabel = stringResource(R.string.opened_fewer),
+                        plusLabel = stringResource(R.string.opened_more),
+                        onMinus = { count = (count - 1).coerceAtLeast(1) },
+                        onPlus = { count = (count + 1).coerceAtMost(batch.quantity.toInt()) },
+                        minusEnabled = count > 1,
+                        plusEnabled = count < batch.quantity.toInt(),
+                        valueTag = "opened_count",
+                    )
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

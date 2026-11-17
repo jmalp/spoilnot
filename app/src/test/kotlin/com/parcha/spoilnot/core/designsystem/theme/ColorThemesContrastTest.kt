@@ -137,6 +137,9 @@ class ColorThemesContrastTest {
                     (c.onPrimaryContainer to c.primaryContainer),
                 "onPrimary/primary (chosen filter chip)" to (c.onPrimary to c.primary),
                 "onSurface/dialogRow" to (c.onSurface to s.dialogRow),
+                // Step 5 (DESIGN 19.12): Cooked and + on today's nested rows, Move's chips on the dialog row color.
+                "primary/nestedRow (Plan's Cooked)" to (c.primary to s.nestedRow),
+                "onSurfaceVariant/dialogRow (Move's chips)" to (c.onSurfaceVariant to s.dialogRow),
             ).mapNotNull { (pair, colors) -> check(name, pair, colors.first, colors.second, TEXT) }
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())

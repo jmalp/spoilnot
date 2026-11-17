@@ -88,6 +88,7 @@ import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotTextField
+import com.parcha.spoilnot.core.designsystem.component.StepButton
 import com.parcha.spoilnot.core.designsystem.component.errorSemantics
 import com.parcha.spoilnot.core.designsystem.component.fieldLabelColor
 import com.parcha.spoilnot.core.designsystem.component.isLargeText
@@ -686,37 +687,6 @@ internal fun QuantityStepper(
             }
         },
     )
-}
-
-/** − or + of a stepper: 56 dp, `secondaryContainer`, fully round on the outside and 8 dp where it joins the value. */
-@Composable
-internal fun StepButton(
-    icon: ImageVector,
-    label: String,
-    start: Boolean,
-    enabled: Boolean = true,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    val round = CornerSize(percent = 50)
-    val joined = CornerSize(SpoilNotCorners.Connected)
-    val shape = if (start) {
-        RoundedCornerShape(topStart = round, topEnd = joined, bottomEnd = joined, bottomStart = round)
-    } else {
-        RoundedCornerShape(topStart = joined, topEnd = round, bottomEnd = round, bottomStart = joined)
-    }
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = shape,
-        color = MaterialTheme.colorScheme.secondaryContainer.let { if (enabled) it else it.copy(alpha = 0.5f) },
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer.let {
-            if (enabled) it else it.copy(alpha = 0.38f)
-        },
-        modifier = modifier.size(FieldMinHeight).semantics { role = Role.Button },
-    ) {
-        Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = label) }
-    }
 }
 
 /** The typed amount of a stepper: larger and heavier than a field's text. */
