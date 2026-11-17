@@ -64,7 +64,7 @@ export function textScale(): number {
 
 /** The text sizes in the type scale and the kit, in sp. */
 export const SP_SIZES = [
-  11, 12, 13, 14, 16, 17, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40, 44, 45, 48, 52, 54, 57, 64,
+  11, 12, 13, 14, 16, 17, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40, 44, 45, 48, 52, 54, 57, 64, 70,
 ] as const;
 
 let applied = 1;

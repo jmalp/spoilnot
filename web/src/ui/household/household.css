@@ -42,25 +42,6 @@
   display: inline-flex;
 }
 
-.sn-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 0;
-}
-.sn-section__title {
-  margin: 0;
-  padding: 0 16px;
-}
-.sn-section__body {
-  padding: 0 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.sn-section__body p {
-  margin: 0;
-}
 .sn-divider {
   height: 1px;
   margin: 0 16px;
@@ -72,18 +53,58 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.sn-invite-code {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-.sn-stack {
+
+/* Settings > Household in the 2026-11 look (DESIGN 19): cards and groups 12 px apart on the page. */
+.sn-household {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  padding: 8px 16px 24px;
+}
+.sn-household p,
+.sn-household h2 {
+  margin: 0;
+}
+.sn-household__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sn-household__note {
+  padding: 0 6px;
+}
+.sn-join-requests__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px;
+}
+.sn-join-request {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 16px;
 }
-.sn-stack > p {
-  margin: 0;
+.sn-join-request__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sn-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+.sn-invite-code {
+  font-variant-numeric: tabular-nums;
+}
+.sn-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 0 4px 0 12px;
 }
 .sn-dialog-form {
   display: flex;

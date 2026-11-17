@@ -3,7 +3,7 @@ import { str, type StringId } from '../../core/i18n';
 import { pushStatus, showTestNotification, type PushStatus } from '../../core/push';
 import { useHouseholdSession, useServices } from '../../core/services';
 import { EXPIRED_MODES, NotificationRules, type NotificationPrefs } from '../../domain/notifications';
-import { Button, Card, Checkbox, Progress, Radio, SelectField, Switch, useSnackbars } from '../kit';
+import { Button, ChoiceRow, GroupHeading, ListGroup, Progress, SelectField, SwitchRow, useSnackbars } from '../kit';
 import { DetailScaffold } from '../Scaffold';
 import { formatHour, useNotificationPrefs, usePushStatus, useTurnOnReminders } from './reminders';
 import './notifications.css';
@@ -15,7 +15,11 @@ const STAGES: [number, StringId][] = [
   [0, 'stage_0'],
 ];
 
-/** Settings > Notifications (DESIGN 10.2): on or off, the hour, meals, stages and expired food. */
+/**
+ * Settings > Notifications (DESIGN 10.2, 19) in the 2026-11 look: what stops reminders on this phone, the reminder and
+ * Meals I'm cooking as switch rows, the hour, the stages as check rows and expired food as radio rows under their
+ * headings, and Send test notification as a tonal button.
+ */
 export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
   const me = useHouseholdSession();
   const { notificationPrefs } = useServices();
@@ -27,8 +31,9 @@ export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
   };
   // A Turn on that works says "You're set" here too (DESIGN 5.4).
   const turnOn = useTurnOnReminders();
+  const expiredId = useId();
   return (
-    <DetailScaffold title={str('settings_notifications')} onBack={onBack} testId="screen_notifications">
+    <DetailScaffold title={str('settings_notifications')} onBack={onBack} header="pushed" testId="screen_notifications">
       {prefs === null ? (
         <div className="sn-centered">
           <Progress />
@@ -36,13 +41,26 @@ export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
       ) : (
         <div className="sn-notifications">
           {status !== 'granted' && <PushBanner status={status} onTurnOn={() => void turnOn()} />}
-          <ToggleRow
-            title={str('notif_enabled')}
-            help={str('notif_enabled_help')}
-            checked={prefs.enabled}
-            onChange={(enabled) => update((p) => ({ ...p, enabled }))}
-            testId="switch_notifications"
-          />
+          <ListGroup>
+            <SwitchRow
+              icon="round/notifications"
+              title={str('notif_enabled')}
+              summary={str('notif_enabled_help')}
+              checked={prefs.enabled}
+              onCheckedChange={(enabled) => update((p) => ({ ...p, enabled }))}
+              testId="switch_notifications"
+            />
+            {prefs.enabled && (
+              <SwitchRow
+                icon="round/soup_kitchen"
+                title={str('notif_cooking')}
+                summary={str('notif_cooking_help')}
+                checked={prefs.cooking}
+                onCheckedChange={(cooking) => update((p) => ({ ...p, cooking }))}
+                testId="switch_cooking"
+              />
+            )}
+          </ListGroup>
           {prefs.enabled && (
             <>
               <SelectField
@@ -54,18 +72,13 @@ export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
                 supportingText={str('notif_time_help')}
                 testId="field_notification_time"
               />
-              <ToggleRow
-                title={str('notif_cooking')}
-                help={str('notif_cooking_help')}
-                checked={prefs.cooking}
-                onChange={(cooking) => update((p) => ({ ...p, cooking }))}
-                testId="switch_cooking"
-              />
-              <h2 className="t-title-medium">{str('notif_stages')}</h2>
-              <div className="sn-notifications__choices">
-                {STAGES.map(([stage, label]) => (
-                  <label key={stage} className="sn-notifications__choice t-body-large">
-                    <Checkbox
+              <section className="sn-notifications__section">
+                <GroupHeading text={str('notif_stages')} />
+                <ListGroup>
+                  {STAGES.map(([stage, label]) => (
+                    <ChoiceRow
+                      key={stage}
+                      label={str(label)}
                       checked={prefs.stages.includes(stage)}
                       onCheckedChange={(on) =>
                         update((p) => ({
@@ -76,17 +89,31 @@ export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
                         }))
                       }
                     />
-                    {str(label)}
-                  </label>
-                ))}
-              </div>
-              <ExpiredModes prefs={prefs} onPick={(expiredMode) => update((p) => ({ ...p, expiredMode }))} />
+                  ))}
+                </ListGroup>
+              </section>
+              <section className="sn-notifications__section">
+                <GroupHeading text={str('notif_expired')} id={expiredId} />
+                <ListGroup role="radiogroup" aria-labelledby={expiredId}>
+                  {EXPIRED_MODES.map((mode) => (
+                    <ChoiceRow
+                      key={mode}
+                      label={str(`expired_${mode}` as StringId)}
+                      checked={prefs.expiredMode === mode}
+                      radioName={expiredId}
+                      onCheckedChange={() => update((p) => ({ ...p, expiredMode: mode }))}
+                    />
+                  ))}
+                </ListGroup>
+              </section>
             </>
           )}
           <Button
-            variant="outlined"
+            variant="tonal"
             full
             large
+            icon="round/notifications_active"
+            className="t-button-medium"
             data-testid="button_test_notification"
             onClick={() =>
               void (async () => {
@@ -104,70 +131,27 @@ export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
 }
 
 /**
- * What stops reminders on this phone (DESIGN 5.4): not allowed yet (Turn on), turned off in the iPhone's Settings,
- * or Safari outside the Home Screen. The app's button to the system settings has no web counterpart.
+ * What stops reminders on this phone (DESIGN 5.4), as a rounded errorContainer banner (19.11): not allowed yet (Turn
+ * on), turned off in the iPhone's Settings, or Safari outside the Home Screen. The app's button to the system
+ * settings has no web counterpart.
  */
 function PushBanner({ status, onTurnOn }: { status: PushStatus; onTurnOn: () => void }) {
   const help: StringId | null =
     status === 'denied' ? 'web_notif_denied' : status === 'install' ? 'web_notif_install' : null;
   return (
-    <Card variant="filled" className="sn-notifications__banner" data-testid="notifications_banner">
+    <div className="sn-notifications__banner" data-testid="notifications_banner">
       <p className="t-body-large">{str(status === 'unsupported' ? 'web_notif_unsupported' : 'notif_blocked')}</p>
       {help && <p className="t-body-large">{str(help)}</p>}
       {status === 'default' && (
-        <Button variant="text" onClick={onTurnOn} data-testid="button_turn_on_notifications">
+        <Button
+          variant="text"
+          className="t-button-medium"
+          onClick={onTurnOn}
+          data-testid="button_turn_on_notifications"
+        >
           {str('notif_turn_on')}
         </Button>
       )}
-    </Card>
-  );
-}
-
-function ToggleRow({
-  title,
-  help,
-  checked,
-  onChange,
-  testId,
-}: {
-  title: string;
-  help: string;
-  checked: boolean;
-  onChange: (on: boolean) => void;
-  testId: string;
-}) {
-  return (
-    <label className="sn-notifications__toggle" data-testid={testId}>
-      <span className="sn-notifications__toggle-text">
-        <span className="t-title-medium">{title}</span>
-        <span className="t-body-medium sn-notifications__help">{help}</span>
-      </span>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </label>
-  );
-}
-
-function ExpiredModes({
-  prefs,
-  onPick,
-}: {
-  prefs: NotificationPrefs;
-  onPick: (mode: NotificationPrefs['expiredMode']) => void;
-}) {
-  const id = useId();
-  return (
-    <>
-      <h2 className="t-title-medium" id={id}>
-        {str('notif_expired')}
-      </h2>
-      <div role="radiogroup" aria-labelledby={id} className="sn-notifications__choices">
-        {EXPIRED_MODES.map((mode) => (
-          <label key={mode} className="sn-notifications__choice t-body-large">
-            <Radio name={id} checked={prefs.expiredMode === mode} onCheckedChange={() => onPick(mode)} />
-            {str(`expired_${mode}` as StringId)}
-          </label>
-        ))}
-      </div>
-    </>
+    </div>
   );
 }

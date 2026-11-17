@@ -112,6 +112,15 @@ test('Needs attention, the Grocery list card, Insights and Recent activity, from
   await expect(card).toHaveAccessibleName('Your kitchen this month, This month: 3 used, 1 thrown away, 75% used.');
   await card.click();
   await expect(page.getByTestId('screen_insights')).toBeVisible();
+  // The 2026-11 look (DESIGN 19.8): this month above the title, the month card's ring read once with its sentence,
+  // the card's and the streak's titles as headings.
+  const monthName = new Intl.DateTimeFormat(undefined, { month: 'long' }).format(new Date());
+  await expect(page.getByTestId('screen_eyebrow')).toHaveText(monthName);
+  const month = page.getByTestId('card_insights_month');
+  await expect(month).toContainText('75%');
+  await expect(month.getByRole('img')).toHaveAccessibleName('This month: 3 used, 1 thrown away, 75% used.');
+  await expect(month.getByRole('heading', { name: 'Your kitchen this month' })).toBeVisible();
+  await expect(page.getByTestId('card_insights_streak').getByRole('heading', { name: 'Streak' })).toBeVisible();
   const details = page.getByTestId('insights_month_details');
   await expect(details).toContainText('3 used · 1 thrown away · 75% used');
   await expect(page.getByTestId('month_bar_5')).toHaveAttribute('aria-selected', 'true');

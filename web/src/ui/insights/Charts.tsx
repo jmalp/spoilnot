@@ -1,28 +1,18 @@
-import { useEffect, useId, useState, type CSSProperties } from 'react';
+import { useId, useState, type CSSProperties } from 'react';
+import { str } from '../../core/i18n';
 import './insights.css';
 
 /**
- * Charts for Insights (InsightsCharts in the app). Thrown away is never told apart by color alone (DESIGN 6.4): it is
- * dashed in the ring and striped in bars, and every chart has a text legend and a spoken summary. Used is primary,
- * thrown away tertiary, the ring's track surfaceVariant.
+ * Charts for Your kitchen (InsightsCharts in the app). Thrown away is never told apart by color alone (DESIGN 6.4): it
+ * is dashed in the ring and striped and outlined in bars, and every chart has a text legend and a spoken summary. Used
+ * is primary, thrown away tertiary on tertiaryContainer, the ring's track surfaceVariant.
+ *
+ * The charts grow with CSS animations when they first show (insights.css), not with React state on every frame
+ * (after v1, review WEB-13: opening the screen re-rendered every chart about 47 times). Reduce motion turns them off.
  */
 const USED = 'var(--md-sys-color-primary)';
 const THROWN = 'var(--md-sys-color-tertiary)';
 const TRACK = 'var(--md-sys-color-surface-variant)';
-
-/** FastOutSlowInEasing. */
-function fastOutSlowIn(t: number): number {
-  // cubic-bezier(0.4, 0, 0.2, 1), solved for x by bisection.
-  const bezier = (p1: number, p2: number, s: number) => 3 * p1 * s * (1 - s) ** 2 + 3 * p2 * s * s * (1 - s) + s ** 3;
-  let lo = 0;
-  let hi = 1;
-  for (let i = 0; i < 20; i++) {
-    const mid = (lo + hi) / 2;
-    if (bezier(0.4, 0.2, mid) < t) lo = mid;
-    else hi = mid;
-  }
-  return bezier(0, 1, (lo + hi) / 2);
-}
 
 const reduceMotion = () => {
   try {
@@ -31,25 +21,6 @@ const reduceMotion = () => {
     return false;
   }
 };
-
-/** 0 to 1 over 700 ms when [key] first shows, or at once with reduce motion on. */
-function useGrow(key: string): number {
-  const [state, setState] = useState(() => ({ key, value: reduceMotion() ? 1 : 0 }));
-  const value = state.key === key ? state.value : reduceMotion() ? 1 : 0;
-  useEffect(() => {
-    if (reduceMotion()) return;
-    let frame = 0;
-    const start = performance.now();
-    const step = (now: number) => {
-      const t = Math.min(1, (now - start) / 700);
-      setState({ key, value: fastOutSlowIn(t) });
-      if (t < 1) frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [key]);
-  return value;
-}
 
 /** An SVG arc from [start] degrees (0 is three o'clock), [sweep] degrees clockwise. */
 function arc(c: number, r: number, start: number, sweep: number): string {
@@ -63,9 +34,23 @@ function arc(c: number, r: number, start: number, sweep: number): string {
   return `M ${point(start)} A ${r} ${r} 0 ${sweep > 180 ? 1 : 0} 1 ${point(start + sweep)}`;
 }
 
+/** The colors of a [UsageRing]: the used arc, the dashed thrown-away arc and the track under them. */
+export type RingColors = { used: string; thrown: string; track: string };
+
+/**
+ * On the primary month card of Home and Your kitchen (DESIGN 19.8; UsageRingColors.onPrimary in the app): used in
+ * primaryContainer, thrown away in onPrimary dashes, the track onPrimary at 24% over primary.
+ */
+export const ON_PRIMARY_RING: RingColors = {
+  used: 'var(--md-sys-color-primary-container)',
+  thrown: 'var(--md-sys-color-on-primary)',
+  track: 'color-mix(in srgb, var(--md-sys-color-on-primary) 24%, var(--md-sys-color-primary))',
+};
+
 /**
  * The share used as a ring: a solid arc for used, a dashed one for thrown away, and [centerText] in the middle. Empty
- * months show only the track.
+ * months show only the track. The arcs are drawn once at their final size and revealed by a mask that sweeps round
+ * (a CSS animation); once it ends the mask is dropped, so the ring is drawn exactly as without it.
  */
 export function UsageRing({
   used,
@@ -82,66 +67,96 @@ export function UsageRing({
   description: string;
   size: number;
   small?: boolean;
-  /** The arcs' and track's colors; Home's card passes its own for the primary background (DESIGN 19.8). */
-  colors?: { used: string; thrown: string; track: string };
+  colors?: RingColors;
 }) {
-  const grow = useGrow(`${used}/${thrown}`);
+  // A new key draws (and grows) the ring again, as the app's growth restarts when the counts change.
+  return (
+    <RingDrawing
+      key={`${used}/${thrown}`}
+      used={used}
+      thrown={thrown}
+      centerText={centerText}
+      description={description}
+      size={size}
+      small={small}
+      colors={colors}
+    />
+  );
+}
+
+function RingDrawing({
+  used,
+  thrown,
+  centerText,
+  description,
+  size,
+  small,
+  colors,
+}: {
+  used: number;
+  thrown: number;
+  centerText: string;
+  description: string;
+  size: number;
+  small: boolean;
+  colors: RingColors;
+}) {
+  const mask = `sweep${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const total = used + thrown;
+  const [grown, setGrown] = useState(() => total === 0 || reduceMotion());
   const stroke = size * 0.12;
   const r = (size - stroke) / 2;
   const c = size / 2;
-  const total = used + thrown;
-  const usedSweep = total > 0 ? ((360 * used) / total) * grow : 0;
-  const thrownSweep = total > 0 ? ((360 * thrown) / total) * grow : 0;
+  const usedSweep = total > 0 ? (360 * used) / total : 0;
+  const thrownSweep = total > 0 ? (360 * thrown) / total : 0;
   const dash = stroke * 0.6;
+  const length = 2 * Math.PI * r;
   return (
     <div className="sn-ring" role="img" aria-label={description} style={{ width: size, height: size }}>
       <svg width={size} height={size} aria-hidden>
+        {!grown && (
+          <defs>
+            <mask id={mask}>
+              <circle
+                className="sn-ring__sweep"
+                cx={c}
+                cy={c}
+                r={r}
+                fill="none"
+                stroke="white"
+                strokeWidth={stroke + 2}
+                strokeDasharray={`${length} ${length}`}
+                transform={`rotate(-90 ${c} ${c})`}
+                style={{ '--sn-ring-length': `${length}px` } as CSSProperties}
+                onAnimationEnd={() => setGrown(true)}
+              />
+            </mask>
+          </defs>
+        )}
         <circle cx={c} cy={c} r={r} fill="none" stroke={colors.track} strokeWidth={stroke} />
-        {usedSweep > 0 && (
-          <path
-            d={arc(c, r, -90, usedSweep)}
-            fill="none"
-            stroke={colors.used}
-            strokeWidth={stroke}
-            strokeLinecap="butt"
-          />
-        )}
-        {thrown > 0 && thrownSweep > 0 && (
-          <path
-            d={arc(c, r, -90 + usedSweep, thrownSweep)}
-            fill="none"
-            stroke={colors.thrown}
-            strokeWidth={stroke}
-            strokeDasharray={`${dash} ${dash / 2}`}
-          />
-        )}
+        <g mask={grown ? undefined : `url(#${mask})`}>
+          {usedSweep > 0 && (
+            <path
+              d={arc(c, r, -90, usedSweep)}
+              fill="none"
+              stroke={colors.used}
+              strokeWidth={stroke}
+              strokeLinecap="butt"
+            />
+          )}
+          {thrownSweep > 0 && (
+            <path
+              d={arc(c, r, -90 + usedSweep, thrownSweep)}
+              fill="none"
+              stroke={colors.thrown}
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${dash / 2}`}
+            />
+          )}
+        </g>
       </svg>
-      <span className={small ? 't-title-medium' : 't-headline-medium'}>{centerText}</span>
+      {centerText && <span className={small ? 't-title-medium' : 't-headline-medium'}>{centerText}</span>}
     </div>
-  );
-}
-
-/** A rectangle with diagonal stripes and an outline: the "thrown away" pattern. */
-function Striped({ width, height, color }: { width: number; height: number; color: string }) {
-  const id = `stripes${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  return (
-    <svg width={width} height={height} overflow="visible" aria-hidden className="sn-striped">
-      <defs>
-        <pattern id={id} width={5} height={5} patternUnits="userSpaceOnUse">
-          <path d="M -1 1 L 1 -1 M 0 5 L 5 0 M 4 6 L 6 4" stroke={color} strokeWidth={2} />
-        </pattern>
-      </defs>
-      <rect x={0} y={0} width={width} height={height} fill={`url(#${id})`} />
-      <rect x={0} y={0} width={width} height={height} rx={4} fill="none" stroke={color} strokeWidth={2} />
-    </svg>
-  );
-}
-
-function Solid({ width, height, color, radius }: { width: number; height: number; color: string; radius: number }) {
-  return (
-    <svg width={width} height={height} aria-hidden>
-      <rect width={width} height={height} rx={radius} fill={color} />
-    </svg>
   );
 }
 
@@ -149,26 +164,27 @@ function Solid({ width, height, color, radius }: { width: number; height: number
 export type MonthBar = { label: string; used: number; thrown: number; description: string };
 
 /**
- * Used and thrown away per month, side by side: solid bars for used, striped outlined bars for thrown away, each with
- * its number above and the month below. Each month can be tapped to show its details; the selected one has a tinted
- * background and a bold label, and VoiceOver reads each month on its own.
+ * Used and thrown away per month, side by side (DESIGN 19.8): solid bars for used, striped outlined bars for thrown
+ * away, each with its number above and the month below. Each month is a tab that shows its details; the chosen one
+ * has a secondaryContainer background and a heavier label, and VoiceOver reads each month on its own. The bars keep
+ * their final layout and grow in (a CSS transform), so the numbers sit in their final place from the start.
  */
 export function MonthBars({
   bars,
   selected,
   onSelect,
-  height = 160,
+  height = 132,
 }: {
   bars: MonthBar[];
   selected: number;
   onSelect: (index: number) => void;
   height?: number;
 }) {
-  const grow = useGrow(JSON.stringify(bars));
   const max = Math.max(1, ...bars.map((b) => Math.max(b.used, b.thrown)));
-  const barHeight = (value: number) => Math.max(2, height * (value / max) * grow);
+  const barHeight = (value: number) => Math.max(2, height * (value / max));
   return (
-    <div className="sn-month-bars" role="tablist">
+    // Keyed on the counts, so new counts grow in again.
+    <div className="sn-month-bars" role="tablist" key={bars.map((b) => `${b.used}/${b.thrown}`).join(',')}>
       {bars.map((bar, index) => {
         const isSelected = index === selected;
         return (
@@ -182,17 +198,17 @@ export function MonthBars({
             data-testid={`month_bar_${index}`}
             onClick={() => onSelect(index)}
           >
-            <span className="sn-month-bar__pair">
+            <span className="sn-month-bar__pair" aria-hidden>
               <span className="sn-bar">
-                <span className="t-label-small c-on-surface-variant">{bar.used}</span>
-                <Solid width={14} height={barHeight(bar.used)} color={USED} radius={4} />
+                <span className="t-chip-label">{bar.used}</span>
+                <span className="sn-bar__solid sn-grow-up" style={{ height: barHeight(bar.used) }} />
               </span>
               <span className="sn-bar">
-                <span className="t-label-small c-on-surface-variant">{bar.thrown}</span>
-                <Striped width={14} height={barHeight(bar.thrown)} color={THROWN} />
+                <span className="t-chip-label">{bar.thrown}</span>
+                <span className="sn-bar__striped sn-grow-up" style={{ height: barHeight(bar.thrown) }} />
               </span>
             </span>
-            <span className="t-label-medium sn-month-bar__label">{bar.label}</span>
+            <span className="t-row-supporting sn-month-bar__label">{bar.label}</span>
           </button>
         );
       })}
@@ -200,55 +216,56 @@ export function MonthBars({
   );
 }
 
-/** A small swatch and its label, for chart legends. */
+/** A small swatch and its label, for chart legends: solid for used, striped and outlined for thrown away. */
 export function LegendItem({ text, thrown }: { text: string; thrown: boolean }) {
   return (
-    <span className="sn-legend">
-      {thrown ? (
-        <Striped width={14} height={14} color={THROWN} />
-      ) : (
-        <Solid width={14} height={14} color={USED} radius={3} />
-      )}
-      <span className="t-body-medium">{text}</span>
+    <span className="sn-legend t-row-supporting c-on-surface-variant">
+      <span className={`sn-legend__swatch ${thrown ? 'sn-bar__striped' : 'sn-bar__solid'}`} />
+      {text}
     </span>
   );
 }
 
-/** Horizontal striped bars for why things were thrown away, longest first, each labeled with its count. */
-export function ReasonBars({ reasons }: { reasons: [string, number][] }) {
-  const grow = useGrow(JSON.stringify(reasons));
-  const max = Math.max(1, ...reasons.map(([, n]) => n));
+/**
+ * The month card's legend on primary (Home and Your kitchen, DESIGN 19.8; OnPrimaryLegend in the app): "Used 3" with
+ * a solid primaryContainer swatch and "Thrown away 1" with an outlined one, so the two differ by more than color.
+ */
+export function OnPrimaryLegend({ used, thrown }: { used: number; thrown: number }) {
   return (
-    <div className="sn-reason-bars">
-      {reasons.map(([label, count]) => (
-        <div key={label}>
-          <div className="sn-reason-bars__head">
-            <span className="t-body-medium">{label}</span>
-            <span className="t-label-large">{count}</span>
-          </div>
-          <div className="sn-reason-bars__track">
-            <ReasonBar share={(count / max) * grow} />
-          </div>
-        </div>
-      ))}
-    </div>
+    <span className="sn-kitchen-card__legend t-row-supporting">
+      <span className="sn-kitchen-card__entry">
+        <span className="sn-kitchen-card__swatch" />
+        {`${str('insights_legend_used')} ${used}`}
+      </span>
+      <span className="sn-kitchen-card__entry">
+        <span className="sn-kitchen-card__swatch sn-kitchen-card__swatch--outlined" />
+        {`${str('insights_legend_thrown')} ${thrown}`}
+      </span>
+    </span>
   );
 }
 
-/** The bar's width follows its track, so it is measured once laid out. */
-function ReasonBar({ share }: { share: number }) {
-  const [width, setWidth] = useState(0);
-  const [node, setNode] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!node) return;
-    const observer = new ResizeObserver(() => setWidth(node.clientWidth));
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [node]);
-  const style: CSSProperties = { height: 8 };
+/**
+ * Why things were thrown away (DESIGN 19.8): each reason's name and count over a striped bar as long as its share of
+ * the longest, growing in from the start.
+ */
+export function ReasonBars({ reasons }: { reasons: [string, number][] }) {
+  const max = Math.max(1, ...reasons.map(([, n]) => n));
   return (
-    <div ref={setNode} style={style}>
-      {width > 0 && <Striped width={Math.max(2, width * share)} height={8} color={THROWN} />}
+    <div className="sn-reason-bars" key={reasons.map(([l, n]) => `${l}/${n}`).join(',')}>
+      {reasons.map(([label, count]) => (
+        <div key={label} className="sn-reason-bars__reason">
+          <div className="sn-reason-bars__head t-reason">
+            <span>{label}</span>
+            <span className="sn-reason-bars__count">{count}</span>
+          </div>
+          <span
+            className="sn-bar__striped sn-reason-bars__bar sn-grow-right"
+            style={{ width: `${(count / max) * 100}%` }}
+            aria-hidden
+          />
+        </div>
+      ))}
     </div>
   );
 }

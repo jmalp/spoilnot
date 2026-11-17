@@ -613,14 +613,6 @@
     <string name="insights_section_reasons">Why things were thrown away</string>
     <string name="insights_reasons_none">Nothing thrown away in the last 6 months.</string>
     <string name="insights_section_streak">Streak</string>
-    <plurals name="insights_streak_days">
-        <item quantity="one">%d day with nothing thrown away</item>
-        <item quantity="other">%d days with nothing thrown away</item>
-    </plurals>
-    <plurals name="insights_streak_never">
-        <item quantity="one">Nothing thrown away in %d day of counting</item>
-        <item quantity="other">Nothing thrown away in %d days of counting</item>
-    </plurals>
     <!-- The streak card of the 2026-11 look (DESIGN 19.8): the days large, then what they mean. -->
     <plurals name="insights_streak_count">
         <item quantity="one">%d day</item>

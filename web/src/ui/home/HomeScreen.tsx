@@ -28,7 +28,7 @@ import {
   StatusTile,
   type IconName,
 } from '../kit';
-import { UsageRing } from '../insights/Charts';
+import { ON_PRIMARY_RING, OnPrimaryLegend, UsageRing } from '../insights/Charts';
 import { insights$ } from '../insights/InsightsScreen';
 import { moodText, percent } from '../insights/labels';
 import { chipText, statusIcon, statusText, tone } from '../pantry/labels';
@@ -401,16 +401,7 @@ function KitchenCard({ insights, onOpen }: { insights: InsightsSummary; onOpen: 
         ) : (
           <>
             <span className="t-big-number">{str('insights_percent', percent(share))}</span>
-            <span className="sn-kitchen-card__legend t-row-supporting">
-              <span className="sn-kitchen-card__entry">
-                <span className="sn-kitchen-card__swatch" />
-                {`${str('insights_legend_used')} ${month.used}`}
-              </span>
-              <span className="sn-kitchen-card__entry">
-                <span className="sn-kitchen-card__swatch sn-kitchen-card__swatch--outlined" />
-                {`${str('insights_legend_thrown')} ${thrown}`}
-              </span>
-            </span>
+            <OnPrimaryLegend used={month.used} thrown={thrown} />
           </>
         )}
       </span>
@@ -421,11 +412,7 @@ function KitchenCard({ insights, onOpen }: { insights: InsightsSummary; onOpen: 
         description={description}
         size={84}
         small
-        colors={{
-          used: 'var(--md-sys-color-primary-container)',
-          thrown: 'var(--md-sys-color-on-primary)',
-          track: 'color-mix(in srgb, var(--md-sys-color-on-primary) 24%, var(--md-sys-color-primary))',
-        }}
+        colors={ON_PRIMARY_RING}
       />
     </button>
   );

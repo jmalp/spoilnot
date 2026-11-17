@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTextScale } from '../../theme/textScale';
 import {
+  ConnectedButtonGroup,
   Dialog,
   FilterChip,
   IconButton,
   INDEFINITE,
-  Segmented,
   SnackbarProvider,
   TextField,
   UNDO_WINDOW_MS,
@@ -39,26 +39,27 @@ describe('kit', () => {
     expect(input).toHaveAccessibleDescription('Enter a valid email');
   });
 
-  it('segmented buttons are radio buttons with a check on the choice, and a radio list at large text', () => {
+  it('a connected group is radio buttons, joined, and a radio list at large text (it replaced Segmented)', () => {
     const onPick = vi.fn();
     const props = {
       label: 'Theme',
       options: ['system', 'light', 'dark'] as const,
       selected: 'light' as const,
       optionLabel: (o: string) => o.toUpperCase(),
+      optionKey: (o: string) => o,
       onPick,
     };
-    const { unmount } = render(<Segmented {...props} />);
-    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toHaveAttribute('data-testid', 'segmented_row');
+    const { unmount } = render(<ConnectedButtonGroup {...props} />);
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toHaveAttribute('data-testid', 'connected_row');
     expect(screen.getByRole('radio', { name: 'LIGHT' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('radio', { name: 'LIGHT' }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('radio', { name: 'DARK' })).toHaveAttribute('aria-checked', 'false');
     fireEvent.click(screen.getByRole('radio', { name: 'DARK' }));
     expect(onPick).toHaveBeenCalledWith('dark');
     unmount();
     applyTextScale(2);
-    render(<Segmented {...props} />);
-    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toHaveAttribute('data-testid', 'segmented_list');
-    expect(screen.getByRole('radio', { name: 'LIGHT' })).toBeChecked();
+    render(<ConnectedButtonGroup {...props} />);
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toHaveAttribute('data-testid', 'connected_list');
+    expect(screen.getByRole('radio', { name: 'LIGHT' })).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByRole('radio', { name: 'SYSTEM' }));
     expect(onPick).toHaveBeenCalledWith('system');
     applyTextScale(1);

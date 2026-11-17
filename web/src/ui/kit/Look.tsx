@@ -3,6 +3,7 @@ import { appliedTextScale, LARGE_TEXT_SCALE } from '../../theme/textScale';
 import { Icon, type IconName } from './Icon';
 import { IconButton } from './IconButton';
 import { ripple } from './ripple';
+import { Checkbox, Radio, Switch } from './Selection';
 import './look.css';
 
 // The shared pieces of the 2026-11 look (DESIGN 19; core/designsystem in the app). The web adds each piece with the
@@ -230,12 +231,167 @@ export function PlainCard({ className, children, ...rest }: HTMLAttributes<HTMLE
   );
 }
 
-/** The leaf from the app icon holding an icon (DESIGN 19.3; LeafBadge in the app), in the accent card's colors. */
-export function LeafBadge({ icon }: { icon: IconName }) {
+/**
+ * The leaf from the app icon holding an icon or a letter (DESIGN 19.3; LeafBadge in the app), 48 px by default. In
+ * the accent card's colors, swapped; [highlight] takes the highlight card's (the account's initial in Settings).
+ */
+export function LeafBadge({
+  icon,
+  letter,
+  size = 48,
+  iconSize = 24,
+  highlight = false,
+}: {
+  icon?: IconName;
+  letter?: string;
+  size?: number;
+  iconSize?: number;
+  highlight?: boolean;
+}) {
   return (
-    <span className="sn-leaf-badge" aria-hidden>
-      <Icon name={icon} />
+    <span
+      className={`sn-leaf-badge ${highlight ? 'sn-leaf-badge--highlight' : ''}`}
+      style={size === 48 ? undefined : { width: size, height: size }}
+      aria-hidden
+    >
+      {letter ? <span className="t-card-title">{letter}</span> : icon && <Icon name={icon} size={iconSize} />}
     </span>
+  );
+}
+
+/** A row's leading icon on a tile (DESIGN 19.5; IconTile in the app): 40 px, secondaryContainer. Decoration. */
+export function IconTile({ icon, letter }: { icon?: IconName; letter?: string }) {
+  return (
+    <span className="sn-icon-tile" aria-hidden>
+      {letter ? (
+        <span className="t-row-title sn-icon-tile__letter">{letter}</span>
+      ) : (
+        icon && <Icon name={icon} size={22} />
+      )}
+    </span>
+  );
+}
+
+/** A row's name over its second line (RowLines in the app). */
+function RowLines({ title, summary, summaryTestId }: { title: string; summary?: ReactNode; summaryTestId?: string }) {
+  return (
+    <span className="sn-row-lines">
+      <span className="t-row-title">{title}</span>
+      {summary && (
+        <span className="t-row-supporting c-on-surface-variant sn-row-lines__summary" data-testid={summaryTestId}>
+          {summary}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * A row of a group that opens a page or does one thing (DESIGN 19.5; ActionRow in the app): the [icon] on a tile, the
+ * [title] over its [summary], and a chevron when it opens a page ([opensPage]). The whole row is one button, read
+ * with both lines. Put it in a [ListGroup].
+ */
+export function ActionRow({
+  icon,
+  title,
+  summary,
+  onClick,
+  opensPage = false,
+  disabled = false,
+  testId,
+  summaryTestId,
+}: {
+  icon: IconName;
+  title: string;
+  summary?: ReactNode;
+  onClick: () => void;
+  opensPage?: boolean;
+  disabled?: boolean;
+  testId?: string;
+  summaryTestId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`sn-segment sn-action-row m3-state ${summary ? '' : 'sn-action-row--one-line'}`}
+      disabled={disabled}
+      data-testid={testId}
+      onPointerDown={ripple}
+      onClick={onClick}
+    >
+      <IconTile icon={icon} />
+      <RowLines title={title} summary={summary} summaryTestId={summaryTestId} />
+      {opensPage && (
+        <span className="c-on-surface-variant sn-action-row__chevron" aria-hidden>
+          <Icon name="round/keyboard_arrow_right" />
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * A row with a switch at its end (DESIGN 19.5; SwitchRow in the app): the [icon] on a tile, the [title] over its
+ * [summary]. The whole row is the switch's label, so a tap anywhere turns it, and VoiceOver reads both lines and its
+ * state. Put it in a [ListGroup].
+ */
+export function SwitchRow({
+  icon,
+  title,
+  summary,
+  checked,
+  onCheckedChange,
+  testId,
+}: {
+  icon: IconName;
+  title: string;
+  summary?: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  testId?: string;
+}) {
+  return (
+    <label className="sn-segment sn-action-row sn-action-row--switch" data-testid={testId}>
+      <IconTile icon={icon} />
+      <RowLines title={title} summary={summary} />
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </label>
+  );
+}
+
+/**
+ * A one-line row of a group with a checkbox, or a radio button with [radioName], at its start (Notifications' stages
+ * and expired food): the whole row is the control's label.
+ */
+export function ChoiceRow({
+  label,
+  checked,
+  onCheckedChange,
+  radioName,
+}: {
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  radioName?: string;
+}) {
+  return (
+    <label className="sn-segment sn-choice-row">
+      {radioName ? (
+        <Radio name={radioName} checked={checked} onCheckedChange={onCheckedChange} />
+      ) : (
+        <Checkbox checked={checked} onCheckedChange={onCheckedChange} />
+      )}
+      <span className="t-row-title">{label}</span>
+    </label>
+  );
+}
+
+/** The heading over a group of rows (DESIGN 19.5; GroupHeading in the app): primary, a heading for VoiceOver. */
+export function GroupHeading({ text, id }: { text: string; id?: string }) {
+  return (
+    <h2 className="t-group-heading sn-group-heading" id={id}>
+      {text}
+    </h2>
   );
 }
 

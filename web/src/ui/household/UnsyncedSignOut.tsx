@@ -8,6 +8,7 @@ import { Button, Dialog } from '../kit';
 export function UnsyncedSignOutDialog({ onSignOut, onDismiss }: { onSignOut: () => void; onDismiss: () => void }) {
   return (
     <Dialog
+      titleClassName="t-dialog-title"
       title={str('sign_out_unsynced_title')}
       onDismiss={onDismiss}
       actions={
