@@ -564,6 +564,17 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     in Safari shows the rounded red banner about adding the app to the Home Screen. Settings > Accessibility > Larger
     Text at the largest size: the ring under the numbers, Theme and Units as radio buttons, the colors two to a row,
     Resend email under its words.
+75. The new look, step 8: signing in and the gate (Android, after v1, 2026-11-17, DESIGN 5.1, 19.12): signed out, Welcome
+    shows the jar in a large leaf, Spoil Not in the rounded face and the tagline, with Create account and Sign in as
+    tall buttons at the bottom. Sign in with a wrong password: the password field is outlined in red with an icon and
+    "Email or password is incorrect." under it, and the cursor is in it (TalkBack reads the field with its error);
+    offline, the message shows under the fields with its icon. Create account with an email that already has an
+    account: Email is outlined with the message. Forgot password?: the round Back over the title. Signed in without a
+    household: "Welcome, Sam" as the title with a round ⋮ (Sign out, Delete account), Create and Join on white cards
+    with visible fields; send a join request: the waiting card is green with Cancel request. Take the app tour: the
+    card has rounded corners and a round Next. Update required (raise minSupportedBuild on the emulator): the update
+    icon in a leaf and Get the update. Larger text at 2×: Welcome scrolls with its buttons at the end, nothing is cut
+    off. Dark mode and Fiery Palette: the same in their colors.
 
 ## 3. Conditions
 

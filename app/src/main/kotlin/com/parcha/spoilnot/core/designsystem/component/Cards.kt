@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.core.designsystem.theme.LeafShape
+import com.parcha.spoilnot.core.designsystem.theme.LocalAppSurfaces
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
 
@@ -77,7 +78,8 @@ fun AccentCard(
 
 /**
  * A card for content that isn't the screen's highlight (DESIGN 19.8), such as a chart or the appearance choices: the
- * `row` color with 24 dp corners, its [content] in a column with 12 dp between the parts.
+ * `row` color with 24 dp corners, its [content] in a column with 12 dp between the parts. Text fields on it are on the
+ * page's color, so they stand out from the card.
  */
 @Composable
 fun PlainCard(
@@ -86,13 +88,21 @@ fun PlainCard(
     spacing: Dp = 12.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val surfaces = SpoilNotSurfaces.current
     Surface(
         modifier.fillMaxWidth(),
         shape = RoundedCornerShape(SpoilNotCorners.Card),
-        color = SpoilNotSurfaces.current.row,
+        color = surfaces.row,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Column(Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
+        // A field on the card takes the page's color: the field color is the row's own in light (step 8, the gate).
+        CompositionLocalProvider(LocalAppSurfaces provides surfaces.copy(field = surfaces.page)) {
+            Column(
+                Modifier.padding(contentPadding),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+                content = content,
+            )
+        }
     }
 }
 
