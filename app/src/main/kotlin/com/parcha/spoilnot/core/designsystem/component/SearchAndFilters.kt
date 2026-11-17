@@ -136,7 +136,7 @@ fun PillField(
 /**
  * A filter chip of the 2026-11 look (DESIGN 19.10): 44 dp, on the `row` color with 12 dp corners and an optional
  * [icon]; chosen, it is fully round, `primary` with a check. Material's chip underneath, so screen readers hear it as
- * a checkbox that is selected or not.
+ * a checkbox that is selected or not. In a dialog pass the `dialogRow` [color], as its choices use.
  */
 @Composable
 fun SpoilNotFilterChip(
@@ -145,6 +145,7 @@ fun SpoilNotFilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
+    color: Color = SpoilNotSurfaces.current.row,
 ) {
     val colors = MaterialTheme.colorScheme
     val leading = if (selected) Icons.Rounded.Check else icon
@@ -163,7 +164,7 @@ fun SpoilNotFilterChip(
         modifier = modifier.heightIn(min = 44.dp),
         shape = if (selected) CircleShape else RoundedCornerShape(SpoilNotCorners.FilterChip),
         colors = FilterChipDefaults.filterChipColors(
-            containerColor = SpoilNotSurfaces.current.row,
+            containerColor = color,
             labelColor = colors.onSurfaceVariant,
             iconColor = colors.onSurfaceVariant,
             selectedContainerColor = colors.primary,

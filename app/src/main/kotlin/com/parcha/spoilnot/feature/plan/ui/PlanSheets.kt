@@ -1,18 +1,18 @@
 package com.parcha.spoilnot.feature.plan.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,23 +21,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,14 +42,29 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.CountStepper
+import com.parcha.spoilnot.core.designsystem.component.FieldLabel
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
+import com.parcha.spoilnot.core.designsystem.component.GroupHeading
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
+import com.parcha.spoilnot.core.designsystem.component.ListSegment
+import com.parcha.spoilnot.core.designsystem.component.ListSegmentMinHeight
+import com.parcha.spoilnot.core.designsystem.component.ListSegmentMinHeightOneLine
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SearchField
+import com.parcha.spoilnot.core.designsystem.component.SegmentPosition
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotFilterChip
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotTextField
+import com.parcha.spoilnot.core.designsystem.component.TonalButton
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.designsystem.component.segmentPosition
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.core.ui.rememberSaveableList
 import com.parcha.spoilnot.feature.household.domain.Member
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
@@ -70,11 +79,18 @@ import java.time.LocalDate
 /** Most recipes the picker lists at once; searching narrows it. */
 private const val PICKER_LIMIT = 60
 
+/** The space between two parts of a sheet (DESIGN 19.11). */
+private val SheetGap = 18.dp
+
+/** A plan sheet's content: scrolling, 20 dp from the sheet's sides, its parts [SheetGap] apart (DESIGN 19.11). */
+private val SheetPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp)
+
 /**
- * Adding to a slot (DESIGN 5.9): who cooks, then a saved recipe (searchable) or something else typed in
- * ("Leftovers"). Tapping a recipe adds it at once. Recipes that use food expiring soon come first, under Use it up.
+ * Adding to a slot (DESIGN 5.9): who cooks, then something else typed in ("Leftovers") and added with its +, or a
+ * saved recipe (searchable) added with a tap. Recipes that use food expiring soon come first, under Use it up. The
+ * recipes are rows of a group on the field color (DESIGN 19.5, 19.11).
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMealSheet(
     date: LocalDate,
@@ -93,6 +109,7 @@ fun AddMealSheet(
     var other by rememberSaveable { mutableStateOf("") }
     val key = NameKey.of(search)
     val shown = recipes.filter { key.isEmpty() || NameKey.of(it.title).contains(key) }
+    val addOther = { if (other.isNotBlank()) onAddOther(other, cooks.toList()) }
     SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
@@ -105,85 +122,96 @@ fun AddMealSheet(
                 .imePadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(SheetPadding),
+            verticalArrangement = Arrangement.spacedBy(SheetGap),
         ) {
             Text(
                 stringResource(R.string.plan_add_title, slotLabel(slot), dayTitle(date)),
-                style = MaterialTheme.typography.headlineSmall,
+                style = SpoilNotText.SheetTitle,
             )
             CookPicker(members, myUid, cooks)
-            Text(stringResource(R.string.plan_something_else), style = MaterialTheme.typography.labelLarge)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FormTextField(
-                    value = other,
-                    onValueChange = { other = it.take(MealPlanLimits.TITLE) },
-                    label = stringResource(R.string.plan_something_else_hint),
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences,
-                        imeAction = ImeAction.Done,
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { if (other.isNotBlank()) onAddOther(other, cooks) }),
-                    modifier = Modifier.weight(1f).testTag("plan_other_field"),
-                )
-                TextButton(
-                    onClick = { onAddOther(other, cooks.toList()) },
-                    enabled = other.isNotBlank(),
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("plan_add_other"),
-                ) { Text(stringResource(R.string.plan_add)) }
-            }
-            HorizontalDivider()
+            // Something else, with its own + at the end of the field (DESIGN 19.10).
+            SpoilNotTextField(
+                value = other,
+                onValueChange = { other = it.take(MealPlanLimits.TITLE) },
+                label = stringResource(R.string.plan_something_else),
+                placeholder = stringResource(R.string.plan_something_else_hint),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { addOther() }),
+                trailingIcon = {
+                    FilledIconButton(
+                        onClick = addOther,
+                        enabled = other.isNotBlank(),
+                        modifier = Modifier.testTag("plan_add_other"),
+                    ) { Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.plan_add)) }
+                },
+                modifier = Modifier.testTag("plan_other_field"),
+            )
             if (useItUp.isNotEmpty() && key.isEmpty()) {
-                Text(stringResource(R.string.plan_use_it_up), style = MaterialTheme.typography.labelLarge)
-                Column(Modifier.testTag("plan_use_it_up")) {
-                    useItUp.forEach { suggestion ->
-                        val uses = suggestion.uses.joinToString(", ") { it.product.name }
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onAddRecipe(suggestion.recipe, cooks.toList()) }
-                                .heightIn(min = 48.dp)
-                                .padding(vertical = 8.dp),
-                        ) {
-                            Text(
-                                suggestion.recipe.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Hint(stringResource(R.string.home_use_it_up_uses, uses))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    GroupHeading(stringResource(R.string.plan_use_it_up))
+                    Column(
+                        Modifier.testTag("plan_use_it_up"),
+                        verticalArrangement = Arrangement.spacedBy(ListGroupGap),
+                    ) {
+                        useItUp.forEachIndexed { index, suggestion ->
+                            val uses = suggestion.uses.joinToString(", ") { it.product.name }
+                            PickerRow(
+                                position = segmentPosition(index, useItUp.size),
+                                minHeight = ListSegmentMinHeight,
+                                onClick = { onAddRecipe(suggestion.recipe, cooks.toList()) },
+                            ) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        suggestion.recipe.title,
+                                        style = SpoilNotText.RowTitle,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        stringResource(R.string.home_use_it_up_uses, uses),
+                                        style = SpoilNotText.RowSupporting,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-                HorizontalDivider()
             }
-            FormTextField(
-                value = search,
-                onValueChange = { search = it },
-                label = stringResource(R.string.plan_search_recipes),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier.fillMaxWidth().testTag("plan_recipe_search"),
-            )
-            when {
-                recipes.isEmpty() -> Hint(stringResource(R.string.plan_no_recipes))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SearchField(
+                    value = search,
+                    onValueChange = { search = it },
+                    placeholder = stringResource(R.string.plan_search_recipes),
+                    clearLabel = stringResource(R.string.action_clear_search),
+                    modifier = Modifier.testTag("plan_recipe_search"),
+                )
+                when {
+                    recipes.isEmpty() -> Hint(stringResource(R.string.plan_no_recipes))
 
-                shown.isEmpty() -> Hint(stringResource(R.string.plan_no_matches))
+                    shown.isEmpty() -> Hint(stringResource(R.string.plan_no_matches))
 
-                else -> Column {
-                    shown.take(PICKER_LIMIT).forEach { recipe ->
-                        Text(
-                            recipe.title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onAddRecipe(recipe, cooks.toList()) }
-                                .heightIn(min = 48.dp)
-                                .padding(vertical = 12.dp)
-                                .testTag("plan_pick_${recipe.id}"),
-                        )
-                        HorizontalDivider()
+                    else -> Column(verticalArrangement = Arrangement.spacedBy(ListGroupGap)) {
+                        val listed = shown.take(PICKER_LIMIT)
+                        listed.forEachIndexed { index, recipe ->
+                            PickerRow(
+                                position = segmentPosition(index, listed.size),
+                                onClick = { onAddRecipe(recipe, cooks.toList()) },
+                                modifier = Modifier.testTag("plan_pick_${recipe.id}"),
+                            ) {
+                                Text(
+                                    recipe.title,
+                                    style = SpoilNotText.RowTitle,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -191,9 +219,30 @@ fun AddMealSheet(
     }
 }
 
+/** A recipe to add: a row of a group on the sheet's field color, added with a tap. */
+@Composable
+private fun PickerRow(
+    position: SegmentPosition,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    minHeight: Dp = ListSegmentMinHeightOneLine,
+    content: @Composable RowScope.() -> Unit,
+) {
+    ListSegment(
+        position = position,
+        onClick = onClick,
+        onClickLabel = stringResource(R.string.plan_add),
+        color = SpoilNotSurfaces.current.field,
+        minHeight = minHeight,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier,
+        content = content,
+    )
+}
+
 /**
- * A planned meal (DESIGN 5.9): servings, who cooks and a note, Cooked, opening its recipe, and removing it from the
- * plan (with Undo).
+ * A planned meal (DESIGN 5.9): servings, who cooks and a note, then Save; Cooked, Move, opening its recipe, and
+ * removing it from the plan (with Undo).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -242,31 +291,30 @@ fun MealSheet(
                 .imePadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(SheetPadding),
+            verticalArrangement = Arrangement.spacedBy(SheetGap),
         ) {
-            Text(meal.title, style = MaterialTheme.typography.headlineSmall)
-            Text(
-                stringResource(R.string.plan_add_title, slotLabel(meal.slot), dayTitle(meal.date)),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(stringResource(R.string.plan_servings_label), style = MaterialTheme.typography.labelLarge)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = { servings = servings?.let { if (it <= MealPlanLimits.MIN_SERVINGS) null else it - 1 } },
-                    enabled = servings != null,
-                ) { Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.plan_fewer)) }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(meal.title, style = SpoilNotText.SheetTitle)
                 Text(
-                    servings?.toString() ?: stringResource(R.string.plan_servings_unset),
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.widthIn(min = 48.dp).testTag("plan_servings"),
+                    stringResource(R.string.plan_add_title, slotLabel(meal.slot), dayTitle(meal.date)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                IconButton(
-                    onClick = { servings = ((servings ?: 0) + 1).coerceAtMost(maxServings) },
-                    enabled = (servings ?: 0) < maxServings,
-                ) { Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.plan_more)) }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FieldLabel(stringResource(R.string.plan_servings_label))
+                // A stepper (DESIGN 19.9): − below the least servings leaves them unset.
+                CountStepper(
+                    value = servings?.toString() ?: stringResource(R.string.plan_servings_unset),
+                    minusLabel = stringResource(R.string.plan_fewer),
+                    plusLabel = stringResource(R.string.plan_more),
+                    onMinus = { servings = servings?.let { if (it <= MealPlanLimits.MIN_SERVINGS) null else it - 1 } },
+                    onPlus = { servings = ((servings ?: 0) + 1).coerceAtMost(maxServings) },
+                    minusEnabled = servings != null,
+                    plusEnabled = (servings ?: 0) < maxServings,
+                    valueTag = "plan_servings",
+                )
             }
             CookPicker(members, myUid, cooks)
             FormTextField(
@@ -277,72 +325,81 @@ fun MealSheet(
                     capitalization = KeyboardCapitalization.Sentences,
                     imeAction = ImeAction.Done,
                 ),
-                modifier = Modifier.fillMaxWidth(),
             )
-            PrimaryButton(
-                text = stringResource(R.string.plan_save),
-                onClick = { onSave(servings, cooks.toList(), note) },
-                modifier = Modifier.testTag("plan_save_meal"),
-            )
-            if (meal.cookedAt == null) {
-                OutlinedButton(
-                    onClick = onCook,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("plan_cook_meal"),
-                ) {
-                    Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(stringResource(R.string.plan_cooked), Modifier.padding(start = 8.dp))
-                }
-            } else {
-                val by = meal.cookedBy?.let { uid ->
-                    if (uid == myUid) stringResource(R.string.plan_you) else members.find { it.uid == uid }?.displayName
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        Icons.Rounded.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton(
+                    text = stringResource(R.string.plan_save),
+                    onClick = { onSave(servings, cooks.toList(), note) },
+                    modifier = Modifier.testTag("plan_save_meal"),
+                )
+                if (meal.cookedAt == null) {
+                    TonalButton(
+                        text = stringResource(R.string.plan_cooked),
+                        onClick = onCook,
+                        icon = Icons.Rounded.Check,
+                        modifier = Modifier.fillMaxWidth().testTag("plan_cook_meal"),
                     )
-                    Text(
-                        if (by !=
-                            null
-                        ) {
-                            stringResource(R.string.plan_cooked_by, by)
-                        } else {
-                            stringResource(R.string.plan_cooked)
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        onClick = onNotCooked,
-                        modifier = Modifier.heightIn(min = 48.dp).testTag("plan_not_cooked"),
-                    ) { Text(stringResource(R.string.plan_not_cooked)) }
+                } else {
+                    CookedLine(cookedByName(meal, members, myUid), onNotCooked)
                 }
+                TonalButton(
+                    text = stringResource(R.string.plan_move),
+                    onClick = { moving = true },
+                    modifier = Modifier.fillMaxWidth().testTag("plan_move_meal"),
+                )
+                if (recipeExists) {
+                    TonalButton(
+                        text = stringResource(R.string.plan_open_recipe),
+                        onClick = onOpenRecipe,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                TextButton(
+                    onClick = onRemove,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("plan_remove_meal"),
+                ) { Text(stringResource(R.string.plan_remove), style = SpoilNotText.ButtonMedium) }
             }
-            OutlinedButton(
-                onClick = { moving = true },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("plan_move_meal"),
-            ) { Text(stringResource(R.string.plan_move)) }
-            if (recipeExists) {
-                OutlinedButton(
-                    onClick = onOpenRecipe,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) { Text(stringResource(R.string.plan_open_recipe)) }
-            }
-            TextButton(
-                onClick = onRemove,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("plan_remove_meal"),
-            ) { Text(stringResource(R.string.plan_remove)) }
         }
     }
 }
 
-/** Move a meal to another day of its week or another slot (DESIGN 5.9); the choices are chips with a check. */
+/** Who marked the meal cooked: "You", a member's name, or null when unknown or gone. */
+@Composable
+private fun cookedByName(meal: PlannedMeal, members: List<Member>, myUid: String): String? = meal.cookedBy?.let { uid ->
+    if (uid == myUid) stringResource(R.string.plan_you) else members.find { it.uid == uid }?.displayName
+}
+
+/** "Cooked by Sam" with a check, and Not cooked yet to take it back. */
+@Composable
+private fun CookedLine(by: String?, onNotCooked: () -> Unit) {
+    Row(
+        Modifier.heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            Icons.Rounded.CheckCircle,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            if (by != null) stringResource(R.string.plan_cooked_by, by) else stringResource(R.string.plan_cooked),
+            style = SpoilNotText.RowTitle,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = onNotCooked,
+            modifier = Modifier.heightIn(min = 48.dp).testTag("plan_not_cooked"),
+        ) { Text(stringResource(R.string.plan_not_cooked), style = SpoilNotText.ButtonMedium) }
+    }
+}
+
+/**
+ * Move a meal to another day of its week or another slot (DESIGN 5.9, 19.11): the title in
+ * [SpoilNotText.DialogTitle], and the choices as chips with a check on the dialog's row color.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MoveDialog(
@@ -353,30 +410,51 @@ internal fun MoveDialog(
 ) {
     var day by rememberSaveable { mutableStateOf(meal.date) }
     var slot by rememberSaveable { mutableStateOf(meal.slot) }
+    val chipColor = SpoilNotSurfaces.current.dialogRow
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.plan_move_title, meal.title)) },
+        title = { Text(stringResource(R.string.plan_move_title, meal.title), style = SpoilNotText.DialogTitle) },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(stringResource(R.string.plan_move_day), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // "Fri 30" keeps the week to two rows; TalkBack reads the whole date.
-                    days.forEach { date ->
-                        val full = dayTitle(date)
-                        ChoiceChip(
-                            shortDay(date),
-                            date == day,
-                            Modifier.testTag("plan_move_day_$date").semantics { contentDescription = full },
-                        ) { day = date }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FieldLabel(stringResource(R.string.plan_move_day))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        // "Fri 30" keeps the week to two rows; TalkBack reads the whole date.
+                        days.forEach { date ->
+                            val full = dayTitle(date)
+                            SpoilNotFilterChip(
+                                text = shortDay(date),
+                                selected = date == day,
+                                onClick = { day = date },
+                                color = chipColor,
+                                modifier = Modifier.testTag("plan_move_day_$date").semantics {
+                                    contentDescription = full
+                                },
+                            )
+                        }
                     }
                 }
-                Text(stringResource(R.string.plan_move_slot), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MealSlot.entries.forEach { s ->
-                        ChoiceChip(slotLabel(s), s == slot, Modifier.testTag("plan_move_slot_${s.wire}")) { slot = s }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FieldLabel(stringResource(R.string.plan_move_slot))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        MealSlot.entries.forEach { s ->
+                            SpoilNotFilterChip(
+                                text = slotLabel(s),
+                                selected = s == slot,
+                                onClick = { slot = s },
+                                color = chipColor,
+                                modifier = Modifier.testTag("plan_move_slot_${s.wire}"),
+                            )
+                        }
                     }
                 }
             }
@@ -386,24 +464,13 @@ internal fun MoveDialog(
                 onClick = { onMove(day, slot) },
                 enabled = day != meal.date || slot != meal.slot,
                 modifier = Modifier.testTag("plan_move_confirm"),
-            ) { Text(stringResource(R.string.plan_move)) }
+            ) { Text(stringResource(R.string.plan_move), style = SpoilNotText.ButtonMedium) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
-}
-
-@Composable
-private fun ChoiceChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        leadingIcon = if (selected) {
-            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-        } else {
-            null
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel), style = SpoilNotText.ButtonMedium)
+            }
         },
-        modifier = modifier,
     )
 }
 
@@ -411,22 +478,22 @@ private fun ChoiceChip(label: String, selected: Boolean, modifier: Modifier = Mo
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CookPicker(members: List<Member>, myUid: String, cooks: MutableList<String>) {
-    Text(stringResource(R.string.plan_whos_cooking), style = MaterialTheme.typography.labelLarge)
     val you = stringResource(R.string.plan_you)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        members.forEach { member ->
-            val selected = member.uid in cooks
-            FilterChip(
-                selected = selected,
-                onClick = { if (selected) cooks.remove(member.uid) else cooks.add(member.uid) },
-                label = { Text(if (member.uid == myUid) you else member.displayName) },
-                leadingIcon = if (selected) {
-                    { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                } else {
-                    null
-                },
-                modifier = Modifier.testTag("plan_cook_${member.uid}"),
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel(stringResource(R.string.plan_whos_cooking))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            members.forEach { member ->
+                val selected = member.uid in cooks
+                SpoilNotFilterChip(
+                    text = if (member.uid == myUid) you else member.displayName,
+                    selected = selected,
+                    onClick = { if (selected) cooks.remove(member.uid) else cooks.add(member.uid) },
+                    modifier = Modifier.testTag("plan_cook_${member.uid}"),
+                )
+            }
         }
     }
 }
