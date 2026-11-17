@@ -22,10 +22,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
@@ -42,6 +46,7 @@ fun StepButton(
     start: Boolean,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    size: Dp = FieldMinHeight,
     onClick: () -> Unit,
 ) {
     val round = CornerSize(percent = 50)
@@ -59,7 +64,7 @@ fun StepButton(
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer.let {
             if (enabled) it else it.copy(alpha = 0.38f)
         },
-        modifier = modifier.size(FieldMinHeight).semantics { role = Role.Button },
+        modifier = modifier.size(size).semantics { role = Role.Button },
     ) {
         Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = label) }
     }
@@ -70,7 +75,9 @@ private val StepperValueMinWidth = 72.dp
 
 /**
  * A stepper for a count that isn't typed (DESIGN 19.9): − and + joined to the [value] shown between them on the field
- * color, such as how many pieces to open or a meal's servings. [valueTag] tags the value for tests.
+ * color, such as how many pieces to open or a meal's servings. [valueTag] tags the value for tests. [size] is the
+ * buttons' and the value's height: 56 dp on a sheet, 48 dp beside a recipe's Ingredients heading, with [valueStyle].
+ * The value is announced when it changes ([announce]), where nothing else on screen says it.
  */
 @Composable
 fun CountStepper(
@@ -83,16 +90,26 @@ fun CountStepper(
     minusEnabled: Boolean = true,
     plusEnabled: Boolean = true,
     valueTag: String? = null,
+    size: Dp = FieldMinHeight,
+    valueStyle: TextStyle = SpoilNotText.FieldText,
+    announce: Boolean = false,
 ) {
     Row(
         modifier,
         horizontalArrangement = Arrangement.spacedBy(ListGroupGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StepButton(Icons.Rounded.Remove, minusLabel, start = true, enabled = minusEnabled, onClick = onMinus)
+        StepButton(
+            Icons.Rounded.Remove,
+            minusLabel,
+            start = true,
+            enabled = minusEnabled,
+            size = size,
+            onClick = onMinus,
+        )
         Box(
             Modifier
-                .heightIn(min = FieldMinHeight)
+                .heightIn(min = size)
                 .widthIn(min = StepperValueMinWidth)
                 .background(SpoilNotSurfaces.current.field, RoundedCornerShape(SpoilNotCorners.Connected))
                 .padding(horizontal = 16.dp),
@@ -100,11 +117,13 @@ fun CountStepper(
         ) {
             Text(
                 value,
-                style = SpoilNotText.FieldText,
+                style = valueStyle,
                 fontWeight = FontWeight.ExtraBold,
-                modifier = if (valueTag != null) Modifier.testTag(valueTag) else Modifier,
+                modifier = Modifier
+                    .then(if (announce) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier)
+                    .then(if (valueTag != null) Modifier.testTag(valueTag) else Modifier),
             )
         }
-        StepButton(Icons.Rounded.Add, plusLabel, start = false, enabled = plusEnabled, onClick = onPlus)
+        StepButton(Icons.Rounded.Add, plusLabel, start = false, enabled = plusEnabled, size = size, onClick = onPlus)
     }
 }

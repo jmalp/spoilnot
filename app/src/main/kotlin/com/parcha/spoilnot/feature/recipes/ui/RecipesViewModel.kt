@@ -36,6 +36,8 @@ class RecipesViewModel @Inject constructor(
         val tags: List<String> = emptyList(),
         /** Nothing saved at all (not just filtered out). */
         val boxEmpty: Boolean = false,
+        /** How many recipes the box holds, whatever the search and filter (the line above the title, DESIGN 19.7). */
+        val total: Int = 0,
         val offline: Boolean = false,
         val query: RecipeQuery = RecipeQuery(),
         /** The box failed to load and is being listened to again (DESIGN 6.7). */
@@ -62,6 +64,7 @@ class RecipesViewModel @Inject constructor(
                 recipes = RecipeBox.list(box.recipes, q),
                 tags = tags,
                 boxEmpty = box.recipes.isEmpty(),
+                total = box.recipes.size,
                 offline = box.fromCache,
                 query = q,
                 loadFailed = failed,

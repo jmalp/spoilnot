@@ -513,6 +513,20 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     scrolling. Settings > Appearance > Week starts on Sunday, then Monday: the buttons follow, today's still filled.
     Settings > Accessibility > Larger Text at the largest size: the day row scrolls sideways under the week bar, both
     stay put while the days scroll, and the Today badge goes under the title.
+71. The new look, step 6: Recipes (Android, after v1, 2026-11-16, DESIGN 5.5, 19.12): the box says "4 recipes" over
+    Recipes; search and the chips (Favorites with a star) are on the page; cards show the photo or the first letter
+    in a leaf on a colored block, and the star is a round button that turns it on and off. Open a recipe without a
+    photo: its letter in a leaf on top, the page overlapping it with rounded corners, round Back, star, Edit and ⋮
+    staying over it as you scroll; the time and site are pills (the site opens the original); − and + beside
+    Ingredients change "4 servings" and the amounts, and TalkBack says the new number; tick lines off; steps have their
+    numbers in leaves and read "1, Whisk the eggs"; Add to grocery list and I cooked this are side by side; Start
+    cooking is at the bottom. Cook mode: Back and the name at the top with "Step 1 of 2", a bar per step, the step's
+    number in a leaf; Back is grey on the first step, Next on the last; Ingredients opens the checklist. The + menu:
+    three rounded rows; Paste a link: the field's label above it. Add to grocery list and I cooked this: rounded rows,
+    Probably in pantry as a chip, the amounts in the new fields. Edit and an import's preview: the round Back over the
+    title; the editor's ingredients and steps are tall fields. The in-app browser: round Close and the round address
+    field; Recipe found has rounded top corners. Larger text at 2×: the stepper goes under Ingredients, the two buttons
+    stack, and cook mode's Ingredients has its own line. Dark mode and Fiery Palette: the same in their colors.
 
 ## 3. Conditions
 

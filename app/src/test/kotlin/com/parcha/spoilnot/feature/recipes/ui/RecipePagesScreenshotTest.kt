@@ -1,15 +1,18 @@
 package com.parcha.spoilnot.feature.recipes.ui
 
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.captureScreenRoboImage
+import com.parcha.spoilnot.core.designsystem.component.PushedScaffold
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.recipes.domain.CookLine
+import com.parcha.spoilnot.feature.recipes.domain.ExtractionMethod
 import com.parcha.spoilnot.feature.recipes.domain.Ingredient
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
@@ -50,10 +53,45 @@ class RecipePagesScreenshotTest(private val dark: Boolean, private val fontScale
             steps = "Mix.\nCook.",
             tags = "Breakfast",
         )
+        // A pushed screen of the 2026-11 look (DESIGN 19.7): the round Back over the title.
         compose.setThemed(dark, fontScale) {
-            RecipeFormFields(form, problems = emptySet(), saving = false, onChange = {}, onSave = {})
+            PushedScaffold(title = "Edit recipe", onBack = {}) { padding ->
+                RecipeFormFields(
+                    form,
+                    problems = emptySet(),
+                    saving = false,
+                    onChange = {},
+                    onSave = {},
+                    modifier = Modifier.padding(padding),
+                )
+            }
         }
         compose.onRoot().captureRoboImage(name("recipe_edit"))
+    }
+
+    /** What an import found, before saving (DESIGN 11.4, 19.12): checked by hand, pills, rows and numbered steps. */
+    @Test
+    fun recipePreview() {
+        val content = RecipeContent(
+            title = "Fluffy buttermilk pancakes",
+            sourceUrl = "https://recipes.example.test/pancakes",
+            servings = 4,
+            totalMinutes = 25,
+            ingredients = listOf(Ingredient("2 cups flour"), Ingredient("2 eggs"), Ingredient("1 cup buttermilk")),
+            steps = listOf(Step("Whisk."), Step("Cook until golden.")),
+        )
+        compose.setThemed(dark, fontScale) {
+            PushedScaffold(title = "Recipe preview", onBack = {}) { padding ->
+                RecipePreview(
+                    content,
+                    ExtractionMethod.Heuristic,
+                    saving = false,
+                    onSave = {},
+                    modifier = Modifier.padding(padding),
+                )
+            }
+        }
+        compose.onRoot().captureRoboImage(name("recipe_preview"))
     }
 
     /** The step, the Back, Ingredients and Next buttons, and the progress bar named "Step 1 of 2" (A11Y-08). */

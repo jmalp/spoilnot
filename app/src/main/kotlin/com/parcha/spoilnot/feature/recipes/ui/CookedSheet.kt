@@ -34,8 +34,10 @@ import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
 import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotTextField
 import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.core.ui.rememberSaveableMap
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
@@ -71,8 +73,8 @@ fun CookedSheet(
         contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier.testTag("sheet_cooked"),
     ) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-            Text(stringResource(R.string.recipe_cooked_title), style = MaterialTheme.typography.titleLarge)
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 16.dp)) {
+            Text(stringResource(R.string.recipe_cooked_title), style = SpoilNotText.SheetTitle)
             if (lines.isEmpty()) {
                 Text(
                     stringResource(R.string.recipe_cooked_none),
@@ -102,13 +104,14 @@ fun CookedSheet(
                 }
             }
             PrimaryButton(
+                // The sheet's main button (DESIGN 19.9).
                 text = if (markCooked && use.isEmpty()) {
                     stringResource(R.string.plan_mark_cooked)
                 } else {
                     pluralStringResource(R.plurals.recipe_cooked_use, use.size, use.size)
                 },
                 onClick = { if (use.isNotEmpty() || markCooked) onUse(use) },
-                modifier = Modifier.padding(top = 12.dp).testTag("recipe_cooked_use"),
+                modifier = Modifier.padding(top = 16.dp).testTag("recipe_cooked_use"),
             )
         }
     }
@@ -135,11 +138,11 @@ internal fun CookRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(checked = chosen, onCheckedChange = null, modifier = Modifier.padding(12.dp))
-            Column {
-                Text(line.product.name, style = MaterialTheme.typography.bodyLarge)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(line.product.name, style = SpoilNotText.RowTitle)
                 Text(
                     stringResource(R.string.recipe_cooked_have, amountText(line.inStock, line.product.unit)),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = SpoilNotText.RowSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 line.lines.forEach {
@@ -152,12 +155,12 @@ internal fun CookRow(
             }
         }
     }
+    // The amount in a field of the 2026-11 look, its unit as the label above it (DESIGN 19.10).
     val field = @Composable { fieldModifier: Modifier ->
-        OutlinedTextField(
+        SpoilNotTextField(
             value = amount,
             onValueChange = onAmount,
-            label = { Text(unit) },
-            singleLine = true,
+            label = unit,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = fieldModifier
                 .semantics {

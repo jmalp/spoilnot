@@ -712,6 +712,10 @@ export const PLURALS = {
     "one": "%1$s and %2$d more",
     "other": "%1$s and %2$d more"
   },
+  "recipe_eyebrow_count": {
+    "one": "%d recipe",
+    "other": "%d recipes"
+  },
   "recipe_servings": {
     "one": "%d serving",
     "other": "%d servings"
