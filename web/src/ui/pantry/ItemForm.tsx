@@ -533,16 +533,18 @@ function NameField({
  * Quantity as a stepper (DESIGN 19.9): − and + joined to the typed amount, its label above; decimals allowed (5.2).
  * [fill] stretches the amount across the row, at large text sizes.
  */
-function QuantityStepper({
+export function QuantityStepper({
   value,
   onChange,
   error,
   fill,
+  testId = 'field_quantity',
 }: {
   value: string;
   onChange: (v: string) => void;
   error?: string;
   fill: boolean;
+  testId?: string;
 }) {
   const id = useId();
   return (
@@ -567,7 +569,7 @@ function QuantityStepper({
           inputMode="decimal"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
-          data-testid="field_quantity"
+          data-testid={testId}
         />
         <StepButton
           icon="round/add"

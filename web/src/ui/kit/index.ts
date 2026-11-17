@@ -31,6 +31,7 @@ export {
   LabelChip,
   LeafBadge,
   ListGroup,
+  PillField,
   PlainCard,
   SearchField,
   SpoilNotFilterChip,

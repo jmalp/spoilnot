@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { map, of } from 'rxjs';
 import { useSessionDraft } from '../../core/drafts';
 import { messageId } from '../../core/errors';
+import { useHeldWhileScrolling } from '../../core/holdWhileScrolling';
+import { useKeepUnchanged } from '../../core/keepUnchanged';
 import { useLoadRetry, useObservable, useToday } from '../../core/hooks';
 import { retryLoading } from '../../domain/load';
 import { plural, str } from '../../core/i18n';
@@ -18,10 +20,10 @@ import {
   Dialog,
   Fab,
   Icon,
-  IconButton,
   Menu,
   MenuDivider,
   MenuItem,
+  PillField,
   Progress,
   TextField,
   useSnackbars,
@@ -36,6 +38,8 @@ import './grocery.css';
 
 const EMPTY_PANTRY: PantryData = { products: [], batches: [], fromCache: true };
 const NO_ITEMS: GroceryItem[] = [];
+/** An item's key, for keeping unchanged items across snapshots (review WEB-13). */
+const itemId = (item: GroceryItem) => item.id;
 /** Someone else's item is announced when it was added this recently. */
 const ANNOUNCE_WITHIN_MS = 2 * 60_000;
 
@@ -120,7 +124,8 @@ export function GroceriesScreen({
   // This phone's shopping trip, for learning the store's aisle order.
   const [trip] = useState(() => new ShoppingTrip(() => clock.now()));
 
-  const shown = items ?? NO_ITEMS;
+  // Items keep their object from snapshot to snapshot while their data is the same, so memoized rows skip (WEB-13).
+  const shown = useKeepUnchanged(items ?? NO_ITEMS, itemId);
   const aisleOrder = list?.aisleOrder;
   const view = useMemo(() => {
     const layout = GroceryLayout.of(shown);
@@ -155,6 +160,11 @@ export function GroceriesScreen({
 
   const failed = (e: unknown) => snackbars.show(str(messageId(e)));
   const act = (work: () => Promise<unknown>) => void work().catch(failed);
+  // What the rows' handlers need, read when tapped, so the handlers keep their identity across snapshots (WEB-13).
+  const latest = useRef({ list, actor, hid, snackbars, groceryService, trip });
+  useEffect(() => {
+    latest.current = { list, actor, hid, snackbars, groceryService, trip };
+  });
   /** A destructive action: its Undo is offered with [message]. */
   const actUndo = (work: () => Promise<Undo | null>, message: string) =>
     void work().then((undo) => {
@@ -171,9 +181,10 @@ export function GroceriesScreen({
       }, failed);
   };
 
-  const toggle = (item: GroceryItem) => {
+  const toggle = useCallback((item: GroceryItem) => {
+    const { list, actor, hid, snackbars, groceryService, trip } = latest.current;
     if (!list) return;
-    act(async () => {
+    void (async () => {
       await groceryService.setChecked(hid, actor, list.id, item, !item.checked);
       // Learn the store's aisle order from the order things go into the cart (DESIGN 5.3).
       if (!item.checked) {
@@ -181,15 +192,26 @@ export function GroceriesScreen({
         const learned = StoreOrder.learn(list.aisleOrder, trip.checked(list.id, aisle), aisle);
         if (learned) await groceryService.setAisleOrder(hid, actor, list, learned);
       }
-    });
-  };
-  const remove = (item: GroceryItem) =>
-    list && actUndo(() => groceryService.delete(hid, actor, list.id, item), str('grocery_deleted', item.name));
+    })().catch((e: unknown) => snackbars.show(str(messageId(e))));
+  }, []);
+  const remove = useCallback((item: GroceryItem) => {
+    const { list, actor, hid, snackbars, groceryService } = latest.current;
+    if (!list) return;
+    groceryService.delete(hid, actor, list.id, item).then(
+      (undo) => {
+        if (undo) {
+          snackbars.showUndo(str('grocery_deleted', item.name), () => void groceryService.undo(hid, actor, undo));
+        }
+      },
+      (e: unknown) => snackbars.show(str(messageId(e))),
+    );
+  }, []);
 
   const addedBy = (item: GroceryItem) =>
     item.createdBy && item.createdBy !== me.user.uid && item.source === 'manual'
       ? (members.get(item.createdBy) ?? null)
       : null;
+  // Each row gets only its own facts and the same handlers every time, so it redraws only when they change (WEB-13).
   const rowProps = (item: GroceryItem) => ({
     item,
     backInStock: RestockEngine.isBackInStock(item, pantryData),
@@ -199,11 +221,19 @@ export function GroceriesScreen({
     onDelete: remove,
     onEdit: setEditing,
   });
+  // Worked out when what is typed or the list changes, not on every render (review PERF-04's web half).
+  const suggestions = useMemo(() => GroceryLayout.suggestions(text, shown, pantryData), [text, shown, pantryData]);
 
   const checkedCount = view.inCart.length;
   return (
     <TabScaffold
       title={<ListMenu lists={lists ?? []} current={list} onSelect={(l) => onSelectList(l.id)} onDialog={setDialog} />}
+      // What is left to buy (DESIGN 19.7).
+      eyebrow={
+        items !== null
+          ? plural('grocery_eyebrow_to_buy', shown.length - checkedCount, shown.length - checkedCount)
+          : undefined
+      }
       onOpenSettings={onOpenSettings}
       joinRequests={joinRequests}
       innerScroll
@@ -224,20 +254,14 @@ export function GroceriesScreen({
       ) : (
         pantryData.fromCache && items !== null && <OfflineBanner />
       )}
-      <QuickAddField
-        text={text}
-        onText={setText}
-        suggestions={GroceryLayout.suggestions(text, shown, pantryData)}
-        onAdd={(value) => quickAdd(value)}
-      />
+      <QuickAddField text={text} onText={setText} suggestions={suggestions} onAdd={(value) => quickAdd(value)} />
       {items === null ? (
         <div className="sn-centered">{!loadFailed && <Progress />}</div>
       ) : items.length === 0 ? (
         <EmptyState icon="outlined/shopping_cart" message={str('grocery_empty')} />
       ) : (
         <GroceryListView
-          aisles={view.aisles.map(([category, rows]) => [categoryLabel(category), category, rows])}
-          inCart={view.inCart}
+          view={view}
           cartOpen={cartOpen}
           onToggleCart={() => setCartOpen(!cartOpen)}
           onClear={() =>
@@ -251,6 +275,7 @@ export function GroceriesScreen({
       {duplicate && (
         <Dialog
           title={str('grocery_already_title')}
+          titleClassName="t-dialog-title"
           onDismiss={() => setDuplicate(null)}
           actions={
             <>
@@ -368,8 +393,7 @@ function alreadyBody(request: QuickAdd, existing: GroceryItem): string {
 }
 
 function GroceryListView({
-  aisles,
-  inCart,
+  view,
   cartOpen,
   onToggleCart,
   onClear,
@@ -377,8 +401,7 @@ function GroceryListView({
   aisleHint,
   onAisleHintDone,
 }: {
-  aisles: [string, string, GroceryItem[]][];
-  inCart: GroceryItem[];
+  view: ReturnType<typeof GroceryLayout.of>;
   cartOpen: boolean;
   onToggleCart: () => void;
   onClear: () => void;
@@ -386,20 +409,30 @@ function GroceryListView({
   aisleHint: boolean;
   onAisleHintDone: () => void;
 }) {
+  // Another phone's change waits while the list moves under the finger (DESIGN 6.4, review WEB-11).
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const shown = useHeldWhileScrolling(view, scroller);
+  const inCart = shown.inCart;
   return (
-    <div className="sn-pantry-list" data-testid="grocery_list">
-      {aisles.map(([label, key, rows], index) => (
-        <section key={key} aria-label={label}>
-          <h2 className="sn-group-header sn-aisle-header t-label-large">{label}</h2>
-          {/* Under the first aisle, once: why the aisles move (after v1, UX-08). */}
-          {index === 0 && aisleHint && <AisleHint onDone={onAisleHintDone} />}
-          {rows.map((item) => (
-            <GroceryRow key={item.id} {...row(item)} />
-          ))}
-        </section>
-      ))}
+    <div className="sn-pantry-list sn-pantry-list--look" data-testid="grocery_list" ref={setScroller}>
+      {shown.aisles.map(([category, rows], index) => {
+        const label = categoryLabel(category);
+        return (
+          <section key={category} className="sn-pantry-block" aria-label={label}>
+            {/* Pinned while its rows scroll; VoiceOver's rotor jumps from aisle to aisle (A11Y-09). */}
+            <h2 className="sn-pantry-heading sn-aisle-header t-group-heading">{label}</h2>
+            {/* Under the first aisle's heading, once: why the aisles move (after v1, UX-08). */}
+            {index === 0 && aisleHint && <AisleHint onDone={onAisleHintDone} />}
+            <div className="sn-group">
+              {rows.map((item) => (
+                <GroceryRow key={item.id} {...row(item)} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
       {inCart.length > 0 && (
-        <section aria-label={plural('grocery_in_cart', inCart.length, inCart.length)}>
+        <section className="sn-pantry-block" aria-label={plural('grocery_in_cart', inCart.length, inCart.length)}>
           <div className="sn-cart-header" data-testid="cart_header">
             {/* A heading, so VoiceOver's rotor jumps to it like the aisles, with expanded or collapsed (A11Y-09). */}
             <h2 className="sn-cart-header__heading">
@@ -409,17 +442,23 @@ function GroceryListView({
                 aria-expanded={cartOpen}
                 onClick={onToggleCart}
               >
-                <span className="t-label-large sn-cart-header__label">
+                <span className="t-group-heading sn-cart-header__label">
                   {plural('grocery_in_cart', inCart.length, inCart.length)}
                 </span>
                 <Icon name={cartOpen ? 'round/expand_less' : 'round/expand_more'} />
               </button>
             </h2>
-            <Button variant="text" large onClick={onClear} data-testid="button_clear_checked">
+            <Button variant="text" onClick={onClear} data-testid="button_clear_checked">
               {str('grocery_clear_checked')}
             </Button>
           </div>
-          {cartOpen && inCart.map((item) => <GroceryRow key={item.id} {...row(item)} />)}
+          {cartOpen && (
+            <div className="sn-group">
+              {inCart.map((item) => (
+                <GroceryRow key={item.id} {...row(item)} />
+              ))}
+            </div>
+          )}
         </section>
       )}
     </div>
@@ -439,7 +478,10 @@ function AisleHint({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** The quick-add field stays at the top; typing suggests pantry products and names already used (DESIGN 5.3). */
+/**
+ * The quick-add field stays at the top (DESIGN 5.3, 19.10): the page's round field with a filled + at its end;
+ * typing suggests pantry products and names already used.
+ */
 function QuickAddField({
   text,
   onText,
@@ -452,12 +494,13 @@ function QuickAddField({
   onAdd: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const add = (value: string) => {
+    setOpen(false);
+    onAdd(value);
+  };
   return (
-    <div className="sn-pantry-search sn-quick-add sn-anchor">
-      <TextField
-        outlined
-        label=""
-        aria-label={str('grocery_quick_add')}
+    <div className="sn-quick-add sn-anchor">
+      <PillField
         placeholder={str('grocery_quick_add')}
         value={text}
         onValueChange={(v) => {
@@ -472,32 +515,25 @@ function QuickAddField({
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
-            setOpen(false);
-            onAdd(text);
+            add(text);
           }
         }}
         trailing={
-          <IconButton
-            icon="round/add"
-            label={str('grocery_add_to_list')}
+          <button
+            type="button"
+            className="sn-pill-add m3-state"
+            aria-label={str('grocery_add_to_list')}
+            title={str('grocery_add_to_list')}
             disabled={text.trim() === ''}
-            onClick={() => {
-              setOpen(false);
-              onAdd(text);
-            }}
-          />
+            onClick={() => add(text)}
+          >
+            <Icon name="round/add" />
+          </button>
         }
       />
       <Menu open={open && suggestions.length > 0} onDismiss={() => setOpen(false)} align="start" focusFirst={false}>
         {suggestions.map((name) => (
-          <MenuItem
-            key={name}
-            label={name}
-            onClick={() => {
-              setOpen(false);
-              onAdd(name);
-            }}
-          />
+          <MenuItem key={name} label={name} onClick={() => add(name)} />
         ))}
       </Menu>
     </div>
@@ -576,6 +612,7 @@ function ListDialogs({
     return (
       <Dialog
         title={str('grocery_delete_list_title', currentName)}
+        titleClassName="t-dialog-title"
         onDismiss={onDismiss}
         actions={
           <>
@@ -609,6 +646,7 @@ function ListDialogs({
   return (
     <Dialog
       title={str(dialog === 'create' ? 'grocery_new_list' : 'grocery_rename_list')}
+      titleClassName="t-dialog-title"
       onDismiss={onDismiss}
       actions={
         <>

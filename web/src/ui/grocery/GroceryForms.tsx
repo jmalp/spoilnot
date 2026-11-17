@@ -7,7 +7,8 @@ import { CATEGORIES, unitMenu, type Category, type PantryData } from '../../doma
 import type { QuantityUnit } from '../../domain/pantry/models';
 import type { LocalDate } from '../../domain/time';
 import { BottomSheet, Button, Icon, SelectField, Switch, TextField } from '../kit';
-import { DateChips, FormSheetColumn, LocationChoice, parseQuantity } from '../pantry/ItemForm';
+import { isLargeText } from '../../theme/textScale';
+import { DateChips, FormSheetColumn, LocationChoice, parseQuantity, QuantityStepper } from '../pantry/ItemForm';
 import {
   amountDescription,
   amountText,
@@ -80,6 +81,7 @@ export function AddToPantrySheet({
   return (
     <BottomSheet label={str('grocery_add_to_pantry_title')} onDismiss={onDismiss} testId="sheet_add_to_pantry">
       <FormSheetColumn
+        look
         title={str('grocery_add_to_pantry_title')}
         button={
           <Button primary onClick={confirm} data-testid="button_confirm_add_to_pantry">
@@ -157,8 +159,8 @@ function EntryRow({
         onClick={onToggle}
       >
         <span className="sn-entry__text">
-          <span className="t-title-medium">{draft.item.name}</span>
-          <span className={`t-body-medium ${valid(line) ? 'c-on-surface-variant' : 'c-error'}`}>
+          <span className="t-row-title">{draft.item.name}</span>
+          <span className={`t-row-supporting ${valid(line) ? 'c-on-surface-variant' : 'c-error'}`}>
             {summary(draft, today)}
           </span>
         </span>
@@ -167,8 +169,8 @@ function EntryRow({
       {draft.expanded && (
         <div className="sn-entry__editor">
           <label className="sn-entry__skip">
-            <span className="t-body-medium sn-entry__skip-help">{str('grocery_skip_help')}</span>
-            <span className="t-body-medium">{str('grocery_skip')}</span>
+            <span className="t-body-medium c-on-surface-variant sn-entry__skip-help">{str('grocery_skip_help')}</span>
+            <span className="t-row-title">{str('grocery_skip')}</span>
             <Switch
               checked={draft.skip}
               onCheckedChange={(skip) => onChange({ skip })}
@@ -177,32 +179,33 @@ function EntryRow({
           </label>
           {!draft.skip && (
             <>
-              <div className="sn-entry__amount">
-                <TextField
-                  label={str('field_quantity')}
+              {/* The same stepper and unit as Add item (DESIGN 19.9), stacked from 1.5x text. */}
+              <div className={isLargeText() ? 'sn-form-stack' : 'sn-form-row'}>
+                <QuantityStepper
                   value={draft.quantity}
-                  onValueChange={(q) => onChange({ quantity: q })}
-                  inputMode="decimal"
-                  enterKeyHint="next"
+                  onChange={(q) => onChange({ quantity: q })}
                   error={quantity === null || quantity <= 0 ? str('error_quantity') : undefined}
-                  className="sn-entry__quantity"
+                  fill={isLargeText()}
+                  testId={`entry_quantity_${id}`}
                 />
-                <div className="sn-entry__unit">
-                  <SelectField
-                    label={str('field_unit')}
-                    value={draft.unit}
-                    options={unitMenu(imperialFirst)}
-                    optionLabel={unitLabel}
-                    onPick={(unit) => onChange({ unit })}
-                    disabled={draft.unitLocked}
-                    supportingText={draft.unitLocked ? str('unit_locked_short') : undefined}
-                  />
-                </div>
+                <SelectField
+                  label={str('field_unit')}
+                  value={draft.unit}
+                  options={unitMenu(imperialFirst)}
+                  optionLabel={unitLabel}
+                  onPick={(unit) => onChange({ unit })}
+                  disabled={draft.unitLocked}
+                  supportingText={draft.unitLocked ? str('unit_locked_short') : undefined}
+                />
               </div>
-              <span className="t-label-large">
-                {draft.expiry ? formatDate(draft.expiry, today) : str('status_no_date')}
-              </span>
-              <DateChips value={draft.expiry} today={today} onChange={(expiry) => onChange({ expiry })} />
+              {/* The label, then the date the chips set ("No expiry date" when none). */}
+              <div className="sn-entry__date">
+                <span className="t-field-label c-on-surface-variant">{str('field_expiry')}</span>
+                <span className="t-field-text sn-entry__date-value">
+                  {draft.expiry ? formatDate(draft.expiry, today) : str('status_no_date')}
+                </span>
+                <DateChips value={draft.expiry} today={today} onChange={(expiry) => onChange({ expiry })} />
+              </div>
               <LocationChoice selected={draft.location} onPick={(location) => onChange({ location })} />
             </>
           )}
@@ -243,6 +246,7 @@ export function EditGroceryItemSheet({
   return (
     <BottomSheet label={str('grocery_edit_item', item.name)} onDismiss={onDismiss} testId="sheet_edit_grocery_item">
       <FormSheetColumn
+        look
         title={str('grocery_edit_item', item.name)}
         button={
           <Button

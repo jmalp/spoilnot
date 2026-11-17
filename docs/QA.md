@@ -487,6 +487,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     pantry: its lines are rounded rows that open in place with the joined − and + stepper, the unit, the date's label
     and the quick dates; Skip has room before it at 2× text. Edit: the sheet title and labels above the fields. Dark
     mode and Fiery Palette: the same in their colors.
+68. The new look, step 4 on the iPhone (web, after v1, 2026-11-16, DESIGN 18.2, 19.5, 19.10): flow 67 in the Home
+    Screen app on an iPhone, with VoiceOver instead of TalkBack: each row reads as one sentence on its checkbox, the
+    rotor's headings jump between aisles and to In cart (expanded or collapsed), and the + says "Add to list". Scroll
+    down so Dairy and eggs' heading is pinned, then open the list switcher: its menu shows over the heading and its
+    lists can be chosen. With a second phone checking items off while you scroll slowly, the rows under your finger
+    don't move until the scroll stops. Settings > Accessibility > Larger Text at the largest size: names wrap, chips
+    and Remove stay whole, and Add to pantry's stepper and unit stack.
 
 ## 3. Conditions
 
