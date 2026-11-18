@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, type Ref } from 'react';
 import { str } from '../core/i18n';
 import { IconButton, TextField } from './kit';
 import './forms.css';
@@ -27,6 +27,7 @@ export function PasswordField({
   supportingText,
   error,
   autoComplete = 'current-password',
+  inputRef,
 }: {
   value: string;
   onValueChange: (value: string) => void;
@@ -34,6 +35,7 @@ export function PasswordField({
   supportingText?: string;
   error?: string;
   autoComplete?: 'current-password' | 'new-password';
+  inputRef?: Ref<HTMLInputElement>;
 }) {
   const [visible, setVisible] = useState(false);
   return (
@@ -45,6 +47,7 @@ export function PasswordField({
       autoComplete={autoComplete}
       supportingText={supportingText}
       error={error}
+      inputRef={inputRef}
       trailing={
         <IconButton
           icon={visible ? 'round/visibility_off' : 'round/visibility'}

@@ -1,3 +1,4 @@
+import { Icon } from './Icon';
 import type { ReactNode } from 'react';
 import { ripple } from './ripple';
 
@@ -50,9 +51,12 @@ export function ListItem({
 
 /** An error line announced by screen readers when it appears (ErrorText); nothing when [text] is null. */
 export function ErrorText({ text }: { text: string | null | undefined }) {
+  // The 2026-11 look (DESIGN 19.12, step 8): an icon beside the message, as a field's error has, so an error is never
+  // told by its color alone. The icon is decoration; the words are read.
   return (
     <p className="sn-error-text" role="status" aria-live="polite" hidden={!text}>
-      {text}
+      {text && <Icon name="round/error_outline" size={18} />}
+      <span>{text}</span>
     </p>
   );
 }

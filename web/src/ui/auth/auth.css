@@ -1,44 +1,85 @@
-/* The welcome screen (WelcomeScreen): centered, the jar in a primaryContainer circle, the name in Fredoka. */
+/* Welcome (WelcomeScreen; DESIGN 19.12, step 8): on the page's color, the jar in a 208 px leaf, the name in Fredoka
+   and the tagline in the middle, Create account and Sign in as 60 px buttons at the bottom. */
 .sn-welcome {
   min-height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sn-screen-top) var(--sn-safe-right) var(--sn-safe-bottom) var(--sn-safe-left);
-}
-.sn-welcome__column {
-  width: 100%;
-  max-width: var(--sn-content-width);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 24px;
+  padding: var(--sn-screen-top) var(--sn-safe-right) var(--sn-safe-bottom) var(--sn-safe-left);
+  background: var(--sn-surface-page);
+  color: var(--md-sys-color-on-surface);
+}
+.sn-welcome__middle {
+  flex: 1;
+  width: 100%;
+  max-width: var(--sn-content-width);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 24px 32px;
   text-align: center;
 }
-.sn-welcome__column p {
-  margin: 0;
-}
-.sn-welcome__icon {
-  width: 112px;
-  height: 112px;
-  border-radius: 56px;
+.sn-welcome__leaf {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 208px;
+  height: 208px;
+  border-radius: 50% 15% 50% 15%;
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
 }
+.sn-welcome__words {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sn-welcome__words p,
 .sn-welcome__title {
   margin: 0;
-  font-family: var(--sn-font-display);
-  font-weight: 600;
+}
+.sn-welcome__title {
   color: var(--md-sys-color-primary);
 }
-.sn-welcome__space {
-  height: 16px;
+/* The app's name (SpoilNotText.Wordmark): Fredoka 52 / 60. */
+.t-wordmark {
+  font-family: var(--sn-font-display);
+  font-size: var(--sp-52);
+  line-height: calc(var(--sp-52) * 1.154);
+  font-weight: 600;
+}
+.sn-welcome__tagline {
+  font-size: var(--sp-18);
+  line-height: calc(var(--sp-18) * 1.444);
+  font-weight: 500;
+}
+.sn-welcome__actions {
+  width: 100%;
+  max-width: var(--sn-content-width);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 20px 24px;
+}
+/* Welcome's and Sign in's main buttons are 60 px (DESIGN 19.9). */
+.sn-auth__tall {
+  min-height: 60px;
+}
+.sn-auth__main {
+  margin-top: 6px;
 }
 .sn-auth__text {
   margin: 0;
 }
+.sn-auth__sent {
+  font-weight: 600;
+}
 .sn-auth__secondary {
-  align-self: flex-start;
+  align-self: center;
   min-height: 48px;
 }

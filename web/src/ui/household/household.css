@@ -1,37 +1,49 @@
 /* The household gate (HouseholdGateScreen) and Settings > Household. */
-.sn-gate {
-  min-height: 100%;
-}
 .sn-gate__content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  width: 100%;
   max-width: var(--sn-content-width);
+  box-sizing: border-box;
   margin: 0 auto;
-  padding: 16px calc(16px + var(--sn-safe-right)) calc(16px + var(--sn-safe-bottom)) calc(16px + var(--sn-safe-left));
+  padding: 8px calc(16px + var(--sn-safe-right)) calc(24px + var(--sn-safe-bottom)) calc(16px + var(--sn-safe-left));
 }
 .sn-gate__intro {
   margin: 0;
+  padding: 0 4px;
 }
 .sn-gate-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   padding: 20px;
-  --sn-field-notch: var(--md-sys-color-surface-container-highest);
 }
 .sn-gate-card h2,
-.sn-gate-card p {
+.sn-gate-card p,
+.sn-join-status h2,
+.sn-join-status p {
   margin: 0;
+}
+.sn-gate-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .sn-gate-card__form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 .sn-gate-card__progress {
   display: flex;
   justify-content: center;
+}
+.sn-join-status__head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px;
 }
 .sn-code-field input {
   text-transform: uppercase;

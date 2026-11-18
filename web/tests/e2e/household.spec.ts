@@ -125,6 +125,11 @@ test('sign out, a wrong password, sign in again, and the reset link message', as
   await page.getByLabel('Password', { exact: true }).fill('wrong-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByText('Email or password is incorrect.')).toBeVisible();
+  // On the password field, which takes the focus, so VoiceOver reads it with its error (DESIGN 19.12, step 8).
+  const password = page.getByLabel('Password', { exact: true });
+  await expect(password).toHaveAttribute('aria-invalid', 'true');
+  await expect(password).toHaveAccessibleDescription('Email or password is incorrect.');
+  await expect(password).toBeFocused();
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();

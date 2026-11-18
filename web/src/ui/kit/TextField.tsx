@@ -1,4 +1,11 @@
-import { useId, useState, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
+import {
+  useId,
+  useState,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type Ref,
+  type TextareaHTMLAttributes,
+} from 'react';
 import { Icon } from './Icon';
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> & {
@@ -14,6 +21,8 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> &
    * (Groceries' quick add, Recipes' search and the recipe sheets).
    */
   outlined?: boolean;
+  /** The input, for a form that moves the focus to a field whose error arrives from the server (DESIGN 19.12). */
+  inputRef?: Ref<HTMLInputElement>;
 };
 
 /**
@@ -31,6 +40,7 @@ export function TextField({
   trailing,
   outlined = false,
   className,
+  inputRef,
   ...rest
 }: Props) {
   const id = useId();
@@ -51,6 +61,7 @@ export function TextField({
       <div className="m3-text-field__box">
         {leading}
         <input
+          ref={inputRef}
           id={id}
           className={outlined ? 'm3-text-field__input' : 'm3-text-field__input t-field-text'}
           value={value}
