@@ -71,6 +71,13 @@ object SpoilNotText {
     /** The number of an accent card, such as the streak's days. */
     val AccentNumber = text(FontWeight.ExtraBold, size = 26, lineHeight = 32, letterSpacing = -0.3)
 
+    /**
+     * The app's name on Welcome, in Fredoka (after v1, step 8). A getter: [Fredoka] is declared further down this
+     * file, so it may not be set yet while this object is first made.
+     */
+    val Wordmark: TextStyle
+        get() = TextStyle(fontFamily = Fredoka, fontWeight = FontWeight.SemiBold, fontSize = 52.sp, lineHeight = 60.sp)
+
     /** The label of a large filled button and of the floating button. */
     val ButtonLarge = text(FontWeight.ExtraBold, size = 16, lineHeight = 24)
 

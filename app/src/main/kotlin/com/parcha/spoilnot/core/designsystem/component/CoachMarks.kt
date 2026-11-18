@@ -16,10 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,6 +59,8 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import kotlin.math.roundToInt
 
 /**
@@ -160,7 +164,7 @@ fun CoachMarkOverlay(
             Scrim(Rect(0f, hole.top, hole.left, hole.bottom), clear)
             Scrim(Rect(hole.right, hole.top, width, hole.bottom), clear)
             Canvas(Modifier.fillMaxSize()) {
-                val corner = CornerRadius(12.dp.toPx())
+                val corner = CornerRadius(16.dp.toPx())
                 val cutOut = Path().apply { addRoundRect(RoundRect(hole, corner)) }
                 clipPath(cutOut, ClipOp.Difference) { drawRect(scrim) }
                 drawRoundRect(
@@ -195,7 +199,9 @@ fun CoachMarkOverlay(
             // A target as tall as the screen: the card covers its lower part.
             else -> Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
         }
-        ElevatedCard(
+        // The 2026-11 look (DESIGN 19.11, step 8): the dialogs' surface and 28 dp corners, the title in DialogTitle and
+        // Next as a filled round button.
+        Surface(
             cardModifier
                 .padding(horizontal = 16.dp)
                 .widthIn(max = 480.dp)
@@ -205,25 +211,39 @@ fun CoachMarkOverlay(
                     liveRegion = LiveRegionMode.Polite
                 }
                 .testTag("coach_mark_card"),
+            shape = RoundedCornerShape(SpoilNotCorners.Highlight),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp,
         ) {
             Column(
-                Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+                Modifier.verticalScroll(
+                    rememberScrollState(),
+                ).padding(start = 20.dp, end = 16.dp, top = 20.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 progress?.let {
-                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(it, style = SpoilNotText.RowSupporting, color = MaterialTheme.colorScheme.primary)
                 }
-                title?.let { Text(it, style = MaterialTheme.typography.titleLarge) }
+                title?.let { Text(it, style = SpoilNotText.DialogTitle) }
                 Text(text, style = MaterialTheme.typography.bodyLarge)
                 FlowRow(
-                    Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                     itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
                     skipLabel?.let {
-                        TextButton(onClick = onSkip, modifier = Modifier.testTag("coach_mark_skip")) { Text(it) }
+                        TextButton(
+                            onClick = onSkip,
+                            modifier = Modifier.heightIn(min = 48.dp).testTag("coach_mark_skip"),
+                        ) {
+                            Text(it, style = SpoilNotText.ButtonMedium)
+                        }
                     }
-                    Button(onClick = onNext, modifier = Modifier.testTag("coach_mark_next")) { Text(nextLabel) }
+                    Button(
+                        onClick = onNext,
+                        shape = CircleShape,
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("coach_mark_next"),
+                    ) { Text(nextLabel, style = SpoilNotText.ButtonMedium) }
                 }
             }
         }
