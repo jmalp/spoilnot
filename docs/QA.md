@@ -575,6 +575,12 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     card has rounded corners and a round Next. Update required (raise minSupportedBuild on the emulator): the update
     icon in a leaf and Get the update. Larger text at 2×: Welcome scrolls with its buttons at the end, nothing is cut
     off. Dark mode and Fiery Palette: the same in their colors.
+76. The new look, step 8 on the iPhone (web, after v1, 2026-11-17, DESIGN 18.2, 19.12): flow 75 in Safari and the Home
+    Screen app on an iPhone, without the tour and Update required (the web has neither as a screen), with VoiceOver
+    instead of TalkBack: in Safari, Welcome's line about adding the app to the Home Screen sits under the two buttons;
+    a wrong password puts the cursor in Password and VoiceOver reads "Password, Email or password is incorrect.";
+    the gate's ⋮ is a round button. Settings > Appearance: Week starts on's box shows on the card. Buttons such as Copy
+    and Share on Household and Resend email on Settings have bold labels.
 
 ## 3. Conditions
 

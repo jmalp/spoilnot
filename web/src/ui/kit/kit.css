@@ -141,6 +141,18 @@
   font-weight: 800;
   letter-spacing: 0;
 }
+/* A button given one of the look's label styles (DESIGN 19.4: ButtonMedium, ButtonLarge) takes it over the button's own
+   500 weight, which used to win (same specificity, later file; fixed with step 8). */
+.m3-button.t-button-medium {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 700;
+}
+.m3-button.t-button-large {
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+}
 .m3-button:disabled {
   background: transparent;
   color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
@@ -864,11 +876,22 @@
 
 /* An error line under a form, announced when it appears (ErrorText). */
 .sn-error-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 0;
   color: var(--md-sys-color-error);
   font-size: var(--sp-14);
   line-height: var(--sp-20);
+  font-weight: 700;
   letter-spacing: 0.015625rem;
+}
+.sn-error-text[hidden] {
+  display: none;
+}
+.sn-error-text > .m3-icon {
+  flex: none;
+  margin-top: 1px;
 }
 
 /* Select fields: a read-only text field with a menu. */
