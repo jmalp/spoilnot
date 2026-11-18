@@ -465,3 +465,37 @@ export async function uidOf(email: string): Promise<string> {
   if (!uid) throw new Error(`No account ${email}`);
   return uid;
 }
+
+/**
+ * Starts noting every row that shows another phone's highlight (`data-remote`, DESIGN 6.4) from now on, including
+ * rows that arrive already highlighted, so a test can say none was highlighted however briefly. [highlightedRows]
+ * reads the list and empties it.
+ */
+export async function recordHighlights(page: Page) {
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    const note = (el: Element) => {
+      if (el.getAttribute('data-remote') === 'true') seen.push(el.getAttribute('data-testid') ?? el.tagName);
+    };
+    new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes') note(m.target as Element);
+        m.addedNodes.forEach((n) => {
+          if (!(n instanceof Element)) return;
+          note(n);
+          n.querySelectorAll('[data-remote]').forEach(note);
+        });
+      }
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-remote'] });
+    (window as unknown as { highlighted: string[] }).highlighted = seen;
+  });
+}
+
+/** The rows highlighted since [recordHighlights] or the last call, waiting [settleMs] first for late highlights. */
+export async function highlightedRows(page: Page, settleMs = 1000): Promise<string[]> {
+  await page.waitForTimeout(settleMs);
+  return page.evaluate(() => {
+    const seen = (window as unknown as { highlighted: string[] }).highlighted;
+    return seen.splice(0, seen.length);
+  });
+}

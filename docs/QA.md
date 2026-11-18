@@ -586,6 +586,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     search: every row is back at once and none is highlighted. Pick a filter chip, then a sort from the menu: the same.
     Mark an item used up: its row still fades out. With a second phone, change an item while the search is empty and
     again while searching: the row is highlighted both times.
+78. Pantry's search on the iPhone web app and switching grocery lists (both apps, after v1, 2026-11-18, DESIGN 6.4):
+    on the iPhone, Pantry: search, clear the search, pick a filter and a sort; no row is highlighted. With a second
+    phone, change an item while the search is empty and again while searching: the row is highlighted both times. On
+    each app, Groceries with two lists that both have items: switch lists back and forth; no row is highlighted and no
+    "… added …" message shows. Add an item to the open list on the second phone: it is highlighted.
 
 ## 3. Conditions
 
