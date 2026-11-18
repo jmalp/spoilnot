@@ -4,6 +4,8 @@
 #   ./scripts/baseline-profile.sh            seed, generate, copy into the app
 #   ./scripts/baseline-profile.sh --measure  also run the startup and scroll benchmarks, without and with the profile
 #   ./scripts/baseline-profile.sh --measure-only   only the benchmarks, with the profile already in the app
+#   ./scripts/baseline-profile.sh --jank     only JankBenchmark (every tab, sheets, typing), one test at a time,
+#                                            with the profile already in the app (about 25 minutes)
 #   ./scripts/baseline-profile.sh --check    only the device checks below
 #
 # Before anything it checks the device (RUNBOOK, "Benchmark setup"): it refuses an emulator that draws with
@@ -11,7 +13,7 @@
 # busy, or when the Mac is short of memory, since all of these make the numbers meaningless.
 #
 # Needs the Firebase emulators (./scripts/emulators.sh) and one Android emulator or phone (adb). It seeds the
-# emulator-only 500-batch household (PantryScrollPerfTest), records which code the dev benchmark build runs while
+# emulator-only perf household (PantryScrollPerfTest), records which code the dev benchmark build runs while
 # starting, scrolling Pantry and visiting every tab (benchmark module), and writes the result to
 # app/src/main/baselineProfiles/baseline-prof.txt. Commit that file; release builds ship it.
 set -euo pipefail
@@ -30,12 +32,14 @@ step() { printf '\n==> %s\n' "$*"; }
 MEASURE=false
 GENERATE=true
 CHECK_ONLY=false
+JANK=false
 case "${1:-}" in
   --measure) MEASURE=true ;;
   --measure-only) MEASURE=true; GENERATE=false ;;
+  --jank) JANK=true; GENERATE=false ;;
   --check) CHECK_ONLY=true ;;
   "") ;;
-  *) die "unknown option $1 (use --measure, --measure-only or --check)" ;;
+  *) die "unknown option $1 (use --measure, --measure-only, --jank or --check)" ;;
 esac
 
 # The guest's one-minute load under this means it has settled after boot or an install (review 08: under 2.5 on 4 cores).
@@ -101,7 +105,7 @@ $CHECK_ONLY && exit 0
 
 curl -s -o /dev/null http://127.0.0.1:8080 || die "start the Firebase emulators first (./scripts/emulators.sh)"
 
-step "Seeding the 500-batch household (signs in if it already exists)"
+step "Seeding the perf household (signs in if it already exists, adds only what is missing)"
 ./gradlew -q connectedDevDebugAndroidTest "$RUNNER.class=com.parcha.spoilnot.perf.PantryScrollPerfTest" "$RUNNER.perf=true"
 
 if $GENERATE; then
@@ -123,5 +127,23 @@ if $MEASURE; then
     ./gradlew -q :benchmark:connectedBenchmarkAndroidTest "$RUNNER.class=com.parcha.spoilnot.benchmark.$benchmark"
     find "$OUT_DIR" -name '*benchmarkData.json' -exec python3 -I scripts/benchmark-summary.py {} +
   done
+fi
+if $JANK; then
+  # One Gradle call per test: a tests_regex with | runs nothing (RUNBOOK, "Benchmark setup"). A failing test doesn't
+  # stop the others; the failures are listed at the end.
+  jank_class="benchmark/src/main/kotlin/com/parcha/spoilnot/benchmark/JankBenchmark.kt"
+  failed=()
+  for test in $(awk '/@Test/ { getline; if (match($0, /fun [A-Za-z0-9]+/)) print substr($0, RSTART + 4, RLENGTH - 4) }' "$jank_class"); do
+    step "JankBenchmark#$test"
+    rm -rf "$OUT_DIR"
+    if ./gradlew -q :benchmark:connectedBenchmarkAndroidTest "$RUNNER.class=com.parcha.spoilnot.benchmark.JankBenchmark#$test"; then
+      find "$OUT_DIR" -name '*benchmarkData.json' -exec python3 -I scripts/benchmark-summary.py {} +
+    else
+      failed+=("$test")
+    fi
+  done
+  [ "${#failed[@]}" -eq 0 ] || die "failed: ${failed[*]} (the Gradle output above says why)"
+  step "Done. Compare with DESIGN 13.1's numbers."
+  exit 0
 fi
 step "Done. Review and commit $PROFILE."

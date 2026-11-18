@@ -277,6 +277,7 @@ internal fun PantryTab(
                     PantryList(
                         groups = state.groups,
                         query = state.query,
+                        batches = state.data.batches,
                         today = state.today,
                         listState = listState,
                         actions = handlers.actions,
@@ -293,18 +294,20 @@ internal fun PantryTab(
 private fun PantryList(
     groups: List<PantryItemGroup>,
     query: PantryQuery,
+    batches: List<StockBatch>,
     today: LocalDate,
     listState: LazyListState,
     actions: BatchActions,
     onOpen: (PantryItem) -> Unit,
 ) {
-    // A remote change must not move the list under the user's finger (DESIGN 6.4): hold updates while scrolling.
-    val shown = rememberHeldWhileScrolling(groups, listState)
-    // Rows another phone changed get a short highlight (DESIGN 6.4).
-    val batches =
-        remember(shown) { shown.flatMap { it.items }.filterIsInstance<PantryItem.Purchase>().map { it.batch } }
+    // A remote change must not move the list under the user's finger (DESIGN 6.4): hold updates while scrolling. The
+    // rows are held with the query that picked them and every batch, so all of them change in the same frame.
+    val (shown, shownQuery, allBatches) = rememberHeldWhileScrolling(ShownRows(groups, query, batches), listState)
+    // Rows another phone changed get a short highlight (DESIGN 6.4). Told from every batch, not the rows shown: a row
+    // that a wider search or filter brings back isn't new (after v1, 2026-11-17; it was highlighted as if another
+    // phone had added it).
     val remote = rememberRemoteChanges(
-        batches,
+        allBatches,
         id = { it.id },
         pending = { it.pendingSync },
         content = { it.copy(pendingSync = false) },
@@ -316,61 +319,74 @@ private fun PantryList(
     }
     // A backlog of expired food folds into one row (after v1); its rows show on request.
     var showExpired by rememberSaveable { mutableStateOf(false) }
-    val blocks = remember(shown, query, showExpired) { PantryBlocks.of(shown, query, showExpired) }
+    val blocks = remember(shown, shownQuery, showExpired) { PantryBlocks.of(shown, shownQuery, showExpired) }
     val page = SpoilNotSurfaces.current.page
-    LazyColumn(
-        state = listState,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = listBottomPadding()),
-        modifier = Modifier.fillMaxSize().testTag("pantry_list").coachMark(TourTarget.PantryList.key),
-    ) {
-        blocks.forEachIndexed { blockIndex, block ->
-            // Groups sit 12 dp apart; a heading carries the gap above its group.
-            val gap = if (blockIndex == 0) 0.dp else BlockGap
-            block.heading?.let { heading ->
-                stickyHeader(key = "heading-${block.key}", contentType = "heading") {
-                    // On the page's color, so rows scrolling under it don't show through. TalkBack's headings
-                    // navigation jumps from group to group (review A11Y-09).
-                    GroupHeading(
-                        heading.text(),
-                        Modifier.fillMaxWidth().background(page).padding(top = gap, bottom = 6.dp),
-                    )
+    // A new search, filter, sort or grouping replaces the rows at once: the list is composed afresh for it, so no row
+    // fades or slides; only changes to the food itself animate (DESIGN 6.4). A row keeps the animation it was last
+    // composed with, so a row leaving can't be told not to fade any other way. Animating the rows on screen at each
+    // key typed kept the list drawing all through the typing (after v1, 2026-11-17, JankBenchmark). The scroll
+    // position is the screen's [listState], so it stays.
+    key(shownQuery) {
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = listBottomPadding()),
+            modifier = Modifier.fillMaxSize().testTag("pantry_list").coachMark(TourTarget.PantryList.key),
+        ) {
+            blocks.forEachIndexed { blockIndex, block ->
+                // Groups sit 12 dp apart; a heading carries the gap above its group.
+                val gap = if (blockIndex == 0) 0.dp else BlockGap
+                block.heading?.let { heading ->
+                    stickyHeader(key = "heading-${block.key}", contentType = "heading") {
+                        // On the page's color, so rows scrolling under it don't show through. TalkBack's headings
+                        // navigation jumps from group to group (review A11Y-09).
+                        GroupHeading(
+                            heading.text(),
+                            Modifier.fillMaxWidth().background(page).padding(top = gap, bottom = 6.dp),
+                        )
+                    }
                 }
-            }
-            // A scrolled-off slot is reused only for the same kind of row (review PERF-08).
-            itemsIndexed(
-                block.lines,
-                key = { _, line -> "${block.key}-${line.key}" },
-                contentType = { _, line -> line.contentType() },
-            ) { index, line ->
-                val position = segmentPosition(index, block.lines.size)
-                val top = when {
-                    index > 0 -> ListGroupGap
-                    block.heading == null -> gap
-                    else -> 0.dp
-                }
-                val rowModifier = Modifier.animateItem().padding(top = top)
-                when (line) {
-                    is PantryLine.Folded -> ExpiredFoldRow(
-                        count = line.count,
-                        shown = showExpired,
-                        onToggle = { showExpired = !showExpired },
-                        modifier = rowModifier,
-                        position = position,
-                    )
+                // A scrolled-off slot is reused only for the same kind of row (review PERF-08).
+                itemsIndexed(
+                    block.lines,
+                    key = { _, line -> "${block.key}-${line.key}" },
+                    contentType = { _, line -> line.contentType() },
+                ) { index, line ->
+                    val position = segmentPosition(index, block.lines.size)
+                    val top = when {
+                        index > 0 -> ListGroupGap
+                        block.heading == null -> gap
+                        else -> 0.dp
+                    }
+                    val rowModifier = Modifier.animateItem().padding(top = top)
+                    when (line) {
+                        is PantryLine.Folded -> ExpiredFoldRow(
+                            count = line.count,
+                            shown = showExpired,
+                            onToggle = { showExpired = !showExpired },
+                            modifier = rowModifier,
+                            position = position,
+                        )
 
-                    is PantryLine.Item -> PantryItemRow(
-                        item = line.item,
-                        today = today,
-                        actions = actions,
-                        onOpen = onOpen,
-                        modifier = rowModifier.remoteHighlight(line.item.key in remote, segmentShape(position)),
-                        position = position,
-                    )
+                        is PantryLine.Item -> PantryItemRow(
+                            item = line.item,
+                            today = today,
+                            actions = actions,
+                            onOpen = onOpen,
+                            modifier = rowModifier.remoteHighlight(line.item.key in remote, segmentShape(position)),
+                            position = position,
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/**
+ * The rows the list shows, the query that picked them and every batch in the pantry (for telling another phone's
+ * changes), held together while the list scrolls.
+ */
+private data class ShownRows(val groups: List<PantryItemGroup>, val query: PantryQuery, val batches: List<StockBatch>)
 
 private fun PantryLine.contentType(): String = when (this) {
     is PantryLine.Folded -> "folded"

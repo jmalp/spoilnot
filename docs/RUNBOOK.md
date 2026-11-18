@@ -338,6 +338,10 @@ one-minute load to fall under 2.5, and warns when the Mac has under 20% memory f
   a `tests_regex` with `|` or `(` runs no tests at all (AGP passes it through the device's shell unquoted).
 - Emulator numbers compare builds and screens on this Mac; they aren't phone timings. Phone timings come from the
   owner's phone checks (QA.md 4).
+- The emulator drifts between sessions (on 2026-11-17 the keyboard made frames three to four times as janky as on
+  2026-11-02 for the same build). When a number moves, run the previous build the same day: a second worktree at
+  the older commit with `JankBenchmark.kt` and `AppDriver.kt` copied in, the same test, alternating with this one
+  (DESIGN 13.1 has the 2026-11-17 A/B).
 
 ## Baseline profile (DESIGN 13.1)
 
@@ -361,17 +365,26 @@ DataStore: their code is in the profile too), on the benchmark setup above, with
 ./scripts/baseline-profile.sh
 ```
 
-It checks the device, seeds the emulator-only 500-batch household (`PantryScrollPerfTest`, with `-e perf true`), runs
-`BaselineProfileGenerator` in the `benchmark` module against the dev benchmark build and copies the result into the
-app. The journey signs in, waits for Home's cards, opens Insights from Home, scrolls Pantry, opens Add item, opens
-Plan's add sheet and visits every tab (it taps Skip tour when the app tour shows). Every step checks that it opened
+It checks the device, seeds the emulator-only perf household (`PantryScrollPerfTest`, with `-e perf true`: 500 batches,
+150 grocery items with 30 in the cart, 40 recipes without photos, three meals a day from a week ago to the end of next
+week, and six months of counts for Your kitchen; each part is added only where it is missing, so a run on an older
+household fills it in), runs `BaselineProfileGenerator` in the `benchmark` module against the dev benchmark build and
+copies the result into the app. The journey signs in, waits for Home's cards, opens Your kitchen from Home's card,
+scrolls Pantry, opens Add item, opens Plan's add sheet and visits every tab (it taps Skip tour when the app tour
+shows). Every step checks that it opened
 what it should and fails the run otherwise: the benchmark build shows the screens' test tags to UI Automator as
 resource ids (`screen_pantry`, `card_home_attention`), and the sheets are found by their text. When a run fails with
 "… didn't show", a button or screen changed: fix the selector in `AppDriver.kt` rather than dropping the step. Review
 the diff and commit it.
 
 `--measure` also runs `StartupBenchmark` and `PantryScrollBenchmark` without and with the profile and prints the
-medians; `--measure-only` runs just the benchmarks with the profile already in the app. `StartupBenchmark` reports
+medians; `--measure-only` runs just the benchmarks with the profile already in the app. `--jank` runs `JankBenchmark`
+(about 25 minutes), one test per Gradle call, with the profile already in the app: the first and steady scrolls of
+Pantry, Groceries, Recipes, Plan and Home, Your kitchen opened from Home while its charts grow, every tab twice, Add
+item and Plan's add sheet opened, dragged and closed, and typing "item 12" in Pantry's search and Groceries' quick add.
+For each it prints frame CPU time (P50, P90, P99) and the share of janky frames, those whose `frameOverrunMs` is above
+0, over all five iterations and per iteration. Compare them with the last run in DESIGN 13.1; run it after changes to
+a screen's lists, sheets or animations, and after Compose updates. `StartupBenchmark` reports
 two numbers per start: `timeToInitialDisplayMs`, the first frame (Home's loading skeleton), and
 `timeToFullDisplayMs`, when Home reports itself drawn with its cards (`ReportDrawnWhen`), which is what DESIGN 13.1's
 cold-start budget is measured on.
@@ -388,7 +401,8 @@ entirely (`HiltTestRunner` adds them to `notAnnotation`), so its report counts o
 
 - `LiveImportTest` (`@LiveTest`) reads the 10 real recipe sites; `-Pandroid.testInstrumentationRunnerArguments.live=true`
   (the command is in docs/import-test-sites.md).
-- `PantryScrollPerfTest` (`@PerfTest`) seeds the 500-batch household for the benchmarks;
+- `PantryScrollPerfTest` (`@PerfTest`) seeds the perf household for the benchmarks (500 batches, a long grocery list,
+  recipes, a plan and six months of counts; "Baseline profile" above);
   `-Pandroid.testInstrumentationRunnerArguments.perf=true` (`baseline-profile.sh` passes it).
 
 ## Nightly export and restore (DESIGN 13.4)
