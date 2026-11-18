@@ -13,8 +13,9 @@ import java.util.regex.Pattern
 const val TARGET_PACKAGE = "com.parcha.spoilnot.dev"
 
 /**
- * The emulator-only account with 500 batches, created by `PantryScrollPerfTest` in the app's instrumented tests
- * (run it once with `-e perf true` before generating or benchmarking; docs/RUNBOOK.md).
+ * The emulator-only account with 500 batches, a long grocery list, recipes, a plan and six months of counts, created
+ * by `PantryScrollPerfTest` in the app's instrumented tests (run it once with `-e perf true` before generating or
+ * benchmarking; docs/RUNBOOK.md).
  */
 private const val PERF_EMAIL = "perf-500@example.com"
 private const val PERF_PASSWORD = "correct-horse-battery"
@@ -56,7 +57,7 @@ fun MacrobenchmarkScope.skipTourIfShown() {
 }
 
 /** A Compose button: the clickable node around the label. */
-private fun button(label: String) = By.clickable(true).hasDescendant(By.text(label))
+internal fun button(label: String) = By.clickable(true).hasDescendant(By.text(label))
 
 private fun MacrobenchmarkScope.field(label: String): UiObject2 =
     checkNotNull(device.wait(Until.findObject(By.text(label)), TIMEOUT_MS)) { "No $label field" }
@@ -70,10 +71,10 @@ private fun MacrobenchmarkScope.type(field: UiObject2, text: String) {
  * A screen's test tag, which the benchmark build shows to UI Automator as its resource id (MainActivity). Windows of
  * their own (sheets, dialogs) don't get it, so they are found by their text.
  */
-private fun screen(tag: String) = By.res(tag)
+internal fun screen(tag: String) = By.res(tag)
 
 /** Fails the journey with [what] unless [selector] shows within the timeout, so no step passes without doing it. */
-private fun MacrobenchmarkScope.expect(selector: BySelector, what: String) {
+internal fun MacrobenchmarkScope.expect(selector: BySelector, what: String) {
     check(device.wait(Until.hasObject(selector), TIMEOUT_MS)) { "$what didn't show" }
 }
 
@@ -113,7 +114,7 @@ private const val FLING_STEPS = 10
  * Taps [target] until [opened] shows, at most three times, and says whether it did. A tap right after a fling only
  * stops the fling in Compose, so the first tap can do nothing.
  */
-private fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector): Boolean {
+internal fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector): Boolean {
     repeat(3) {
         device.wait(Until.findObject(target), TIMEOUT_MS)?.click() ?: return false
         if (device.wait(Until.hasObject(opened), OPEN_TIMEOUT_MS)) return true
@@ -125,7 +126,7 @@ private fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector)
  * Presses Back while [shown] is on screen, at most twice (the keyboard, then the window), so a Back never leaves the
  * tab, or the app, by mistake. Fails when it is still there, and then checks that [back] shows again.
  */
-private fun MacrobenchmarkScope.close(shown: BySelector, back: BySelector, what: String) {
+internal fun MacrobenchmarkScope.close(shown: BySelector, back: BySelector, what: String) {
     repeat(2) {
         if (!device.hasObject(shown)) return@repeat
         device.pressBack()
@@ -136,7 +137,7 @@ private fun MacrobenchmarkScope.close(shown: BySelector, back: BySelector, what:
     device.waitForIdle()
 }
 
-private const val OPEN_TIMEOUT_MS = 5_000L
+internal const val OPEN_TIMEOUT_MS = 5_000L
 
 /**
  * Opens the Add item window from the Pantry tab and closes it again. The floating button is found by its name, which
@@ -155,11 +156,22 @@ fun MacrobenchmarkScope.openAndCloseAddMeal() {
     close(opened, screen("screen_plan"), "Plan's add sheet")
 }
 
-/** Opens Insights from Home's "Your kitchen this month" card, flings it and comes back. */
+/** Opens Your kitchen from Home's card, flings it and comes back. */
 fun MacrobenchmarkScope.openAndCloseInsights() {
-    val see = button("See your kitchen")
-    device.findObject(By.scrollable(true))?.scrollUntil(Direction.DOWN, Until.findObject(see))
-    check(tapUntil(see, screen("screen_insights"))) { "Insights didn't open from Home" }
+    openInsights()
     flingList(times = 1)
-    close(screen("screen_insights"), screen("screen_home"), "Insights")
+    closeInsights()
 }
+
+/**
+ * Opens Your kitchen from Home's card. Since the new look (DESIGN 19) the whole card is the button, with no "See your
+ * kitchen" label to find, so it is found by its test tag.
+ */
+fun MacrobenchmarkScope.openInsights() {
+    val card = screen("card_home_insights")
+    device.findObject(By.scrollable(true))?.scrollUntil(Direction.DOWN, Until.findObject(card))
+    check(tapUntil(card, screen("screen_insights"))) { "Your kitchen didn't open from Home" }
+}
+
+/** Goes back from Your kitchen to Home. */
+fun MacrobenchmarkScope.closeInsights() = close(screen("screen_insights"), screen("screen_home"), "Your kitchen")

@@ -581,6 +581,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     a wrong password puts the cursor in Password and VoiceOver reads "Password, Email or password is incorrect.";
     the gate's ⋮ is a round button. Settings > Appearance: Week starts on's box shows on the card. Buttons such as Copy
     and Share on Household and Resend email on Settings have bold labels.
+77. Pantry's search (Android, after v1, 2026-11-17, DESIGN 6.4): type a few letters in Pantry's search; the rows
+    change at once with each letter, without fading or sliding, and nothing keeps moving once you stop. Clear the
+    search: every row is back at once and none is highlighted. Pick a filter chip, then a sort from the menu: the same.
+    Mark an item used up: its row still fades out. With a second phone, change an item while the search is empty and
+    again while searching: the row is highlighted both times.
 
 ## 3. Conditions
 
@@ -612,6 +617,9 @@ sign-in with about 750 documents under LTE speed and 3G latency took 4.3 s inclu
 Again on 2026-11-13, headless on the Mac's GPU (RUNBOOK "Benchmark setup"), dev benchmark build with the profile: cold
 start 0.36 s to the first frame and 0.71 s until Home shows its cards (medians of 10); the first Pantry scroll's
 frame CPU time P50 4.7 ms, P99 21 ms. These are emulator numbers; the phone check is what counts.
+Again on 2026-11-17, after the new look: cold start 0.36 s to the first frame and 0.76 s until Home shows its cards;
+the first Pantry scroll P50 4.8 ms, P99 8.0 ms, no janky frames; every other screen in DESIGN 13.1. On a phone, check
+especially the first scroll of Plan after installing (open in 13.1), and flow 77.
 
 ## 5. Crash reports
 
