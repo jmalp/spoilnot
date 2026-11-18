@@ -353,11 +353,14 @@ private fun GroceryList(
     onDelete: (GroceryItem) -> Unit,
     onEdit: (GroceryItem) -> Unit,
 ) {
-    val view: GroceryView = rememberHeldWhileScrolling(state.view, listState)
-    // Rows another phone changed get a short highlight (DESIGN 6.4).
+    // Held with the list the rows belong to, so both change in the same frame.
+    val (view, viewListId) = rememberHeldWhileScrolling(state.view to state.itemsListId, listState)
+    // Rows another phone changed get a short highlight (DESIGN 6.4), told one list at a time: another list's rows
+    // aren't new (after v1, 2026-11-18; switching lists highlighted every row of the new one).
     val shown = remember(view) { view.aisles.flatMap { it.second } + view.inCart }
     val remote = rememberRemoteChanges(
         shown,
+        scope = viewListId,
         id = { it.id },
         pending = { it.pendingSync },
         content = { it.copy(pendingSync = false) },

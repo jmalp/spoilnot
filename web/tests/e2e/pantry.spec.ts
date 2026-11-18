@@ -6,9 +6,11 @@ import {
   createHousehold,
   householdId,
   inDays,
+  highlightedRows,
   newPhone,
   openApp,
   PASSWORD,
+  recordHighlights,
   seedPantry,
   signUp,
   uidOf,
@@ -46,7 +48,7 @@ async function pantryWithItems(page: Page) {
   ]);
   await page.getByRole('navigation').getByRole('button', { name: 'Pantry' }).click();
   await expect(rows(page)).toHaveCount(5);
-  return email;
+  return { email, hid };
 }
 
 test('the list, filters and search, as on Android', async ({ page }) => {
@@ -90,6 +92,43 @@ test('the list, filters and search, as on Android', async ({ page }) => {
   await expect(list.getByRole('heading')).toHaveText(['Fridge', 'Pantry']);
 });
 
+test("a search, filter or sort changes the rows at once and highlights none; another phone's change still is", async ({
+  page,
+}) => {
+  const { email, hid } = await pantryWithItems(page);
+  const uid = await uidOf(email);
+  await recordHighlights(page);
+  const animations = () =>
+    page.getByTestId('pantry_list').evaluate((list) => list.getAnimations({ subtree: true }).length);
+
+  // Rows a wider search, filter or sort brings back were there all along: none is highlighted, and none fades or slides
+  // (after v1, 2026-11-17, DESIGN 6.4; the web followed the rows shown and highlighted them as another phone's).
+  await page.getByRole('searchbox').fill('YOG');
+  await expect(rows(page)).toHaveText([/Yogurt/]);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(rows(page)).toHaveCount(5);
+  expect(await animations()).toBe(0);
+  await page.getByTestId('pantry_filter_needsAttention').click();
+  await expect(rows(page)).toHaveCount(2);
+  await page.getByTestId('pantry_filter_needsAttention').click();
+  await expect(rows(page)).toHaveCount(5);
+  await page.getByRole('button', { name: 'Sort and group' }).click();
+  await page.getByRole('menuitem', { name: 'Name' }).click();
+  await expect(rows(page).first()).toContainText('Milk');
+  expect(await animations()).toBe(0);
+  expect(await highlightedRows(page)).toEqual([]);
+
+  // Another member's new purchase is highlighted, with the search empty and while it shows the row.
+  await seedPantry(hid, uid, [{ id: 'butter', name: 'Butter', expiry: inDays(20) }]);
+  await expect(page.getByTestId('pantry_item_butter')).toHaveAttribute('data-remote', 'true');
+  await page.getByRole('searchbox').fill('rice');
+  await expect(rows(page)).toHaveText([/Rice/]);
+  await seedPantry(hid, uid, [
+    { id: 'rice', name: 'Rice', quantity: 400, unit: 'g', location: 'pantry', expiry: inDays(200) },
+  ]);
+  await expect(page.getByTestId('pantry_item_rice')).toHaveAttribute('data-remote', 'true');
+});
+
 test('swipe to use up and Undo; throw away with a reason; mark some opened; another phone follows', async ({
   page,
   browser,
@@ -97,7 +136,7 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   // Two phones and a long flow: the same room as the plan and recipes flows (under a full run's load the first phone's
   // part alone took most of 60 s).
   test.setTimeout(90_000);
-  const email = await pantryWithItems(page);
+  const { email } = await pantryWithItems(page);
 
   // Swipe right: used up, with Undo.
   const milk = page.getByTestId('pantry_item_milk');

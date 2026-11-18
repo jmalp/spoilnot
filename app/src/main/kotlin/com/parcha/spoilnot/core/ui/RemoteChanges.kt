@@ -22,7 +22,8 @@ const val REMOTE_HIGHLIGHT_MS = Motion.HIGHLIGHT_MS
 
 /**
  * Tells which rows another phone changed. This phone's own writes always show up first with pending writes, so a
- * row whose data changed while it had none came from someone else. Nothing is highlighted on the first load.
+ * row whose data changed while it had none came from someone else. Nothing is highlighted on the first load, nor on
+ * the first load of a new scope (another grocery list, after v1, 2026-11-18): its rows are not new, only not seen yet.
  */
 class RemoteChangeTracker<T>(
     private val id: (T) -> String,
@@ -30,10 +31,12 @@ class RemoteChangeTracker<T>(
     private val content: (T) -> Any?,
 ) {
     private var previous: Map<String, Pair<Any?, Boolean>>? = null
+    private var scope: Any? = null
 
-    /** The ids changed remotely since the last call. */
-    fun update(items: List<T>): Set<String> {
-        val before = previous
+    /** The ids changed remotely since the last call; none when [scope], what the items belong to, is new. */
+    fun update(items: List<T>, scope: Any? = null): Set<String> {
+        val before = if (scope == this.scope) previous else null
+        this.scope = scope
         previous = items.associate { id(it) to (content(it) to pending(it)) }
         if (before == null) return emptySet()
         return items.filter { item ->
@@ -44,19 +47,24 @@ class RemoteChangeTracker<T>(
     }
 }
 
-/** Ids to highlight now; each one clears itself after [REMOTE_HIGHLIGHT_MS]. */
+/**
+ * Ids to highlight now; each one clears itself after [REMOTE_HIGHLIGHT_MS]. [items] are every row that can be shown,
+ * not only the rows a search or filter shows, or a row it brings back would count as new (after v1, 2026-11-17).
+ * [scope] says what they belong to (a grocery list's id), so another list's rows are not new either.
+ */
 @Composable
 fun <T> rememberRemoteChanges(
     items: List<T>,
+    scope: Any? = null,
     id: (T) -> String,
     pending: (T) -> Boolean,
     content: (T) -> Any?,
 ): Set<String> {
     val tracker = remember { RemoteChangeTracker(id, pending, content) }
     val active = remember { mutableStateMapOf<String, Long>() }
-    LaunchedEffect(items) {
+    LaunchedEffect(items, scope) {
         val now = System.nanoTime()
-        tracker.update(items).forEach { active[it] = now }
+        tracker.update(items, scope).forEach { active[it] = now }
         delay(REMOTE_HIGHLIGHT_MS.toLong())
         val cutoff = System.nanoTime() - REMOTE_HIGHLIGHT_MS * 1_000_000L
         active.entries.removeAll { it.value <= cutoff }

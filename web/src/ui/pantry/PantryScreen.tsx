@@ -271,7 +271,14 @@ export function PantryScreen({
               );
             })}
           </div>
-          <PantryList groups={groups} query={query} today={today} actions={actions} onOpen={onOpen} />
+          <PantryList
+            groups={groups}
+            query={query}
+            batches={data.batches}
+            today={today}
+            actions={actions}
+            onOpen={onOpen}
+          />
         </>
       )}
       {adding && data && (
@@ -378,35 +385,39 @@ function headingText(heading: PantryHeading): string {
 /**
  * The list as groups of rows (DESIGN 19.5, 19.12): Use first and Everything else in the default view, a group per
  * location or category when grouped. A change from another phone waits while the list scrolls (DESIGN 6.4, WEB-11).
+ * A new search, filter, sort or grouping replaces the rows at once: rows have no fade or slide on the web.
  */
 function PantryList({
   groups,
   query,
+  batches,
   today,
   actions,
   onOpen,
 }: {
   groups: PantryItemGroup[];
   query: PantryQuery;
+  batches: StockBatch[];
   today: string;
   actions: BatchActions;
   onOpen: (item: PantryItem) => void;
 }) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
-  const shown = useHeldWhileScrolling(groups, scroller);
+  // The rows are held with the query that picked them and every batch, so all of them change at once (Android's
+  // ShownRows).
+  const rows = useMemo(() => ({ groups, query, batches }), [groups, query, batches]);
+  const { groups: shown, query: shownQuery, batches: allBatches } = useHeldWhileScrolling(rows, scroller);
   const [showExpired, setShowExpired] = useState(false);
-  // Rows another phone changed get a short highlight (DESIGN 6.4).
-  const batches = useMemo(
-    () => shown.flatMap((g) => g.items).flatMap((i) => (i.kind === 'purchase' ? [i.batch] : [])),
-    [shown],
-  );
+  // Rows another phone changed get a short highlight (DESIGN 6.4). Told from every batch, not the rows shown: a row
+  // that a wider search or filter brings back isn't new (after v1, 2026-11-17; it was highlighted as if another
+  // phone had added it).
   const remote = useRemoteChanges(
-    batches,
+    allBatches,
     (b) => b.id,
     (b) => b.pendingSync,
     (b) => ({ ...b, pendingSync: false }),
   );
-  const blocks = useMemo(() => pantryBlocks(shown, query, showExpired), [shown, query, showExpired]);
+  const blocks = useMemo(() => pantryBlocks(shown, shownQuery, showExpired), [shown, shownQuery, showExpired]);
   if (shown.length === 0) return <EmptyState icon="round/search" message={str('pantry_no_matches')} />;
   return (
     <div className="sn-pantry-list sn-pantry-list--look" data-testid="pantry_list" ref={setScroller}>

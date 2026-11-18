@@ -3,10 +3,15 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   closeOtherPhones,
   createHousehold,
+  defaultListId,
+  highlightedRows,
   householdId,
+  listIdNamed,
   newPhone,
   openApp,
   PASSWORD,
+  recordHighlights,
+  seedGroceries,
   seedPantry,
   signUp,
   uidOf,
@@ -241,4 +246,40 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
   await page.getByRole('menuitem', { name: 'Delete list' }).click();
   await page.getByTestId('confirm').click();
   await expect(page.getByTestId('grocery_list_switcher')).toHaveAccessibleName('List: Groceries');
+});
+
+test("switching lists highlights none of the other list's rows; another phone's item on it still is", async ({
+  page,
+}) => {
+  const { email, household } = await groceriesOfNewHousehold(page);
+  const hid = await householdId(household);
+  const uid = await uidOf(email);
+  await seedGroceries(hid, uid, await defaultListId(hid), [
+    { id: 'milk', name: 'milk', category: 'dairy' },
+    { id: 'bread', name: 'bread', category: 'bakery' },
+  ]);
+  // Seeded as another phone would write them: highlighted for a moment, which the test waits out.
+  await expect(row(page, 'bread')).toHaveAttribute('data-remote', 'true');
+  await expect(row(page, 'bread')).not.toHaveAttribute('data-remote', 'true', { timeout: 4000 });
+  await page.getByTestId('grocery_list_switcher').click();
+  await page.getByRole('menuitem', { name: 'New list' }).click();
+  await page.getByTestId('field_list_name').fill('Costco');
+  await page.getByTestId('button_save_list').click();
+  await expect(page.getByTestId('grocery_list_switcher')).toHaveAccessibleName('List: Costco');
+  await add(page, 'paper towels');
+  await add(page, 'rice');
+
+  // Another list's rows are not new (after v1, 2026-11-18, DESIGN 6.4): the tracker follows one list at a time.
+  await recordHighlights(page);
+  await page.getByTestId('grocery_list_switcher').click();
+  await page.getByRole('menuitem', { name: 'Groceries' }).click();
+  await expect(row(page, 'milk')).toBeVisible();
+  await page.getByTestId('grocery_list_switcher').click();
+  await page.getByRole('menuitem', { name: 'Costco' }).click();
+  await expect(row(page, 'rice')).toBeVisible();
+  expect(await highlightedRows(page)).toEqual([]);
+
+  // Another phone adding to the list shown is still highlighted.
+  await seedGroceries(hid, uid, await listIdNamed(hid, 'Costco'), [{ id: 'eggs', name: 'eggs', category: 'dairy' }]);
+  await expect(row(page, 'eggs')).toHaveAttribute('data-remote', 'true');
 });
