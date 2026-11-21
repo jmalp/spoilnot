@@ -83,6 +83,11 @@ class GroceriesViewModel @Inject constructor(
         val lists: List<GroceryList> = emptyList(),
         val list: GroceryList? = null,
         val items: List<GroceryItem> = emptyList(),
+        /**
+         * The list [items] belong to: right after a switch the old list's items show under the new list until the new
+         * list's arrive (after v1, 2026-11-18).
+         */
+        val itemsListId: String? = null,
         val view: GroceryView = GroceryView(emptyList(), emptyList()),
         val backInStock: Set<String> = emptySet(),
         /** Who typed each item in, by item id, when it was someone else (precomputed for the rows, review PERF-04). */
@@ -124,7 +129,9 @@ class GroceriesViewModel @Inject constructor(
     private val currentList = combine(lists, selectedListId) { all, selected ->
         all.firstOrNull { it.id == selected } ?: all.firstOrNull { it.isDefault } ?: all.firstOrNull()
     }.distinctUntilChanged()
-    private val items: Flow<List<GroceryItem>?> = combine(
+
+    /** The open list's items with that list's id, so the state can say which list they belong to. */
+    private val items: Flow<Pair<String, List<GroceryItem>>?> = combine(
         hid,
         currentList.map {
             it?.id
@@ -133,7 +140,9 @@ class GroceriesViewModel @Inject constructor(
         h to
             l
     }
-        .flatMapLatest { (h, l) -> if (h == null || l == null) flowOf(null) else grocery.observeItems(h, l) }
+        .flatMapLatest { (h, l) ->
+            if (h == null || l == null) flowOf(null) else grocery.observeItems(h, l).map { l to it }
+        }
         .retryLoading(load, fallback = null)
     private val pantryData = hid.flatMapLatest { if (it == null) emptyFlow() else pantry.observe(it) }
         .retryLoading(load, fallback = PantryData(emptyList(), emptyList(), fromCache = true))
@@ -149,12 +158,13 @@ class GroceriesViewModel @Inject constructor(
         members,
         todayFlow(clock),
     ) { (allLists, list, listItems), data, names, today ->
-        val itemsNow = listItems.orEmpty()
+        val itemsNow = listItems?.second.orEmpty()
         UiState(
             loading = listItems == null,
             lists = allLists,
             list = list,
             items = itemsNow,
+            itemsListId = listItems?.first,
             view = StoreOrder.sort(GroceryLayout.of(itemsNow), list?.aisleOrder.orEmpty()),
             backInStock = itemsNow.filter { RestockEngine.isBackInStock(it, data) }.map { it.id }.toSet(),
             addedBy = addedBy(itemsNow, me.value?.user?.uid.orEmpty(), names),
@@ -319,7 +329,9 @@ class GroceriesViewModel @Inject constructor(
         if (s.loading) return
         val ids = s.items.map { it.id }.toSet()
         val previous = known
-        if (previous != null && knownList == s.list?.id) {
+        // By the list the items belong to, not the list shown: right after a switch the old list's items show under
+        // the new one, and the new list's own would all count as just added (after v1, 2026-11-18).
+        if (previous != null && knownList == s.itemsListId) {
             s.items.filter {
                 it.id !in previous && it.createdBy != null && it.createdBy != s.myUid
             }.forEach { item ->
@@ -328,7 +340,7 @@ class GroceriesViewModel @Inject constructor(
             }
         }
         known = ids
-        knownList = s.list?.id
+        knownList = s.itemsListId
     }
 
     private fun listId(): String = checkNotNull(state.value.list).id

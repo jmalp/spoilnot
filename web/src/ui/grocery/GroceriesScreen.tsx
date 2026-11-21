@@ -73,15 +73,24 @@ export function GroceriesScreen({
     null,
   );
   const list = lists?.find((l) => l.id === listId) ?? lists?.find((l) => l.isDefault) ?? lists?.[0] ?? null;
-  // null while loading; the list's items while it is visible (DESIGN 9.1).
+  // null while loading; the list's items while it is visible (DESIGN 9.1), with the list they belong to: right after
+  // a switch the old list's items still show until the new list's arrive.
   const shownListId = list?.id ?? null;
-  const items = useObservable<GroceryItem[] | null>(
+  const loaded = useObservable<{ listId: string; items: GroceryItem[] } | null>(
     useMemo(
-      () => (shownListId ? grocery.observeItems(hid, shownListId).pipe(retryLoading(load)) : of(null)),
+      () =>
+        shownListId
+          ? grocery.observeItems(hid, shownListId).pipe(
+              map((items) => ({ listId: shownListId, items })),
+              retryLoading(load),
+            )
+          : of(null),
       [grocery, hid, shownListId, load],
     ),
     null,
   );
+  const items = loaded?.items ?? null;
+  const itemsListId = loaded?.listId ?? null;
   const pantryData = useObservable<PantryData>(
     useMemo(() => pantry.observe(hid).pipe(retryLoading(load, EMPTY_PANTRY)), [pantry, hid, load]),
     EMPTY_PANTRY,
@@ -133,20 +142,23 @@ export function GroceriesScreen({
   }, [shown, aisleOrder]);
   // Why the aisles move, once per phone (after v1, UX-08): once this list has learned an order and has two aisles.
   const aisleHint = !usePreferences().aisleHintDone && (aisleOrder ?? []).length > 0 && view.aisles.length >= 2;
+  // Rows another phone changed get a short highlight (DESIGN 6.4), told one list at a time: another list's rows are
+  // not new (after v1, 2026-11-18; switching lists highlighted every row of both).
   const remote = useRemoteChanges(
     shown,
     (i) => i.id,
     (i) => i.pendingSync,
     (i) => ({ ...i, pendingSync: false }),
+    itemsListId,
   );
 
   // "Sam added Eggs" when someone else adds to the list being viewed (DESIGN 9.2). Only items added in the last
   // minutes: a phone whose cache starts empty would otherwise announce every item already on the list.
   const known = useRef<{ listId: string; ids: Set<string> } | null>(null);
   useEffect(() => {
-    if (items === null || !list) return;
+    if (items === null || itemsListId === null) return;
     const before = known.current;
-    if (before && before.listId === list.id) {
+    if (before && before.listId === itemsListId) {
       const recent = clock.now() - ANNOUNCE_WITHIN_MS;
       for (const item of items) {
         if (before.ids.has(item.id) || !item.createdBy || item.createdBy === me.user.uid) continue;
@@ -155,8 +167,8 @@ export function GroceriesScreen({
         if (who) snackbars.show(str('grocery_someone_added', who, item.name));
       }
     }
-    known.current = { listId: list.id, ids: new Set(items.map((i) => i.id)) };
-  }, [items, list, members, me.user.uid, snackbars, clock]);
+    known.current = { listId: itemsListId, ids: new Set(items.map((i) => i.id)) };
+  }, [items, itemsListId, members, me.user.uid, snackbars, clock]);
 
   const failed = (e: unknown) => snackbars.show(str(messageId(e)));
   const act = (work: () => Promise<unknown>) => void work().catch(failed);
