@@ -1,7 +1,7 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { BehaviorSubject, defer, finalize, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RELISTEN_MS, useObservable } from './hooks';
+import { RELISTEN_MS, useObservable, useTrueAfter } from './hooks';
 
 let attempts = 0;
 // Each subscription starts its own listener, as the repositories' observables do.
@@ -57,5 +57,41 @@ describe('useObservable', () => {
       state = 'visible';
       Reflect.deleteProperty(document, 'visibilityState');
     }
+  });
+});
+
+// The Offline banner's wait (DESIGN 9.5, after v1, 2026-11-21): a moment from the cache shows nothing.
+describe('useTrueAfter', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  function Banner({ offline }: { offline: boolean }) {
+    return <p>{useTrueAfter(offline, 2_000) ? 'shown' : 'hidden'}</p>;
+  }
+
+  it('is true only once the value has stayed true for the wait', async () => {
+    const { rerender } = render(<Banner offline />);
+    await act(() => vi.advanceTimersByTimeAsync(1_500));
+    expect(screen.getByText('hidden')).toBeTruthy();
+    await act(() => vi.advanceTimersByTimeAsync(600));
+    expect(screen.getByText('shown')).toBeTruthy();
+    rerender(<Banner offline={false} />);
+    expect(screen.getByText('hidden')).toBeTruthy();
+  });
+
+  it('a moment of true shows nothing, and true again waits again', async () => {
+    const { rerender } = render(<Banner offline />);
+    await act(() => vi.advanceTimersByTimeAsync(1_500));
+    rerender(<Banner offline={false} />);
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(screen.getByText('hidden')).toBeTruthy();
+    rerender(<Banner offline />);
+    await act(() => vi.advanceTimersByTimeAsync(1_500));
+    expect(screen.getByText('hidden')).toBeTruthy();
+    await act(() => vi.advanceTimersByTimeAsync(600));
+    expect(screen.getByText('shown')).toBeTruthy();
   });
 });

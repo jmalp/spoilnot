@@ -264,7 +264,7 @@ export function GroceriesScreen({
       {loadFailed ? (
         <LoadError onRetry={() => load.retry()} />
       ) : (
-        pantryData.fromCache && items !== null && <OfflineBanner />
+        <OfflineBanner offline={pantryData.fromCache && items !== null} />
       )}
       <QuickAddField text={text} onText={setText} suggestions={suggestions} onAdd={(value) => quickAdd(value)} />
       {items === null ? (

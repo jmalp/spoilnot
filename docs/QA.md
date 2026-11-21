@@ -591,12 +591,16 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     phone, change an item while the search is empty and again while searching: the row is highlighted both times. On
     each app, Groceries with two lists that both have items: switch lists back and forth; no row is highlighted and no
     "… added …" message shows. Add an item to the open list on the second phone: it is highlighted.
+79. The Offline banner waits (both apps, after v1, 2026-11-21, DESIGN 9.5): online, open the app and each tab, and in
+    Plan go to the next and previous week several times; the Offline banner never flashes and nothing jumps. Turn on
+    airplane mode: within about 2 seconds the banner shows on the open tab; turn it off: it goes as soon as the app is
+    back online. Switch tabs while offline: each tab shows the banner after about 2 seconds.
 
 ## 3. Conditions
 
 | Check | How | Expected |
 | --- | --- | --- |
-| Offline | Airplane mode, add and edit items, then reconnect | "Offline" banner and cloud icons; everything syncs after reconnect, nothing lost |
+| Offline | Airplane mode, add and edit items, then reconnect | "Offline" banner (after about 2 s) and cloud icons; everything syncs after reconnect, nothing lost |
 | Time zone change | Change the phone's time zone | Today's statuses follow the new local date; the next reminder arrives at the chosen local hour |
 | A DST day | On or just after a daylight saving change (or simulate with the time zone of a place changing that week) | Reminder arrives once, at the chosen hour |
 | Notification permission denied | Deny the permission when asked; open Settings > Notifications | A banner explains how to turn it on; no crash |

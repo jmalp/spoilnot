@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useTrueAfter } from '../core/hooks';
 import { plural, str } from '../core/i18n';
 import {
   Button,
@@ -287,8 +288,21 @@ export function LoadError({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-/** Shown while data comes from the phone only (OfflineBanner, DESIGN 9.5). */
-export function OfflineBanner() {
+/**
+ * How long a screen's data must keep coming from the phone before the Offline banner shows (OFFLINE_BANNER_DELAY_MS
+ * in the app; DESIGN 9.5, after v1, 2026-11-21). A screen that opens or starts a new query (Plan's next week) reads
+ * the phone first and the server a moment later; without the wait the banner showed for that moment and moved
+ * everything under it twice.
+ */
+export const OFFLINE_BANNER_DELAY_MS = 2_000;
+
+/** Shown once data has come from the phone only for OFFLINE_BANNER_DELAY_MS (OfflineBanner, DESIGN 9.5). */
+export function OfflineBanner({ offline }: { offline: boolean }) {
+  const shown = useTrueAfter(offline, OFFLINE_BANNER_DELAY_MS);
+  if (!offline) return null;
+  // While it waits, a hidden mark says the screen is still on the phone's data: the browser tests' sign that the
+  // server hasn't answered yet, which the missing banner no longer is.
+  if (!shown) return <span hidden data-testid="offline_waiting" />;
   return (
     <div className="sn-offline" data-testid="offline_banner" role="status">
       <Icon name="round/cloud_off" size={20} />

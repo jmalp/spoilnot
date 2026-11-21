@@ -214,8 +214,8 @@ internal fun RecipesTab(
         Column(Modifier.padding(padding).fillMaxSize()) {
             if (state.loadFailed) {
                 LoadError(onRetry = handlers.onRetry)
-            } else if (state.offline && !state.loading) {
-                OfflineBanner()
+            } else {
+                OfflineBanner(offline = state.offline && !state.loading)
             }
             when {
                 state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

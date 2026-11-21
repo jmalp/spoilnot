@@ -305,8 +305,8 @@ internal fun GroceriesTab(
         Column(Modifier.padding(padding).fillMaxSize()) {
             if (state.loadFailed) {
                 LoadError(onRetry = handlers.onRetry)
-            } else if (state.offline) {
-                OfflineBanner()
+            } else {
+                OfflineBanner(offline = state.offline)
             }
             QuickAddField(text = text, onText = handlers.onText, suggestions = suggestions, onAdd = handlers.onAdd)
             when {

@@ -499,3 +499,12 @@ export async function highlightedRows(page: Page, settleMs = 1000): Promise<stri
     return seen.splice(0, seen.length);
   });
 }
+
+/**
+ * The open screen has heard from the server: no Offline banner, and none waiting to show. The banner shows only
+ * after 2 s on the phone's data (DESIGN 9.5), so its absence alone no longer says the server answered.
+ */
+export async function expectFromServer(page: Page, timeout = 15_000) {
+  await expect(page.getByTestId('offline_waiting')).toHaveCount(0, { timeout });
+  await expect(page.getByTestId('offline_banner')).toHaveCount(0, { timeout });
+}
