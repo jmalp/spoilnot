@@ -25,11 +25,21 @@ test.setTimeout(150_000);
 const AX5 = 3.12;
 
 /** Screenshots are compared on the Mac only, as in screens.spec.ts: Linux WebKit draws fonts differently. */
-async function shot(page: Page, name: string) {
+async function shot(page: Page, name: string, { maskEyebrow = true } = {}) {
   if (process.env.CI) return;
   await page.waitForTimeout(600); // the tab's ripple and any highlight settle
-  // Home's line above the title is today's date (DESIGN 19.7).
-  await expect(page).toHaveScreenshot(name, { mask: [page.getByTestId('screen_eyebrow')] });
+  const mask = maskEyebrow ? [page.getByTestId('screen_eyebrow')] : [];
+  await expect(page).toHaveScreenshot(name, { mask });
+}
+
+/**
+ * Home's line above the title is today's date (DESIGN 19.7). At AX5 "Monday, Nov 16" fits on one line and
+ * "Wednesday, Nov 18" takes two, so a mask alone still moved the whole page with the weekday. The shot shows a fixed
+ * date with the longest weekday instead (what homeDate gives for 2026-11-18, labels.test.ts): the page doesn't
+ * move from day to day, and the picture shows the longest date wrapping whole.
+ */
+async function pinHomeDate(page: Page) {
+  await page.getByTestId('screen_eyebrow').evaluate((el) => (el.textContent = 'Wednesday, Nov 18'));
 }
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -121,7 +131,8 @@ test('at the largest text size what sits beside a name goes under it, and nothin
   const join = page.getByTestId('card_home_join_requests');
   await expectBelow(join.getByRole('button', { name: 'Review' }), join.locator('.sn-home-join__text'));
   await expectInside(join.getByRole('button', { name: 'Review' }), join);
-  await shot(page, 'home_font3.png');
+  await pinHomeDate(page);
+  await shot(page, 'home_font3.png', { maskEyebrow: false });
 
   // Pantry: the amount leaves the end of the row and joins the second line under the name, inside the row (DESIGN
   // 19.6); the last row clears the floating button (measured, as on Android).
