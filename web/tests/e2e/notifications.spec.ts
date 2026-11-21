@@ -83,6 +83,18 @@ async function readEmpty(page: Page) {
   await expect(page.getByTestId('offline_banner')).toHaveCount(0);
 }
 
+/**
+ * Home after a reload, once it has heard from the server: it opens from the phone's cache with the Offline banner
+ * (DESIGN 9.5), which goes when the server answers and moves everything under it up by its height. A tap in between
+ * (seconds under a full run's load) landed where Turn on had been.
+ */
+async function reloadHome(page: Page) {
+  await page.reload();
+  await expect(page.getByTestId('screen_home')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('card_home_attention')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('offline_banner')).toHaveCount(0, { timeout: 15_000 });
+}
+
 async function newHousehold(page: Page) {
   const email = uniqueEmail('Sam');
   const household = `Reminders ${Date.now()}`;
@@ -213,8 +225,8 @@ test('a household that opens with dated food asks at once on Home; Not now leave
   await openSettings(page);
   await expect(page.getByTestId('row_notifications')).toContainText('Off on this phone');
   await page.getByRole('button', { name: 'Back' }).click();
-  await page.reload();
-  await expect(line).toBeVisible({ timeout: 15_000 });
+  await reloadHome(page);
+  await expect(line).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // Turn on asks, and "You're set" names tomorrow's reminder; the line goes.
@@ -228,8 +240,8 @@ test('a household that opens with dated food asks at once on Home; Not now leave
 
   // Turned off in the iPhone's Settings: the line is back, and Turn on says where, since a web app can't ask again.
   await page.evaluate(() => localStorage.setItem('test.permission', 'denied'));
-  await page.reload();
-  await expect(line).toBeVisible({ timeout: 15_000 });
+  await reloadHome(page);
+  await expect(line).toBeVisible();
   await line.getByTestId('home_reminders_turn_on').click();
   await expect(page.getByTestId('notifications_banner')).toContainText("Turn them on in the iPhone's Settings");
 

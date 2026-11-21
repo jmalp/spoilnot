@@ -12,7 +12,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01 } },
-  use: { baseURL: 'http://localhost:5173', trace: 'retain-on-failure' },
+  // A click or fill that waits longer than this has hung (they take well under a second, a few under a full run's
+  // load): failing there names the step, where without it the test ran into its own timeout and said only that.
+  use: { baseURL: 'http://localhost:5173', trace: 'retain-on-failure', actionTimeout: 30_000 },
   projects: [{ name: 'iphone', use: { ...devices['iPhone 15'], browserName: 'webkit' } }],
   webServer: {
     command: 'npm run dev -- --port 5173 --strictPort',

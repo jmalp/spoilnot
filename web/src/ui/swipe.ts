@@ -14,14 +14,28 @@ export const SAFARI_EDGE_PX = 24;
 export const isSafariEdge = (x: number, standalone: boolean): boolean => !standalone && x < SAFARI_EDGE_PX;
 
 /**
+ * Which way letting go [dx] px from where a swipe started acts on a row [width] px wide: past 40% of the width to the
+ * right or left, else null (the row springs back).
+ */
+export function swipeDirection(dx: number, width: number): 'right' | 'left' | null {
+  if (dx > width * SWIPE_THRESHOLD) return 'right';
+  if (dx < -width * SWIPE_THRESHOLD) return 'left';
+  return null;
+}
+
+/**
  * A row that swipes sideways (SwipeToDismissBox): rows scroll vertically while a horizontal drag moves the row, and
  * letting go past 40% of its width calls [onSwipe] with the direction. [wasDragged] tells a click after a drag
  * apart from a tap. In a Safari tab a swipe from the screen's left edge is left to Safari's Back (WEB-15).
+ *
+ * Letting go is judged on the last move's distance, kept with the drag, not on the rendered `dx`: React renders a
+ * move later than it handles the release, so on a busy phone a quick swipe let go before that render was judged on
+ * an earlier, shorter distance and sprang back (after v1, 2026-11-21).
  */
 export function useSwipe(onSwipe: (direction: 'right' | 'left') => void) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const drag = useRef<{ x: number; y: number; horizontal: boolean | null; width: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; horizontal: boolean | null; width: number; dx: number } | null>(null);
   const moved = useRef(false);
 
   const handlers = {
@@ -31,7 +45,7 @@ export function useSwipe(onSwipe: (direction: 'right' | 'left') => void) {
         drag.current = null;
         return;
       }
-      drag.current = { x: e.clientX, y: e.clientY, horizontal: null, width: e.currentTarget.offsetWidth };
+      drag.current = { x: e.clientX, y: e.clientY, horizontal: null, width: e.currentTarget.offsetWidth, dx: 0 };
       moved.current = false;
     },
     onPointerMove(e: PointerEvent<HTMLElement>) {
@@ -44,6 +58,7 @@ export function useSwipe(onSwipe: (direction: 'right' | 'left') => void) {
         if (d.horizontal) e.currentTarget.setPointerCapture(e.pointerId);
       }
       if (d.horizontal) {
+        d.dx = x;
         moved.current = true;
         setDragging(true);
         setDx(x);
@@ -54,8 +69,8 @@ export function useSwipe(onSwipe: (direction: 'right' | 'left') => void) {
       drag.current = null;
       setDragging(false);
       if (!d?.horizontal) return;
-      if (dx > d.width * SWIPE_THRESHOLD) onSwipe('right');
-      else if (dx < -d.width * SWIPE_THRESHOLD) onSwipe('left');
+      const direction = swipeDirection(d.dx, d.width);
+      if (direction) onSwipe(direction);
       setDx(0);
     },
     onPointerCancel() {
