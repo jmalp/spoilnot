@@ -177,8 +177,8 @@ fun HomeScreen(
         Column(Modifier.padding(padding).fillMaxSize()) {
             if (state.loadFailed) {
                 LoadError(onRetry = viewModel::retryLoad)
-            } else if (state.offline && state.summary != null) {
-                OfflineBanner()
+            } else {
+                OfflineBanner(offline = state.offline && state.summary != null)
             }
             Column(
                 Modifier.verticalScroll(

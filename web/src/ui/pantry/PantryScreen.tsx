@@ -231,7 +231,7 @@ export function PantryScreen({
         ) : undefined
       }
     >
-      {failed ? <LoadError onRetry={() => load.retry()} /> : data?.fromCache && <OfflineBanner />}
+      {failed ? <LoadError onRetry={() => load.retry()} /> : <OfflineBanner offline={!!data?.fromCache} />}
       {data === null ? (
         <div className="sn-centered">{!failed && <Progress />}</div>
       ) : empty ? (

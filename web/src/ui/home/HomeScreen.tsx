@@ -145,7 +145,7 @@ export function HomeScreen({
       joinRequests={joinRequests}
       testId="screen_home"
     >
-      {loadFailed ? <LoadError onRetry={() => load.retry()} /> : data?.fromCache && <OfflineBanner />}
+      {loadFailed ? <LoadError onRetry={() => load.retry()} /> : <OfflineBanner offline={!!data?.fromCache} />}
       <div className="sn-home">
         <InstallCard />
         {joinRequests > 0 && <JoinRequestsCard count={joinRequests} onReview={navigation.reviewJoinRequests} />}

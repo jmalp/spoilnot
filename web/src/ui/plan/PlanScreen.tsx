@@ -196,7 +196,7 @@ export function PlanScreen({
         </>
       }
     >
-      {loadFailed ? <LoadError onRetry={() => load.retry()} /> : plan?.fromCache && <OfflineBanner />}
+      {loadFailed ? <LoadError onRetry={() => load.retry()} /> : <OfflineBanner offline={!!plan?.fromCache} />}
       {/* The week bar and the row of days stay above the days while they scroll (DESIGN 19.12). */}
       <div className="sn-plan-controls">
         <WeekSwitcher

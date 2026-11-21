@@ -2,7 +2,16 @@
 // development hook refuses every server listener with 'resource-exhausted', as a project out of quota answers; writes
 // still pass. Before, the session dropped to the loading screen and nothing said why (WEB-04, WEB-09).
 import { expect, test, type Page } from '@playwright/test';
-import { createHousehold, householdId, openApp, seedPantry, signUp, uidOf, uniqueEmail } from './support';
+import {
+  createHousehold,
+  expectFromServer,
+  householdId,
+  openApp,
+  seedPantry,
+  signUp,
+  uidOf,
+  uniqueEmail,
+} from './support';
 
 test.setTimeout(90_000);
 
@@ -27,7 +36,7 @@ for (const dark of [false, true]) {
     await seedPantry(await householdId(household), await uidOf(email), [{ id: 'cheese', name: 'Cheese' }]);
     await tab(page, 'Pantry');
     await expect(page.getByTestId('pantry_item_cheese')).toBeVisible();
-    await expect(page.getByTestId('offline_banner')).toHaveCount(0);
+    await expectFromServer(page);
     await expect(page.getByTestId('quota_banner')).toHaveCount(0);
 
     await refuseListens(page, 'resource-exhausted');
@@ -38,7 +47,8 @@ for (const dark of [false, true]) {
       'Spoil Not has reached its free daily limit and will work again tomorrow.',
     );
     await expect(page.getByTestId('pantry_item_cheese')).toBeVisible();
-    await expect(page.getByTestId('offline_banner')).toBeVisible();
+    // "Offline" 2 s after the server stopped answering (DESIGN 9.5).
+    await expect(page.getByTestId('offline_banner')).toBeVisible({ timeout: 10_000 });
     // The session retries after 1, 2 and 4 s without the loading screen.
     await page.waitForTimeout(8_000);
     await expect(page.getByTestId('screen_loading')).toHaveCount(0);
@@ -47,7 +57,7 @@ for (const dark of [false, true]) {
     // Groceries works from the phone too, and says it is offline.
     await tab(page, 'Groceries');
     await expect(page.getByText('Your list is empty.', { exact: false })).toBeVisible();
-    await expect(page.getByTestId('offline_banner')).toBeVisible();
+    await expect(page.getByTestId('offline_banner')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('screen_loading')).toHaveCount(0);
     if (!process.env.CI) {
       // Linux WebKit draws fonts differently; screenshots are compared on the Mac (as screens.spec).

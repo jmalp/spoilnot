@@ -4,6 +4,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   createHousehold,
+  expectFromServer,
   householdId,
   inDays,
   openApp,
@@ -75,24 +76,24 @@ const shownTitles = (page: Page) =>
 const shownBodies = (page: Page) => page.evaluate(() => (window as unknown as { testBodies: string[] }).testBodies);
 
 /**
- * Home has read the new household from the server, empty (no Offline banner once its card shows): food seeded after
- * this is food added while the app was open, not food it opened with (DESIGN 5.4).
+ * Home has read the new household from the server, empty (its card shows and it is off the phone's data): food seeded
+ * after this is food added while the app was open, not food it opened with (DESIGN 5.4).
  */
 async function readEmpty(page: Page) {
   await expect(page.getByTestId('card_home_attention')).toContainText('Add food with its date');
-  await expect(page.getByTestId('offline_banner')).toHaveCount(0);
+  await expectFromServer(page);
 }
 
 /**
- * Home after a reload, once it has heard from the server: it opens from the phone's cache with the Offline banner
- * (DESIGN 9.5), which goes when the server answers and moves everything under it up by its height. A tap in between
- * (seconds under a full run's load) landed where Turn on had been.
+ * Home after a reload, once it has heard from the server: it opens from the phone's cache, and a server answer more
+ * than 2 s later brings the Offline banner (DESIGN 9.5), whose going moves everything under it up by its height. A
+ * tap in between (seconds under a full run's load) landed where Turn on had been.
  */
 async function reloadHome(page: Page) {
   await page.reload();
   await expect(page.getByTestId('screen_home')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('card_home_attention')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId('offline_banner')).toHaveCount(0, { timeout: 15_000 });
+  await expectFromServer(page);
 }
 
 async function newHousehold(page: Page) {
@@ -157,10 +158,10 @@ test('installed, a new household: the third dated item asks, whoever adds it; Tu
   await installedIphone(page);
   await openApp(page);
   const { hid, uid } = await newHousehold(page);
-  // The household has been read from the server (no Offline banner once the pantry shows), so it opened empty.
+  // The household has been read from the server (off the phone's data once the pantry shows), so it opened empty.
   await tab(page, 'Pantry');
   await expect(page.getByRole('button', { name: 'Add your first item' })).toBeVisible();
-  await expect(page.getByTestId('offline_banner')).toHaveCount(0);
+  await expectFromServer(page);
 
   // Two dated items and an undated one: nothing yet.
   await addDated(page, 'Cheese');

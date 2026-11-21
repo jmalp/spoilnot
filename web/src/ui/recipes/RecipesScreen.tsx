@@ -68,7 +68,7 @@ export function RecipesScreen({
         ) : undefined
       }
     >
-      {loadFailed ? <LoadError onRetry={() => recipes.load.retry()} /> : box?.fromCache && <OfflineBanner />}
+      {loadFailed ? <LoadError onRetry={() => recipes.load.retry()} /> : <OfflineBanner offline={!!box?.fromCache} />}
       {box === null ? (
         <div className="sn-centered">{!loadFailed && <Progress />}</div>
       ) : box.recipes.length === 0 ? (

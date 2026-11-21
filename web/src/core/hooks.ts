@@ -96,3 +96,24 @@ export function useNow(clock: Clock): number {
   }, [clock]);
   return now;
 }
+
+/**
+ * True once [value] has been true for [ms] without a break, false as soon as it isn't: the Offline banner's wait
+ * (OfflineBanner in Scaffold.tsx).
+ */
+export function useTrueAfter(value: boolean, ms: number): boolean {
+  const [waited, setWaited] = useState(false);
+  // Each change of [value] starts the wait over (state adjusted while rendering, not in an effect).
+  const [previous, setPrevious] = useState(value);
+  if (previous !== value) {
+    setPrevious(value);
+    setWaited(false);
+  }
+  useEffect(() => {
+    if (!value) return;
+    const timer = setTimeout(() => setWaited(true), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  // False in the same render [value] turns false.
+  return value && waited;
+}

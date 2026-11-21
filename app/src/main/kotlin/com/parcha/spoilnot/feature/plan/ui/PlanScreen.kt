@@ -299,8 +299,8 @@ internal fun PlanTab(
         Column(Modifier.padding(padding).fillMaxSize()) {
             if (state.loadFailed) {
                 LoadError(onRetry = handlers.onRetry)
-            } else if (state.offline && !state.loading) {
-                OfflineBanner()
+            } else {
+                OfflineBanner(offline = state.offline && !state.loading)
             }
             if (state.loading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
