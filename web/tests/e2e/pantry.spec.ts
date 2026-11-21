@@ -138,8 +138,10 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   test.setTimeout(90_000);
   const { email } = await pantryWithItems(page);
 
-  // Swipe right: used up, with Undo.
+  // Swipe right: used up, with Undo. The swipe is drawn at the row's measured place, so first wait for the server's
+  // answer: until then the Offline banner shows above the list (DESIGN 9.5) and its going moves the rows up.
   const milk = page.getByTestId('pantry_item_milk');
+  await expect(page.getByTestId('offline_banner')).toHaveCount(0, { timeout: 15_000 });
   const box = (await milk.boundingBox())!;
   // From a finger's width in: a swipe from the screen's left edge is Safari's Back (after v1, WEB-15).
   await page.mouse.move(box.x + 40, box.y + box.height / 2);

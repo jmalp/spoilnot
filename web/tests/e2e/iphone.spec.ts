@@ -204,6 +204,33 @@ test("in a Safari tab, a swipe from the screen's left edge is left to Safari", a
   await expect(row(page, 'Bread').getByRole('checkbox')).toBeChecked();
 });
 
+test('a quick swipe let go before the row has redrawn still acts (after v1, 2026-11-21)', async ({ page }) => {
+  await groceries(page, [{ id: 'bread', name: 'Bread' }]);
+  // The whole swipe in one task, so React draws none of the moves before the release: on a busy phone the release came
+  // before the last move's render and was judged on an earlier, shorter distance (a flaky check-off under the full
+  // run's load). WebKit captures only a pointer it is tracking, and these are made-up events.
+  await row(page, 'Bread').evaluate((el) => {
+    Element.prototype.setPointerCapture = () => {};
+    const target = el.querySelector('.sn-grocery-row__main')!;
+    const { x, y, width, height } = el.getBoundingClientRect();
+    const at = (type: string, clientX: number) =>
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX,
+          clientY: y + height / 2,
+        }),
+      );
+    at('pointerdown', x + 40);
+    for (let i = 1; i <= 8; i++) at('pointermove', x + 40 + (i * (width - 60)) / 8);
+    at('pointerup', x + width - 20);
+  });
+  await expect(page.getByTestId('cart_header')).toContainText('In cart (1)');
+});
+
 test('a sheet stays above the keyboard and scrolls the focused field into view', async ({ page }) => {
   await groceries(
     page,
