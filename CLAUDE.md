@@ -33,9 +33,13 @@
 - String resources: escape apostrophes (`\'`). A bad string fails the resource build, not `compileDevDebugKotlin`, so check `BUILD SUCCESSFUL`.
 
 ## Before finishing a task
-- `./gradlew spotlessApply` then `./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug :benchmark:compileBenchmarkKotlin`
+- `./gradlew spotlessApply` then `./gradlew spotlessCheck lintDevDebug testDevDebugUnitTest assembleDebug compileDevDebugAndroidTestKotlin :benchmark:compileBenchmarkKotlin`
 - `cd firebase && npm test` (rules tests in the Firestore emulator)
-- Web changes, or Android strings/theme changes: `cd web && npm run gen && npm run check && npm run e2e` (look at changed screenshots)
+- Reminder job changes (`backend/`): `cd backend/reminder && npm run typecheck && npm test && npm run build`, then with
+  the emulators running `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm run test:integration`
+- Web changes, or Android strings/theme changes: `cd web && npm run gen:check && npm run check && npm run e2e` (look at
+  changed screenshots; `gen:check` regenerates and fails while the generated files differ from git, so stage them
+  first), then `npm run e2e:preview` (the build under the hosting headers, as CI)
 - `./gradlew verifyRoborazziDevDebug` (compares the screenshots with the references committed in
   `app/src/test/screenshots`; Mac only, CI skips it). A failure writes `*_compare.png` to `app/build/outputs/roborazzi`.
 - After an intended UI change: `./gradlew recordRoborazziDevDebug`, look at every changed image in
@@ -44,6 +48,7 @@
 - With emulators and an Android emulator running: `./gradlew connectedDevDebugAndroidTest` (includes the two-user household tests)
 - Recipe import changes: also run `LiveImportTest` against the real sites (command in docs/import-test-sites.md)
 - Changes to listeners or scheduled jobs: `cd firebase && npm run quota-sim` and compare with docs/RUNBOOK.md
+- Font changes: `./scripts/subset-fonts.sh` (needs `brew install harfbuzz`); `FontSubsetTest` checks the subsets
 - Large UI changes (new screens or lists) and Compose, Firebase or DataStore updates: `./scripts/baseline-profile.sh`
   on the headless emulator from docs/RUNBOOK.md "Benchmark setup" (the script refuses software rendering) and
   commit the new profile

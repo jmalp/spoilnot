@@ -63,6 +63,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Phones only (after v1, review EFF-07): the x86 copies of the two small native libraries serve only
+            // emulators and Chromebooks, which run ARM apps too.
+            //noinspection ChromeOsAbiSupport
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
         // Release code (minified, not debuggable) against the local emulators, for measuring performance with
         // seeded data (DESIGN 13.1). Dev flavor only; never distributed.
@@ -72,6 +76,8 @@ android {
             matchingFallbacks += listOf("release")
             proguardFiles("benchmark-rules.pro")
             configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
+            // Every ABI, so it also runs on an x86_64 emulator.
+            ndk { abiFilters.clear() }
         }
     }
 
@@ -95,6 +101,22 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = false
+    }
+
+    // Files the libraries ship that nothing reads at run time (after v1, review EFF-07): the protobuf, Google API and
+    // Firebase .proto sources (the code uses generated classes), Kotlin's metadata for reflection (the app has no
+    // kotlin-reflect) and the coroutines debug agent's probes.
+    packaging {
+        resources {
+            excludes +=
+                listOf(
+                    "**/*.proto",
+                    "*.proto",
+                    "kotlin/*.kotlin_builtins",
+                    "kotlin/**/*.kotlin_builtins",
+                    "DebugProbesKt.bin",
+                )
+        }
     }
 
     testOptions {
@@ -149,10 +171,8 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
-    debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     implementation(libs.hilt.android)
@@ -188,7 +208,6 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
@@ -204,7 +223,6 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
-    androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.hilt.android.testing)
     kspAndroidTest(libs.hilt.compiler)
 }
