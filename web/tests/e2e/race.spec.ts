@@ -101,8 +101,14 @@ test('Cooked offline loses to a phone that marked the meal cooked first, and say
   // A finger lifts after the tap; the mouse would stay where Cooked's Undo snackbar appears (the 2026-11 sheet is
   // taller), and the snackbar's timer waits while the pointer is over it, so the refusal's message would queue behind.
   await page.mouse.move(1, 1);
-  // The sheet closes; the mark itself shows once the server time is known.
+  // Cooked shows at once, still offline (the server time is estimated), so it can't be pressed a second time.
   await expect(page.getByTestId('plan_cook_meal')).toHaveCount(0);
+  await expect(meal).toContainText('Cooked');
+  await meal.click();
+  await expect(page.getByTestId('plan_not_cooked')).toBeVisible();
+  await expect(page.getByTestId('plan_cook_meal')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('plan_not_cooked')).toHaveCount(0);
   // Blake marks the same dinner cooked first.
   await patchFields(`households/${hid}/meals/m1`, {
     cookedAt: new Date(),

@@ -57,7 +57,8 @@ class FirestoreMealPlanRepository @Inject constructor(
                 servings = long("servings")?.toInt(),
                 cooks = strings("cooks"),
                 note = string("note"),
-                cookedAt = instant("cookedAt", estimate = false),
+                // A Cooked made offline (a pending server time) counts at once (DESIGN 5.9), so it can't be pressed twice.
+                cookedAt = instant("cookedAt"),
                 cookedBy = string("cookedBy"),
                 createdAt = instant("createdAt"),
                 createdBy = string("createdBy"),

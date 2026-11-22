@@ -47,7 +47,8 @@ export function toMeal(s: DocumentSnapshot): PlannedMeal | null {
     servings: typeof servings === 'number' ? Math.trunc(servings) : null,
     cooks: strings(s.get('cooks')),
     note: text(s.get('note')),
-    cookedAt: millis(s, 'cookedAt', false),
+    // A Cooked made offline (a pending server time) counts at once (DESIGN 5.9), so it can't be pressed twice.
+    cookedAt: millis(s, 'cookedAt'),
     cookedBy: text(s.get('cookedBy')),
     createdAt: millis(s, 'createdAt'),
     createdBy: text(s.get('createdBy')),
