@@ -96,7 +96,7 @@ class RecipeServiceTest {
         )
         val onList = listOf(groceryItem("Salt"), groceryItem("tomatoes", checked = true))
         val c = RecipeGrocery.candidates(r, pantry, onList, TEST_WORDS)
-        assertEquals(listOf("Eggs", "Olive oil", "Flour", "Tomatoes", "Salt"), c.map { it.name })
+        assertEquals(listOf("Eggs", "Olive Oil", "Flour", "Tomatoes", "Salt"), c.map { it.name })
         assertEquals(listOf("egg", "oil", null, null, null), c.map { it.product?.id })
         assertEquals("egg", c[0].inPantry?.id)
         assertEquals(3.0, c[0].quantity!!, 1e-9)
@@ -121,7 +121,7 @@ class RecipeServiceTest {
             emptyList(),
             TEST_WORDS,
         )
-        assertEquals(listOf("Onions", "Soy sauce"), c.map { it.name })
+        assertEquals(listOf("Onions", "Soy Sauce"), c.map { it.name })
         assertEquals(listOf(3.0, 1.0), c.map { it.quantity }) // Buy quantity wins over the last amount
         assertEquals(listOf(QuantityUnit.Pounds, QuantityUnit.Pieces), c.map { it.unit })
         assertEquals("Stir fry: 1 extra large onion, diced", c[0].note)
@@ -150,7 +150,7 @@ class RecipeServiceTest {
         // One activity event for the whole add: "added 2 ingredients from r1".
         val event = changes.last() as GroceryChange.LogEvent
         assertEquals(Triple("r1", "Groceries", 2), Triple(event.name, event.listName, event.count))
-        assertEquals(listOf("Olive oil", "Rice"), items.map { it.name })
+        assertEquals(listOf("Olive Oil", "Rice"), items.map { it.name })
         assertTrue(items.all { it.source == ItemSource.Recipe && it.recipeId == "r1" })
         assertEquals("oil", items[0].productId)
         assertEquals(Category.PantryStaples, items[0].category)
@@ -191,7 +191,7 @@ class RecipeServiceTest {
         assertEquals("Scallions", original.name)
         assertNull(original.product)
         val renamed = RecipeGrocery.rename(original, "green onions", pantry.products)
-        assertEquals("Green onions", renamed.name)
+        assertEquals("Green Onions", renamed.name)
         assertEquals(greenOnions, renamed.product)
         assertEquals(2.0, renamed.quantity!!, 0.0)
         assertEquals("scallions", renamed.aliasOf)
@@ -207,7 +207,7 @@ class RecipeServiceTest {
             emptyList(),
             TEST_WORDS,
         ).single()
-        assertEquals("Green onions", again.name)
+        assertEquals("Green Onions", again.name)
     }
 
     @Test
@@ -222,7 +222,7 @@ class RecipeServiceTest {
         assertEquals(2.0, renamed.quantity!!, 0.0) // the recipe's count still applies
         service.addToGrocery("h1", actor, "list1", r, listOf(renamed), empty)
         val item = writer.applied.single().filterIsInstance<GroceryChange.CreateItem>().single().item
-        assertEquals("Spring onions", item.name)
+        assertEquals("Spring Onions", item.name)
         assertEquals("scallions", item.aliasOf)
         // Renaming back to the recipe's own name teaches nothing.
         val back = RecipeGrocery.rename(renamed, "scallions", emptyList())

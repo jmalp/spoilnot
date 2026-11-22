@@ -156,7 +156,7 @@ describe('GroceryService', () => {
         type: 'grocery.renameItem',
         listId: 'g1',
         itemId: 'i1',
-        name: 'Black beans',
+        name: 'Black Beans',
         nameKey: 'black beans',
         productId: 'beans',
       },
@@ -169,7 +169,7 @@ describe('GroceryService', () => {
         type: 'grocery.renameItem',
         listId: 'g1',
         itemId: 'i1',
-        name: 'Pinto beans',
+        name: 'Pinto Beans',
         nameKey: 'pinto beans',
         productId: null,
       },
@@ -214,7 +214,7 @@ describe('GroceryService', () => {
     expect(writer.last).toContainEqual({ type: 'pantry.addAlias', productId: 'onion', alias: 'scallion' });
     const created = ofType(writer.last, 'pantry.createProduct');
     expect(created).toHaveLength(1);
-    expect(created[0]!.product).toMatchObject({ name: 'Green onions', aliases: ['spring onion'] });
+    expect(created[0]!.product).toMatchObject({ name: 'Green Onions', aliases: ['spring onion'] });
     // Already known: nothing to add.
     const taught = { ...onions, aliases: ['scallion'] };
     await service.addToPantry('h', actor, 'g1', [entry(renamed, 1, 7, 'fridge')], [], pantry([taught]));

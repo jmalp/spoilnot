@@ -351,6 +351,7 @@ export function RenameDialog({
           label={str('field_name')}
           value={text}
           onValueChange={(v) => setText(v.slice(0, GroceryRules.MAX_NAME_LENGTH))}
+          autoCapitalize="words"
           data-testid="rename_field"
         />
         {suggestions.length > 0 && (

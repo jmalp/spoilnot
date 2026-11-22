@@ -30,6 +30,7 @@ import {
   type StockBatch,
 } from './models';
 import { EmptyBatchCleanups } from './cleanups';
+import { NameCase } from './nameCase';
 import { NameKey, ShelfLife } from './rules';
 
 /** What a person enters in the Add item sheet. */
@@ -120,7 +121,7 @@ export class PantryService {
    * grocery item's link, after v1, LOGIC-03): it is used while it exists, even under another name, before the name.
    */
   planAdd(draft: StockDraft, data: PantryData, productId: string | null = null): AddPlan {
-    const name = NameKey.clean(draft.name);
+    const name = NameCase.of(draft.name);
     requireName(name);
     if (!(draft.quantity > 0)) throw new Error('Quantity must be above 0');
     const key = NameKey.of(name);
@@ -406,7 +407,7 @@ export class PantryService {
     edit: ProductEdit,
     data: PantryData,
   ): Promise<void> {
-    const name = NameKey.clean(edit.name);
+    const name = NameCase.of(edit.name);
     requireName(name);
     const key = NameKey.of(name);
     if (data.products.some((p) => p.id !== product.id && p.nameKey === key)) throw new AppError('conflict');
@@ -465,7 +466,8 @@ export class PantryService {
 
   /** The unit can change only when this is the product's only purchase (no unit conversion, DESIGN 2). */
   planEdit(base: ItemEditBase, edit: ItemEdit, data: PantryData): HouseholdChange[] {
-    const name = NameKey.clean(edit.name);
+    // An edit also saves an older name in capitals (NameCase): "black beans" becomes "Black Beans".
+    const name = NameCase.of(edit.name);
     requireName(name);
     const key = NameKey.of(name);
     const batch = base.batch;

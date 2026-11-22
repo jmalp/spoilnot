@@ -508,7 +508,7 @@ function NameField({
           onChange(v);
           setOpen(true);
         }}
-        autoCapitalize="sentences"
+        autoCapitalize="words"
         autoComplete="off"
         error={error}
         data-testid="field_name"

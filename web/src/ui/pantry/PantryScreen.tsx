@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { catchError, firstValueFrom, map, of, timeout } from 'rxjs';
 import { messageId } from '../../core/errors';
 import { useHeldWhileScrolling } from '../../core/holdWhileScrolling';
@@ -418,6 +418,15 @@ function PantryList({
     (b) => ({ ...b, pendingSync: false }),
   );
   const blocks = useMemo(() => pantryBlocks(shown, shownQuery, showExpired), [shown, shownQuery, showExpired]);
+  // A new search, filter, sort or grouping starts the list at the top (owner, 2026-11-21), as on Android. Otherwise
+  // the list keeps its place, and with nothing in Use first the default view and a filtered one share row keys, so a
+  // filter taken off left the list on the filtered list's first row.
+  const listQuery = useRef(shownQuery);
+  useLayoutEffect(() => {
+    if (listQuery.current === shownQuery) return;
+    listQuery.current = shownQuery;
+    scroller?.scrollTo({ top: 0 });
+  }, [shownQuery, scroller]);
   if (shown.length === 0) return <EmptyState icon="round/search" message={str('pantry_no_matches')} />;
   return (
     <div className="sn-pantry-list sn-pantry-list--look" data-testid="pantry_list" ref={setScroller}>

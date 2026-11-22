@@ -600,7 +600,7 @@ private fun NameField(
             label = stringResource(R.string.field_name),
             error = error,
             keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Sentences,
+                capitalization = KeyboardCapitalization.Words,
                 imeAction = ImeAction.Next,
             ),
             modifier = Modifier

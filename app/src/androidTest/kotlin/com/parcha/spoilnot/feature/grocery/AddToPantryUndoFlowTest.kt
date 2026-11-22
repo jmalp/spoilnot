@@ -137,7 +137,7 @@ class AddToPantryUndoFlowTest {
             alice.actor,
             milk,
             ProductEdit(
-                name = "Whole milk",
+                name = "Whole milk", // saved as "Whole Milk" (NameCase)
                 unit = milk.unit,
                 category = milk.category,
                 defaultLocation = milk.defaultLocation,
@@ -151,13 +151,13 @@ class AddToPantryUndoFlowTest {
         alice.flush()
 
         val cart = bob.items { it.size == 2 && it.all { i -> i.checked } }
-        bob.pantryData { d -> d.products.any { it.name == "Whole milk" } }
+        bob.pantryData { d -> d.products.any { it.name == "Whole Milk" } }
         val undo = checkNotNull(bob.pressAddToPantry(cart))
         bob.flush()
         val added = alice.pantryData { d -> d.batches.sumOf { it.quantity } == 3.0 }
         assertEquals(
             "one milk product, renamed",
-            listOf("Bread", "Whole milk"),
+            listOf("Bread", "Whole Milk"),
             added.products.map {
                 it.name
             }.sorted(),
@@ -173,7 +173,7 @@ class AddToPantryUndoFlowTest {
             d.products.none { it.name == "Bread" } &&
                 d.batches.sumOf { it.quantity } == 1.0
         }
-        assertEquals(listOf("Whole milk"), after.products.map { it.name })
+        assertEquals(listOf("Whole Milk"), after.products.map { it.name })
         // The server took every write: none refused, no new product left behind.
         delay(1_000)
         assertEquals(emptyList<AppError>(), refusals.toList())

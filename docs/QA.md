@@ -595,6 +595,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Plan go to the next and previous week several times; the Offline banner never flashes and nothing jumps. Turn on
     airplane mode: within about 2 seconds the banner shows on the open tab; turn it off: it goes as soon as the app is
     back online. Switch tabs while offline: each tab shows the banner after about 2 seconds.
+80. Search, filters, names and the Groceries header (both apps, after v1, 2026-11-21, DESIGN 5.2, 8.1, 19.7): type
+    "black beans" quickly in Pantry's search; every letter shows once, in order, with the cursor after the last one,
+    and the field can be cleared with Backspace. With nothing about to expire, pick a location chip, scroll the list
+    down, take the chip off: the list starts at its first row. Add "black beans" in Add item, "super Pickled pickles of
+    Doom" in Groceries' quick add and "bbq sauce" by renaming a recipe line in Add to grocery list: they show as
+    "Black Beans", "Super Pickled Pickles Of Doom" and "Bbq Sauce" (typed lowercase, so only the first letter changes).
+    Switch between Pantry and Groceries: the title and the profile button don't move.
 
 ## 3. Conditions
 

@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
@@ -431,7 +432,11 @@ fun EditItemSheet(
                 onValueChange = { name = it.take(GroceryRules.MAX_NAME_LENGTH) },
                 label = stringResource(R.string.field_name),
                 error = if (name.isBlank()) stringResource(R.string.error_name_required) else null,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                // Names are saved with each word capitalized (NameCase), so the keyboard starts each word that way.
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next,
+                ),
             )
             FormTextField(
                 value = quantity,

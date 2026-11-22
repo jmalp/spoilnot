@@ -55,10 +55,11 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
 
   // Typed names get a guessed aisle; a quantity in front is read as one.
   await add(page, '2 bananas');
+  // Typed names are saved with every word capitalized (DESIGN 8.1, 2026-11-21): "bananas" shows as "Bananas".
   await add(page, 'Greek yogurt');
   await add(page, 'batteries');
   await expect(list(page).getByRole('heading')).toHaveText(['Produce', 'Dairy and eggs', 'Other']);
-  await expect(row(page, 'bananas')).toContainText('× 2');
+  await expect(row(page, 'Bananas')).toContainText('× 2');
 
   // The same name again asks first, saying how much (after v1, UX-18); Add more adds to it.
   await add(page, 'BANANAS').catch(() => undefined);
@@ -66,11 +67,11 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
     'Add 1 more to the 2 on the list, or add it as a separate item?',
   );
   await page.getByTestId('button_increase').click();
-  await expect(row(page, 'bananas')).toContainText('× 3');
+  await expect(row(page, 'Bananas')).toContainText('× 3');
 
   // Checking off moves items to the cart; yogurt before bananas teaches this store's order.
-  await row(page, 'Greek yogurt').getByRole('checkbox').click();
-  await row(page, 'bananas').getByRole('checkbox').click();
+  await row(page, 'Greek Yogurt').getByRole('checkbox').click();
+  await row(page, 'Bananas').getByRole('checkbox').click();
   await expect(page.getByTestId('cart_header')).toContainText('In cart (2)');
   await add(page, 'milk');
   await add(page, 'apples');
@@ -86,11 +87,11 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   await page.getByTestId('grocery_aisle_hint_ok').click();
   await expect(hint).toHaveCount(0);
   await page.reload();
-  await expect(row(page, 'milk')).toBeVisible();
+  await expect(row(page, 'Milk')).toBeVisible();
   await expect(hint).toHaveCount(0);
 
   // Add to pantry: one line each; skip the batteries.
-  await row(page, 'batteries').getByRole('checkbox').click();
+  await row(page, 'Batteries').getByRole('checkbox').click();
   // The sheet follows the cart while open (after v1, REL-08); opening it once the cart shows the batteries keeps this
   // test's order of events plain.
   await expect(page.getByTestId('cart_header')).toContainText('In cart (3)');
@@ -120,11 +121,11 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   await again.getByRole('switch').check();
   await sheet.getByTestId('button_confirm_add_to_pantry').click();
   await expect(page.getByTestId('cart_header')).toHaveCount(0);
-  await expect(row(page, 'batteries')).toHaveCount(0);
+  await expect(row(page, 'Batteries')).toHaveCount(0);
 
   await tab(page, 'Pantry');
-  await expect(page.getByTestId('pantry_list')).toContainText('Greek yogurt');
-  await expect(page.getByTestId('pantry_list')).toContainText('bananas');
+  await expect(page.getByTestId('pantry_list')).toContainText('Greek Yogurt');
+  await expect(page.getByTestId('pantry_list')).toContainText('Bananas');
 
   // Home counts what is left to buy.
   await tab(page, 'Home');
@@ -133,11 +134,11 @@ test('quick add sorts into aisles, check-offs learn the store order, and the car
   // Increase quantity only adds in the same unit (after v1, LOGIC-08).
   await tab(page, 'Groceries');
   // Quick add needs the list loaded.
-  await expect(row(page, 'milk')).toBeVisible();
+  await expect(row(page, 'Milk')).toBeVisible();
   await add(page, '500g rice');
-  await expect(row(page, 'rice')).toContainText('500 g');
+  await expect(row(page, 'Rice')).toContainText('500 g');
   await add(page, '2 kg rice').catch(() => undefined);
-  await expect(page.getByRole('dialog')).toContainText('rice is already on the list as 500 g.');
+  await expect(page.getByRole('dialog')).toContainText('Rice is already on the list as 500 g.');
   await expect(page.getByTestId('button_increase')).toHaveCount(0);
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
 });
@@ -161,13 +162,13 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
 
   // Edit renames and sets a note; a left swipe deletes with Undo; Clear cart has Undo too.
   await add(page, 'beans');
-  await row(page, 'beans').getByRole('button', { name: 'Options for beans' }).click();
+  await row(page, 'Beans').getByRole('button', { name: 'Options for Beans' }).click();
   await page.getByRole('menuitem', { name: 'Edit' }).click();
   const edit = page.getByTestId('sheet_edit_grocery_item');
   await edit.getByLabel('Name').fill('Black beans');
   await edit.getByLabel('Notes').fill('the big can');
   await edit.getByTestId('button_save_grocery_item').click();
-  await expect(row(page, 'Black beans')).toContainText('the big can');
+  await expect(row(page, 'Black Beans')).toContainText('the big can');
 
   // Swipes (after v1, UX-10): what each does shows under the row while it moves.
   const swipe = async (name: string, from: number, to: number, label: string) => {
@@ -179,27 +180,27 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
     await page.mouse.up();
   };
   // Left deletes, with Undo.
-  await swipe('Black beans', 0.8, 0.05, 'Delete');
-  const removed = page.getByRole('status').filter({ hasText: 'Black beans removed' });
+  await swipe('Black Beans', 0.8, 0.05, 'Delete');
+  const removed = page.getByRole('status').filter({ hasText: 'Black Beans removed' });
   await expect(removed).toBeVisible();
   // The 8-second Undo waits while the snackbar has focus (after v1, A11Y-02), as for someone tabbing to it.
   await removed.getByRole('button', { name: 'Undo' }).focus();
   await page.waitForTimeout(9_000);
   await expect(removed).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click();
-  await expect(row(page, 'Black beans')).toBeVisible();
+  await expect(row(page, 'Black Beans')).toBeVisible();
   // Right checks off, and in the cart puts it back.
-  await swipe('Black beans', 0.15, 0.9, 'Check off');
+  await swipe('Black Beans', 0.15, 0.9, 'Check off');
   await expect(page.getByTestId('cart_header')).toContainText('In cart (1)');
-  await expect(row(page, 'Black beans').getByRole('checkbox')).toBeChecked();
-  await swipe('Black beans', 0.15, 0.9, 'Back to list');
+  await expect(row(page, 'Black Beans').getByRole('checkbox')).toBeChecked();
+  await swipe('Black Beans', 0.15, 0.9, 'Back to list');
   await expect(page.getByTestId('cart_header')).toHaveCount(0);
-  await expect(row(page, 'Black beans').getByRole('checkbox')).not.toBeChecked();
+  await expect(row(page, 'Black Beans').getByRole('checkbox')).not.toBeChecked();
 
-  await row(page, 'Black beans').getByRole('checkbox').click();
+  await row(page, 'Black Beans').getByRole('checkbox').click();
   await expect(page.getByTestId('button_clear_checked')).toHaveText('Clear cart');
   await page.getByTestId('button_clear_checked').click();
-  await expect(row(page, 'Black beans')).toHaveCount(0);
+  await expect(row(page, 'Black Beans')).toHaveCount(0);
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByTestId('cart_header')).toContainText('In cart (1)');
 
@@ -236,8 +237,8 @@ test('lists, edit, swipe and clear with Undo, low-stock restock, and another pho
   await tab(other, 'Groceries');
   await expect(other.getByTestId('cart_header')).toContainText('In cart (1)');
   await add(other, 'eggs');
-  await expect(row(page, 'eggs')).toHaveAttribute('data-remote', 'true');
-  await expect(row(page, 'eggs')).not.toHaveAttribute('data-remote', 'true', { timeout: 4000 });
+  await expect(row(page, 'Eggs')).toHaveAttribute('data-remote', 'true');
+  await expect(row(page, 'Eggs')).not.toHaveAttribute('data-remote', 'true', { timeout: 4000 });
 
   // Deleting the second list leaves the default one.
   await page.getByTestId('grocery_list_switcher').click();
@@ -276,10 +277,25 @@ test("switching lists highlights none of the other list's rows; another phone's 
   await expect(row(page, 'milk')).toBeVisible();
   await page.getByTestId('grocery_list_switcher').click();
   await page.getByRole('menuitem', { name: 'Costco' }).click();
-  await expect(row(page, 'rice')).toBeVisible();
+  await expect(row(page, 'Rice')).toBeVisible();
   expect(await highlightedRows(page)).toEqual([]);
 
   // Another phone adding to the list shown is still highlighted.
   await seedGroceries(hid, uid, await listIdNamed(hid, 'Costco'), [{ id: 'eggs', name: 'eggs', category: 'dairy' }]);
   await expect(row(page, 'eggs')).toHaveAttribute('data-remote', 'true');
+});
+
+test("Groceries' title and Settings button sit where Pantry's do (owner, 2026-11-21)", async ({ page }) => {
+  await groceriesOfNewHousehold(page);
+  const title = page.locator('.sn-screen-header__title');
+  const settings = page.locator('.sn-screen-header .sn-settings-button');
+  const groceriesTitle = (await title.boundingBox())!;
+  const groceriesSettings = (await settings.boundingBox())!;
+  await tab(page, 'Pantry');
+  await expect(title).toHaveText('Pantry');
+  const pantryTitle = (await title.boundingBox())!;
+  const pantrySettings = (await settings.boundingBox())!;
+  // The switcher is a 48 px button in the 40 px title line; it used to make the header taller.
+  expect(Math.abs(groceriesTitle.y + groceriesTitle.height - (pantryTitle.y + pantryTitle.height))).toBeLessThan(1);
+  expect(Math.abs(groceriesSettings.y - pantrySettings.y)).toBeLessThan(1);
 });

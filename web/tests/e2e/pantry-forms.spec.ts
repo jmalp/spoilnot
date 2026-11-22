@@ -18,16 +18,16 @@ test('add an item, add the same again (merged), fill from a known product, pick 
   // The empty pantry offers its button; the form adds 6 Greek yogurts for a week in the fridge.
   await page.getByTestId('button_add_first_item').click();
   const sheet = page.getByTestId('sheet_add_item');
-  await sheet.getByLabel('Name').fill('Greek yogurt');
+  await sheet.getByLabel('Name').fill('Greek yogurt'); // saved as "Greek Yogurt" (DESIGN 8.1)
   await sheet.getByLabel('Quantity').fill('6');
   await sheet.getByTestId(`date_chip_${inDays(7)}`).click();
   await expect(sheet.getByTestId('field_expiry')).toContainText('In 7 days');
   await sheet.getByTestId('button_save_item').click();
-  await expect(page.getByRole('status').filter({ hasText: 'Greek yogurt added' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Greek Yogurt added' })).toBeVisible();
   const yogurt = page
     .getByTestId('pantry_list')
     .locator('[data-testid^="pantry_item_"]')
-    .filter({ hasText: 'Greek yogurt' });
+    .filter({ hasText: 'Greek Yogurt' });
   await expect(yogurt).toContainText('× 6');
 
   // The same product, date and place adds to that purchase.
@@ -65,7 +65,7 @@ test('add an item, add the same again (merged), fill from a known product, pick 
   await expect(page.getByTestId('pantry_list')).toContainText('Basmati rice');
 
   // Edit to 0 uses the purchase up, with Undo.
-  await yogurt.getByRole('button', { name: /Greek yogurt/ }).click();
+  await yogurt.getByRole('button', { name: /Greek Yogurt/ }).click();
   const edit = page.getByTestId('sheet_edit_item');
   await edit.getByLabel('Quantity').fill('0');
   await edit.getByTestId('button_save_item').click();

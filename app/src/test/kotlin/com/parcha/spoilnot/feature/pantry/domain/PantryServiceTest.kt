@@ -156,7 +156,7 @@ class PantryServiceTest {
     fun `a new name creates a product, a batch and an added event`() = runTest {
         val result = service.add("h", actor, draft(name = "  Greek   yogurt "), data())
         val product = (repo.last[0] as PantryChange.CreateProduct).product
-        assertEquals("Greek yogurt", product.name)
+        assertEquals("Greek Yogurt", product.name)
         assertEquals("greek yogurt", product.nameKey)
         assertEquals(listOf(7), product.recentShelfLifeDays)
         assertEquals(7, product.typicalShelfLifeDays)
@@ -430,7 +430,7 @@ class PantryServiceTest {
         assertEquals(BatchEdit(TODAY.plusDays(4), DateType.BestBefore, Location.Freezer, "Lactose free"), batch.after)
         assertEquals(PantryChange.AddToBatch("b1", 1.0), changes.filterIsInstance<PantryChange.AddToBatch>().single())
         val product = changes.filterIsInstance<PantryChange.UpdateProduct>().single().product
-        assertEquals("Oat milk", product.name)
+        assertEquals("Oat Milk", product.name)
         assertEquals(2.0, product.minQuantity!!, 0.0)
         assertTrue(product.autoAddToGrocery)
         assertEquals(4.0, product.buyQuantity!!, 0.0)
@@ -526,7 +526,7 @@ class PantryServiceTest {
         val changes = service.planEdit(base, base.edit.copy(name = "Whole milk"), data)
         val update = changes.filterIsInstance<PantryChange.UpdateProduct>().single()
         assertEquals(now, update.before)
-        assertEquals(now.copy(name = "Whole milk", nameKey = "whole milk"), update.product)
+        assertEquals(now.copy(name = "Whole Milk", nameKey = "whole milk"), update.product)
         assertEquals(listOf("m1"), changes.filterIsInstance<PantryChange.SyncBatchProduct>().map { it.batchId })
     }
 

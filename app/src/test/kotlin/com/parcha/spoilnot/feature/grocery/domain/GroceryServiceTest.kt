@@ -125,13 +125,13 @@ class GroceryServiceTest {
                     GroceryItemFields(null, null, null, null),
                     GroceryItemFields(2.0, null, "note", null),
                 ),
-                GroceryChange.RenameItem("g1", "i1", "Black beans", "black beans", "beans"),
+                GroceryChange.RenameItem("g1", "i1", "Black Beans", "black beans", "beans"),
             ),
             writer.last,
         )
         // A name no product has keeps the typed spelling and unlinks; the fields that didn't change aren't written.
         service.edit("h", actor, "g1", item, null, null, null, null, "Pinto beans", listOf(beans))
-        assertEquals(listOf(GroceryChange.RenameItem("g1", "i1", "Pinto beans", "pinto beans", null)), writer.last)
+        assertEquals(listOf(GroceryChange.RenameItem("g1", "i1", "Pinto Beans", "pinto beans", null)), writer.last)
         // Nothing changed: nothing is written.
         writer.last = emptyList()
         service.edit("h", actor, "g1", item, null, null, null, null, "Beans", listOf(beans))
@@ -213,7 +213,7 @@ class GroceryServiceTest {
         val changes = writer.last
         assertTrue(PantryChange.AddAlias("onion", "scallion") in changes)
         val created = changes.filterIsInstance<PantryChange.CreateProduct>().single().product
-        assertEquals("Green onions", created.name)
+        assertEquals("Green Onions", created.name)
         assertEquals(listOf("spring onion"), created.aliases)
         // Already known: nothing to add.
         val taught = onions.copy(aliases = listOf("scallion"))

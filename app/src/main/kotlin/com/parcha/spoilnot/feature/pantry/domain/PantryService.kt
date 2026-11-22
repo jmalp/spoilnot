@@ -45,7 +45,7 @@ class PantryService @Inject constructor(
      * grocery item's link, after v1, LOGIC-03): it is used while it exists, even under another name, before the name.
      */
     fun planAdd(draft: StockDraft, data: PantryData, productId: String? = null): AddPlan {
-        val name = NameKey.clean(draft.name)
+        val name = NameCase.of(draft.name)
         require(name.isNotEmpty() && name.length <= PantryLimits.MAX_NAME_LENGTH) { "Invalid name" }
         require(draft.quantity > 0) { "Quantity must be above 0" }
         val key = NameKey.of(name)
@@ -310,7 +310,7 @@ class PantryService @Inject constructor(
         edit: ProductEdit,
         data: PantryData,
     ) {
-        val name = NameKey.clean(edit.name)
+        val name = NameCase.of(edit.name)
         require(name.isNotEmpty() && name.length <= PantryLimits.MAX_NAME_LENGTH) { "Invalid name" }
         val key = NameKey.of(name)
         if (data.products.any { it.id != product.id && it.nameKey == key }) throw AppError.Conflict()
@@ -362,7 +362,8 @@ class PantryService @Inject constructor(
     }
 
     fun planEdit(base: ItemEditBase, edit: ItemEdit, data: PantryData): List<HouseholdChange> {
-        val name = NameKey.clean(edit.name)
+        // An edit also saves an older name in capitals (NameCase): "black beans" becomes "Black Beans".
+        val name = NameCase.of(edit.name)
         require(name.isNotEmpty() && name.length <= PantryLimits.MAX_NAME_LENGTH) { "Invalid name" }
         val key = NameKey.of(name)
         val batch = base.batch

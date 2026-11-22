@@ -34,6 +34,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
@@ -98,6 +99,7 @@ fun PantryScreen(
     viewModel: PantryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val searchText by viewModel.searchText.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var adding by rememberSaveable { mutableStateOf(false) }
     // An Out staple opens Add item for that product.
@@ -110,6 +112,7 @@ fun PantryScreen(
 
     PantryTab(
         state = state,
+        searchText = searchText,
         snackbar = snackbar,
         onOpenSettings = onOpenSettings,
         modifier = modifier,
@@ -225,6 +228,8 @@ internal data class PantryHandlers(
 internal fun PantryTab(
     state: PantryViewModel.UiState,
     snackbar: SnackbarHostState,
+    // The view model's own copy, never `state`'s, which comes back later (PantryViewModel.searchText).
+    searchText: String = state.query.search,
     onOpenSettings: () -> Unit,
     handlers: PantryHandlers,
     modifier: Modifier = Modifier,
@@ -267,7 +272,7 @@ internal fun PantryTab(
 
                 else -> {
                     SearchField(
-                        value = state.query.search,
+                        value = searchText,
                         onValueChange = handlers.onSearch,
                         placeholder = stringResource(R.string.pantry_search),
                         clearLabel = stringResource(R.string.action_cancel),
@@ -312,6 +317,16 @@ private fun PantryList(
         pending = { it.pendingSync },
         content = { it.copy(pendingSync = false) },
     )
+    // A new search, filter, sort or grouping starts the list at the top (owner, 2026-11-21). The list otherwise keeps
+    // the row that was first in view, so taking a filter off left the default view scrolled past Use first. Asked for
+    // after the composition is applied and before the frame's layout, so the list never shows the old place.
+    val listQuery = remember { LastQuery(shownQuery) }
+    SideEffect {
+        if (listQuery.value != shownQuery) {
+            listQuery.value = shownQuery
+            listState.requestScrollToItem(0)
+        }
+    }
 
     if (shown.isEmpty()) {
         EmptyState(icon = Icons.Rounded.Search, message = stringResource(R.string.pantry_no_matches))
@@ -381,6 +396,9 @@ private fun PantryList(
         }
     }
 }
+
+/** The query the list was last composed for, compared without making the list recompose. */
+private class LastQuery(var value: PantryQuery)
 
 /**
  * The rows the list shows, the query that picked them and every batch in the pantry (for telling another phone's

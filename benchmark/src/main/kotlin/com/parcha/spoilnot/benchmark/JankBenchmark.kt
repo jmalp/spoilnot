@@ -102,11 +102,15 @@ class JankBenchmark {
         checkNotNull(device.wait(Until.findObject(screen(field)), OPEN_TIMEOUT_MS)) { "No $field" }.click()
         SystemClock.sleep(800) // the keyboard opens
     }) {
-        for (c in "item 12") {
+        for (c in TYPED) {
             device.executeShellCommand(if (c == ' ') "input keyevent 62" else "input text $c")
             SystemClock.sleep(150)
         }
         SystemClock.sleep(500)
+        // Every letter shows, once and in order (owner, 2026-11-21: Pantry's search lost and doubled letters while
+        // its text came back from the view model late).
+        val shown = device.findObject(screen(field))?.text
+        check(shown == TYPED) { "$field shows \"$shown\" after typing \"$TYPED\"" }
     }
 
     /** A slow drag down from just above [inSheet] by [by] pixels, let go, so the sheet settles back. */
@@ -149,5 +153,8 @@ class JankBenchmark {
 
     private companion object {
         val TABS = listOf("Pantry", "Plan", "Groceries", "Recipes", "Home")
+
+        /** What the typing tests type, as review 08 did. */
+        const val TYPED = "item 12"
     }
 }
