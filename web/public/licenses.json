@@ -50,14 +50,14 @@
     },
     {
       "name": "@firebase/analytics",
-      "version": "0.10.25",
+      "version": "0.10.26",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
     },
     {
       "name": "@firebase/analytics-compat",
-      "version": "0.2.31",
+      "version": "0.2.32",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
@@ -71,21 +71,21 @@
     },
     {
       "name": "@firebase/app",
-      "version": "0.16.6",
+      "version": "0.16.7",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
     },
     {
       "name": "@firebase/app-check",
-      "version": "0.13.1",
+      "version": "0.13.2",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
     },
     {
       "name": "@firebase/app-check-compat",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
@@ -106,7 +106,7 @@
     },
     {
       "name": "@firebase/app-compat",
-      "version": "0.5.22",
+      "version": "0.5.23",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
@@ -120,14 +120,14 @@
     },
     {
       "name": "@firebase/auth",
-      "version": "1.13.10",
+      "version": "1.13.11",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
     },
     {
       "name": "@firebase/auth-compat",
-      "version": "0.6.15",
+      "version": "0.6.16",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
@@ -155,7 +155,7 @@
     },
     {
       "name": "@firebase/crashlytics",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "license": "Apache-2.0",
       "url": "https://github.com/firebase/firebase-js-sdk",
       "text": 2
@@ -400,170 +400,135 @@
     },
     {
       "name": "@opentelemetry/api",
-      "version": "1.9.1",
+      "version": "1.10.0",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/api",
       "text": 5
     },
     {
       "name": "@opentelemetry/api-logs",
-      "version": "0.220.0",
+      "version": "0.223.0",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/api-logs",
       "text": 5
     },
     {
+      "name": "@opentelemetry/browser-api",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
+      "url": "https://github.com/open-telemetry/opentelemetry-browser",
+      "text": 5
+    },
+    {
       "name": "@opentelemetry/browser-instrumentation",
-      "version": "0.6.0",
+      "version": "0.11.0",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-browser",
       "text": 5
     },
     {
       "name": "@opentelemetry/core",
-      "version": "2.10.0",
-      "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core",
-      "text": 5
-    },
-    {
-      "name": "@opentelemetry/core",
-      "version": "2.9.0",
+      "version": "3.1.1",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core",
       "text": 5
     },
     {
       "name": "@opentelemetry/exporter-logs-otlp-http",
-      "version": "0.220.0",
+      "version": "0.301.2",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-logs-otlp-http",
       "text": 5
     },
     {
       "name": "@opentelemetry/exporter-trace-otlp-proto",
-      "version": "0.220.0",
+      "version": "0.301.2",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-trace-otlp-proto",
       "text": 5
     },
     {
       "name": "@opentelemetry/instrumentation",
-      "version": "0.220.0",
+      "version": "0.301.2",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation",
       "text": 5
     },
     {
       "name": "@opentelemetry/instrumentation-document-load",
-      "version": "0.65.0",
+      "version": "0.70.1",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-document-load#readme",
       "text": 5
     },
     {
       "name": "@opentelemetry/instrumentation-fetch",
-      "version": "0.220.0",
+      "version": "0.301.2",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation-fetch",
       "text": 5
     },
     {
       "name": "@opentelemetry/instrumentation-xml-http-request",
-      "version": "0.220.0",
+      "version": "0.301.2",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation-xml-http-request",
       "text": 5
     },
     {
       "name": "@opentelemetry/otlp-exporter-base",
-      "version": "0.220.0",
+      "version": "0.301.2",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/otlp-exporter-base",
       "text": 5
     },
     {
       "name": "@opentelemetry/otlp-transformer",
-      "version": "0.220.0",
+      "version": "0.301.2",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/otlp-transformer",
       "text": 5
     },
     {
       "name": "@opentelemetry/resources",
-      "version": "2.9.0",
-      "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-resources",
-      "text": 5
-    },
-    {
-      "name": "@opentelemetry/resources",
-      "version": "2.10.0",
+      "version": "3.1.1",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-resources",
       "text": 5
     },
     {
       "name": "@opentelemetry/sdk-logs",
-      "version": "0.220.0",
+      "version": "3.1.1",
       "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/sdk-logs",
+      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/sdk-logs",
       "text": 5
     },
     {
       "name": "@opentelemetry/sdk-metrics",
-      "version": "2.9.0",
+      "version": "3.1.1",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/sdk-metrics",
       "text": 5
     },
     {
       "name": "@opentelemetry/sdk-trace",
-      "version": "2.9.0",
+      "version": "3.1.1",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/sdk-trace",
-      "text": 5
-    },
-    {
-      "name": "@opentelemetry/sdk-trace",
-      "version": "2.10.0",
-      "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/sdk-trace",
-      "text": 5
-    },
-    {
-      "name": "@opentelemetry/sdk-trace-base",
-      "version": "2.9.0",
-      "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-base",
-      "text": 5
-    },
-    {
-      "name": "@opentelemetry/sdk-trace-base",
-      "version": "2.10.0",
-      "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-base",
-      "text": 5
-    },
-    {
-      "name": "@opentelemetry/sdk-trace-web",
-      "version": "2.9.0",
-      "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-web",
-      "text": 5
-    },
-    {
-      "name": "@opentelemetry/sdk-trace-web",
-      "version": "2.10.0",
-      "license": "Apache-2.0",
-      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-web",
       "text": 5
     },
     {
       "name": "@opentelemetry/semantic-conventions",
-      "version": "1.43.0",
+      "version": "1.45.0",
       "license": "Apache-2.0",
       "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/semantic-conventions",
+      "text": 5
+    },
+    {
+      "name": "@opentelemetry/web-common",
+      "version": "0.301.2",
+      "license": "Apache-2.0",
+      "url": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/web-common",
       "text": 5
     },
     {
@@ -687,7 +652,7 @@
     },
     {
       "name": "es-module-lexer",
-      "version": "3.0.4",
+      "version": "3.0.5",
       "license": "MIT",
       "url": "https://github.com/guybedford/es-module-lexer#readme",
       "text": 13
@@ -708,7 +673,7 @@
     },
     {
       "name": "firebase",
-      "version": "13.3.0",
+      "version": "13.4.0",
       "license": "Apache-2.0",
       "url": "https://firebase.google.com/",
       "text": 2
@@ -869,7 +834,7 @@
     },
     {
       "name": "web-vitals",
-      "version": "5.3.0",
+      "version": "6.2.3",
       "license": "Apache-2.0",
       "url": "https://github.com/GoogleChrome/web-vitals",
       "text": 31
