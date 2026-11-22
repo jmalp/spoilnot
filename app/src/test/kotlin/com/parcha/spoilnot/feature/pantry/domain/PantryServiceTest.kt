@@ -311,61 +311,6 @@ class PantryServiceTest {
     }
 
     @Test
-    fun `renaming a product updates all its batches in the same write`() = runTest {
-        val milk = product("milk")
-        val batches = (1..3).map { batch("m$it", "milk", inDays = it.toLong()) } + batch("o1", "oat")
-        service.updateProduct("h", actor, milk, edit(milk, name = "Whole milk"), data(listOf(milk), batches))
-        assertEquals("whole milk", (repo.last[0] as PantryChange.UpdateProduct).product.nameKey)
-        assertEquals(
-            listOf("m1", "m2", "m3"),
-            repo.last.filterIsInstance<PantryChange.SyncBatchProduct>().map {
-                it.batchId
-            },
-        )
-    }
-
-    @Test
-    fun `a rename onto another product's name is a conflict`() = runTest {
-        val milk = product("milk")
-        val oat = product("oat", name = "Oat milk")
-        try {
-            service.updateProduct("h", actor, milk, edit(milk, name = "oat MILK"), data(listOf(milk, oat)))
-            throw AssertionError("expected a conflict")
-        } catch (e: AppError.Conflict) {
-            assertTrue(repo.last.isEmpty())
-        }
-    }
-
-    @Test
-    fun `the unit can only change without stock, and raising keep at least re-arms restock`() = runTest {
-        val milk = product("milk", min = 1.0).copy(restockArmed = false)
-        service.updateProduct(
-            "h",
-            actor,
-            milk,
-            edit(milk, unit = QuantityUnit.Liters, min = 2.0),
-            data(listOf(milk), listOf(batch("m1", "milk"))),
-        )
-        val updated = (repo.last[0] as PantryChange.UpdateProduct).product
-        assertEquals(QuantityUnit.Pieces, updated.unit)
-        assertTrue(updated.restockArmed)
-
-        service.updateProduct("h", actor, milk, edit(milk, unit = QuantityUnit.Liters, min = 1.0), data(listOf(milk)))
-        val again = (repo.last[0] as PantryChange.UpdateProduct).product
-        assertEquals(QuantityUnit.Liters, again.unit)
-        assertFalse("same minimum does not re-arm", again.restockArmed)
-    }
-
-    @Test
-    fun `clearing keep at least turns automatic add off`() = runTest {
-        val milk = product("milk", min = 2.0)
-        service.updateProduct("h", actor, milk, edit(milk, min = null), data(listOf(milk)))
-        val updated = (repo.last[0] as PantryChange.UpdateProduct).product
-        assertNull(updated.minQuantity)
-        assertFalse(updated.autoAddToGrocery)
-    }
-
-    @Test
     fun `empty batches are deleted unless a local write is pending`() = runTest {
         val data =
             data(
@@ -394,18 +339,6 @@ class PantryServiceTest {
         assertEquals(1, refusing.quietApplies)
     }
 
-    private fun edit(p: Product, name: String = p.name, unit: QuantityUnit = p.unit, min: Double? = p.minQuantity) =
-        ProductEdit(
-            name,
-            p.category,
-            p.defaultLocation,
-            unit,
-            min,
-            autoAddToGrocery = true,
-            buyQuantity = null,
-            typicalShelfLifeDays = p.typicalShelfLifeDays,
-        )
-
     /** The Edit window opened on [batch] with the product as [data] has it. */
     private fun planEdit(batch: StockBatch, edit: ItemEdit, data: PantryData) =
         service.planEdit(ItemEditBase(batch, data.products.firstOrNull { it.id == batch.productId }), edit, data)
@@ -418,7 +351,8 @@ class PantryServiceTest {
         autoAdd: Boolean = false,
         min: Double? = null,
         buy: Double? = null,
-    ) = ItemEdit(name, quantity, unit, category, TODAY.plusDays(4), Location.Freezer, autoAdd, min, buy)
+        location: Location = Location.Freezer,
+    ) = ItemEdit(name, quantity, unit, category, TODAY.plusDays(4), location, autoAdd, min, buy)
 
     @Test
     fun `the edit window changes the purchase and its product in one write, keeping date type and note`() {
@@ -528,6 +462,38 @@ class PantryServiceTest {
         assertEquals(now, update.before)
         assertEquals(now.copy(name = "Whole Milk", nameKey = "whole milk"), update.product)
         assertEquals(listOf("m1"), changes.filterIsInstance<PantryChange.SyncBatchProduct>().map { it.batchId })
+    }
+
+    @Test
+    fun `a rename copies the new name to every purchase of the product in the same write, and no others`() {
+        val milk = product("milk")
+        val batches = (1..3).map { batch("m$it", "milk", inDays = it.toLong()) } +
+            batch("gone", "milk", quantity = 0.0) + batch("o1", "oat")
+        val data = PantryData(listOf(milk, product("oat")), batches, false)
+        val changes =
+            planEdit(batches[1], itemEdit(name = "whole milk", quantity = 1.0, location = Location.Fridge), data)
+        assertEquals("whole milk", changes.filterIsInstance<PantryChange.UpdateProduct>().single().product.nameKey)
+        assertEquals(
+            listOf("m1", "m3", "m2"),
+            changes.filterIsInstance<PantryChange.SyncBatchProduct>().map { it.batchId },
+        )
+        assertTrue(changes.filterIsInstance<PantryChange.SyncBatchProduct>().all { it.name == "Whole Milk" })
+    }
+
+    @Test
+    fun `only a raised keep at least re-arms restocking`() {
+        val rice = product("rice", min = 2.0).copy(restockArmed = false)
+        val b1 = batch("b1", "rice")
+        val data = PantryData(listOf(rice), listOf(b1), false)
+        val same = planEdit(b1, itemEdit(name = "Rice", quantity = 1.0, autoAdd = true, min = 2.0, buy = 3.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertFalse("same minimum does not re-arm", same.restockArmed)
+        val lower = planEdit(b1, itemEdit(name = "Rice", quantity = 1.0, autoAdd = true, min = 1.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertFalse("a lower minimum does not re-arm", lower.restockArmed)
+        val raised = planEdit(b1, itemEdit(name = "Rice", quantity = 1.0, autoAdd = true, min = 4.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertTrue(raised.restockArmed)
     }
 
     @Test

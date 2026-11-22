@@ -299,49 +299,6 @@ class PantryService @Inject constructor(
     }
 
     /**
-     * Product settings and rename (DESIGN 5.2 product detail). A rename is copied to every batch in the same write
-     * (invariant 2); the unit cannot change while there is stock (invariant 3); raising Keep at least re-arms the
-     * restock engine (DESIGN 9.6).
-     */
-    suspend fun updateProduct(
-        householdId: String,
-        actor: Actor,
-        product: Product,
-        edit: ProductEdit,
-        data: PantryData,
-    ) {
-        val name = NameCase.of(edit.name)
-        require(name.isNotEmpty() && name.length <= PantryLimits.MAX_NAME_LENGTH) { "Invalid name" }
-        val key = NameKey.of(name)
-        if (data.products.any { it.id != product.id && it.nameKey == key }) throw AppError.Conflict()
-        val batches = data.batches.filter { it.productId == product.id }
-        val hasStock = batches.any { it.quantity > 0 }
-        val unit = if (hasStock) product.unit else edit.unit
-        val raised = edit.minQuantity != null && (product.minQuantity == null || edit.minQuantity > product.minQuantity)
-        val updated = product.copy(
-            name = name,
-            nameKey = key,
-            category = edit.category,
-            defaultLocation = edit.defaultLocation,
-            unit = unit,
-            minQuantity = edit.minQuantity,
-            autoAddToGrocery = edit.minQuantity != null && edit.autoAddToGrocery,
-            buyQuantity = edit.buyQuantity.takeIf { edit.minQuantity != null },
-            restockArmed = product.restockArmed || raised,
-            typicalShelfLifeDays = edit.typicalShelfLifeDays,
-        )
-        val changes = mutableListOf<HouseholdChange>()
-        if (updated != product) changes += PantryChange.UpdateProduct(updated, product)
-        if (updated.name != product.name || updated.unit != product.unit || updated.category != product.category) {
-            batches.forEach {
-                changes +=
-                    PantryChange.SyncBatchProduct(it.id, updated.name, updated.unit, updated.category)
-            }
-        }
-        writer.apply(householdId, actor, changes)
-    }
-
-    /**
      * The Edit window: the purchase's quantity, date and location, and its product's name, unit, category and restock
      * settings, in one write. Only what the person changed from [base] (what the window opened with) is written, a
      * changed quantity as an increment of the difference, so a change another member made meanwhile stays (after v1,

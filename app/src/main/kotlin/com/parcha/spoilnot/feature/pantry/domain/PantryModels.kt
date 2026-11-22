@@ -183,18 +183,6 @@ data class ItemEdit(
     }
 }
 
-/** Changes to a product from its detail screen. */
-data class ProductEdit(
-    val name: String,
-    val category: Category,
-    val defaultLocation: Location,
-    val unit: QuantityUnit,
-    val minQuantity: Double?,
-    val autoAddToGrocery: Boolean,
-    val buyQuantity: Double?,
-    val typicalShelfLifeDays: Int?,
-)
-
 enum class DiscardReason(val wire: String) {
     Expired("expired"),
     Spoiled("spoiled"),
@@ -228,7 +216,4 @@ object PantryLimits {
 
     const val MAX_NAME_LENGTH = 80
     const val MAX_NOTE_LENGTH = 200
-
-    /** DESIGN 8.5: chunk batched writes at 400 operations. */
-    const val BATCH_LIMIT = 400
 }

@@ -99,7 +99,7 @@ object HomeDashboard {
         today: LocalDate,
     ): HomeSummary {
         val items = PantryItems.all(pantry.products, pantry.batches, today)
-        val rows = PantryList.rows(pantry.products, pantry.batches, today)
+        val rows = PantryList.rows(pantry.products, pantry.batches)
         return HomeSummary(
             attention = NeedsAttention.of(items),
             lowStock = rows.filter {

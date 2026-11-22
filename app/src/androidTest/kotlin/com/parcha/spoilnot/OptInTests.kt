@@ -10,6 +10,7 @@ object OptInTests {
     val byArgument = mapOf(
         "live" to LiveTest::class.java.name,
         "perf" to PerfTest::class.java.name,
+        "timing" to TimingTest::class.java.name,
     )
 }
 
@@ -22,3 +23,11 @@ annotation class LiveTest
 @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class PerfTest
+
+/**
+ * Measures a DESIGN acceptance time against a budget, which only a quiet device can keep (an emulator beside a full run
+ * took up to 31 s to start an activity); runs with `-e timing true` (RUNBOOK "Opt-in instrumented tests").
+ */
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class TimingTest

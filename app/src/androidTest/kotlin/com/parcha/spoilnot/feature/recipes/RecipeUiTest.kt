@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -111,7 +112,7 @@ class RecipeUiTest {
         Log.i("RecipeUiTest", "share to preview: launch $launched ms, preview $elapsed ms")
         // The app's own work (resumed to preview) has the 5 s budget; the activity start depends on the device
         // and the host (an emulator on a busy computer took up to 31 s to start it), so the whole share only has to
-        // show the preview within a minute.
+        // show the preview within a minute here. SharePreviewTimingTest holds the whole share to M5's 5 s when asked.
         assertTrue("preview ${elapsed - launched} ms after launch", elapsed - launched < 5_000)
         assertTrue("share to preview $elapsed ms", elapsed < 60_000)
 
@@ -176,9 +177,9 @@ class RecipeUiTest {
 
         awaitTag("recipe_more").performClick()
         awaitTag("recipe_delete").performClick()
-        // No "Delete recipe?" dialog: the box opens with the snackbar.
+        // No dialog: the box opens with the snackbar.
         awaitTag("screen_recipes")
-        compose.onNodeWithText(str(R.string.recipe_delete_title)).assertDoesNotExist()
+        compose.onNode(isDialog()).assertDoesNotExist()
         compose.waitUntilAtLeastOneExists(hasText(str(R.string.recipe_deleted, "Test soup")), 10_000)
         compose.onNodeWithText(str(R.string.action_undo)).performClick()
         compose.waitUntilAtLeastOneExists(hasText("Test soup"), 10_000)
@@ -205,7 +206,7 @@ class RecipeUiTest {
         compose.waitUntilAtLeastOneExists(hasText("Leftovers"), 20_000)
         awaitTag("plan_menu").performClick()
         awaitTag("plan_clear_week").performClick()
-        compose.onNodeWithText(str(R.string.plan_clear_title)).assertDoesNotExist()
+        compose.onNode(isDialog()).assertDoesNotExist()
         compose.waitUntilAtLeastOneExists(hasText(str(R.string.plan_cleared)), 10_000)
         compose.waitUntilDoesNotExist(hasText("Leftovers"), 10_000)
         compose.onNodeWithText(str(R.string.action_undo)).performClick()

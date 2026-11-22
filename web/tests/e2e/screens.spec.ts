@@ -4,6 +4,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   createHousehold,
   defaultListId,
+  expectFromServer,
   householdId,
   inDays,
   openApp,
@@ -221,7 +222,13 @@ for (const dark of [false, true]) {
       // Plan, as the app's PlanScreenshotTest draws it: a cooked meal, Leftovers, two cooks and a deleted recipe.
       // Next week, so the layout does not change with the weekday; the dates are masked.
       await page.getByRole('navigation').getByRole('button', { name: 'Plan' }).click();
+      // Tap once the week has come from the server: before the Offline banner waited 2 s (DESIGN 9.5), its flash on
+      // opening could move the week bar under the tap, which was lost (review B28).
+      await expect(page.getByTestId('plan_week_empty')).toBeVisible();
+      await expectFromServer(page);
       await page.getByTestId('plan_next_week').click();
+      // A lost tap fails here, by name, instead of as a screenshot of this week.
+      await expect(page.getByTestId('plan_this_week')).toBeVisible();
       // An empty week first: its sentence and Copy last week (after v1, UX-15).
       await expect(page.getByTestId('plan_week_empty')).toBeVisible();
       // The dates move every week: the range, the day buttons' numbers and the days' headings are masked.
