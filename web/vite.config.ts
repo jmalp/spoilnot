@@ -65,7 +65,7 @@ export default defineConfig(({ command }) => ({
   build: {
     target: 'safari16',
     sourcemap: true,
-    // Third-party code in chunks of its own (after v1, review EFF-06, DECISIONS 2026-11-21): a release that changes
+    // Third-party code in chunks of its own (after v1, review EFF-06, DECISIONS 2026-11-22): a release that changes
     // only the app's code leaves them cached, so a phone downloads the app chunk again, not Firebase and React.
     rolldownOptions: {
       output: {
@@ -80,7 +80,7 @@ export default defineConfig(({ command }) => ({
     },
     // The largest chunk, Firebase (Auth, Firestore with offline persistence and its re2js), is about 660 kB; the
     // limit sits just above it, so a library update that grows it by a seventh warns in every build
-    // (DECISIONS 2026-11-21).
+    // (DECISIONS 2026-11-22).
     chunkSizeWarningLimit: 750,
     // Fonts stay files: the Content Security Policy allows fonts from the site only, not data: URLs.
     assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),

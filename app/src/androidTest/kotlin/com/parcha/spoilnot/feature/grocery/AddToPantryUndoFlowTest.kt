@@ -15,10 +15,10 @@ import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
+import com.parcha.spoilnot.feature.pantry.domain.ItemEditBase
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
-import com.parcha.spoilnot.feature.pantry.domain.ProductEdit
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import java.time.LocalDate
@@ -132,22 +132,11 @@ class AddToPantryUndoFlowTest {
                 GroceryChange.CreateItem(listId, checkedItem(alice.writer.newId(), "Bread")),
             ),
         )
-        alice.pantry.updateProduct(
-            householdId,
-            alice.actor,
-            milk,
-            ProductEdit(
-                name = "Whole milk", // saved as "Whole Milk" (NameCase)
-                unit = milk.unit,
-                category = milk.category,
-                defaultLocation = milk.defaultLocation,
-                minQuantity = null,
-                autoAddToGrocery = false,
-                buyQuantity = null,
-                typicalShelfLifeDays = milk.typicalShelfLifeDays,
-            ),
-            alice.pantryData(),
-        )
+        // Renamed in the Edit window.
+        val data = alice.pantryData { d -> d.batches.any { it.productId == milkId } }
+        val base = ItemEditBase(data.batches.single { it.productId == milkId }, milk)
+        // Saved as "Whole Milk" (NameCase).
+        alice.pantry.editItem(householdId, alice.actor, base, base.edit.copy(name = "Whole milk"), data)
         alice.flush()
 
         val cart = bob.items { it.size == 2 && it.all { i -> i.checked } }

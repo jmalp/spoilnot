@@ -97,7 +97,6 @@
     <string name="expired_body">Your request to join %1$s expired before the owner answered. You can send a new request with the same code.</string>
 
     <!-- Settings -->
-    <string name="settings_account">Account</string>
     <string name="settings_household">Household</string>
     <plurals name="settings_household_summary">
         <item quantity="one">%1$s · %2$d member</item>
@@ -480,7 +479,6 @@
     <string name="recipe_new">New recipe</string>
     <string name="recipe_share">Share</string>
     <string name="recipe_gone">This recipe was deleted.</string>
-    <string name="recipe_delete_title">Delete recipe?</string>
     <string name="recipe_deleted">Deleted %1$s</string>
     <string name="recipe_add_to_list">Add to grocery list</string>
     <string name="recipe_pantry_hint">Items that look like they\'re in your pantry start unchecked.</string>
@@ -594,7 +592,6 @@
     <string name="insights_card_title">Your kitchen this month</string>
     <string name="insights_see">See your kitchen</string>
     <string name="insights_percent">%1$d%%</string>
-    <string name="insights_counts">%1$d used · %2$d thrown away</string>
     <string name="insights_mood_nothing">Use up or throw away items, and this shows how your kitchen is doing.</string>
     <string name="insights_mood_great">Amazing! Almost nothing went to waste.</string>
     <string name="insights_mood_good">Nice work! Most of what you bought got used.</string>
@@ -662,7 +659,6 @@
     <string name="settings_data">Data</string>
     <string name="settings_export">Export household data</string>
     <string name="settings_export_summary">Save a copy of all your household\'s data as a file.</string>
-    <string name="action_export">Export</string>
     <string name="settings_exported">Export saved</string>
     <string name="settings_crash_reports">Send crash reports</string>
     <string name="settings_crash_reports_summary">Helps fix crashes. Reports contain no names, emails or household data.</string>
@@ -783,7 +779,6 @@
     <string name="plan_copy_none">Last week has no meals to copy</string>
     <string name="plan_copy_already">Last week\'s meals are already in this week</string>
     <string name="plan_clear_week">Clear this week</string>
-    <string name="plan_clear_title">Clear this week?</string>
     <string name="plan_cleared">Cleared this week</string>
     <string name="plan_move">Move</string>
     <string name="plan_move_title">Move %1$s</string>

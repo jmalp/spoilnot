@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Writes the app's bundled fonts (app/src/main/res/font) as subsets of the full fonts in tools/fonts (after v1,
-# review EFF-07, DECISIONS 2026-11-21). Needs HarfBuzz's hb-subset (`brew install harfbuzz`). Run it after changing
+# review EFF-07, DECISIONS 2026-11-22). Needs HarfBuzz's hb-subset (`brew install harfbuzz`). Run it after changing
 # a font or the ranges below, then `./gradlew testDevDebugUnitTest --tests '*FontSubsetTest'`, which fails if a
 # string uses a character the subsets lack.
 set -euo pipefail

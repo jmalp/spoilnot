@@ -23,13 +23,12 @@ class TabNavigator(
 
     val currentTab: TopLevelDestination get() = currentTabHolder()
 
-    /** Keys to display: Home's stack underneath, then the current tab's stack, so back exits through Home. */
-    val visibleKeys: List<NavKey>
-        get() = if (currentTab == START) {
-            stackOf(START)
-        } else {
-            stackOf(START) + stackOf(currentTab)
-        }
+    /**
+     * What to show, from each tab's [stack] (keys in tests, decorated entries in the app): Home's underneath, then the
+     * current tab's, so back exits through Home.
+     */
+    fun <T> visible(stack: (TopLevelDestination) -> List<T>): List<T> =
+        if (currentTab == START) stack(START) else stack(START) + stack(currentTab)
 
     /** Selecting the current tab again pops it to its root; selecting another tab restores its stack. */
     fun selectTab(tab: TopLevelDestination) {

@@ -11,7 +11,7 @@ import org.junit.Test
 import org.w3c.dom.Element
 
 /**
- * The bundled fonts are subsets (after v1, review EFF-07, `scripts/subset-fonts.sh`, DECISIONS 2026-11-21). A
+ * The bundled fonts are subsets (after v1, review EFF-07, `scripts/subset-fonts.sh`, DECISIONS 2026-11-22). A
  * character a subset lacks falls back to the phone's own font, so it still shows, but in another face. This test
  * fails when the app's text uses a character that Manrope has and its subset dropped: every string (the app's, and
  * the web app's generated ones), the characters the code puts into text (every string and character literal in

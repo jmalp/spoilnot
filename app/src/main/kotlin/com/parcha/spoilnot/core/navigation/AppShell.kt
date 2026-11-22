@@ -281,11 +281,7 @@ fun AppShell(
                 )
             }
         }
-    val visibleEntries = if (currentTab == TabNavigator.START) {
-        entriesByTab.getValue(TabNavigator.START)
-    } else {
-        entriesByTab.getValue(TabNavigator.START) + entriesByTab.getValue(currentTab)
-    }
+    val visibleEntries = navigator.visible(entriesByTab::getValue)
 
     CompositionLocalProvider(
         LocalJoinRequestCount provides pendingJoinRequests,

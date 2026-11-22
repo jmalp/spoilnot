@@ -4,10 +4,14 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** One row per purchase (beta feedback). */
+/**
+ * One row per purchase (beta feedback). Also has the cases that still apply from v1's per-product list, deleted after
+ * the 2026-11 review (CODE-01).
+ */
 class PantryItemsTest {
     private val products = listOf(
         product("milk"),
@@ -64,5 +68,57 @@ class PantryItemsTest {
             null,
             ExpiredFold.of(PantryItems.build(products, batches + old.take(1), PantryQuery(), TODAY), PantryQuery()),
         )
+    }
+
+    @Test
+    fun `group by location puts each purchase in its own place, an Out row at the product's usual place`() {
+        val groups = PantryItems.build(products, batches, PantryQuery(grouping = PantryGrouping.Location), TODAY)
+        assertEquals(listOf(Location.Fridge, Location.Freezer, Location.Pantry), groups.map { it.location })
+        assertEquals(listOf("s1", "m1"), groups[0].items.map { it.key })
+        assertEquals(listOf("m2"), groups[1].items.map { it.key })
+        assertEquals(listOf("r1", "out-oil"), groups[2].items.map { it.key })
+    }
+
+    @Test
+    fun `search ignores case and accents`() {
+        val creme = product("creme", name = "Crème fraîche")
+        val keys = PantryItems.build(
+            products + creme,
+            batches + batch("c1", "creme"),
+            PantryQuery(search = " CREME"),
+            TODAY,
+        )
+            .flatMap { it.items }.map { it.key }
+        assertEquals(listOf("c1"), keys)
+    }
+
+    @Test
+    fun `a purchase whose product is not loaded yet shows with its own name and is not low`() {
+        val item = PantryItems.all(emptyList(), listOf(batch("b1", "p9", name = "Eggs")), TODAY).single()
+        assertEquals("Eggs", item.name)
+        assertEquals(Category.Dairy, item.category)
+        assertFalse(item.isLow)
+    }
+
+    @Test
+    fun `a purchase waiting for its server time is the newest, and keeps its pending mark`() {
+        val pending = batch("new", "milk", inDays = 30).copy(createdAt = null, pendingSync = true)
+        val items = PantryItems.build(products, batches + pending, PantryQuery(sort = PantrySort.RecentlyAdded), TODAY)
+            .flatMap { it.items }
+        assertEquals("new", items.first().key)
+        assertTrue((items.first() as PantryItem.Purchase).batch.pendingSync)
+    }
+
+    @Test
+    fun `500 purchases build quickly`() {
+        val many = (1..500).map { batch("b$it", "p${it % 120}", inDays = (it % 20).toLong() - 3) }
+        val manyProducts = (0 until 120).map { product("p$it", min = if (it % 10 == 0) 3.0 else null) }
+        val start = System.nanoTime()
+        repeat(20) {
+            val groups = PantryItems.build(manyProducts, many, PantryQuery(), TODAY)
+            PantryBlocks.of(groups, PantryQuery(), showExpired = false)
+        }
+        val perBuildMs = (System.nanoTime() - start) / 20 / 1_000_000.0
+        assertTrue("took $perBuildMs ms", perBuildMs < 50)
     }
 }
