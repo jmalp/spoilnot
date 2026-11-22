@@ -184,6 +184,10 @@ jobs:
         with:
           path: ~/.cache/firebase/emulators
           key: firebase-emulators-${{ hashFiles('firebase/package-lock.json') }}
+      # The container runs as root and the checkout belongs to the runner's user, so git (gen:check's diff) refuses it
+      # unless it is marked safe; checkout marks it only in its own temporary config.
+      - name: Let git read the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci --ignore-scripts
       - run: npm ci --ignore-scripts
         working-directory: firebase
