@@ -23,6 +23,7 @@ import com.parcha.spoilnot.EmulatorSupport.uniqueEmail
 import com.parcha.spoilnot.MainActivity
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.TestPhone
+import com.parcha.spoilnot.closeKeyboard
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.feature.auth.domain.Units
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
@@ -118,8 +119,11 @@ class JoinAndSignOutUiTest {
 
         awaitTag("card_join")
         compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("card_join"))).performTextInput(code)
-        button(R.string.action_continue).performScrollTo().performClick()
-        // The confirm dialog waits on a read of the invite; the default 1 s timed out on a busy emulator.
+        // Typing opens the keyboard; a tap while it slides in was lost, and the dialog never came (review B28).
+        val continueButton = hasText(str(R.string.action_continue)) and hasClickAction()
+        compose.closeKeyboard(continueButton)
+        compose.onNode(continueButton).performScrollTo().performClick()
+        // The confirm dialog waits on a server read of the invite, which takes more than 1 s on a busy emulator.
         compose.waitUntilAtLeastOneExists(
             hasText(str(R.string.action_send_request)) and hasAnyAncestor(isDialog()),
             10_000,

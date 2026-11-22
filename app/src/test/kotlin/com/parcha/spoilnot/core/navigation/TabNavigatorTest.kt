@@ -25,13 +25,13 @@ class TabNavigatorTest {
     @Test
     fun `starts on Home showing only its root`() {
         assertEquals(Home, navigator.currentTab)
-        assertEquals(listOf(HomeRoute), navigator.visibleKeys)
+        assertEquals(listOf(HomeRoute), navigator.visible(stacks::getValue))
     }
 
     @Test
     fun `another tab is shown on top of Home`() {
         navigator.selectTab(Pantry)
-        assertEquals(listOf(HomeRoute, PantryRoute), navigator.visibleKeys)
+        assertEquals(listOf(HomeRoute, PantryRoute), navigator.visible(stacks::getValue))
     }
 
     @Test
@@ -40,7 +40,7 @@ class TabNavigatorTest {
         navigator.navigate(SettingsRoute(Pantry))
         navigator.selectTab(Groceries)
         navigator.selectTab(Pantry)
-        assertEquals(listOf(HomeRoute, PantryRoute, SettingsRoute(Pantry)), navigator.visibleKeys)
+        assertEquals(listOf(HomeRoute, PantryRoute, SettingsRoute(Pantry)), navigator.visible(stacks::getValue))
         assertEquals(listOf<NavKey>(GroceriesRoute), stacks.getValue(Groceries))
     }
 
@@ -58,7 +58,7 @@ class TabNavigatorTest {
         navigator.navigate(SettingsRoute(Pantry))
 
         assertTrue(navigator.goBack())
-        assertEquals(listOf(HomeRoute, PantryRoute), navigator.visibleKeys)
+        assertEquals(listOf(HomeRoute, PantryRoute), navigator.visible(stacks::getValue))
 
         assertTrue(navigator.goBack())
         assertEquals(Home, navigator.currentTab)
@@ -74,7 +74,7 @@ class TabNavigatorTest {
         navigator.selectTab(Groceries)
         navigator.showRoot(Pantry)
         assertEquals(Pantry, navigator.currentTab)
-        assertEquals(listOf(HomeRoute, PantryRoute), navigator.visibleKeys)
+        assertEquals(listOf(HomeRoute, PantryRoute), navigator.visible(stacks::getValue))
     }
 
     @Test(expected = IllegalArgumentException::class)

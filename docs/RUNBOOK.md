@@ -371,7 +371,7 @@ retried); both are now off in the emulator builds.
 
 ## Opt-in instrumented tests
 
-Two instrumented tests run only when asked, and the default `connectedDevDebugAndroidTest` run leaves them out
+Three instrumented tests run only when asked, and the default `connectedDevDebugAndroidTest` run leaves them out
 entirely (`HiltTestRunner` adds them to `notAnnotation`), so its report counts only tests that ran:
 
 - `LiveImportTest` (`@LiveTest`) reads the 10 real recipe sites; `-Pandroid.testInstrumentationRunnerArguments.live=true`
@@ -379,6 +379,10 @@ entirely (`HiltTestRunner` adds them to `notAnnotation`), so its report counts o
 - `PantryScrollPerfTest` (`@PerfTest`) seeds the perf household for the benchmarks (500 batches, a long grocery list,
   recipes, a plan and six months of counts; "Baseline profile" above);
   `-Pandroid.testInstrumentationRunnerArguments.perf=true` (`baseline-profile.sh` passes it).
+- `SharePreviewTimingTest` (`@TimingTest`) holds M5's share to preview, activity start included, to 5 s (the median of
+  three shares). Run it alone on a quiet emulator, with nothing else running on the Mac:
+  `./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.parcha.spoilnot.feature.recipes.SharePreviewTimingTest -Pandroid.testInstrumentationRunnerArguments.timing=true`.
+  Logcat's `SharePreviewTimingTest` line has the three times.
 
 ## Nightly export and restore (DESIGN 13.4)
 
