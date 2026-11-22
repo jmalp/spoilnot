@@ -132,64 +132,38 @@ Android first (then raise `minSupportedBuild`), the web app next (then raise `mi
 `WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
 Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
 
-### The 2026-11-08, 2026-11-09, 2026-11-10 and 2026-11-13 rules (DESIGN 8.1, 8.5 and 5.1)
+### The 2026-11-08, 2026-11-09, 2026-11-10 and 2026-11-13 rules (DESIGN 8.1, 8.5 and 5.1): deployed 2026-11-21
 
-None is deployed yet; they go out together, in one deploy, with the order below. 2026-11-08's: allowed fields,
-authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery item is tombstoned once, a
-meal is marked cooked once, and items are created only under a list that exists. 2026-11-10's: a join request may
-carry `emailMasked`, the sender's sign-in email masked as the rules compute it (`ro***@example.com`), and a batch's
-quantity may be below 0 (8.5 invariant 1), which refuses nothing any build writes; until it is deployed, builds from
-2026-11-10 on see the old refusal only when two phones take the last unit of a purchase at once. 2026-11-13's: a join
-request no longer needs the code's `active` to be true (Pause joining was removed, DESIGN 5.1), which also refuses
-nothing; until it is deployed, a new build asking to join with a code an older build paused gets "You don't have
-permission to do that." (the owner can press New code meanwhile). Also 2026-11-13's (B21, DESIGN 5.9): a planned meal may have up to
-1,000 servings (it was 100), which refuses nothing either; until it is deployed, a new build planning a recipe for
-more than 100, or raising a meal past 100, gets "You don't have permission to do that." and the meal rolls back.
+They went out together, in one deploy to each project, after the builds that no longer write what they refuse.
+2026-11-08's: allowed fields, authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery
+item is tombstoned once, a meal is marked cooked once, and items are created only under a list that exists.
+2026-11-10's: a join request may carry `emailMasked`, the sender's sign-in email masked as the rules compute it
+(`ro***@example.com`), and a batch's quantity may be below 0 (8.5 invariant 1). 2026-11-13's: a join request no longer
+needs the code's `active` to be true (Pause joining was removed, DESIGN 5.1), and a planned meal may have up to 1,000
+servings (it was 100; B21, DESIGN 5.9).
 
-What the released builds (Android 1.0.0-beta.9, versionCode 10, and web build 55edcc5) do that these rules refuse:
+They refuse what builds before Android 1.0.0-beta.10 and web build 3 did when throwing several batches away at once,
+when I cooked this used up two or more whole batches (and both Undos), and the second phone's write when two phones
+race; the update gates below keep those builds out. How it went out on 2026-11-21, in the order set above (Android,
+then the web app, then the rules):
 
-- **Throwing several batches away at once**, and its Undo: the count moves by more than one in one write.
-- **I cooked this when it uses up two or more whole batches**, and its Undo: two counts of one month in one batch.
-- **Nothing of 2026-11-10's:** released builds send join requests without `emailMasked`, which stays allowed (the
-  owner then sees the name and time only). The other way round, the new builds released in steps 2 and 4 send it,
-  and the rules deployed until step 7 refuse it; they then send the request again without it, so joining works in
-  between, without the email.
-- **Only when two phones race (2026-11-09):** the second Add to pantry, Clear checked or delete of the same items, the
-  second Cooked of the same meal, and an item added to a list another member just deleted. Old builds roll these back
-  with "You don't have permission to do that." instead of the new message; before, they did the work twice.
-
-Everything else they write passes (the instrumented tests and the web's browser tests ran against these rules). A
-refused write shows "You don't have permission to do that." and the phone rolls it back; nothing is lost. The order:
-
-1. Merge the pull request.
-2. Release the Android beta: `./scripts/release-beta.sh "..."`. When it asks **"Deploy the rules to spoilnot-dev,
-   then spoilnot-prod?"**, answer **N**.
-3. Once the testers have it, raise `minSupportedBuild` in Firestore `config/app` (spoilnot-prod) to the new
-   `versionCode` (11, unless another release came first).
-   Its builds name the winner of a race ("Sam already took these off the list. Nothing was added to the pantry.").
-4. Deploy the web app: `./scripts/deploy-web.sh dev`, check it, then `./scripts/deploy-web.sh prod`. When the script
-   offers to deploy the rules, answer **no** for prod (yes for dev is fine).
-5. Set `minWebBuild` in `config/app` (spoilnot-prod) to 3 (the web build with the 2026-11-09 messages; it covers
-   build 2's sync cursor too), then wait until the iPhones run it: ask the testers to close the Home Screen app and
-   open it again (or tap Update), or wait a day.
-6. Deploy the rules to dev and try on spoilnot-dev with both apps: throw two batches away at once and Undo, I cooked
-   this using up two batches, delete a list with items as a member, Clear household data, and on a spare household
-   transfer ownership and delete the household. For 2026-11-09's rules (QA flow 43): Add to pantry for the same
-   checked items on both phones (one in Airplane Mode), Cooked for the same meal on both, and an item added on one
-   phone to a list the other deletes; each time the second phone names the first and nothing is doubled. For
-   2026-11-10's (QA flow 47): a new phone asks to join and the owner sees its masked email:
+1. Android 1.0.0 (versionCode 13, commit `744d251`) released with `release-beta.sh --name 1.0.0`. The rules had not
+   changed since beta.11, so the script did not ask about them.
+2. `minSupportedBuild` 13 in `config/app` (spoilnot-prod).
+3. The web app from `744d251` to spoilnot-dev, then spoilnot-prod (`deploy-web.sh`, both with the full browser tests,
+   answering no to the rules).
+4. `minWebBuild` 3 in `config/app` (prod and dev). The web build from 2026-10-31 predates that gate, so its iPhones
+   took the new build when the Home Screen app restarted.
+5. The rules to spoilnot-dev, checked there by the owner with both apps (throw two batches away and Undo, I cooked
+   this using up two batches, a member deleting a list with items, Clear household data, transfer and delete on a
+   spare household, QA flows 43 and 47), then to spoilnot-prod:
 
    ```bash
    cd firebase && npx firebase deploy --only firestore:rules --project dev
-   ```
-
-7. Deploy the rules to prod:
-
-   ```bash
    cd firebase && npx firebase deploy --only firestore:rules --project prod
    ```
 
-8. Watch for refused writes for a day (testers seeing "You don't have permission to do that."). If one shows,
+6. Then a day's watch for refused writes (testers seeing "You don't have permission to do that."). If one shows,
    publish the previous version in the console (above).
 
 ## Beta releases (Firebase App Distribution)
@@ -206,7 +180,8 @@ It:
 1. checks that you are on `main`, with no uncommitted changes (`gradle.properties` is allowed) and the same as
    GitHub;
 2. raises `versionCode` by one and the beta number in `versionName` (`1.0.0-beta.3` becomes `1.0.0-beta.4`; use
-   `--name 1.0.0` for a chosen name);
+   `--name 1.0.0` for a chosen name). Since 1.0.0 (2026-11-21) the name has no beta number, so every release passes
+   `--name` (`--name 1.0.1` for fixes, `--name 1.1.0` for new features); without it the script stops before building;
 3. builds the prod release and **refuses to upload** unless it is signed with the upload key;
 4. asks to deploy the Firestore rules (dev, then prod) if `firebase/firestore.rules` changed since the last release;
 5. uploads it to everyone in `.beta-testers` (one email per line; the file is git-ignored because the emails are

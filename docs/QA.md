@@ -245,8 +245,8 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 47. Joining and signing out (Android and the iPhone web app, after v1, 2026-11-10, DESIGN 5.1, 10.1): on a spare
     account, ask to join the test household. The waiting screen says the owner doesn't get a notification. On the
     owner's phone, Settings > Household > Join requests shows the name, the masked email (`ro***@example.com`, the
-    account's first two letters and domain), "Sent: Just now" and "Only approve people you invited." With the rules
-    not yet deployed (RUNBOOK) the request still goes through and shows no email. Approve it while the joiner's app is
+    account's first two letters and domain), "Sent: Just now" and "Only approve people you invited." (Against rules
+    from before 2026-11-21 the request still went through, with no email.) Approve it while the joiner's app is
     closed, delete the request in the console (as the job's prune once did), then open the joiner's app: it goes
     straight to Home, never "Request expired". On the joiner's phone in Airplane Mode, change units in Settings and tap
     Sign out: after a few seconds "Sign out anyway?" says changes haven't synced; Cancel keeps you signed in, Sign out
