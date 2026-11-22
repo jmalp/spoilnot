@@ -281,7 +281,7 @@ Then, from a clean checkout:
 - A bad release: Firebase console > Hosting > Release history > Roll back. Installed apps pick up the rolled-back
   version like any update.
 - `npm run e2e:preview` builds and tests the app under the hosting headers locally (with the emulators running), as
-  CI does. For a performance check: `npx vite preview --port 4173`, then
+  CI does; it also checks what the service worker precaches and caches on first use (`runtime-cache.spec.ts`). For a performance check: `npx vite preview --port 4173`, then
   `CHROME_PATH=<Playwright's Chromium> npx lighthouse http://localhost:4173/ --only-categories=performance,accessibility`
   (results in DESIGN 18.6).
 
@@ -615,6 +615,16 @@ Compose, Firebase or DataStore update (their code is in it; "Baseline profile").
   with "Compose Preview requires unit tests"; check with `./gradlew :app:tasks`). Dependabot ignores both.
 - Gradle dependency verification is not used (DECISIONS 2026-11-10); the Gradle wrapper is checked by its
   `distributionSha256Sum` and by `setup-gradle` in CI.
+- **Playwright's image** (CI's web job, DESIGN 13.2): Dependabot updates `@playwright/test` in `web/` but not the
+  job's `container.image`. When it does, the web job warns ("update the web job's image") and installs WebKit itself,
+  so the update still passes. Then raise the image in `.github/workflows/ci.yml` to the same version, the `resolute`
+  tag (Ubuntu 26.04, like the runner), with its digest from
+  `curl -sI -H "Accept: application/vnd.oci.image.index.v1+json" https://mcr.microsoft.com/v2/playwright/manifests/v<version>-resolute`
+  (`docker-content-digest`), and the `image=` version in the browser step.
+- **Fonts** (DESIGN 6.4): the app bundles subsets of the full fonts in `tools/fonts`. For a new font version, replace
+  the file there and run `./scripts/subset-fonts.sh` (`brew install harfbuzz` once), then
+  `./gradlew testDevDebugUnitTest --tests '*FontSubsetTest'` and `verifyRoborazziDevDebug`. A new string with a
+  character outside the subset fails `FontSubsetTest`: add its range to the script.
 
 ## Secret scanning
 

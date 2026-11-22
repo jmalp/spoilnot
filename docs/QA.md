@@ -602,6 +602,13 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     Doom" in Groceries' quick add and "bbq sauce" by renaming a recipe line in Add to grocery list: they show as
     "Black Beans", "Super Pickled Pickles Of Doom" and "Bbq Sauce" (typed lowercase, so only the first letter changes).
     Switch between Pantry and Groceries: the title and the profile button don't move.
+81. Smaller fonts and web chunks (both apps, after v1, 2026-11-21, DESIGN 6.4, 18.5): on Android, Welcome's Spoil Not
+    is in the rounded face at its usual weight, and every screen's text looks as before, bold titles and numbers
+    included. Add a pantry item named "Crème brûlée", one named "Łódź pierogi" and one named "Пельмени": the first two
+    are in the app's font like the rest of the row, the third in the phone's own (a plainer face). A recipe line of
+    1½ cups shows "1½" and ⅓ shows "⅓". On the iPhone, after a web deploy that changed only the app's code, the update
+    is quick on mobile data; Settings > About shows the licenses, then, in airplane mode after closing and reopening
+    the app, again.
 
 ## 3. Conditions
 

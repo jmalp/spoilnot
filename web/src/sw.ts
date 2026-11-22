@@ -6,12 +6,18 @@
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { notificationFor, openRoute, safeRoute } from './core/pushMessages';
+import { respond, runtimeRouteFor } from './core/runtimeCache';
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: (string | { url: string; revision: string | null })[] };
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
+// The licenses and the other scripts' font subsets are cached when first used, not at install (core/runtimeCache).
+registerRoute(
+  ({ request, url }) => request.method === 'GET' && runtimeRouteFor(url.href, self.location.origin) !== null,
+  ({ request, url }) => respond(request, runtimeRouteFor(url.href, self.location.origin)!, self.caches),
+);
 
 self.addEventListener('message', (event) => {
   if ((event.data as { type?: string } | null)?.type === 'SKIP_WAITING') void self.skipWaiting();
