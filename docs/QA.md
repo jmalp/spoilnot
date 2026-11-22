@@ -609,6 +609,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     1½ cups shows "1½" and ⅓ shows "⅓". On the iPhone, after a web deploy that changed only the app's code, the update
     is quick on mobile data; Settings > About shows the licenses, then, in airplane mode after closing and reopening
     the app, again.
+82. Cooked offline (both apps, after v1, 2026-11-22, DESIGN 5.9): plan a test dinner for today without a recipe. Turn
+    on Airplane Mode and press Cooked in its sheet: the meal shows the check and *Cooked* at once, and opening it again
+    shows "Cooked by <your name>" with *Not cooked yet*, no Cooked button. Still offline, remove it and press Undo: it
+    comes back cooked. Turn Airplane Mode off: within a minute the other phone shows it cooked, and it stays there.
+    Online, remove it again and Undo: still cooked on both phones. Repeat on the iPhone, then delete the test dinner.
 
 ## 3. Conditions
 

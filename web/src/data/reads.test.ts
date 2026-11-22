@@ -1,5 +1,5 @@
 // Names from another client are cut to DESIGN 8.1's lengths on read (PantryReadTest and the others in the app).
-import type { DocumentSnapshot } from 'firebase/firestore';
+import { Timestamp, type DocumentSnapshot, type SnapshotOptions } from 'firebase/firestore';
 import { describe, expect, it } from 'vitest';
 import { toEvent } from './activity';
 import { toItem, toList } from './grocery';
@@ -53,5 +53,30 @@ describe('reading names', () => {
     expect(event?.actorName).toBe('A'.repeat(40));
     expect(event?.name).toBe('x'.repeat(200));
     expect(event?.listName).toBe('l'.repeat(60));
+  });
+});
+
+describe('reading a meal', () => {
+  /** A meal this phone marked Cooked offline: its server time is pending, so it is null unless read with the estimate. */
+  const pending = (estimate: Timestamp) =>
+    ({
+      id: 'm1',
+      get: (field: string, options?: SnapshotOptions) => {
+        if (field === 'cookedAt') return options?.serverTimestamps === 'estimate' ? estimate : null;
+        return ({ date: '2026-11-09', slot: 'dinner', title: 'Leftovers' } as Record<string, unknown>)[field] ?? null;
+      },
+      exists: () => true,
+      metadata: { hasPendingWrites: true, fromCache: true },
+    }) as unknown as DocumentSnapshot;
+
+  it('counts a Cooked waiting for the server as cooked at once', () => {
+    const estimate = Timestamp.fromMillis(Date.parse('2026-11-09T18:30:00Z'));
+    const meal = toMeal(pending(estimate));
+    expect(meal?.cookedAt).toBe(estimate.toMillis());
+    expect(meal?.pendingSync).toBe(true);
+  });
+
+  it('reads a meal not cooked as not cooked', () => {
+    expect(toMeal(snapshot('m1', { date: '2026-11-09', slot: 'dinner', title: 'Leftovers' }))?.cookedAt).toBeNull();
   });
 });
