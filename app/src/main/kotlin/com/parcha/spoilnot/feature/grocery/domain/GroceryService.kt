@@ -8,6 +8,7 @@ import com.parcha.spoilnot.feature.pantry.domain.AddPlan
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.Location
+import com.parcha.spoilnot.feature.pantry.domain.NameCase
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.NaturalOrder
 import com.parcha.spoilnot.feature.pantry.domain.PantryChange
@@ -188,7 +189,7 @@ class GroceryService @Inject constructor(
         val product = pantryData.products.firstOrNull { it.nameKey == key }
         val item = GroceryItem(
             id = writer.newId(),
-            name = product?.name ?: request.name,
+            name = NameCase.title(product?.name ?: request.name),
             nameKey = key,
             quantity = request.quantity,
             unit = request.unit ?: product?.unit?.takeIf { request.quantity != null },
@@ -262,11 +263,12 @@ class GroceryService @Inject constructor(
         val after = GroceryItemFields(quantity, unit, note?.trim()?.ifEmpty { null }, category)
         if (after != before) changes += GroceryChange.UpdateItem(listId, item.id, before, after)
         // Renaming (after v1, DESIGN 5.3) relinks the item to the product of its new name.
-        val clean = name?.let(NameKey::clean)?.take(GroceryRules.MAX_NAME_LENGTH)?.trim()
+        val clean = name?.let(NameCase::of)?.take(GroceryRules.MAX_NAME_LENGTH)?.trim()
         if (!clean.isNullOrEmpty() && clean != item.name) {
             val key = NameKey.of(clean)
             val product = products.firstOrNull { it.nameKey == key }
-            changes += GroceryChange.RenameItem(listId, item.id, product?.name ?: clean, key, product?.id)
+            changes +=
+                GroceryChange.RenameItem(listId, item.id, NameCase.title(product?.name ?: clean), key, product?.id)
         }
         if (changes.isNotEmpty()) writer.apply(householdId, actor, changes)
     }

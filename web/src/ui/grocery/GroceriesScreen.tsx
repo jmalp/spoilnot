@@ -519,7 +519,7 @@ function QuickAddField({
           onText(v);
           setOpen(true);
         }}
-        autoCapitalize="sentences"
+        autoCapitalize="words"
         autoComplete="off"
         enterKeyHint="done"
         maxLength={GroceryRules.MAX_NAME_LENGTH + 12}

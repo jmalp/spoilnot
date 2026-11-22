@@ -88,7 +88,7 @@ describe('RecipeService', () => {
       fromCache: false,
     };
     const c = RecipeGrocery.candidates(r, pantry, [groceryItem('Salt'), groceryItem('tomatoes', true)], TEST_WORDS);
-    expect(c.map((x) => x.name)).toEqual(['Eggs', 'Olive oil', 'Flour', 'Tomatoes', 'Salt']);
+    expect(c.map((x) => x.name)).toEqual(['Eggs', 'Olive Oil', 'Flour', 'Tomatoes', 'Salt']);
     expect(c.map((x) => x.product?.id ?? null)).toEqual(['egg', 'oil', null, null, null]);
     expect(c[0]!.inPantry?.id).toBe('egg');
     expect(c[0]!.quantity).toBe(3);
@@ -107,7 +107,7 @@ describe('RecipeService', () => {
     const soy = { ...product('soy', { name: 'Soy sauce' }), buyQuantity: 1, lastAddedQuantity: 2 };
     const r = recipe('r1', { title: 'Stir fry', ingredients: ['1 extra large onion, diced', '½ tbsp soy sauce'] });
     const c = RecipeGrocery.candidates(r, { products: [onions, soy], batches: [], fromCache: false }, [], TEST_WORDS);
-    expect(c.map((x) => x.name)).toEqual(['Onions', 'Soy sauce']);
+    expect(c.map((x) => x.name)).toEqual(['Onions', 'Soy Sauce']);
     expect(c.map((x) => x.quantity)).toEqual([3, 1]); // Buy quantity wins over the last amount
     expect(c.map((x) => x.unit)).toEqual(['lb', 'pcs']);
     expect(c[0]!.note).toBe('Stir fry: 1 extra large onion, diced');
@@ -140,7 +140,7 @@ describe('RecipeService', () => {
     const added = items(changes);
     // One activity event for the whole add: "added 2 ingredients from r1".
     expect(changes.at(-1)).toMatchObject({ type: 'grocery.logEvent', name: 'r1', listName: 'Groceries', count: 2 });
-    expect(added.map((i) => i.name)).toEqual(['Olive oil', 'Rice']);
+    expect(added.map((i) => i.name)).toEqual(['Olive Oil', 'Rice']);
     expect(added.every((i) => i.source === 'recipe' && i.recipeId === 'r1')).toBe(true);
     expect(added[0]!.productId).toBe('oil');
     expect(added[0]!.category).toBe('pantry_staples');
@@ -171,7 +171,7 @@ describe('RecipeService', () => {
     expect(original.name).toBe('Scallions');
     expect(original.product).toBeNull();
     const renamed = RecipeGrocery.rename(original, 'green onions', pantry.products);
-    expect(renamed).toMatchObject({ name: 'Green onions', product: greenOnions, quantity: 2, aliasOf: 'scallions' });
+    expect(renamed).toMatchObject({ name: 'Green Onions', product: greenOnions, quantity: 2, aliasOf: 'scallions' });
     await service.addToGrocery('h1', actor, 'list1', r, [renamed], pantry);
     const changes = writer.applied[0]!;
     expect(changes).toContainEqual({
@@ -188,7 +188,7 @@ describe('RecipeService', () => {
       [],
       TEST_WORDS,
     )[0]!;
-    expect(again.name).toBe('Green onions');
+    expect(again.name).toBe('Green Onions');
   });
 
   it('renaming to a new name is remembered on the item until it becomes a product', async () => {
@@ -196,7 +196,7 @@ describe('RecipeService', () => {
     const renamed = RecipeGrocery.rename(RecipeGrocery.candidates(r, empty, [], TEST_WORDS)[0]!, 'Spring onions', []);
     expect(renamed.quantity).toBe(2); // the recipe's count still applies
     await service.addToGrocery('h1', actor, 'list1', r, [renamed], empty);
-    expect(items(writer.applied[0]!)[0]).toMatchObject({ name: 'Spring onions', aliasOf: 'scallions' });
+    expect(items(writer.applied[0]!)[0]).toMatchObject({ name: 'Spring Onions', aliasOf: 'scallions' });
     // Renaming back to the recipe's own name teaches nothing.
     expect(RecipeGrocery.rename(renamed, 'scallions', []).aliasOf).toBeNull();
   });

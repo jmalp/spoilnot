@@ -1,6 +1,7 @@
 // Grocery list rules (DESIGN 5.3), ported from GroceryService, QuickAddParser and GroceryLayout.
 import { CATEGORIES, PantryLimits, UNITS, type Category, type DateType, type Location } from '../pantry/models';
 import type { PantryChange, PantryData, Product, QuantityUnit } from '../pantry/models';
+import { NameCase } from '../pantry/nameCase';
 import { NameKey, naturalOrder, ShelfLife } from '../pantry/rules';
 import type { AddPlan, PantryService } from '../pantry/service';
 import { nullsLast, sortedWith, type LocalDate } from '../time';
@@ -201,7 +202,7 @@ export class GroceryService {
     const product = pantryData.products.find((p) => p.nameKey === key) ?? null;
     const item: GroceryItem = {
       id: this.writer.newId(),
-      name: product?.name ?? request.name,
+      name: NameCase.title(product?.name ?? request.name),
       nameKey: key,
       quantity: request.quantity,
       unit: request.unit ?? (request.quantity !== null ? (product?.unit ?? null) : null),
@@ -289,7 +290,7 @@ export class GroceryService {
     };
     if (JSON.stringify(after) !== JSON.stringify(before))
       changes.push({ type: 'grocery.updateItem', listId, itemId: item.id, before, after });
-    const clean = edit.name == null ? null : NameKey.clean(edit.name).slice(0, GroceryRules.MAX_NAME_LENGTH).trim();
+    const clean = edit.name == null ? null : NameCase.of(edit.name).slice(0, GroceryRules.MAX_NAME_LENGTH).trim();
     if (clean && clean !== item.name) {
       const key = NameKey.of(clean);
       const product = products.find((p) => p.nameKey === key) ?? null;
@@ -297,7 +298,7 @@ export class GroceryService {
         type: 'grocery.renameItem',
         listId,
         itemId: item.id,
-        name: product?.name ?? clean,
+        name: NameCase.title(product?.name ?? clean),
         nameKey: key,
         productId: product?.id ?? null,
       });

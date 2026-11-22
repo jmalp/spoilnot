@@ -34,45 +34,45 @@ test('offline, deletes and Add to pantry leave the screen at once, and sync once
   // Online: three items on the list, all on the server.
   await tab(page, 'Groceries');
   await expect(page.getByText('Your list is empty.', { exact: false })).toBeVisible();
-  for (const name of ['onions', 'bananas', 'coffee']) await add(page, name);
+  for (const name of ['onions', 'bananas', 'coffee']) await add(page, name); // saved as "Onions", "Bananas", "Coffee" (DESIGN 8.1)
   await expect(list(page).locator('[data-testid^="grocery_item_"]')).toHaveCount(3);
   await expect(waiting(page)).toHaveCount(0);
 
   await page.context().setOffline(true);
 
   // Removing an item: gone at once, and Undo brings it back, also offline.
-  await row(page, 'onions').getByRole('button', { name: 'Options for onions' }).click();
+  await row(page, 'Onions').getByRole('button', { name: 'Options for Onions' }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'onions removed' })).toBeVisible();
-  await expect(row(page, 'onions')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Onions removed' })).toBeVisible();
+  await expect(row(page, 'Onions')).toHaveCount(0);
   await page.getByRole('button', { name: 'Undo' }).click();
-  await expect(row(page, 'onions')).toBeVisible();
+  await expect(row(page, 'Onions')).toBeVisible();
 
   // Add to pantry: the cart empties at once, so it cannot be pressed a second time.
-  await row(page, 'bananas').getByRole('checkbox').click();
-  await row(page, 'coffee').getByRole('checkbox').click();
+  await row(page, 'Bananas').getByRole('checkbox').click();
+  await row(page, 'Coffee').getByRole('checkbox').click();
   await expect(page.getByTestId('cart_header')).toContainText('In cart (2)');
   await page.getByTestId('fab_add_to_pantry').click();
   await page.getByTestId('sheet_add_to_pantry').getByTestId('button_confirm_add_to_pantry').click();
   await expect(page.getByRole('status').filter({ hasText: 'Added to the pantry' })).toBeVisible();
   await expect(page.getByTestId('cart_header')).toHaveCount(0);
   await expect(page.getByTestId('fab_add_to_pantry')).toHaveCount(0);
-  await expect(row(page, 'bananas')).toHaveCount(0);
-  await expect(row(page, 'onions')).toBeVisible();
+  await expect(row(page, 'Bananas')).toHaveCount(0);
+  await expect(row(page, 'Onions')).toBeVisible();
 
   // Used up: the purchase leaves the pantry while the delete waits for the server.
   await tab(page, 'Pantry');
   await page.getByTestId('menu_cheese').click();
   await page.getByRole('menuitem', { name: 'Used up' }).click();
   await expect(page.getByTestId('pantry_item_cheese')).toHaveCount(0);
-  await expect(pantryRows(page).filter({ hasText: 'bananas' })).toHaveCount(1);
-  await expect(pantryRows(page).filter({ hasText: 'coffee' })).toHaveCount(1);
+  await expect(pantryRows(page).filter({ hasText: 'Bananas' })).toHaveCount(1);
+  await expect(pantryRows(page).filter({ hasText: 'Coffee' })).toHaveCount(1);
 
   // Back online: everything reaches the server, and one bunch of bananas stayed one.
   await page.context().setOffline(false);
   await expect(waiting(page)).toHaveCount(0, { timeout: 20_000 });
-  await expect(pantryRows(page).filter({ hasText: 'bananas' })).toHaveCount(1);
-  await expect(pantryRows(page).filter({ hasText: 'bananas' })).not.toContainText('× 2');
+  await expect(pantryRows(page).filter({ hasText: 'Bananas' })).toHaveCount(1);
+  await expect(pantryRows(page).filter({ hasText: 'Bananas' })).not.toContainText('× 2');
   await tab(page, 'Groceries');
   await expect(list(page).locator('[data-testid^="grocery_item_"]')).toHaveCount(1);
 });

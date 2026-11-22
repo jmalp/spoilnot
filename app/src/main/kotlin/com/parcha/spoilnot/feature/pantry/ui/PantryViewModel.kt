@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
@@ -240,7 +241,19 @@ class PantryViewModel @Inject constructor(
 
     fun setGrouping(grouping: PantryGrouping) = query.update { it.copy(grouping = grouping) }
 
-    fun setSearch(text: String) = query.update { it.copy(search = text) }
+    private val search = MutableStateFlow("")
+
+    /**
+     * What the search field shows, set at once with every key. [state] follows off the main thread (PERF-02), so a
+     * field that showed `state.query.search` got older text back while the person typed: letters went missing or
+     * doubled and the cursor fell behind them (owner, 2026-11-21).
+     */
+    val searchText: StateFlow<String> = search.asStateFlow()
+
+    fun setSearch(text: String) {
+        search.value = text
+        query.update { it.copy(search = text) }
+    }
 
     /** Saves the Add item sheet; returns false when it could not be saved. */
     fun add(draft: StockDraft, onDone: () -> Unit) = act { hid, actor ->

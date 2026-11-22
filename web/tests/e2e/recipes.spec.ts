@@ -171,7 +171,7 @@ test('the box, detail and scaling, Add to grocery list, I cooked this, cook mode
   // What the recipe added and used shows on the other tabs.
   await tab(page, 'Groceries');
   const list = page.getByTestId('grocery_list');
-  await expect(list).toContainText('Soy sauce');
+  await expect(list).toContainText('Soy Sauce');
   await expect(list).toContainText('Onion');
   await expect(list.locator('[data-testid^="grocery_item_"]').first()).toContainText('Recipe');
   await tab(page, 'Pantry');

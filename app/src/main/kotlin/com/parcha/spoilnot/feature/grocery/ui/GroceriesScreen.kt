@@ -73,6 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -778,7 +779,7 @@ private fun QuickAddField(text: String, onText: (String) -> Unit, suggestions: L
             },
             placeholder = stringResource(R.string.grocery_quick_add),
             keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Sentences,
+                capitalization = KeyboardCapitalization.Words,
                 imeAction = ImeAction.Done,
             ),
             keyboardActions = KeyboardActions(onDone = { onAdd(text) }),
@@ -810,6 +811,9 @@ private fun QuickAddField(text: String, onText: (String) -> Unit, suggestions: L
 
 internal enum class ListDialog { Create, Rename, Delete }
 
+/** The switcher's arrow, Material's icon size. */
+private val ArrowSize = 24.dp
+
 /** List switcher and list management (DESIGN 5.3: users can add, rename and delete lists). */
 @Composable
 private fun ListMenu(
@@ -820,7 +824,19 @@ private fun ListMenu(
     var open by rememberSaveable { mutableStateOf(false) }
     val name = state.list?.name ?: stringResource(R.string.tab_groceries)
     val description = stringResource(R.string.grocery_list_switcher, name)
-    Box {
+    // The switcher keeps its 48 dp touch target but takes only the title's line in the header, as every other tab's
+    // title does, so the title and the profile button sit where they do on the other tabs (owner, 2026-11-21: the
+    // taller row put the title 4 dp and the profile button 8 dp lower). The overflow is split above and below. The
+    // title's own height comes from its text layout, which runs while the row is measured: large text scales
+    // non-linearly, so the style's line height doesn't say how tall the line is.
+    val titleHeight = remember { IntArray(1) }
+    Box(
+        Modifier.layout { measurable, constraints ->
+            val row = measurable.measure(constraints.copy(minHeight = 0))
+            val height = minOf(row.height, maxOf(titleHeight[0], ArrowSize.roundToPx()))
+            layout(row.width, height) { row.place(0, -(row.height - height) / 2) }
+        },
+    ) {
         Row(
             Modifier
                 .clip(MaterialTheme.shapes.small)
@@ -837,9 +853,10 @@ private fun ListMenu(
                 style = SpoilNotText.ScreenTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                onTextLayout = { titleHeight[0] = it.size.height },
                 modifier = Modifier.weight(1f, fill = false),
             )
-            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, modifier = Modifier.size(ArrowSize))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             state.lists.forEach { list ->

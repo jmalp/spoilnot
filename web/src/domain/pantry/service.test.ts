@@ -162,7 +162,7 @@ describe('PantryService', () => {
       created.recentShelfLifeDays,
       created.typicalShelfLifeDays,
       created.restockArmed,
-    ]).toEqual(['Greek yogurt', 'greek yogurt', [7], 7, true]);
+    ]).toEqual(['Greek Yogurt', 'greek yogurt', [7], 7, true]);
     const newBatch = ofType(repo.last, 'pantry.createBatch')[0]!.batch;
     expect(newBatch.productId).toBe(created.id);
     expect(newBatch.note).toBeNull(); // a blank note is stored as null
@@ -330,7 +330,7 @@ describe('PantryService', () => {
     const base = { batch: b1, product: opened };
     const changes = service.planEdit(base, { ...itemEditOf(base), name: 'Whole milk' }, data([now], [b1]));
     expect(ofType(changes, 'pantry.updateProduct')).toEqual([
-      { type: 'pantry.updateProduct', product: { ...now, name: 'Whole milk', nameKey: 'whole milk' }, before: now },
+      { type: 'pantry.updateProduct', product: { ...now, name: 'Whole Milk', nameKey: 'whole milk' }, before: now },
     ]);
     expect(ofType(changes, 'pantry.syncBatchProduct').map((c) => c.batchId)).toEqual(['m1']);
   });
@@ -458,7 +458,7 @@ describe('PantryService', () => {
     expect(ofType(changes, 'pantry.addToBatch')).toEqual([{ type: 'pantry.addToBatch', batchId: 'b1', delta: 1 }]);
     const p = ofType(changes, 'pantry.updateProduct')[0]!.product;
     expect([p.name, p.minQuantity, p.autoAddToGrocery, p.buyQuantity, p.restockArmed]).toEqual([
-      'Oat milk',
+      'Oat Milk',
       2,
       true,
       4,

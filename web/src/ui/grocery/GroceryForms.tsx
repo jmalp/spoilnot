@@ -271,7 +271,7 @@ export function EditGroceryItemSheet({
           value={name}
           onValueChange={(v) => setName(v.slice(0, GroceryRules.MAX_NAME_LENGTH))}
           error={name.trim() === '' ? str('error_name_required') : undefined}
-          autoCapitalize="sentences"
+          autoCapitalize="words"
           enterKeyHint="next"
         />
         <TextField

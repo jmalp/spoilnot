@@ -13,6 +13,10 @@
   align-items: center;
   max-width: 100%;
   min-height: 48px;
+  /* A 48 px target that takes only the title's line in the header, so the title and the Settings button sit where
+     every other tab has them (owner, 2026-11-21; the taller line moved both down). The overflow is split above and
+     below; from text larger than 48 px there is none. */
+  margin-block: min(0px, calc((1lh - 48px) / 2));
   padding: 0 4px 0 0;
   border: none;
   border-radius: 8px;

@@ -210,3 +210,38 @@ test('three expired purchases fold into a header', async ({ page }) => {
   await page.getByTestId('pantry_expired_toggle').click();
   await expect(rows(page)).toHaveCount(4);
 });
+
+test('a new filter starts the list at the top, also when the default view has no Use first (owner, 2026-11-21)', async ({
+  page,
+}) => {
+  const email = uniqueEmail('Sam');
+  const household = `Pantry top ${Date.now()}`;
+  await openApp(page);
+  await signUp(page, 'Sam', email);
+  await createHousehold(page, household);
+  // Nothing needs using up soon: the default view is one group, as a filtered list is.
+  await seedPantry(
+    await householdId(household),
+    await uidOf(email),
+    Array.from({ length: 30 }, (_, i) => ({
+      id: `item${i + 1}`,
+      name: `Item ${i + 1}`,
+      expiry: inDays(30 + i),
+      location: i % 2 === 0 ? 'pantry' : 'fridge',
+    })),
+  );
+  await page.getByRole('navigation').getByRole('button', { name: 'Pantry' }).click();
+  await expect(rows(page)).toHaveCount(30);
+  const list = page.getByTestId('pantry_list');
+
+  await page.getByTestId('pantry_filter_fridge').click();
+  await expect(rows(page)).toHaveCount(15);
+  await list.evaluate((el) => (el.scrollTop = el.scrollHeight));
+  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+  // Taken off: the whole list from its first row, not the place the filtered list was at.
+  await page.getByTestId('pantry_filter_fridge').click();
+  await expect(rows(page)).toHaveCount(30);
+  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
+  await expect(rows(page).first()).toBeInViewport();
+});
