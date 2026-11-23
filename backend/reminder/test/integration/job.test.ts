@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
-import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import {
   MAX_DEVICES, MAX_SEND_ATTEMPTS, MAX_STOCK, PLAN_ROUTE, runJob, ROUTE, STATE_DOC, WEB_ICON, type Message, type Sender,
 } from '../../src/job.ts';
@@ -239,6 +239,7 @@ describe('reminder job against the emulator', () => {
     assert.equal(gus.householdId, null);
     assert.ok(gus.updatedAt instanceof Timestamp);
     assert.equal(gus.lastDigestDate, null);
+    assert.equal(gus.nextDigestAt, undefined, 'nothing is due without a household');
     assert.equal((await db.doc('users/hana').get()).get('householdId'), null);
 
     // No longer due anywhere, so later runs read nothing for them.
@@ -439,6 +440,123 @@ describe('reminder job against the emulator', () => {
     assert.equal(summary.skippedDeleted, 1);
     assert.equal(summary.failures, 0);
     assert.ok(sender.sent.some((m) => m.token.startsWith('alice')));
+  });
+
+  it('stores when each user is next due, and later runs read only those due and those changed (B25)', async () => {
+    const first = await runJob(db, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(first.fullRead, true, 'no cursor yet: every user with reminders on');
+    assert.equal(first.usersRead, 4, 'alice, bob, erin and frank; not carol (off) or gina');
+    const next = async (uid: string) => ((await db.doc(`users/${uid}`).get()).get('nextDigestAt') as Timestamp | undefined)
+      ?.toDate().toISOString();
+    // Sent, or nothing to report: tomorrow's 9:00 in New York. No devices: still due. Too late in Tokyo: tomorrow 9:00.
+    assert.equal(await next('alice'), '2026-10-13T13:00:00.000Z');
+    assert.equal(await next('frank'), '2026-10-13T13:00:00.000Z');
+    assert.equal(await next('bob'), NOW.toISOString());
+    assert.equal(await next('erin'), '2026-10-13T00:00:00.000Z');
+    assert.equal(await next('carol'), undefined);
+    const state = (await db.doc(STATE_DOC).get()).data()!;
+    assert.equal(state.lastUsersReadDate, '2026-10-12');
+    assert.ok(state.usersCursor instanceof Timestamp);
+
+    // Later the same day: only bob is due; nobody changed.
+    const second = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T13:22:00Z'), prune: false });
+    assert.equal(second.fullRead, false);
+    assert.equal(second.usersRead, 1);
+    assert.equal(second.skippedNoDevices, 1);
+    assert.equal(second.rescheduled, 0, 'bob keeps his time');
+
+    // The first run of the next UTC day reads everyone again, and finds nothing to change.
+    const nextDay = await runJob(db, new RecordingSender(), { now: new Date('2026-10-13T00:07:00Z'), prune: false });
+    assert.equal(nextDay.fullRead, true);
+    assert.equal(nextDay.usersRead, 4);
+    assert.equal(nextDay.rescheduled, 0);
+  });
+
+  it('a user whose app changes the time, the time zone or reminders between runs is read the next run', async () => {
+    // Ivy chose 21:00 in New York; the first run stores tomorrow 01:00 UTC.
+    await db.doc('users/ivy').set({
+      displayName: 'ivy', householdId: 'h1', timezone: 'America/New_York', locale: 'en',
+      notificationPrefs: { ...prefs, digestMinutes: 21 * 60 }, lastDigestDate: null, lastExpiredThrough: null,
+    });
+    await db.doc('users/ivy/devices/phone').set({ token: 'ivy-token-1234567890', platform: 'web' });
+    await db.doc('households/h1/members/ivy').set({ role: 'member', displayName: 'ivy' });
+    await runJob(db, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(((await db.doc('users/ivy').get()).get('nextDigestAt') as Timestamp).toDate().toISOString(), '2026-10-13T01:00:00.000Z');
+
+    // Her app moves it to 9:00, as both apps write it: the whole prefs map and updatedAt from the server.
+    await db.doc('users/ivy').update({ notificationPrefs: prefs, updatedAt: FieldValue.serverTimestamp() });
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: new Date('2026-10-12T13:22:00Z'), prune: false });
+    assert.equal(summary.fullRead, false);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('ivy')), 'sent at the next run, as before');
+    assert.equal((await db.doc('users/ivy').get()).get('lastDigestDate'), '2026-10-12');
+
+    // Frank moves to Tokyo, where it is 22:22 (done for today there): his next read is 9:00 Tokyo tomorrow.
+    await db.doc('users/frank').update({ timezone: 'Asia/Tokyo', updatedAt: FieldValue.serverTimestamp() });
+    // Alice turns reminders off: she is no longer read at all.
+    await db.doc('users/alice').update({ notificationPrefs: { ...prefs, enabled: false }, updatedAt: FieldValue.serverTimestamp() });
+    const third = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T13:37:00Z'), prune: false });
+    // Bob (due, no devices), and the changed ones: frank, alice and ivy (her digest, within the cursor's margin).
+    assert.equal(third.usersRead, 4);
+    assert.equal(third.sent, 0);
+    assert.equal(((await db.doc('users/frank').get()).get('nextDigestAt') as Timestamp).toDate().toISOString(), '2026-10-13T00:00:00.000Z');
+    assert.equal((await db.doc('users/alice').get()).get('nextDigestAt'), undefined);
+
+    // Carol turns reminders on (still no phone registered): due straight away, so read and tried at the next run.
+    await db.doc('users/carol').update({ notificationPrefs: prefs, updatedAt: FieldValue.serverTimestamp() });
+    const fourth = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T13:52:00Z'), prune: false });
+    assert.equal(fourth.fullRead, false);
+    assert.equal(fourth.skippedNoDevices, 2, 'bob and carol');
+    assert.equal(((await db.doc('users/carol').get()).get('nextDigestAt') as Timestamp).toDate().toISOString(), '2026-10-12T13:52:00.000Z');
+  });
+
+  it('a profile deleted before its next time is stored is not brought back', async () => {
+    // Erin is read (too late in Tokyo) and deleted before the job stores her next time.
+    const deleting = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'getAll') return typeof value === 'function' ? value.bind(target) : value;
+        return async (...refs: Parameters<Firestore['getAll']>) => {
+          const snapshots = await target.getAll(...refs);
+          await target.doc('users/erin').delete();
+          return snapshots;
+        };
+      },
+    });
+    const summary = await runJob(deleting, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(summary.failures, 0);
+    assert.equal((await db.doc('users/erin').get()).exists, false);
+    assert.ok((await db.doc(STATE_DOC).get()).get('usersCursor') instanceof Timestamp, 'the run still moves on');
+  });
+
+  it('a dry run stores no times and no cursor', async () => {
+    const summary = await runJob(db, new RecordingSender(), { now: NOW, dryRun: true });
+    assert.equal(summary.fullRead, true);
+    assert.ok(summary.rescheduled > 0, 'counted');
+    assert.equal((await db.doc('users/erin').get()).get('nextDigestAt'), undefined);
+    assert.equal((await db.doc(STATE_DOC).get()).exists, false);
+  });
+
+  it('without the job\'s state it reads every user, sends, and leaves the state and the prune alone', async () => {
+    const lines: string[] = [];
+    const broken = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'doc') return typeof value === 'function' ? value.bind(target) : value;
+        return (path: string) => {
+          if (path !== STATE_DOC) return target.doc(path);
+          return { get: async () => { throw Object.assign(new Error('unavailable'), { code: 14 }); } };
+        };
+      },
+    });
+    const sender = new RecordingSender();
+    const summary = await runJob(broken, sender, { now: NOW, log: (l) => lines.push(l) });
+    assert.equal(summary.fullRead, true);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('alice')));
+    assert.equal(summary.failures, 1);
+    assert.equal(summary.pruned, false);
+    assert.deepEqual(lines.filter((l) => l.includes('failed')), ['the job state failed: UNAVAILABLE']);
+    assert.equal((await db.doc(STATE_DOC).get()).exists, false);
   });
 
   it('prunes once per UTC day, keyed on the job\'s own document', async () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { afterSend, buildDigest, buildDigestWithMeals, capBytes, cookingFor, DEFAULT_PREFS, MAX_BODY_BYTES, needsAttention, shorten, type Meal, dueAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
+import { afterSend, buildDigest, buildDigestWithMeals, capBytes, cookingFor, DEFAULT_PREFS, MAX_BODY_BYTES, needsAttention, shorten, type Meal, dueAt, nextDigestAt, readPrefs, selectItems, stockWindow, type Batch, type UserDoc } from '../src/digest.ts';
 
 const user = (over: Partial<UserDoc> = {}, prefs: Partial<UserDoc['prefs']> = {}): UserDoc => ({
   uid: 'u1',
@@ -53,6 +53,71 @@ describe('who is due', () => {
   it('reads prefs with defaults', () => {
     assert.deepEqual(readPrefs(undefined), DEFAULT_PREFS);
     assert.deepEqual(readPrefs({ stages: [3, 9, 0], expiredMode: 'bogus' }), { ...DEFAULT_PREFS, stages: [3, 0] });
+  });
+});
+
+describe('when to read a user next (after v1, B25)', () => {
+  const next = (u: UserDoc, now: string) => nextDigestAt(u, new Date(now))?.toISOString() ?? null;
+
+  it('is now while due, and later today before the chosen time', () => {
+    assert.equal(next(user(), '2026-10-12T13:07:00Z'), '2026-10-12T13:07:00.000Z');
+    assert.equal(next(user(), '2026-10-12T12:59:00Z'), '2026-10-12T13:00:00.000Z');
+    assert.equal(next(user({}, { digestMinutes: 21 * 60 }), '2026-10-12T13:07:00Z'), '2026-10-13T01:00:00.000Z');
+  });
+
+  it('is tomorrow once today is done or after 22:00', () => {
+    assert.equal(next(user({ lastDigestDate: '2026-10-12' }), '2026-10-12T13:07:00Z'), '2026-10-13T13:00:00.000Z');
+    assert.equal(next(user({ lastDigestDate: '2026-10-12' }), '2026-10-12T05:00:00Z'), '2026-10-13T13:00:00.000Z');
+    // 22:07 in New York: today's chance is gone.
+    assert.equal(next(user(), '2026-10-13T02:07:00Z'), '2026-10-13T13:00:00.000Z');
+  });
+
+  it('skips a later day already done, after a move west', () => {
+    // Done on 10-13 in Tokyo, now in Los Angeles where it is still 10-12, 06:00: today at 9, then 10-14.
+    const moved = user({ timezone: 'America/Los_Angeles', lastDigestDate: '2026-10-13' });
+    assert.equal(next(moved, '2026-10-12T13:00:00Z'), '2026-10-12T16:00:00.000Z');
+    assert.equal(next({ ...moved, lastDigestDate: '2026-10-13' }, '2026-10-13T05:30:00Z'), '2026-10-14T16:00:00.000Z');
+  });
+
+  it('crosses daylight saving days at the chosen local time', () => {
+    // Done on 10-31 (EDT); the next 9:00 is EST.
+    assert.equal(next(user({ lastDigestDate: '2026-10-31' }), '2026-10-31T13:07:00Z'), '2026-11-01T14:00:00.000Z');
+    assert.equal(next(user({ lastDigestDate: '2026-03-07' }), '2026-03-07T14:07:00Z'), '2026-03-08T13:00:00.000Z');
+  });
+
+  it('is never for reminders off, no household, or a time from 22:00', () => {
+    assert.equal(next(user({}, { enabled: false }), '2026-10-12T13:07:00Z'), null);
+    assert.equal(next(user({ householdId: null }), '2026-10-12T13:07:00Z'), null);
+    assert.equal(next(user({}, { digestMinutes: 22 * 60 }), '2026-10-12T13:07:00Z'), null);
+  });
+
+  it('reads odd stored times as dueAt does', () => {
+    // Not a number, or before midnight: due from midnight. A fraction rounds up to the next minute.
+    assert.equal(next(user({ lastDigestDate: '2026-10-12' }, { digestMinutes: Number.NaN }), '2026-10-12T13:07:00Z'), '2026-10-13T04:00:00.000Z');
+    assert.equal(next(user({ lastDigestDate: '2026-10-12' }, { digestMinutes: -30 }), '2026-10-12T13:07:00Z'), '2026-10-13T04:00:00.000Z');
+    assert.equal(next(user({}, { digestMinutes: 600.5 }), '2026-10-12T13:07:00Z'), '2026-10-12T14:01:00.000Z');
+  });
+
+  it('a missing or unknown time zone is UTC', () => {
+    assert.equal(next(user({ timezone: null }), '2026-10-12T08:00:00Z'), '2026-10-12T09:00:00.000Z');
+    assert.equal(next(user({ timezone: 'Mars/Olympus' }), '2026-10-12T08:00:00Z'), '2026-10-12T09:00:00.000Z');
+  });
+
+  it('is never later than the first time dueAt says due, minute by minute over a week', () => {
+    for (const zone of ['America/New_York', 'Europe/Madrid', 'Asia/Tokyo', 'Asia/Kathmandu', 'UTC']) {
+      for (const hour of [0, 5, 9, 21]) {
+        let u = user({ timezone: zone }, { digestMinutes: hour * 60 + (hour === 0 ? 30 : 0) });
+        let planned = nextDigestAt(u, new Date('2026-10-29T00:00:00Z'));
+        for (let t = Date.parse('2026-10-29T00:00:00Z'); t < Date.parse('2026-11-04T00:00:00Z'); t += 5 * 60_000) {
+          const now = new Date(t);
+          const local = dueAt(u, now);
+          if (!local) continue;
+          assert.ok(planned && planned.getTime() <= t, `${zone} ${hour}: due at ${now.toISOString()}, planned ${planned?.toISOString()}`);
+          u = { ...u, ...afterSend(local.date) };
+          planned = nextDigestAt(u, now);
+        }
+      }
+    }
   });
 });
 

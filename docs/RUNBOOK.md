@@ -92,8 +92,31 @@ script property and run `install` again to check it. An expired token makes the 
 ("GitHub answered 401"); the reminders then go out on GitHub's schedule, late, until it is replaced.
 
 **Turn it off.** Run `uninstall` in the script (GitHub's schedule carries on), then delete the token. To start the
-job hourly instead of every quarter hour (fewer reads, "Check quota usage"), set `SLOT_MINUTES = 60` in the script:
-time zones with a half-hour offset then get their digest up to half an hour late.
+job hourly instead of every quarter hour, set `SLOT_MINUTES = 60` in the script: time zones with a half-hour offset
+then get their digest up to half an hour late. Since 2026-11-23 (B25) a run with nobody due costs three reads, so this
+saves only about 200 reads a day ("Check quota usage").
+
+### Who each run reads (B25, since 2026-11-23)
+
+Each run reads only the users who may be due: those whose `nextDigestAt` (on their profile, written only by the job)
+has come, and those whose profile changed since the previous run (`updatedAt` after `usersCursor` in `jobs/state`).
+The first run of each UTC day reads everyone with reminders on instead (`fullRead: true` in the summary, recorded as
+`lastUsersReadDate`) and fills in anyone without a time. DESIGN 10.3 has the details; DECISIONS 2026-11-23 the reasons.
+
+**Deploy and release order: none.** The change is the job only. It goes live with the merge, since every run builds
+`main`; it needs no rules deploy (the apps never write `nextDigestAt`, and the rules already refuse it), no index
+deploy (two automatic single-field indexes: `nextDigestAt` and `updatedAt` on `users`) and no app release (both apps,
+the released Android 1.0.0 and web 744d251 included, stamp `updatedAt` on every profile write). The first run after
+the merge finds no cursor, reads everyone (as every run did before) and writes each user's `nextDigestAt` once, one
+write a user; from the next run on, `usersRead` is the due and the changed, usually 0 to a handful.
+
+- To check it: the summary's `usersRead` should be small except when `fullRead` is true, and digests should arrive
+  as before. If someone says a reminder came late after changing a setting, the next full read (the first run after
+  00:00 UTC) fixes it; look for what wrote that profile without `updatedAt` (both apps always set it, DESIGN 10.3).
+- To make the next run read everyone: in the Firebase console delete the `usersCursor` field of `jobs/state`.
+- To undo it: revert the PR. The job before it ignores `nextDigestAt`, and the field stays on profiles, harmless. If
+  the change comes back later, its first run reads everyone again only if the cursor is gone; delete `usersCursor`
+  first so the times are recomputed (a time the old job left behind is only ever too early, which costs a read).
 
 ### Run the job by hand
 
@@ -122,12 +145,15 @@ gh workflow run reminders.yml -f dry_run=true
 
   | Field | Meaning |
   | --- | --- |
+  | `fullRead` | Whether this run read every user with reminders on (the first run of each UTC day, or no cursor yet) |
+  | `usersRead` | Profiles read: those whose `nextDigestAt` has come (everyone on a full read) and those changed since the last run |
   | `due`, `sent`, `emptyDigests` | Users due this run, messages delivered, due users with nothing to report (done for the day) |
   | `skippedNoDevices` | Due users with no registered phone; tried again next run |
   | `skippedNotMember` | Due users whose household no longer lists them (below) |
   | `skippedDeleted` | Due users whose profile was deleted during the run (an account deletion) |
   | `gaveUp` | Users whose digest reached no device in 3 runs today; done for the day, tried again tomorrow |
   | `deadTokens` | Device documents deleted because FCM said the token is unregistered or invalid |
+  | `rescheduled` | Users read but not sent to whose `nextDigestAt` the run set or removed (most on the first run after a change) |
   | `failures` | Households or users whose step failed; the rest of the run went ahead, and the run fails at the end |
   | `pruned`, `lastPruneDate` | Whether this run pruned, and the UTC date of the last prune without failures |
   | `prunedActivity`, `prunedJoinRequests`, `prunedTombstones`, `prunedMeals`, `pruneFailures` | The prune's counts |
@@ -557,13 +583,27 @@ grocery item; a prune every day):
 | Deletes (the daily prune: tombstones, activity after 30 days, meals after 28) | 570 | 2.9% |
 
 So the free plan held **about 17 households** of this size under the 70% warning line (reads run out first).
-Since 2026-11-22 the on-time trigger starts the job 96 more times a day ("On-time reminders"), and each run reads every
-user with reminders on: `RUNS=120`, the new default, gives 24,160 reads (48.3%), **about 14.5 households**; `RUNS=168`
-(every scheduled run starts as well) 26,128 reads, about 13.4. The tables here were measured with `RUNS=24`; the
-starts change only the scheduled jobs' line. If reads get tight, start the job hourly (`SLOT_MINUTES = 60` in the
-script): `RUNS=48` gives about 16.5 households.
-Other runs: `RUNS=72` (every scheduled run starts) 22,192 reads, about 15.8 households, since each run reads every
-user with reminders on; `RUNS=15` 19,855, about 17.6; `WEB=2` (two web phones per household) the same reads, since
+Since 2026-11-22 the on-time trigger starts the job 96 more times a day ("On-time reminders"), and each run read every
+user with reminders on: `RUNS=120`, the new default, gave 24,160 reads (48.3%), about 14.5 households; `RUNS=168`
+(every scheduled run starts as well) 26,128 reads, about 13.4.
+
+Since 2026-11-23 (B25, "Who each run reads") a run reads only the users who may be due, so the number of runs barely
+matters:
+
+| `RUNS` | Scheduled jobs' reads (runs, digests) | Total reads | Writes | Households under 70%, before → now |
+| --- | --- | --- | --- | --- |
+| 24 | 3,152 (132, 240) | 19,412 (38.8%) | 974 | 17.3 → 18.0 |
+| 120 (the default) | 3,440 (420, 240) | 19,700 (39.4%) | 1,070 | 14.5 → **17.8** |
+| 168 | 3,584 (564, 240) | 19,844 (39.7%) | 1,118 | 13.4 → 17.6 |
+
+A run costs three reads (the due query and the changed query, each at least one read even when empty, and the job's
+state), plus each due user's profile once a day, the daily full read (one read a user) and each profile change read
+by one or two runs (the simulation assumes one change a household a day). It writes the state once a run, so writes
+grow by one a run; reads still run out first. The tables above were measured with `RUNS=24` before B25; only the
+scheduled jobs' line and the writes change. Starting the job hourly (`SLOT_MINUTES = 60`, `RUNS=48`) now gives
+19,484 reads, 18.0 households: it no longer saves much.
+Other runs: `RUNS=72` (every scheduled run starts) 19,556 reads, about 17.9 households (22,192 and 15.8 before B25);
+`RUNS=15` 19,385, about 18.1; `WEB=2` (two web phones per household) the same reads, since
 the web app also reads `config/app` (DESIGN 18.5); `WARM=3` or `WARM=7` the same reads, since nothing holds a
 household listener once its screens are gone (DESIGN 9.1).
 
@@ -594,7 +634,8 @@ deleting them (+420), the prune's deletes, and the job's state document (one rea
 2026-11-09 the rules began looking up a grocery item's list on create (+100 rule lookups); the simulation now makes 10
 of the 40 daily writes item creates instead of batch edits, which the listeners deliver differently (−280): 20,224.
 On 2026-11-10 the prune began reading the sender's profile for each old approved join request (rare; the simulation
-has none, so 20,224 stays). The
+has none, so 20,224 stays). On 2026-11-23 (B25) the job stopped reading every user each run: 19,412 at 24 runs
+(19,700 at the default 120). The
 largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
 

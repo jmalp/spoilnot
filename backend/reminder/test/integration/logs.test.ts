@@ -123,7 +123,8 @@ it('a prune whose deletions fail counts them, goes on, and prints nothing of the
   assert.equal((await db.doc('households/h2/activity/a1').get()).exists, false, 'the next household was pruned');
 
   // A prune with failures doesn't count: the date stays unset, so the next run, the same day, prunes again.
-  assert.equal((await db.doc(STATE_DOC).get()).exists, false);
+  // The state still records the run's cursor on profile changes (B25).
+  assert.equal((await db.doc(STATE_DOC).get()).get('lastPruneDate'), undefined);
   const next = await runJob(db, sender, { now: new Date(NOW.getTime() + 20 * 60_000) });
   assert.equal(next.pruned, true);
   assert.equal(next.pruneFailures, 0);

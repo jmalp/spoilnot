@@ -239,27 +239,33 @@ for (let h = 0; h < HOUSEHOLDS; h++) {
   reads.ruleLookups += WRITES_PER_HOUSEHOLD + EVENTS_PER_DAY + ITEM_CREATES_PER_HOUSEHOLD;
 }
 
-// Scheduled jobs (backend/reminder, DESIGN 10.1). Every run: the users query (every user with reminders on) and the
-// job's own state document. Once a day per user: their member document, their devices, and a share of the
-// household's stock query; the digest also reads today's meals (about two), the worst case of members due in
-// different runs. Once a day, in the first run of the UTC day, housekeeping: the households, then per household the
-// activity, join request, past meal and list queries and a tombstone query for products, stock, recipes, meals and
-// each list's items (each at least one read), plus every document it deletes (read before deleting): a day's
-// tombstones, a day's activity events from 30 days ago and the meals passing 28 days. The nightly export reads every
-// household document once, tombstones included.
+// Scheduled jobs (backend/reminder, DESIGN 10.1). Every run (since B25, 2026-11-23): the query for users whose
+// nextDigestAt has come and the one for profiles changed since the last run (each at least one read, even when
+// empty) and the job's own state document. Once a day per user: their profile when due, their member document,
+// their devices, and a share of the household's stock query; the digest also reads today's meals (about two), the
+// worst case of members due in different runs. Once a day, in the first run of the UTC day, the full read of every
+// user with reminders on, and housekeeping: the households, then per household the activity, join request, past meal
+// and list queries and a tombstone query for products, stock, recipes, meals and each list's items (each at least
+// one read), plus every document it deletes (read before deleting): a day's tombstones, a day's activity events from
+// 30 days ago and the meals passing 28 days. A profile the apps change (a time zone, a setting) is read by the next
+// one or two runs: PROFILE_CHANGES a household a day, each read twice. The nightly export reads every household
+// document once, tombstones included. Before B25 every run read every user with reminders on: RUNS × (users + 1).
 const users = HOUSEHOLDS * PHONES;
 const TODAY_MEALS = 2;
 const pruned = TOMBSTONES_PER_DAY + EVENTS_PER_DAY + MEALS_EXPIRING_PER_DAY;
 const housekeeping = HOUSEHOLDS + HOUSEHOLDS * (3 + 1 + 4 + 2) + HOUSEHOLDS * pruned;
 const perHousehold = 1 + PHONES + 30 + 60 + 2 + 25 + 15 + 1 + TOMBSTONES + WEEK_MEALS + OTHER_MEALS; // + stats, meals
+const PROFILE_CHANGES = 1;
 const jobs = {
-  runs: REMINDER_RUNS_PER_DAY * (users + 1),
-  digests: users * (3 + TODAY_MEALS),
+  runs: REMINDER_RUNS_PER_DAY * 3 + users + HOUSEHOLDS * PROFILE_CHANGES * 2,
+  digests: users * (1 + 3 + TODAY_MEALS),
   housekeeping,
   export: HOUSEHOLDS * perHousehold,
 };
 reads.jobs = Object.values(jobs).reduce((a, b) => a + b, 0);
-writes += users + 1; // lastDigestDate once a day per user, lastPruneDate once a day
+// lastDigestDate and nextDigestAt once a day per user, the state document once a run (the cursor, and once a day the
+// prune's date), and a new nextDigestAt for each changed profile.
+writes += users + REMINDER_RUNS_PER_DAY + HOUSEHOLDS * PROFILE_CHANGES;
 deletes += HOUSEHOLDS * pruned;
 
 const total = reads.listeners + reads.held + reads.ruleLookups + reads.jobs;

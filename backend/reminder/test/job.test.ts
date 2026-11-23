@@ -3,9 +3,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { afterSend, DEFAULT_PREFS, dueAt, type UserDoc } from '../src/digest.ts';
+import { Timestamp } from 'firebase-admin/firestore';
+import { afterSend, DEFAULT_PREFS, dueAt, nextDigestAt, type UserDoc } from '../src/digest.ts';
 import {
-  chunks, DEAD_TOKEN_CODES, isDeadToken, joinRequestPrunable, pruneDue, SEND_CHUNK, utcDate, waitingOn,
+  chunks, CURSOR_MARGIN_MS, DEAD_TOKEN_CODES, isDeadToken, joinRequestPrunable, pruneDue, scheduleChanged, SEND_CHUNK,
+  utcDate, waitingOn,
 } from '../src/job.ts';
 
 /** The minutes of the workflow's schedule entries ('7 * * * *' and so on). */
@@ -75,6 +77,150 @@ describe('the schedule (DESIGN 10.4)', () => {
       const dates = sent.get(u.uid)!.map((d) => d.date);
       assert.equal(new Set(dates).size, dates.length, u.uid);
     }
+  });
+});
+
+/** The on-time trigger's starts (every quarter hour, DESIGN 10.4) and GitHub's scheduled ones, in order. */
+function everyStart(from: string, days: number): Date[] {
+  const quarters = Array.from({ length: days * 96 }, (_, i) => new Date(Date.parse(`${from}T00:00:00Z`) + i * 15 * 60_000));
+  return [...quarters, ...starts(from, days)].sort((a, b) => a.getTime() - b.getTime());
+}
+
+type Change = Partial<Omit<UserDoc, 'prefs'>> & { prefs?: Partial<UserDoc['prefs']> };
+
+interface Replay {
+  /** Today's selection: every user with reminders on is read and checked in every run. */
+  before: string[];
+  /** B25's: the users whose nextDigestAt has come (everyone on the day's first run) and those changed since. */
+  after: string[];
+  /** Profiles B25's selection read. */
+  reads: number;
+}
+
+/**
+ * Replays [runs] twice from the same profiles, with today's selection and with B25's, as runJob does it: a full read
+ * in the first run of each UTC day, otherwise `nextDigestAt <= now`, plus `updatedAt` after the cursor; a due user
+ * either gets their digest (or nothing to report, or gives up: all record the day) or is [skipped] (no devices, a
+ * failed send), and every other user read gets a new nextDigestAt. [changes] are profile writes by the apps between
+ * runs, which stamp updatedAt.
+ */
+function replayBoth(
+  users: UserDoc[],
+  runs: Date[],
+  { changes = () => [], skipped = () => false }: {
+    changes?: (run: number) => Array<[string, Change]>;
+    skipped?: (uid: string, run: number) => boolean;
+  } = {},
+): Replay {
+  const clone = () => users.map((u) => ({ ...u, prefs: { ...u.prefs } }));
+  const before = clone();
+  const after = clone().map((doc) => ({ doc, next: undefined as Timestamp | null | undefined, updatedAt: 0 }));
+  const out: Replay = { before: [], after: [], reads: 0 };
+  let cursor: number | null = null;
+  let lastRead: string | null = null;
+  runs.forEach((now, run) => {
+    for (const [uid, change] of changes(run)) {
+      const apply = (u: UserDoc) => Object.assign(u, { ...change, prefs: { ...u.prefs, ...change.prefs } });
+      apply(before.find((u) => u.uid === uid)!);
+      const p = after.find((x) => x.doc.uid === uid)!;
+      apply(p.doc);
+      p.updatedAt = now.getTime() - 60_000;
+    }
+    const line = (u: UserDoc, date: string) => `${u.uid} ${date} ${now.toISOString()}`;
+    for (const u of before) {
+      const local = dueAt(u, now);
+      if (!local || skipped(u.uid, run)) continue;
+      out.before.push(line(u, local.date));
+      Object.assign(u, afterSend(local.date));
+    }
+
+    const full = cursor === null || pruneDue(lastRead, now);
+    const read = after.filter((p) =>
+      (full ? p.doc.prefs.enabled : p.next instanceof Timestamp && p.next.toMillis() <= now.getTime()) ||
+      (cursor !== null && p.updatedAt > cursor));
+    out.reads += read.length;
+    for (const p of read) {
+      const local = dueAt(p.doc, now);
+      if (local && !skipped(p.doc.uid, run)) {
+        out.after.push(line(p.doc, local.date));
+        Object.assign(p.doc, afterSend(local.date));
+        const next = nextDigestAt(p.doc, now);
+        p.next = next && Timestamp.fromDate(next);
+        continue;
+      }
+      const target = nextDigestAt(p.doc, now);
+      if (scheduleChanged(p.next, target, now)) p.next = target && Timestamp.fromDate(target);
+    }
+    cursor = now.getTime() - CURSOR_MARGIN_MS;
+    if (full) lastRead = utcDate(now);
+  });
+  return out;
+}
+
+// The daylight saving days of 2026: Europe ends 10-25, the US ends 11-01, the US starts 03-08, Europe starts 03-29.
+const DST_WEEKS = [['2026-10-23', 4], ['2026-10-30', 4], ['2026-03-06', 4], ['2026-03-27', 4]] as const;
+
+/** Odd times the rules allow (any minute 0 to 1439) and zones with half-hour offsets, besides the offered hours. */
+const oddOnes = () => [
+  ...[0, 59, 90, 150, 1319, 1320, 1439].map((m) => ({ ...user(`ny-odd-${m}`, 'America/New_York', 0), prefs: { ...DEFAULT_PREFS, digestMinutes: m } })),
+  ...[90, 150].map((m) => ({ ...user(`madrid-odd-${m}`, 'Europe/Madrid', 0), prefs: { ...DEFAULT_PREFS, digestMinutes: m } })),
+  user('kolkata-9', 'Asia/Kolkata', 9),
+  user('kathmandu-7', 'Asia/Kathmandu', 7),
+  user('no-zone-9', null as unknown as string, 9),
+  user('bad-zone-9', 'Not/AZone', 9),
+];
+
+describe('reading only the users who are due (after v1, B25)', () => {
+  for (const [from, days] of DST_WEEKS) {
+    it(`sends exactly what reading everyone sends, every quarter hour from ${from} for ${days} days`, () => {
+      const users = [...everyone(), ...oddOnes()];
+      const { before, after, reads } = replayBoth(users, everyStart(from, days));
+      assert.ok(before.length >= users.length * (days - 1), 'the replay sends digests');
+      assert.deepEqual(after, before);
+      // One full read a day plus each user's due read: about two reads a user a day, not one per run.
+      assert.ok(reads <= users.length * days * 3, `${reads} reads`);
+    });
+  }
+
+  it('the same with phones that miss runs, and with profiles changed between runs', () => {
+    const users = [...everyone(), ...oddOnes()];
+    const uids = users.map((u) => u.uid);
+    // Each change at a fixed pseudo-random run: earlier and later hours, a move east or west, reminders off and on,
+    // leaving a household and joining one.
+    const edits: Change[] = [
+      { prefs: { digestMinutes: 5 * 60 } }, { prefs: { digestMinutes: 21 * 60 } }, { timezone: 'Asia/Tokyo' },
+      { timezone: 'America/Los_Angeles' }, { prefs: { enabled: false } }, { prefs: { enabled: true } },
+      { householdId: null }, { householdId: 'h1' }, { timezone: 'Pacific/Kiritimati' }, { timezone: 'Pacific/Pago_Pago' },
+    ];
+    const changes = (run: number): Array<[string, Change]> =>
+      run % 7 === 3 ? [[uids[(run * 31) % uids.length]!, edits[(run * 17) % edits.length]!]] : [];
+    // A user with no device or whose send failed: about one run in three, at a fixed pattern.
+    const skipped = (uid: string, run: number) => (uid.length * 7 + run * 13) % 3 === 0;
+    for (const [from, days] of DST_WEEKS) {
+      const { before, after } = replayBoth(users, everyStart(from, days), { changes, skipped });
+      assert.deepEqual(after, before, from);
+    }
+  });
+
+  it('when only GitHub\'s schedule starts the job, and it drops most runs, the same again', () => {
+    const users = everyone();
+    const runs = starts('2026-10-30', 5, (i) => (i * 7919) % 5 === 0);
+    const { before, after } = replayBoth(users, runs);
+    assert.deepEqual(after, before);
+  });
+
+  it('keeps a stored time that is due as it is, and changes any other', () => {
+    const now = new Date('2026-10-12T13:07:00Z');
+    const ts = (iso: string) => Timestamp.fromDate(new Date(iso));
+    const later = new Date('2026-10-13T13:00:00Z');
+    assert.equal(scheduleChanged(ts('2026-10-12T13:00:00Z'), now, now), false, 'due, and stored as due');
+    assert.equal(scheduleChanged(ts('2026-10-13T13:00:00Z'), now, now), true, 'due now, stored for tomorrow');
+    assert.equal(scheduleChanged(undefined, now, now), true, 'never stored');
+    assert.equal(scheduleChanged(ts('2026-10-13T13:00:00Z'), later, now), false);
+    assert.equal(scheduleChanged(ts('2026-10-12T13:00:00Z'), later, now), true, 'done today');
+    assert.equal(scheduleChanged(ts('2026-10-13T13:00:00Z'), null, now), true, 'reminders off: removed');
+    assert.equal(scheduleChanged(undefined, null, now), false);
+    assert.equal(scheduleChanged('2026-10-13', later, now), true, 'not a timestamp');
   });
 });
 
