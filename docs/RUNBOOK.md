@@ -4,9 +4,11 @@ Operational tasks for Spoil Not. The design is in `DESIGN.md`; deviations are in
 
 ## Reminder job (DESIGN 10)
 
-The job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml` at minutes 7, 27 and 47 of
-every hour (since 2026-11-08), once per Firebase project. GitHub starts many scheduled runs late or not at all; the
-job catches up and sends at most one digest a day per user, however many runs start:
+The job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml`, once per Firebase project.
+Since 2026-11-22 an Apps Script trigger in the owner's Google account starts it every quarter hour ("On-time
+reminders" below), so a digest arrives about a minute after its time. The schedule at minutes 7, 27 and 47 of every
+hour (since 2026-11-08) stays as the backup, though GitHub starts many scheduled runs late or not at all. The job
+catches up and sends at most one digest a day per user, however many runs start:
 
 | Project | Repository secret ("How the jobs get their keys") |
 | --- | --- |
@@ -53,6 +55,46 @@ base64, or the account's `@….iam.gserviceaccount.com` email), treat the key as
 2. Delete each run whose log shows it: the run's **⋯ → Delete workflow run**, or `gh run delete <run-id>`.
 3. In Firestore → Usage, look for reads or writes you don't recognize since that run.
 
+### On-time reminders (Apps Script)
+
+GitHub runs a workflow started through its API (`workflow_dispatch`) at once, but starts scheduled runs hours late
+(DESIGN 10.4). So a Google Apps Script in the owner's Google account starts the job every quarter hour:
+`backend/reminder/apps-script/trigger.gs`, tested in `backend/reminder/test/trigger.test.ts`. It ticks every minute,
+starts the job once per quarter hour (:00, :15, :30 and :45 UTC) on `main` with **dry_run** off, and emails the owner
+at most once a day when GitHub refuses. The job and its keys stay on GitHub.
+
+**Set it up** (once):
+
+1. **Token.** github.com → your picture → **Settings → Developer settings → Personal access tokens → Fine-grained
+   tokens → Generate new token**. Name: `spoilnot-reminder-trigger`. Expiration: the longest offered (note the date).
+   **Repository access → Only select repositories →** `jmalp/spoilnot`. **Permissions → Repository permissions →
+   Actions: Read and write** (GitHub adds Metadata: read-only by itself), nothing else. **Generate token**, copy it.
+2. **Script.** https://script.google.com → **New project**, named `Spoil Not reminder trigger`. Replace everything in
+   `Code.gs` with `backend/reminder/apps-script/trigger.gs` and save.
+3. **Token in the script.** **Project Settings** (the gear) **→ Script properties → Add script property**: name
+   `GITHUB_TOKEN`, value the token. Save. The token is never in the code, so the file stays the repository's.
+4. **Start it.** In the editor, pick `install` in the function menu and **Run**. Google asks you to authorize the
+   script: it is your own, so it says Google hasn't verified it (**Advanced → Go to Spoil Not reminder trigger**),
+   and it asks to connect to an external service, manage its triggers and send email as you. `install` checks the
+   token with a read that starts nothing, then creates the every-minute trigger; the log says "Installed".
+5. **Check.** Within 15 minutes, a run started on the quarter hour shows up (`gh run list --repo jmalp/spoilnot
+   --workflow reminders.yml --event workflow_dispatch --limit 4`), and its log is a live run, not a dry run.
+
+**What the token can do.** In this repository only, and only Actions: start, re-run and cancel workflows, switch them
+on or off, and delete runs, logs and artifacts, the nightly exports among them. It cannot read secrets, change
+settings or environments, or approve a deployment. So the restore, which waits for the owner's approval in the
+`restore` environment ("How the jobs get their keys"), never writes on its own, and an export started with it only
+makes one more encrypted export. If it ever leaks: **Fine-grained tokens →** the token **→ Delete**, then make a new
+one (step 1) and replace the script property.
+
+**Renew the token** before its expiration date: **Regenerate token** (or make a new one as in step 1), replace the
+script property and run `install` again to check it. An expired token makes the script email you once a day
+("GitHub answered 401"); the reminders then go out on GitHub's schedule, late, until it is replaced.
+
+**Turn it off.** Run `uninstall` in the script (GitHub's schedule carries on), then delete the token. To start the
+job hourly instead of every quarter hour (fewer reads, "Check quota usage"), set `SLOT_MINUTES = 60` in the script:
+time zones with a half-hour offset then get their digest up to half an hour late.
+
 ### Run the job by hand
 
 GitHub → **Actions → expiry-reminders → Run workflow**. "Dry run" is ticked by default: the log shows each digest
@@ -72,6 +114,10 @@ gh workflow run reminders.yml -f dry_run=true
   gh run list --repo jmalp/spoilnot --workflow reminders.yml --event schedule --limit 500 --json startedAt --jq '.[].startedAt[11:13]' | sort | uniq -c
   ```
   Every hour should show runs. If whole hours are missing for a week, see DESIGN 10.4 and 10.6.
+- Since 2026-11-22 most runs are started by the Apps Script trigger ("On-time reminders"). If digests come late
+  again, see whether it still starts them (`gh run list --repo jmalp/spoilnot --workflow reminders.yml --event
+  workflow_dispatch --limit 8`), then the script's **Executions** page on script.google.com and its email: usually
+  the token expired.
 - Each run prints one summary line, `project <id>: {…}`, with counts only:
 
   | Field | Meaning |
@@ -432,7 +478,9 @@ owns.
 2. Run it again with the first characters of the household ID (four or more, enough to match one export) and
    "apply" unticked. The log shows how many documents would be written, by kind, and `Target: same owner as the
    export.` (it reads the target household, nothing else).
-3. Run it again with **apply** ticked. The log ends with `restored N document(s), M failed`. If M is not 0, the
+3. Run it again with **apply** ticked. Since 2026-11-22 every restore run waits for your approval, the listing and
+   dry runs too: on the run's page, **Review deployments →** tick `restore` **→ Approve and deploy** (GitHub also
+   emails you). The log ends with `restored N document(s), M failed`. If M is not 0, the
    run fails: those documents were not written (for example one too large for Firestore, which can take others in
    its batch with it). A restore sets each document as exported, so running it again is safe. `restore failed: no-such-household` means
    the target household does not exist (step 4).
@@ -484,7 +532,8 @@ When reads run out, both apps keep working from each phone's copy with the red q
 32 s, which costs nothing while refused. Nothing needs doing; if it happens often, see quota-sim below.
 
 `cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Knobs:
-`HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 24; 72 are scheduled), `WEB` (how many of each
+`HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 120 since 2026-11-22: the on-time trigger's 96 and
+about 24 of the 72 scheduled), `WEB` (how many of each
 household's 4 phones are the web app) and `WARM` (of each phone's 7 later opens, how many find the app's process
 still alive, or for web phones how many resume the suspended Home Screen app instead of reloading it; `HELD=1`
 replays the apps before 2026-11-09 (Android) and 2026-11-10 (web), which kept some listeners while the process or page
@@ -507,7 +556,12 @@ grocery item; a prune every day):
 | Writes (actions, month counts, activity events, the job's) | 941 | 4.7% |
 | Deletes (the daily prune: tombstones, activity after 30 days, meals after 28) | 570 | 2.9% |
 
-So the free plan holds **about 17 households** of this size under the 70% warning line (reads run out first).
+So the free plan held **about 17 households** of this size under the 70% warning line (reads run out first).
+Since 2026-11-22 the on-time trigger starts the job 96 more times a day ("On-time reminders"), and each run reads every
+user with reminders on: `RUNS=120`, the new default, gives 24,160 reads (48.3%), **about 14.5 households**; `RUNS=168`
+(every scheduled run starts as well) 26,128 reads, about 13.4. The tables here were measured with `RUNS=24`; the
+starts change only the scheduled jobs' line. If reads get tight, start the job hourly (`SLOT_MINUTES = 60` in the
+script): `RUNS=48` gives about 16.5 households.
 Other runs: `RUNS=72` (every scheduled run starts) 22,192 reads, about 15.8 households, since each run reads every
 user with reminders on; `RUNS=15` 19,855, about 17.6; `WEB=2` (two web phones per household) the same reads, since
 the web app also reads `config/app` (DESIGN 18.5); `WARM=3` or `WARM=7` the same reads, since nothing holds a
@@ -551,10 +605,12 @@ variables → Actions → Repository secrets**): `FIREBASE_SERVICE_ACCOUNT_JSON`
 `EXPORT_ENCRYPTION_KEY`. Only the owner can push branches or start workflows, and workflows run for pull requests from
 forks get no secrets. CI, `secret-scan` and `keepalive` use no secrets besides GitHub's own token.
 
-The three jobs also declare `environment: production`. Since 2026-11-22 it holds no secrets and has no branch rule
-(owner's choice, DECISIONS 2026-11-22); GitHub lists each run of the three jobs there as a deployment, which is
-expected. Keep its **Required reviewers** and **Wait timer** off: either would hold every scheduled run. A secret with
-one of the three names added to the environment would win over the repository's, so don't add one there.
+The reminder job and the export declare `environment: production`, and the restore `environment: restore`. Neither
+holds secrets or has a branch rule (owner's choice, DECISIONS 2026-11-22); GitHub lists each run there as a
+deployment, which is expected. Keep `production`'s **Required reviewers** and **Wait timer** off: either would hold
+every scheduled run. `restore` has the owner as its required reviewer (since 2026-11-22), so a restore waits for the
+owner's approval however it was started, also by the on-time trigger's token ("On-time reminders"). A secret with one
+of the three names added to an environment would win over the repository's, so don't add one there.
 
 Inside each job, `npm ci --ignore-scripts && npm run build` runs in a step that has no secret, and no package's
 install script runs at all. Only the step that
@@ -569,8 +625,8 @@ scheduled workflows in a public repository after 60 days without activity, and s
 `keepalive.yml` re-enables them (and itself) through the API on the 3rd of every month, which resets that clock. If
 one is disabled anyway: **Actions →** the workflow **→ Enable workflow** (or
 `gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check. If a run of the reminder
-job, export or restore waits for approval, check the `production` environment ("How the jobs get their keys"): no
-reviewers, no wait timer. If any job fails in "Set up job" naming an action, check the Actions allow-list ("Dependency
+job or the export waits for approval, check the `production` environment ("How the jobs get their keys"): no
+reviewers, no wait timer. A restore always waits for the owner's approval ("Restore a household"). If any job fails in "Set up job" naming an action, check the Actions allow-list ("Dependency
 updates").
 
 **Logs are public.** Workflow logs show counts, dates and the first characters of household IDs only: the reminder
