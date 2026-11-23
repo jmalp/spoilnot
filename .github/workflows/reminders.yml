@@ -35,7 +35,8 @@ jobs:
       group: expiry-reminders-${{ matrix.project }}
       cancel-in-progress: false
 
-    # The secrets live in the `production` environment, which only `main` can use (DESIGN 12.2 control 8).
+    # The keys are repository secrets; this environment holds none and lists the runs as deployments (DESIGN 12.2
+    # control 8, DECISIONS 2026-11-22).
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 5
