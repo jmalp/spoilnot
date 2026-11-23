@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.R
@@ -15,6 +16,7 @@ import com.parcha.spoilnot.feature.notifications.domain.NotificationPrefs
 import com.parcha.spoilnot.feature.settings.ui.AboutHeader
 import com.parcha.spoilnot.testing.Screenshots
 import com.parcha.spoilnot.testing.setThemed
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,7 +44,10 @@ class NotificationSettingsScreenshotTest(private val dark: Boolean, private val 
     private fun capture(name: String) =
         compose.onRoot().captureRoboImage(Screenshots.screenshotName(name, dark, fontScale))
 
-    /** Blocked on this phone, so the banner shows above the settings. */
+    /**
+     * Blocked on this phone, so the banner shows above the settings. The time's helper says the reminder can come hours
+     * later and names the hour the job stops sending at (after v1, 2026-11-22).
+     */
     @Test
     fun notifications() {
         compose.setThemed(dark, fontScale) {
@@ -59,6 +64,8 @@ class NotificationSettingsScreenshotTest(private val dark: Boolean, private val 
                 )
             }
         }
+        val stops = "Nothing is sent after ${formatHour(NotificationPrefs.LATEST_HOUR)}"
+        assertEquals(1, compose.onAllNodesWithText(stops, substring = true).fetchSemanticsNodes().size)
         capture("settings_notifications")
     }
 

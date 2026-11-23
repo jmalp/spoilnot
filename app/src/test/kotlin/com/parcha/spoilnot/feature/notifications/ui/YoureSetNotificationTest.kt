@@ -39,8 +39,9 @@ class YoureSetNotificationTest {
         val content = YoureSet.of(NotificationPrefs(digestMinutes = 18 * 60), batches, TODAY)
         val notification = Notifications.youreSet(app, content)
 
-        val body = "Spoil Not reminds you once a day, around ${formatHour(18)}, when food is about to expire. " +
-            "Tomorrow's reminder: Chicken, Spinach."
+        val body =
+            "Spoil Not reminds you once a day, some time after ${formatHour(18)}, when food is about to expire. " +
+                "Tomorrow's reminder: Chicken, Spinach."
         assertEquals("You're set", notification.title())
         assertEquals(body, notification.text())
         // The whole sentence shows when expanded.
@@ -54,11 +55,11 @@ class YoureSetNotificationTest {
     fun `more than three products end with the count, and none says so`() {
         val more = Notifications.youreSet(app, YoureSet(9, listOf("Spinach", "Chicken", "Milk"), 2))
         assertTrue(more.text().endsWith("Tomorrow's reminder: Spinach, Chicken, Milk and 2 more."))
-        assertTrue(more.text().contains("around ${formatHour(9)},"))
+        assertTrue(more.text().contains("some time after ${formatHour(9)},"))
 
         val none = Notifications.youreSet(app, YoureSet(7, emptyList(), 0))
         assertEquals(
-            "Spoil Not reminds you once a day, around ${formatHour(7)}, when food is about to expire. " +
+            "Spoil Not reminds you once a day, some time after ${formatHour(7)}, when food is about to expire. " +
                 "Nothing is due tomorrow.",
             none.text(),
         )

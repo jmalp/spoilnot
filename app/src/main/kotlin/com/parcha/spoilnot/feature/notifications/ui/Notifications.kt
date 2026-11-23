@@ -92,7 +92,7 @@ object Notifications {
             .build()
     }
 
-    /** "Spoil Not reminds you once a day, around 9:00 AM, … Tomorrow's reminder: Spinach, Chicken and 2 more." */
+    /** "Spoil Not reminds you once a day, some time after 9:00 AM, … Tomorrow's reminder: Spinach, Chicken and 2 more." */
     fun youreSetBody(resources: Resources, content: YoureSet): String {
         val time = resources.getString(R.string.notif_youre_set_time, formatHour(content.hour))
         val tomorrow = when {

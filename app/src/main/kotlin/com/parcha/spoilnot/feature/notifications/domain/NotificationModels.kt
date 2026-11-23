@@ -29,8 +29,14 @@ data class NotificationPrefs(
         const val DEFAULT_MINUTES = 9 * 60
         val ALL_STAGES = setOf(3, 2, 1, 0)
 
-        /** The job does not send after 22:00 (DESIGN 10.3), so the last offered hour is 21. */
-        val HOURS = 5..21
+        /**
+         * The job sends nothing at or after this local hour (`LATEST_MINUTES` in backend/reminder/src/digest.ts, DESIGN
+         * 10.3), and Settings says so (after v1, 2026-11-22).
+         */
+        const val LATEST_HOUR = 22
+
+        /** The hours Settings offers: the last one is the hour before [LATEST_HOUR]. */
+        val HOURS = 5 until LATEST_HOUR
     }
 }
 

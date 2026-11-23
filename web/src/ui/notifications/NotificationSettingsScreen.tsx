@@ -69,7 +69,7 @@ export function NotificationSettingsScreen({ onBack }: { onBack: () => void }) {
                 options={NotificationRules.HOURS.map(String)}
                 optionLabel={(h) => formatHour(Number(h))}
                 onPick={(h) => update((p) => ({ ...p, digestMinutes: Number(h) * 60 }))}
-                supportingText={str('notif_time_help')}
+                supportingText={str('notif_time_help', formatHour(NotificationRules.LATEST_HOUR))}
                 testId="field_notification_time"
               />
               <section className="sn-notifications__section">
