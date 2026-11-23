@@ -24,8 +24,13 @@ export type NotificationPrefs = {
 export const NotificationRules = {
   DEFAULT_MINUTES: 9 * 60,
   ALL_STAGES: [3, 2, 1, 0] as readonly number[],
-  /** The job does not send after 22:00 (DESIGN 10.3), so the last offered hour is 21. */
-  HOURS: Array.from({ length: 21 - 5 + 1 }, (_, i) => 5 + i),
+  /**
+   * The job sends nothing at or after this local hour (`LATEST_MINUTES` in backend/reminder/src/digest.ts, DESIGN 10.3),
+   * and Settings says so (after v1, 2026-11-22).
+   */
+  LATEST_HOUR: 22,
+  /** The hours Settings offers: the last one is the hour before LATEST_HOUR. */
+  HOURS: Array.from({ length: 22 - 5 }, (_, i) => 5 + i),
   hour: (prefs: NotificationPrefs) => Math.floor(prefs.digestMinutes / 60),
 
   /** Stages as stored: known ones, once each, largest first. */

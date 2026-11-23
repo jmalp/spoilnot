@@ -43,9 +43,12 @@ describe('NotificationRules', () => {
     });
   });
 
-  it('offers whole hours from 5:00 to 21:00, the last the job sends at', () => {
+  it('offers whole hours from 5:00 to 21:00, the hour before the job stops sending', () => {
     expect(NotificationRules.HOURS[0]).toBe(5);
     expect(NotificationRules.HOURS.at(-1)).toBe(21);
+    expect(NotificationRules.HOURS).toHaveLength(17);
+    // backend/reminder/src/digest.ts LATEST_MINUTES; Settings names it (after v1, 2026-11-22).
+    expect(NotificationRules.LATEST_HOUR).toBe(22);
     expect(NotificationRules.hour({ ...NotificationRules.read({}), digestMinutes: 9 * 60 + 30 })).toBe(9);
   });
 });
