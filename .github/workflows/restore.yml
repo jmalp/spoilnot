@@ -40,9 +40,10 @@ permissions:
 
 jobs:
   restore:
-    # The keys are repository secrets; this environment holds none and lists the runs as deployments (DESIGN 12.2
-    # control 8, DECISIONS 2026-11-22).
-    environment: production
+    # Waits for the owner's approval: the `restore` environment has the owner as its required reviewer, so a run that
+    # the on-time trigger's token could start (DESIGN 10.4) never writes on its own. The keys are repository secrets
+    # (DESIGN 12.2 control 8, DECISIONS 2026-11-22).
+    environment: restore
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `shell: bash` runs each step with -eo pipefail, so a step fails when any command in a pipe fails (a tar that

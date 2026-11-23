@@ -2,10 +2,10 @@
 // and delete math against the free Spark plan (50,000 reads, 20,000 writes, 20,000 deletes per day).
 //
 //   cd firebase && npm run quota-sim
-//   HOUSEHOLDS=10 RUNS=24 WEB=0 WARM=0 HELD=0 npm run quota-sim
+//   HOUSEHOLDS=10 RUNS=120 WEB=0 WARM=0 HELD=0 npm run quota-sim
 //
-// Knobs: HOUSEHOLDS; RUNS, the reminder job's runs that start in a day (72 are scheduled, three an hour, but GitHub
-// started about 5 of 24 a day in October 2026, DESIGN 10.4; 24 is the planning figure and RUNS=72 the worst case);
+// Knobs: HOUSEHOLDS; RUNS, the reminder job's runs that start in a day (since 2026-11-22 the on-time trigger starts
+// 96, DESIGN 10.4, and GitHub some of its 72 scheduled; 120 is the planning figure and RUNS=168 the worst case);
 // WEB, how many of each household's 4 phones are the web app for iPhone (the same listeners since its update gate,
 // DESIGN 18.5; only their device documents differ); WARM, of each phone's 7 later opens, how many find the app's
 // process still alive (review 09, EFF-01). Since 2026-11-09 (B09) nothing holds a household listener once its screens
@@ -32,7 +32,7 @@ const HOUSEHOLDS = Number(process.env.HOUSEHOLDS ?? 10);
 const PHONES = 4;
 const OPENS_PER_DAY = 8;
 const WRITES_PER_HOUSEHOLD = 40;
-const REMINDER_RUNS_PER_DAY = Number(process.env.RUNS ?? 24);
+const REMINDER_RUNS_PER_DAY = Number(process.env.RUNS ?? 120);
 const WEB = Math.min(PHONES, Number(process.env.WEB ?? 0));
 const WARM = Math.min(OPENS_PER_DAY - 1, Number(process.env.WARM ?? 0));
 const HELD = process.env.HELD === '1';
