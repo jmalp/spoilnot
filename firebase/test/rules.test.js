@@ -632,11 +632,16 @@ describe('profiles and devices', () => {
     await assertFails(setDoc(doc(as('gina'), 'users/hank'), profile('Hank', null)));
   });
 
-  it('the client cannot write lastDigestDate or lastExpiredThrough', async () => {
+  it('the client cannot write lastDigestDate, lastExpiredThrough, digestAttempts or nextDigestAt', async () => {
     const ref = doc(as('alice'), 'users/alice');
     await assertFails(updateDoc(ref, { lastDigestDate: '2026-10-15' }));
     await assertFails(updateDoc(ref, { lastExpiredThrough: '2026-10-14' }));
+    await assertFails(updateDoc(ref, { digestAttempts: { date: '2026-10-15', count: 0 } }));
+    // The job's own schedule (after v1, B25): the apps neither write it nor need to.
+    await assertFails(updateDoc(ref, { nextDigestAt: new Date('2026-10-15T13:00:00Z') }));
+    await assertFails(updateDoc(ref, { nextDigestAt: null }));
     await assertFails(setDoc(doc(as('frank'), 'users/frank'), { ...profile('Frank', null), lastDigestDate: '2026-10-15' }));
+    await assertFails(setDoc(doc(as('frank'), 'users/frank'), { ...profile('Frank', null), nextDigestAt: new Date() }));
   });
 
   it('a device is an Android phone or the web app, with a token', async () => {

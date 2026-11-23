@@ -1,5 +1,5 @@
 // Who gets a digest, what is in it, and how it reads (DESIGN 5.4, 10.3). Pure functions, tested with fixed clocks.
-import { addDays, daysBetween, toLocal, type LocalTime } from './time.ts';
+import { addDays, daysBetween, toLocal, zonedInstant, type LocalTime } from './time.ts';
 
 export type ExpiredMode = 'once' | 'daily' | 'never';
 
@@ -71,6 +71,38 @@ export function dueAt(user: UserDoc, now: Date): LocalTime | null {
   if (local.minutesOfDay >= LATEST_MINUTES) return null;
   if (user.lastDigestDate === local.date) return null;
   return local;
+}
+
+/**
+ * The first minute of the day's window that [dueAt] uses: the chosen time, rounded up to a whole minute and never
+ * before midnight (a time that is not a number counts as midnight, as [dueAt] reads it). Null when it is 22:00 or
+ * later, so never due.
+ */
+function windowStart(digestMinutes: number): number | null {
+  const start = Number.isNaN(digestMinutes) ? 0 : Math.max(0, Math.ceil(digestMinutes));
+  return start >= LATEST_MINUTES ? null : start;
+}
+
+/**
+ * When the job should next read this user (after v1, B25; DESIGN 10.3): the first instant at or after [now] at which
+ * [dueAt] says due, as long as the profile doesn't change. [now] itself when due now; null when never (reminders off,
+ * no household). The job stores it as `nextDigestAt` and each run reads only the users whose time has come, plus
+ * those whose profile changed since its last run, so a value computed from a profile that later changes is never
+ * relied on.
+ */
+export function nextDigestAt(user: UserDoc, now: Date): Date | null {
+  if (!user.prefs.enabled || !user.householdId) return null;
+  const start = windowStart(user.prefs.digestMinutes);
+  if (start === null) return null;
+  if (dueAt(user, now)) return now;
+  const local = toLocal(now, user.timezone);
+  // Today, if its window is still ahead and today's digest isn't done; otherwise the next day that isn't done.
+  if (local.minutesOfDay < start && user.lastDigestDate !== local.date) {
+    return zonedInstant(local.date, start, user.timezone);
+  }
+  let date = addDays(local.date, 1);
+  if (date === user.lastDigestDate) date = addDays(date, 1); // a later date: the user moved west after their digest
+  return zonedInstant(date, start, user.timezone);
 }
 
 /** The stock window to load for users whose local dates are `dates` (DESIGN 10.3). */

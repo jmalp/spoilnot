@@ -541,6 +541,8 @@ users/{uid}:                          # private to the user
   createdAt, updatedAt
   lastDigestDate: string | null       # SERVER-WRITTEN: local date of the last digest
   lastExpiredThrough: string | null   # SERVER-WRITTEN: expired items up to this date were reported
+  digestAttempts: { date, count }     # SERVER-WRITTEN (after v1): runs today whose digest reached no device
+  nextDigestAt: timestamp             # SERVER-WRITTEN (after v1, B25): when the job next reads this user (10.3)
 users/{uid}/devices/{installId}:
   token: string
   platform: android | web             # web: the web app for iPhone (after v1, 18.4)
@@ -805,6 +807,7 @@ Properties: idempotent (two phones doing it at once write identical data), respe
 - After v1 (2026-11-09) the rules look up the list for every batch that creates grocery items (8.5 invariant 10): one read per list per batch (Firestore bills a document a request looks up once, however many writes use it). With 10 item creates a household a day it adds about 10 reads; the simulation now makes 10 of its 40 daily writes item creates, and a typical household costs about 2,020 reads a day: still about 17 households. Explaining a refusal reads up to 11 documents, only when a phone loses a race.
 - After v1 (2026-11-09) Android lets go of every household listener once its screens are gone (9.1). Before, the restock engine and Pantry's and Groceries' screens kept theirs for as long as the process lived; Android often keeps it between opens, and a return after more than 30 minutes paid for them again, usually the day's full read of products and stock (review 09, EFF-01). The simulation's `WARM` and `HELD=1` knobs replay that: with 3 of each phone's 7 later opens finding the process alive it was about 3,720 reads a household a day (about 9 households), with all 7 about 6,340 (about 5). Now an open costs the same whether the process was kept or not: about 2,020, about 17 households. The phone's own listeners on one change also went from up to three per collection to one (EFF-03), which the simulation doesn't model (it lists one query per collection).
 - After v1 (2026-11-10) the web app lets go the same way (9.1, 18.3). Before, its restock engine kept the day's full read of products and stock, and the lists, from page load, and iOS resumed them whenever it brought a suspended Home Screen app back instead of reloading it. `HELD=1` now replays that for web phones too (only the engine's listeners; the screen on display also kept its own, so the web's "before" is a lower bound): with four web phones and 3 of 7 later opens resumed it was about 3,520 reads a household a day (about 10 households), with all 7 about 5,520 (about 6). Now about 2,020, about 17 households, as on Android.
+- After v1 (2026-11-23, B25) the reminder job reads only the users who may be due (10.3): those whose `nextDigestAt` has come, those whose profile changed since its last run, and once a day everyone with reminders on. A run with nobody due costs three reads (two empty queries and the job's state), so the number of runs barely matters: about 1,940 reads a household a day at 24 runs, 1,970 at 120 and 1,980 at 168, so **about 18 households** at 120 runs (from about 14.5) and 17.6 at 168 (from 13.4). It writes the job's state once a run, about 120 writes a day across the project.
 - If usage nears 70% of the daily quota: first, make sure recipes and non-active grocery lists are lazy-loaded (already specified); second, use a per-session read counter on a hidden debug screen to find regressions; third, move to the Blaze plan (extra reads cost a few cents per 100,000; check the current regional price; budget alerts notify but do not cap spending).
 
 **9.8 Changes-only listeners (after v1).** Most reads were phones re-reading every document after more than 30 minutes away. Products, stock, grocery items and recipes are now each read with two listeners (`liveDocuments` in `core/firebase/DeltaSync.kt`):
@@ -825,8 +828,10 @@ The meal plan (after v1, 5.9) uses the same two listeners limited to a window of
 **10.1 Flow**
 
 ```
-Three times an hour (GitHub Actions, after v1; hourly in v1) -> reminder job (Node.js + firebase-admin)
-  1. load users with notificationPrefs.enabled
+Every quarter hour (an Apps Script trigger, after v1; GitHub's schedule three times an hour as the backup; hourly
+in v1) -> reminder job (Node.js + firebase-admin)
+  1. load users with notificationPrefs.enabled (after v1, B25: only those whose nextDigestAt has come and those
+     whose profile changed since the last run; everyone with reminders on only in the first run of each UTC day)
   2. keep users who are due: local time is at or after their digest time, before 22:00, and not yet sent today
   3. per household: keep due users it still lists as members (after v1; clear a removed member's pointer), keep
      those with a device (after v1, read first), then query stock with expiryDate between (today - 14 days) and
@@ -835,7 +840,8 @@ Three times an hour (GitHub Actions, after v1; hourly in v1) -> reminder job (No
   4. build each due user's digest from their own stages and local date: the Needs attention set (5.4, after v1 one
      set with the apps) narrowed by their stages and expired mode
   5. send through FCM to the user's device tokens; delete tokens FCM says are unregistered or invalid
-  6. update users/{uid}: lastDigestDate, lastExpiredThrough
+  6. update users/{uid}: lastDigestDate, lastExpiredThrough (after v1 also nextDigestAt, tomorrow's time; every
+     other user read gets a new nextDigestAt too)
   7. prune activity older than 30 days and join requests older than 7 days (after v1: in the first run of each
      UTC day, keyed on jobs/state.lastPruneDate; after v1, 2026-11-10: pending and declined ones, and approved ones
      only once the join is finished, that is when the sender's profile no longer waits on this household or is
@@ -857,8 +863,15 @@ Three times an hour (GitHub Actions, after v1; hourly in v1) -> reminder job (No
 
 ```
 now = current time
+state = jobs/state                                    # after v1, B25: usersCursor, lastUsersReadDate, lastPruneDate
+if no usersCursor or lastUsersReadDate before today (UTC):     # the first run of each UTC day, and the first ever
+  read = users where notificationPrefs.enabled == true
+else:
+  read = users where nextDigestAt <= now               # automatic single-field indexes; no composite index
+read += users where updatedAt > usersCursor            # profiles the apps changed since the last run
+                                                       # (both apps stamp updatedAt with the server time)
 due = []
-for user in users where notificationPrefs.enabled == true:
+for user in read:                                      # until B25: every user with reminders on, every run
   local = toLocal(now, user.timezone ?? 'UTC')        # Intl.DateTimeFormat; handles DST
   if local.minutesOfDay < prefs.digestMinutes: continue
   if local.minutesOfDay >= 22 * 60: continue          # too late; skip today
@@ -890,7 +903,7 @@ for each household:
         if u.expiredMode == 'daily' or b.expiryDate > (u.lastExpiredThrough ?? ''):
           items.add(stage = expired, batch = b)
     cooking = meals today where u is a cook, not cooked     # after v1 (5.9), when u.cooking; one meals query per household
-    if items and cooking are empty: update u.lastDigestDate = local.date; continue
+    if items and cooking are empty: update u.lastDigestDate = local.date; continue    # with nextDigestAt, below
     result = fcm.sendEach(tokens, buildDigest(items, cooking, u.locale))    # after v1 in chunks of 500
     delete tokens that returned registration-token-not-registered or invalid-registration-token
       # after v1 not invalid-argument: FCM also answers it for a message it refuses, and the token is fine
@@ -899,18 +912,31 @@ for each household:
     else:                                                       # after v1
       count the attempt (u.digestAttempts = { date: local.date, count }); at 3 in one local day
       update u.lastDigestDate = local.date                      # done for the day; expired items wait for tomorrow
+  # after v1 (B25): each of these updates that ends the day also sets u.nextDigestAt = nextDigestAt(u), tomorrow
   # after v1: each household and each user in try/catch. A failure is counted (failures, no IDs) and logged as
   # "<step> failed: <code>"; the run carries on and exits non-zero at the end so GitHub emails. A profile deleted
   # during the run (NOT_FOUND) is an account deletion: skippedDeleted, not a failure.
+# after v1 (B25): every other user read (not due, no devices, a failed send, a removed member) gets
+for user u in read whose digest step didn't set it:
+  next = nextDigestAt(u)   # the first instant at or after now when u is due, if the profile stays as it is;
+                           # now while due; none when reminders are off or there is no household
+  if next differs from u.nextDigestAt (two times at or before now count as the same): update u.nextDigestAt = next
+  # a profile deleted since it was read (NOT_FOUND) is left alone; any other failure is counted and keeps the cursor
+if every one of those updates succeeded: usersCursor = the earliest read's time minus 5 minutes
+                                         (and lastUsersReadDate = today on a full read)
 if the first run of this UTC day (jobs/state.lastPruneDate before today; after v1, 10.4):
   prune activity documents older than 30 days and join requests older than 7 days (after v1 also tombstones older than 2 days, 9.8, and planned meals more than 28 days past, 5.9)
   # after v1: a deletion that fails after BulkWriter's retries is counted (pruneFailures), never thrown or printed,
   # and so is a household whose queries fail; the run then exits non-zero so GitHub emails
   if nothing failed: set jobs/state.lastPruneDate = today (UTC)   # else the next run prunes again
+  # after v1 (B25) one write of jobs/state carries the cursor and the prune's date; without the state (its read
+  # failed) the run reads everyone, sends, and writes no state and prunes nothing
   # jobs/state is the job's own document; the rules match no such path, so clients can neither read nor write it
 ```
 
 After v1 every entry point (reminders, nightly export, restore) prints a failure as one fixed line with the error's code (a gRPC status name such as `PERMISSION_DENIED`, a Firebase or Node code, or one of the jobs' own such as `wrong-project`), never the error object or its message, including errors nothing handled: a Firestore error can hold the client and, through it, the service account key, and its message can name a full document path (13.4).
+
+*After v1 (2026-11-23, B25, review EFF-04): reading only the users who may be due.* Each run used to read every user with reminders on, to find the few who were due; with the on-time trigger that was 120 or more reads a user a day. Now the job keeps `nextDigestAt` on each profile itself: `nextDigestAt(user, now)` in `digest.ts` is the first instant at or after `now` at which `dueAt` would say due if the profile stays as it is (today at the chosen time if today's window is still ahead, otherwise the next day not already done; `zonedInstant` in `time.ts` finds it on daylight saving days, the first of a repeated time and the end of a skipped one), `now` while due, none with reminders off or no household. A digest, an empty digest and giving up store tomorrow's time in the same update as `lastDigestDate`; a due user left for the next run (no devices, a failed send, a household whose step failed) keeps a time at or before now; any other user read gets a fresh time. What can make a user due sooner is a change the apps make: the time, the time zone, reminders on, a household. Both apps write those with `updatedAt` set to the server's time (the released builds too: Android 1.0.0, web 744d251), so the next run reads them through the cursor, as it would have read everyone before, and the digest goes out at the same run as before. The cursor only moves on once every new time is stored, and it is taken from the server's read time less 5 minutes, so a profile changed while the run went on is read again. The job only ever stores a time earlier than the truth or equal to it, so a time computed from a profile that changed later costs a read, never a digest. The daily full read gives users without the field theirs (everyone at the first run after the merge, and any profile a write without `updatedAt` changed, such as an edit in the console). Only `notificationPrefs.enabled == true` counts, as the old query had it. The selection needs no app change, no rules change and no composite index, so it went live with the merge (RUNBOOK). `backend/reminder/test/job.test.ts` replays today's selection and this one side by side over every quarter-hour and scheduled start for four days around each 2026 daylight saving change, every offered hour in five time zones plus odd stored minutes and half-hour zones, with profiles changed between runs and phones that miss runs, and checks they send the same digests at the same runs.
 
 *After v1 (2026-11-13, review UX-03).* A new member's first digest therefore comes with the first run after their hour (and before 22:00) that finds something in their stages: hours after setting up, the next morning after 22:00, or not at all while nothing expires within 3 days. The job is unchanged; the app covers the first minutes with its local "You're set" notification (5.4).
 
@@ -962,11 +988,11 @@ Pin the action versions to the current majors at build time. *After v1 (2026-11-
 
 *After v1 (2026-11-22), measured again.* With three entries an hour, GitHub started 71 of about 500 scheduled runs from 15 to 22 November 2026. Runs fell in 6 to 11 hours of each day, with a median gap of 1.3 hours, 6.8 hours at the 90th percentile and up to 8.5. A 9:00 digest in New York came 0.4 to 7 hours late, about 3 hours on a typical day; none was missed, since the job catches up. More schedule entries were not enough, so the owner chose honest copy first: the apps no longer say "around" or "shortly after" the hour, and Settings names 22:00 (10.2). A free external cron service calling `workflow_dispatch` (10.6) or Plan C stays open, decided later (DECISIONS 2026-11-22).
 
-*After v1 (2026-11-22), started on time.* The owner then chose an outside trigger (10.6): a Google Apps Script in the owner's own Google account (`backend/reminder/apps-script/trigger.gs`, tested in `backend/reminder/test/trigger.test.ts`) ticks every minute and starts the workflow through `workflow_dispatch` once per quarter hour (:00, :15, :30 and :45 UTC), on `main` with `dry_run` false. GitHub runs a dispatched workflow at once and the job takes about 20 seconds, so a digest arrives about a minute after its time; every quarter hour rather than hourly, so that time zones with half-hour offsets get theirs on time too. The script's GitHub token is fine-grained, for this repository only, with Actions: read and write, kept as a script property. It can start, re-run, cancel, enable and disable workflows and delete runs and artifacts, but not read secrets, change settings or environments, or approve deployments, so the restore waits for the owner's approval in its own `restore` environment (12.2 control 8). The three schedule entries stay as the backup, and the job still sends at most one digest a day per user. When GitHub refuses (an expired token), the script tries again every minute and emails the owner at most once a day. About 96 more runs a day, each reading every user with reminders on: the quota simulation's planning figure is now 120 runs a day, about 14 households under 70% of the free reads (9.7; RUNBOOK, Check quota usage). The apps keep the 2026-11-22 wording (10.2) until a day of runs shows the starts on time.
+*After v1 (2026-11-22), started on time.* The owner then chose an outside trigger (10.6): a Google Apps Script in the owner's own Google account (`backend/reminder/apps-script/trigger.gs`, tested in `backend/reminder/test/trigger.test.ts`) ticks every minute and starts the workflow through `workflow_dispatch` once per quarter hour (:00, :15, :30 and :45 UTC), on `main` with `dry_run` false. GitHub runs a dispatched workflow at once and the job takes about 20 seconds, so a digest arrives about a minute after its time; every quarter hour rather than hourly, so that time zones with half-hour offsets get theirs on time too. The script's GitHub token is fine-grained, for this repository only, with Actions: read and write, kept as a script property. It can start, re-run, cancel, enable and disable workflows and delete runs and artifacts, but not read secrets, change settings or environments, or approve deployments, so the restore waits for the owner's approval in its own `restore` environment (12.2 control 8). The three schedule entries stay as the backup, and the job still sends at most one digest a day per user. When GitHub refuses (an expired token), the script tries again every minute and emails the owner at most once a day. About 96 more runs a day, each reading every user with reminders on: the quota simulation's planning figure is now 120 runs a day, about 14 households under 70% of the free reads (9.7; RUNBOOK, Check quota usage). Since 2026-11-23 (B25, 10.3) a run reads only the users who may be due, so 120 runs a day cost about what 24 did: about 18 households. The apps keep the 2026-11-22 wording (10.2) until a day of runs shows the starts on time.
 
 **Service account.** Create a dedicated service account for the job with least privilege (Firestore read and write, and permission to send FCM messages; confirm the current role names in the Google Cloud console). Store its JSON key only as the `FIREBASE_SERVICE_ACCOUNT_JSON` repository secret. Rotate it yearly. Never commit it.
 
-**10.5 Tests.** Pure functions with a fixed clock: time zones on both sides of UTC, DST start and end days, month and year boundaries, a missed run followed by a catch-up, once versus daily expired mode, stage subsets, best-before wording, an empty digest, a user with no devices. `DRY_RUN=true` logs messages instead of sending. One integration test against the Firestore emulator with seeded data. After v1 (2026-11-08) also: the schedule replay (one digest a day per user), the prune key, which FCM codes delete a token, chunks, the title by distinct names and the length limits as unit tests; and against the emulator a day of three runs an hour, a sender that throws, three failed attempts, the device cap, devices read before stock, the stock cap, a profile deleted during the run, and a prune with failures that the next run repeats.
+**10.5 Tests.** Pure functions with a fixed clock: time zones on both sides of UTC, DST start and end days, month and year boundaries, a missed run followed by a catch-up, once versus daily expired mode, stage subsets, best-before wording, an empty digest, a user with no devices. `DRY_RUN=true` logs messages instead of sending. One integration test against the Firestore emulator with seeded data. After v1 (2026-11-08) also: the schedule replay (one digest a day per user), the prune key, which FCM codes delete a token, chunks, the title by distinct names and the length limits as unit tests; and against the emulator a day of three runs an hour, a sender that throws, three failed attempts, the device cap, devices read before stock, the stock cap, a profile deleted during the run, and a prune with failures that the next run repeats. After v1 (2026-11-23, B25) also: `zonedInstant` and `nextDigestAt` on daylight saving days, skipped and repeated times, odd stored minutes and unknown zones; the side-by-side replay of the old and new selection (10.3); and against the emulator the stored times after a run, later runs reading only the due and the changed, a user whose time, time zone or reminders change between runs, a profile deleted before its time is stored, a dry run that stores nothing, and a run whose state can't be read.
 
 **10.6 Alternatives.** *Plan B, a more reliable scheduler (closed after v1, 2026-11-08).* It was to deploy the same core module as a Cloud Function triggered by Cloud Scheduler, which needs the Blaze plan with a payment card. The project uses no Cloud Functions and no paid Google Cloud service, so Plan B is not an option; GitHub's timing is handled with more schedule entries (10.4). If that is not enough, a free external cron service can trigger the workflow through `workflow_dispatch`, with a fine-grained token limited to this repository and Actions: write, kept only in that service; the workflow's only input stays `dry_run`. Chosen on 2026-11-22 (10.4): the trigger is a Google Apps Script in the owner's own Google account, so the token stays in that account rather than with a cron service.
 
@@ -1236,7 +1262,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 | Owner | Delete the household and all subcollections | Allowed |
 | Anyone | List `inviteCodes`, or get a malformed code | Denied |
 | User A | Read user B's profile or devices | Denied |
-| Client | Write `lastDigestDate` or `lastExpiredThrough` | Denied |
+| Client | Write `lastDigestDate`, `lastExpiredThrough`, `digestAttempts` or (after v1) `nextDigestAt` | Denied |
 | Removed member | Any household read | Denied immediately |
 | New user | Create household batch (household, owner member, code, own profile update) | Allowed |
 | Owner | Transfer ownership without demoting themselves in the same batch (after v1) | Denied |
@@ -1522,6 +1548,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-22 | Honest reminder times (both apps): GitHub started 71 of about 500 scheduled reminder runs in a week, so a 9:00 digest came about 3 hours late (0.4 to 7, 10.4). The apps stop promising the hour: Settings' row says "Daily, after 9:00 AM" (was "shortly after"), the time's helper says it comes after the time, often a few hours later, and that nothing is sent after 10:00 PM, so an evening time can be skipped (was "It arrives shortly after this time."), the explanation and You're set say "after" the hour (were "around"), and the battery hint no longer blames the phone for late reminders. The job and the hours offered are unchanged. `NotificationPrefs.LATEST_HOUR` and `NotificationRules.LATEST_HOUR` (22) name the job's limit, with tests; the Notifications page's screenshots (both apps, 1.0× text) and Android's Settings row re-recorded; QA flows 35, 57 and 59 updated and flow 83 | 5.4, 10.2, 10.4, QA, DECISIONS |
 | 2026-11-22 | Actions settings: only GitHub's own actions plus `gradle/actions/setup-gradle` and `gitleaks/gitleaks-action` may run, and every action must be pinned to a full-length commit SHA (a repository setting; all 28 references were already pinned; checked by re-running main's CI and secret-scan). The jobs' three keys stay repository secrets, and the docs no longer say the `production` environment holds them (owner's choice) | 10.4, 12.2, RUNBOOK, SECURITY_REVIEW, DECISIONS |
 | 2026-11-22 | On-time reminders: a Google Apps Script in the owner's Google account starts the reminder job through `workflow_dispatch` every quarter hour (`backend/reminder/apps-script/trigger.gs`, six tests in `test/trigger.test.ts`), with a fine-grained token (this repository, Actions: read and write) kept as a script property, so a digest arrives about a minute after its time instead of hours later; GitHub's schedule stays as the backup. The restore moves to a `restore` environment whose required reviewer is the owner. The quota simulation's planning figure becomes 120 runs a day (about 14 households, from 17). The apps' wording changes once a day of runs shows the starts on time | 9.7, 10.4, 10.6, 12.2, RUNBOOK, SECURITY_REVIEW, DECISIONS |
+| 2026-11-23 | The reminder job reads only the users who may be due (B25, review EFF-04): it keeps `nextDigestAt` on each profile itself and reads those whose time has come, those whose profile changed since its last run (`updatedAt`, which both apps stamp) and once a day everyone with reminders on. Same digests at the same runs; no app, rules or index change. About 18 households fit at 120 runs a day, from about 14.5 | 8.2, 9.7, 10.1, 10.3, 10.4, 10.5, 12.4, RUNBOOK, PRIVACY |
 
 ## 18. Web app for iPhone (after v1)
 
