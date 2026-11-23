@@ -8,7 +8,7 @@ The job lives in `backend/reminder` and runs from `.github/workflows/reminders.y
 every hour (since 2026-11-08), once per Firebase project. GitHub starts many scheduled runs late or not at all; the
 job catches up and sends at most one digest a day per user, however many runs start:
 
-| Project | Secret (in the `production` environment, "How the jobs get their keys") |
+| Project | Repository secret ("How the jobs get their keys") |
 | --- | --- |
 | `spoilnot-prod` (testers) | `FIREBASE_SERVICE_ACCOUNT_JSON` |
 | `spoilnot-dev` (development, optional) | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
@@ -24,12 +24,12 @@ run with `expiry-reminders failed: wrong-project`, and every run logs the projec
    - **Cloud Datastore User** (read and write Firestore),
    - **Firebase Cloud Messaging API Admin** (send notifications).
 4. Open the account → **Keys → Add key → Create new key → JSON → Create**. A `.json` file downloads.
-5. Store it as a secret of the `production` environment, then delete the downloaded file:
+5. Store it as a repository secret, then delete the downloaded file:
    ```bash
    # spoilnot-prod
-   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --env production --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot < ~/Downloads/<file>.json
    # spoilnot-dev
-   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --env production --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --repo jmalp/spoilnot < ~/Downloads/<file>.json
    ```
 6. In the Firebase console → Project settings → Cloud Messaging, check that **Firebase Cloud Messaging API (V1)**
    is enabled.
@@ -397,7 +397,7 @@ fails rather than upload an archive that `tar` didn't finish.
 **Set up the key once** (and again only to rotate it; older exports then need the old key):
 
 ```bash
-openssl rand -base64 32 | tee /dev/tty | gh secret set EXPORT_ENCRYPTION_KEY --env production --repo jmalp/spoilnot
+openssl rand -base64 32 | tee /dev/tty | gh secret set EXPORT_ENCRYPTION_KEY --repo jmalp/spoilnot
 ```
 
 Save the printed key in your password manager: it is the only way to open an export outside GitHub. To open one on a
@@ -546,33 +546,21 @@ regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget
 
 ## How the jobs get their keys
 
-The reminder job, the nightly export and the restore declare `environment: production`, and their secrets are
-secrets of that environment: `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` and
-`EXPORT_ENCRYPTION_KEY`. The environment allows only the `main` branch, so a workflow run from any other branch
-cannot use it and gets none of them. It has no required reviewers and no wait timer, so scheduled runs start on their
-own. CI, `secret-scan` and `keepalive` use no secrets besides GitHub's own token.
+The reminder job, the nightly export and the restore use three repository secrets (**Settings → Secrets and
+variables → Actions → Repository secrets**): `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` and
+`EXPORT_ENCRYPTION_KEY`. Only the owner can push branches or start workflows, and workflows run for pull requests from
+forks get no secrets. CI, `secret-scan` and `keepalive` use no secrets besides GitHub's own token.
+
+The three jobs also declare `environment: production`. Since 2026-11-22 it holds no secrets and has no branch rule
+(owner's choice, DECISIONS 2026-11-22); GitHub lists each run of the three jobs there as a deployment, which is
+expected. Keep its **Required reviewers** and **Wait timer** off: either would hold every scheduled run. A secret with
+one of the three names added to the environment would win over the repository's, so don't add one there.
 
 Inside each job, `npm ci --ignore-scripts && npm run build` runs in a step that has no secret, and no package's
 install script runs at all. Only the step that
 runs `node dist/…` gets the service account key; the export's Encrypt step and the restore's Decrypt step get
 `EXPORT_ENCRYPTION_KEY`. CI installs with `--ignore-scripts` too, and the job's tests pass that way, so a dependency
 that needs its install script fails CI before it reaches a job.
-
-**Set up the environment** (once, and again if it is ever deleted):
-
-1. GitHub → the repository → **Settings → Environments**. Open `production` (GitHub creates it, without rules, the
-   first time a workflow names it) or **New environment** with that name.
-2. **Deployment branches and tags → Selected branches and tags → Add deployment branch or tag rule**: branch `main`.
-3. Leave **Required reviewers** and **Wait timer** off: either would hold every scheduled run until someone acts.
-4. **Environment secrets → Add environment secret** for each of the three, or from a terminal with `--env
-   production` (the commands in "Create the service account" and "Nightly export and restore").
-5. Keep these secrets only in the environment: only there are they limited to `main`. When a repository secret
-   (**Settings → Secrets and variables → Actions → Repository secrets**) has the same name, the job uses the
-   environment's. After
-   a manual run of `expiry-reminders` (dry run) and `nightly-export` succeeds, delete any repository secret with one
-   of these names.
-
-The environment's page lists each run of the three jobs as a deployment; that is expected.
 
 ## Scheduled workflows
 
@@ -581,8 +569,9 @@ scheduled workflows in a public repository after 60 days without activity, and s
 `keepalive.yml` re-enables them (and itself) through the API on the 3rd of every month, which resets that clock. If
 one is disabled anyway: **Actions →** the workflow **→ Enable workflow** (or
 `gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check. If a run of the reminder
-job, export or restore waits for approval or fails before its first step, check the `production` environment ("How
-the jobs get their keys"): `main` allowed, no reviewers, no wait timer.
+job, export or restore waits for approval, check the `production` environment ("How the jobs get their keys"): no
+reviewers, no wait timer. If any job fails in "Set up job" naming an action, check the Actions allow-list ("Dependency
+updates").
 
 **Logs are public.** Workflow logs show counts, dates and the first characters of household IDs only: the reminder
 job logs neither user IDs nor what is in a digest (a dry run shows how many items and meals, never names or titles), and
@@ -599,6 +588,13 @@ Compose, Firebase or DataStore update (their code is in it; "Baseline profile").
 - **Actions** are pinned to a full commit SHA with the version in a comment (`uses: actions/checkout@<sha> #
   v7.0.1`), and Dependabot updates both. Pin a new action the same way: `gh api
   repos/<owner>/<action>/commits/<tag> --jq .sha`, and check that the tag is the release you meant.
+- **Allowed actions** (since 2026-11-22, **Settings → Actions → General → Actions permissions**): GitHub's own actions
+  plus `gradle/actions/setup-gradle@*` and `gitleaks/gitleaks-action@*`; Marketplace "verified creators" are not
+  allowed, and **Require actions to be pinned to a full-length commit SHA** is on. A workflow that uses any other
+  action fails in "Set up job" with a message naming it. To add an outside action, pin it as above and add
+  `<owner>/<repo>[/<path>]@*` to that list in the same settings page (or `gh api -X PUT
+  repos/jmalp/spoilnot/actions/permissions/selected-actions` with the whole list). Check the settings with `gh api
+  repos/jmalp/spoilnot/actions/permissions` and `…/permissions/selected-actions`.
 - **npm** installs in CI and the jobs use `--ignore-scripts`. A dependency that needs its install script fails CI;
   don't add one to `backend/reminder` (its jobs hold the keys).
 - **npm audit:** run `npm audit fix --ignore-scripts` (never `--force`) in a project and review the lockfile diff;
