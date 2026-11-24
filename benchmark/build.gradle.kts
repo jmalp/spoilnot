@@ -6,7 +6,11 @@ plugins {
 
 android {
     namespace = "com.parcha.spoilnot.benchmark"
-    compileSdk = 37
+    // Compose 1.13 (BOM 2026.11.01) needs Android 37.1 or later to compile against; targetSdk stays 37 (DECISIONS
+    // 2026-11-24).
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         // BaselineProfileRule needs API 28 or later.

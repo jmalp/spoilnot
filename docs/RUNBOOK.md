@@ -736,6 +736,10 @@ Compose, Firebase or DataStore update (their code is in it; "Baseline profile").
   `app/build.gradle.kts`). Dependabot raises it. Remove both when Firebase brings that version or a newer one.
   `errorprone` works the same way: Firestore 27.2 dropped the annotations from gRPC, and without the constraint
   the instrumented tests' classpath fails to resolve. Remove it when Firebase asks for 2.30.0 or later.
+- **Compose** 1.13 (BOM 2026.11.01) and later need `compileSdk` 37.1 or later: the app compiles against 37.2 with
+  `compileSdk { version = release(37) { minorApiLevel = 2 } }` in `app` and `benchmark` (`targetSdk` stays 37), and
+  Gradle downloads the SDK platform the first time. A Compose update can also remove APIs the app uses: read the
+  compile errors first, then rerun `verifyRoborazziDevDebug` and the instrumented tests, which CI does not run.
 - **AGP** 9.5.2 since 2026-11-24. 9.5.0 and 9.5.1 could not configure the release variants ("Compose Preview requires
   unit tests"), so the app stayed on 9.4.1 until then. Before taking a new AGP, check that `./gradlew :app:tasks`
   lists the `ProdRelease` tasks: CI builds only debug variants.
