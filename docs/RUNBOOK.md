@@ -736,8 +736,9 @@ Compose, Firebase or DataStore update (their code is in it; "Baseline profile").
   `app/build.gradle.kts`). Dependabot raises it. Remove both when Firebase brings that version or a newer one.
   `errorprone` works the same way: Firestore 27.2 dropped the annotations from gRPC, and without the constraint
   the instrumented tests' classpath fails to resolve. Remove it when Firebase asks for 2.30.0 or later.
-- **AGP** stays at 9.4.1 until a release configures the release variants without unit tests (9.5.0 and 9.5.1 fail
-  with "Compose Preview requires unit tests"; check with `./gradlew :app:tasks`). Dependabot ignores both.
+- **AGP** 9.5.2 since 2026-11-24. 9.5.0 and 9.5.1 could not configure the release variants ("Compose Preview requires
+  unit tests"), so the app stayed on 9.4.1 until then. Before taking a new AGP, check that `./gradlew :app:tasks`
+  lists the `ProdRelease` tasks: CI builds only debug variants.
 - Gradle dependency verification is not used (DECISIONS 2026-11-10); the Gradle wrapper is checked by its
   `distributionSha256Sum` and by `setup-gradle` in CI.
 - **Playwright's image** (CI's web job, DESIGN 13.2): Dependabot updates `@playwright/test` in `web/` but not the
