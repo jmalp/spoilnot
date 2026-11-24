@@ -5,6 +5,7 @@ import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
@@ -112,11 +113,17 @@ private const val FLING_STEPS = 10
 
 /**
  * Taps [target] until [opened] shows, at most three times, and says whether it did. A tap right after a fling only
- * stops the fling in Compose, so the first tap can do nothing.
+ * stops the fling in Compose, so the first tap can do nothing, and a row found while a list still settles can be
+ * gone by the time it is tapped (`StaleObjectException`), which counts as a tap that did nothing.
  */
 internal fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector): Boolean {
     repeat(3) {
-        device.wait(Until.findObject(target), TIMEOUT_MS)?.click() ?: return false
+        val found = device.wait(Until.findObject(target), TIMEOUT_MS) ?: return false
+        try {
+            found.click()
+        } catch (_: StaleObjectException) {
+            return@repeat
+        }
         if (device.wait(Until.hasObject(opened), OPEN_TIMEOUT_MS)) return true
     }
     return false

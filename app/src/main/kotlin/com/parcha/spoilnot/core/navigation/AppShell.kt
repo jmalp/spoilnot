@@ -2,6 +2,7 @@ package com.parcha.spoilnot.core.navigation
 
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.designsystem.component.coachMark
 import com.parcha.spoilnot.core.designsystem.component.rememberScreenReaderOn
 import com.parcha.spoilnot.core.designsystem.motion.Motion
+import com.parcha.spoilnot.core.designsystem.motion.StretchOverscrollWarmUp
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
@@ -338,17 +340,21 @@ internal fun TabBar(
         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    NavigationBar(modifier, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        TopLevelDestination.entries.forEach { tab ->
-            val selected = tab == currentTab
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onSelect(tab) },
-                modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
-                icon = { Icon(if (selected) tab.selectedIcon else tab.unselectedIcon, contentDescription = null) },
-                label = { TabLabel(stringResource(tab.label)) },
-                colors = colors,
-            )
+    Box(modifier) {
+        // Drawn first, so the bar's opaque surface covers it (DESIGN 13.1).
+        StretchOverscrollWarmUp(Modifier.matchParentSize())
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            TopLevelDestination.entries.forEach { tab ->
+                val selected = tab == currentTab
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onSelect(tab) },
+                    modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
+                    icon = { Icon(if (selected) tab.selectedIcon else tab.unselectedIcon, contentDescription = null) },
+                    label = { TabLabel(stringResource(tab.label)) },
+                    colors = colors,
+                )
+            }
         }
     }
 }

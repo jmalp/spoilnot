@@ -441,6 +441,34 @@ benchmark closed it: look in `adb logcat` for `Start proc … com.parcha.spoilno
 reports and Firebase Sessions caused it until 2026-10-31 (their uploads to the emulators' demo project failed and were
 retried); both are now off in the emulator builds.
 
+### What a late frame did
+
+Every iteration leaves a Perfetto trace of its measured part next to the results
+(`benchmark/build/outputs/connected_android_test_additional_output/…/*.perfetto-trace`). Macrobenchmark clears the
+app's shader cache before every iteration, so a "first" scenario sees what a phone sees after an install or update.
+The trace processor that reads them comes with the benchmark library and runs on the emulator:
+
+```bash
+adb push "$(find ~/.gradle/caches -name trace_processor_shell_aarch64 | head -1)" /data/local/tmp/tp
+adb shell chmod 755 /data/local/tmp/tp
+adb push <iteration>.perfetto-trace /data/local/tmp/t.trace
+adb shell "/data/local/tmp/tp -q /data/local/tmp/q.sql /data/local/tmp/t.trace"
+```
+
+with a query in `q.sql` (pushed the same way), for example the GPU programs compiled on the RenderThread and the Skia
+operation each one was compiled for:
+
+```sql
+select round(c.dur / 1e6, 1) as ms, p.name as op,
+  (select a.name from ancestor_slice(c.id) a where a.name in ('flush layers', 'flush commands')) as pass
+from slice c join slice p on p.id = c.parent_id where c.name = 'shader_compile';
+```
+
+`flush layers` is drawing into an offscreen layer and `flush commands` drawing onto the screen; the frame's
+`drawLayer [<name>] <size>` slices name the layers (`AndroidEdgeEffectOverscrollEffect` is a list stretched past its
+end). Frames that wait in `dequeueBuffer` / `waitForBufferRelease` are waiting for the emulator's compositor, not the
+app (DESIGN 13.1).
+
 ## Opt-in instrumented tests
 
 Three instrumented tests run only when asked, and the default `connectedDevDebugAndroidTest` run leaves them out
