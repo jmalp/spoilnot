@@ -10,12 +10,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -70,23 +66,17 @@ class AccessibilityChecksCanaryTest {
         assertTrue("expected the name rule to fail, got $failure", failure is AssertionError)
     }
 
-    /** Material's own sheet fails ATF on its 32 dp drag handle (A11Y-06), and the app's SpoilNotSheet passes. */
+    /**
+     * The app's SpoilNotSheet passes ATF (A11Y-06). Material's own sheet failed on its 32 dp drag handle until Material 3
+     * 1.5 (Compose BOM 2026.11.01), which passes too, so this no longer checks Material's (DECISIONS 2026-11-24).
+     */
     @Test
-    fun materialsDragHandleFailsAndSpoilNotSheetsPasses() {
-        var ours by mutableStateOf(false)
+    fun spoilNotSheetPasses() {
         compose.setContent {
             val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            if (ours) {
-                SpoilNotSheet(onDismissRequest = {}, sheetState = state) { Text("A sheet", Modifier.padding(24.dp)) }
-            } else {
-                ModalBottomSheet(onDismissRequest = {}, sheetState = state) { Text("A sheet", Modifier.padding(24.dp)) }
-            }
+            SpoilNotSheet(onDismissRequest = {}, sheetState = state) { Text("A sheet", Modifier.padding(24.dp)) }
         }
         compose.enableAccessibilityChecks(spoilNotAccessibilityValidator())
-        compose.waitUntil(10_000) { compose.onAllNodes(isRoot()).fetchSemanticsNodes().size >= 2 }
-        val material = runCatching { compose.onAllNodes(isRoot()).tryPerformAccessibilityChecks() }.exceptionOrNull()
-        assertTrue("expected Material's drag handle to fail, got $material", material != null)
-        ours = true
         compose.waitUntil(10_000) { compose.onAllNodes(isRoot()).fetchSemanticsNodes().size >= 2 }
         compose.waitForIdle()
         compose.onAllNodes(isRoot()).tryPerformAccessibilityChecks()
