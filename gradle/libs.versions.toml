@@ -31,7 +31,7 @@ profileinstaller = "1.4.1"
 # Guava comes only through Firestore's gRPC; app/build.gradle.kts sets this as the lowest version allowed.
 guava = "33.8.0-android"
 # Annotations only; app/build.gradle.kts sets this as the lowest version allowed (Firestore 27.2 dropped them from gRPC).
-errorprone = "2.52.0"
+errorprone = "2.53.0"
 
 junit = "4.13.2"
 mockk = "1.14.12"
