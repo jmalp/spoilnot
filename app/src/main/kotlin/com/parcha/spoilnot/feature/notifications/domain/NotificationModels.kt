@@ -31,7 +31,7 @@ data class NotificationPrefs(
 
         /**
          * The job sends nothing at or after this local hour (`LATEST_MINUTES` in backend/reminder/src/digest.ts, DESIGN
-         * 10.3), and Settings says so (after v1, 2026-11-22).
+         * 10.3).
          */
         const val LATEST_HOUR = 22
 

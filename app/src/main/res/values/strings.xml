@@ -387,16 +387,16 @@
     <string name="test_notification_title">Test notification</string>
     <string name="test_notification_body">Notifications from Spoil Not are working. Tap to see what expires soon.</string>
     <string name="settings_notifications">Notifications</string>
-    <!-- After v1 (2026-11-22): GitHub starts the reminder job hours late (DESIGN 10.4), so the copy no longer promises
-         "around" or "shortly after" the hour. -->
-    <string name="settings_notifications_on">Daily, after %1$s</string>
+    <!-- After v1 (2026-11-24): an Apps Script trigger starts the reminder job every quarter hour, so a digest arrives
+         about a minute after its time (DESIGN 10.4); from 2026-11-22 the copy had said "often a few hours later". -->
+    <string name="settings_notifications_on">Daily at %1$s</string>
     <string name="settings_notifications_off">Off</string>
     <string name="notif_enabled">Daily reminder</string>
     <string name="notif_enabled_help">One notification a day, only when something needs attention.</string>
     <string name="notif_cooking">Meals I\'m cooking</string>
     <string name="notif_cooking_help">On days you\'re down to cook in the plan, the reminder says what.</string>
     <string name="notif_time">Time</string>
-    <string name="notif_time_help">It comes after this time, often a few hours later. Nothing is sent after %1$s, so an evening time can be skipped on some days.</string>
+    <string name="notif_time_help">It arrives within a few minutes of this time.</string>
     <string name="notif_stages">Remind me about food that expires</string>
     <string name="stage_3">In 3 days</string>
     <string name="stage_2">In 2 days</string>
@@ -411,16 +411,16 @@
     <string name="notif_blocked">Notifications are turned off for Spoil Not, so reminders cannot appear.</string>
     <string name="notif_turn_on">Turn on</string>
     <string name="notif_open_settings">Open settings</string>
-    <string name="notif_battery">If reminders don\'t arrive, let Spoil Not run without battery restrictions.</string>
+    <string name="notif_battery">If reminders arrive late, let Spoil Not run without battery restrictions.</string>
     <string name="notif_battery_action">Battery settings</string>
     <string name="notif_explainer_title">Get a heads-up before food expires</string>
     <string name="notif_explainer_body">Spoil Not sends one notification a day when something is about to expire. You can change the time or turn it off in Settings.</string>
     <string name="notif_explainer_later">Not now</string>
     <!-- After v1 (2026-11-12, review UX-02, UX-03): the explanation names the time; "You're set" after Turn on;
          Home and Settings say when this phone blocks reminders. -->
-    <string name="notif_explainer_body_time">Spoil Not sends one notification a day when something is about to expire. It comes after %1$s, often a few hours later. You can change the time or turn it off in Settings.</string>
+    <string name="notif_explainer_body_time">Spoil Not sends one notification a day, at %1$s, when something is about to expire. You can change the time or turn it off in Settings.</string>
     <string name="notif_youre_set_title">You\'re set</string>
-    <string name="notif_youre_set_time">Spoil Not reminds you once a day, some time after %1$s, when food is about to expire.</string>
+    <string name="notif_youre_set_time">Spoil Not reminds you once a day, at %1$s, when food is about to expire.</string>
     <string name="notif_youre_set_tomorrow">Tomorrow\'s reminder: %1$s.</string>
     <plurals name="notif_youre_set_more">
         <item quantity="one">%1$s and %2$d more</item>

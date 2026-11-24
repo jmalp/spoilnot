@@ -25,8 +25,7 @@ export const NotificationRules = {
   DEFAULT_MINUTES: 9 * 60,
   ALL_STAGES: [3, 2, 1, 0] as readonly number[],
   /**
-   * The job sends nothing at or after this local hour (`LATEST_MINUTES` in backend/reminder/src/digest.ts, DESIGN 10.3),
-   * and Settings says so (after v1, 2026-11-22).
+   * The job sends nothing at or after this local hour (`LATEST_MINUTES` in backend/reminder/src/digest.ts, DESIGN 10.3).
    */
   LATEST_HOUR: 22,
   /** The hours Settings offers: the last one is the hour before LATEST_HOUR. */

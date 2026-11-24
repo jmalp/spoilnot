@@ -61,7 +61,7 @@ class NotificationsRowScreenshotTest(private val dark: Boolean, private val font
                 }
             }
         }
-        assertEquals(1, compose.onAllNodesWithText("Daily, after ${formatHour(9)}").fetchSemanticsNodes().size)
+        assertEquals(1, compose.onAllNodesWithText("Daily at ${formatHour(9)}").fetchSemanticsNodes().size)
         assertEquals(1, compose.onAllNodesWithText("Off on this phone").fetchSemanticsNodes().size)
         assertEquals(1, compose.onAllNodesWithText("Off").fetchSemanticsNodes().size)
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"

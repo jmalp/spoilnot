@@ -201,7 +201,7 @@ internal fun NotificationSettingsContent(
                 options = NotificationPrefs.HOURS.toList(),
                 optionLabel = { formatHour(it) },
                 onPick = { hour -> onUpdate { it.copy(digestMinutes = hour * 60) } },
-                helper = stringResource(R.string.notif_time_help, formatHour(NotificationPrefs.LATEST_HOUR)),
+                helper = stringResource(R.string.notif_time_help),
             )
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 GroupHeading(stringResource(R.string.notif_stages))

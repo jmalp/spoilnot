@@ -45,8 +45,8 @@ class NotificationSettingsScreenshotTest(private val dark: Boolean, private val 
         compose.onRoot().captureRoboImage(Screenshots.screenshotName(name, dark, fontScale))
 
     /**
-     * Blocked on this phone, so the banner shows above the settings. The time's helper says the reminder can come hours
-     * later and names the hour the job stops sending at (after v1, 2026-11-22).
+     * Blocked on this phone, so the banner shows above the settings. The time's helper says the reminder arrives within a
+     * few minutes of it (after v1, 2026-11-24: the job starts every quarter hour).
      */
     @Test
     fun notifications() {
@@ -64,8 +64,10 @@ class NotificationSettingsScreenshotTest(private val dark: Boolean, private val 
                 )
             }
         }
-        val stops = "Nothing is sent after ${formatHour(NotificationPrefs.LATEST_HOUR)}"
-        assertEquals(1, compose.onAllNodesWithText(stops, substring = true).fetchSemanticsNodes().size)
+        assertEquals(
+            1,
+            compose.onAllNodesWithText("It arrives within a few minutes of this time.").fetchSemanticsNodes().size,
+        )
         capture("settings_notifications")
     }
 

@@ -174,21 +174,21 @@ test('installed, a new household: the third dated item asks, whoever adds it; Tu
   ]);
   const explainer = page.getByRole('dialog');
   await expect(explainer).toContainText('Get a heads-up before food expires', { timeout: 15_000 });
-  await expect(explainer).toContainText('It comes after 9:00 AM, often a few hours later.');
+  await expect(explainer).toContainText('one notification a day, at 9:00 AM,');
   await explainer.getByTestId('explainer_turn_on').click();
   await expect(explainer).toHaveCount(0);
 
   // "You're set" right away, with the time and what tomorrow's reminder names (owner's decision 2, UX-03).
   await expect.poll(() => shownTitles(page)).toEqual(["You're set"]);
   expect(await shownBodies(page)).toEqual([
-    "Spoil Not reminds you once a day, some time after 9:00 AM, when food is about to expire. Tomorrow's reminder: Yogurt.",
+    "Spoil Not reminds you once a day, at 9:00 AM, when food is about to expire. Tomorrow's reminder: Yogurt.",
   ]);
   await addDated(page, 'Ham');
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // Allowed: the time in Settings, no banner, and the test notification shows.
   await openSettings(page);
-  await expect(page.getByTestId('row_notifications')).toContainText('Daily, after 9:00 AM');
+  await expect(page.getByTestId('row_notifications')).toContainText('Daily at 9:00 AM');
   await page.getByTestId('row_notifications').click();
   await expect(page.getByTestId('switch_notifications')).toBeVisible();
   await expect(page.getByTestId('notifications_banner')).toHaveCount(0);
@@ -215,7 +215,7 @@ test('a household that opens with dated food asks at once on Home; Not now leave
   // A new start (a new phone, or a member who joined) finds dated food: it asks at once, without opening Pantry.
   await page.reload();
   const explainer = page.getByRole('dialog');
-  await expect(explainer).toContainText('It comes after 9:00 AM', { timeout: 15_000 });
+  await expect(explainer).toContainText('at 9:00 AM', { timeout: 15_000 });
   await expect(page.getByTestId('screen_home')).toBeVisible();
   await explainer.getByRole('button', { name: 'Not now' }).click();
   await expect(explainer).toHaveCount(0);
@@ -236,7 +236,7 @@ test('a household that opens with dated food asks at once on Home; Not now leave
   await expect.poll(() => shownTitles(page)).toEqual(["You're set"]);
   expect((await shownBodies(page))[0]).toContain("Tomorrow's reminder: Milk.");
   await openSettings(page);
-  await expect(page.getByTestId('row_notifications')).toContainText('Daily, after 9:00 AM');
+  await expect(page.getByTestId('row_notifications')).toContainText('Daily at 9:00 AM');
   await page.getByRole('button', { name: 'Back' }).click();
 
   // Turned off in the iPhone's Settings: the line is back, and Turn on says where, since a web app can't ask again.
