@@ -12,6 +12,9 @@
 const REPO = 'jmalp/spoilnot';
 const WORKFLOW = 'reminders.yml';
 const SLOT_MINUTES = 15;
+// GitHub's own errors (a 5xx, rate limiting, no answer) usually pass within a minute or two, and the script tries
+// again every minute: it emails about them only when a quarter hour's run still hasn't started this many minutes in.
+const QUIET_MINUTES = 10;
 const API = 'https://api.github.com/repos/' + REPO + '/actions/workflows/' + WORKFLOW;
 
 /** The quarter hour that `now` falls in, as whole minutes since 1970 (UTC): 09:07:30 gives the minute of 09:00. */
@@ -23,6 +26,67 @@ function slotOf(now) {
 /** A run is due once per quarter hour: in a slot after the last one started. */
 function shouldStart(now, lastSlot) {
   return slotOf(now) > lastSlot;
+}
+
+/** Minutes since the quarter hour that `now` falls in began: 09:07:30 gives 7. */
+function minutesIntoSlot(now) {
+  return Math.floor(now.getTime() / 60000) - slotOf(now);
+}
+
+/** GitHub's own trouble, which passes by itself: a server error, rate limiting, or no answer at all (0). */
+function isGitHubSide(code) {
+  return code === 0 || code === 429 || code >= 500;
+}
+
+/**
+ * What to email the owner when GitHub didn't start the run, or null to keep trying quietly for now. `kind` keeps the
+ * two once-a-day limits apart, so a day's warning about GitHub's side never hides a token that stops working later.
+ */
+function warningFor(code, now) {
+  const late = '\n\nUntil this is fixed, the reminders go out only on GitHub\'s own schedule, often hours late.';
+  if (code === 401) {
+    return {
+      kind: 'token',
+      subject: 'Spoil Not: reminders are not starting on time',
+      body:
+        'GitHub refused the token (401): it has expired or was revoked. Make a new one and replace the script ' +
+        'property GITHUB_TOKEN (docs/RUNBOOK.md, "On-time reminders", Renew the token).' +
+        late,
+    };
+  }
+  if (code === 403 || code === 404) {
+    return {
+      kind: 'token',
+      subject: 'Spoil Not: reminders are not starting on time',
+      body:
+        'GitHub answered ' + code + ' when starting the reminder job: the token no longer has access to ' + REPO +
+        ' or to its Actions. Check its repository access and "Actions: Read and write" (docs/RUNBOOK.md, ' +
+        '"On-time reminders").' +
+        late,
+    };
+  }
+  if (isGitHubSide(code)) {
+    if (minutesIntoSlot(now) < QUIET_MINUTES) return null;
+    const since = new Date(slotOf(now) * 60000).toISOString().slice(11, 16) + ' UTC';
+    const answer = code === 0 ? 'GitHub could not be reached' : 'GitHub has answered ' + code;
+    return {
+      kind: 'github',
+      subject: 'Spoil Not: GitHub is slow to start the reminders',
+      body:
+        answer + ' at every try since ' + since + ', so that quarter hour\'s reminder run hasn\'t started yet. ' +
+        'This is on GitHub\'s side (https://www.githubstatus.com), not the token: the script keeps trying every ' +
+        'minute and the run starts as soon as GitHub accepts it. Nothing to do unless it happens every day.',
+    };
+  }
+  return {
+    kind: 'token',
+    subject: 'Spoil Not: reminders are not starting on time',
+    body:
+      'GitHub answered ' + code + ' when starting the reminder job, so it refused the request itself: check that ' +
+      WORKFLOW + ' on main can still be started by hand with its dry_run input (docs/RUNBOOK.md, ' +
+      '"On-time reminders").' +
+      late,
+  };
 }
 
 /** The request that starts the job for real: on main, not a dry run (the input's default is a dry run). */
@@ -48,34 +112,36 @@ function tick() {
   if (!shouldStart(now, lastSlot)) return;
   const token = props.getProperty('GITHUB_TOKEN');
   if (!token) {
-    warnOnceADay(props, now, 'The script property GITHUB_TOKEN is missing, so the reminder job is not started on time.');
+    warnOnceADay(props, now, {
+      kind: 'token',
+      subject: 'Spoil Not: reminders are not starting on time',
+      body: 'The script property GITHUB_TOKEN is missing, so the reminder job is not started on time.',
+    });
     return;
   }
-  const code = UrlFetchApp.fetch(API + '/dispatches', dispatchRequest(token)).getResponseCode();
+  let code;
+  try {
+    code = UrlFetchApp.fetch(API + '/dispatches', dispatchRequest(token)).getResponseCode();
+  } catch (e) {
+    code = 0; // No answer (a timeout or a network error): GitHub's side, like a 5xx.
+  }
   if (code === 204) {
     props.setProperty('lastSlot', String(slotOf(now)));
     return;
   }
-  // Not recorded, so the next minute tries again. 401: the token expired or was revoked; 403 or 404: it lost access
-  // to the repository or to Actions. Meanwhile GitHub's own schedule keeps the reminders going, late.
-  warnOnceADay(
-    props,
-    now,
-    'GitHub answered ' + code + ' when starting the reminder job (401: renew the token, docs/RUNBOOK.md).',
-  );
+  // Not recorded, so the next minute tries again. Meanwhile GitHub's own schedule keeps the reminders going, late.
+  const warning = warningFor(code, now);
+  if (warning) warnOnceADay(props, now, warning);
 }
 
-/** Emails the script's owner about a problem, at most once a day. */
-function warnOnceADay(props, now, message) {
+/** Emails the script's owner about a problem, at most once a day for each kind of problem. */
+function warnOnceADay(props, now, warning) {
   const day = now.toISOString().slice(0, 10);
-  console.warn(message);
-  if (props.getProperty('lastWarnDay') === day) return;
-  props.setProperty('lastWarnDay', day);
-  MailApp.sendEmail(
-    Session.getEffectiveUser().getEmail(),
-    'Spoil Not: reminders are not starting on time',
-    message + '\n\nThe reminders still go out on GitHub\'s own schedule, hours late, until this is fixed.',
-  );
+  const key = 'lastWarnDay_' + warning.kind;
+  console.warn(warning.body);
+  if (props.getProperty(key) === day) return;
+  props.setProperty(key, day);
+  MailApp.sendEmail(Session.getEffectiveUser().getEmail(), warning.subject, warning.body);
 }
 
 /** Run once by hand: checks the token without starting anything, then makes the every-minute trigger. */
