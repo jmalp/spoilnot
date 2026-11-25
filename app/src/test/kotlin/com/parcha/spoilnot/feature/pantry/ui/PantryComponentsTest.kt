@@ -7,7 +7,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -205,7 +205,7 @@ class PantryComponentsTest {
 
         assertEquals("Rice", saved?.name)
         assertEquals(1.5, saved!!.quantity, 0.0)
-        assertEquals(TODAY.plusWeeks(1), saved!!.expiryDate)
+        assertEquals(TODAY.plusWeeks(1), saved.expiryDate)
     }
 
     /** After v1 (UX-09): the keyboard opens on Name, and a new name takes the aisle Groceries would guess. */
@@ -279,9 +279,9 @@ class PantryComponentsTest {
         compose.onNodeWithTag("field_keep_at_least").performTextInput("6")
         compose.onNodeWithTag("button_save_item").performClick()
         assertEquals(6.0, saved!!.minQuantity!!, 0.0)
-        assertTrue(saved!!.autoAddToGrocery)
-        assertEquals(DateType.UseBy, saved!!.dateType)
-        assertNull(saved!!.note)
+        assertTrue(saved.autoAddToGrocery)
+        assertEquals(DateType.UseBy, saved.dateType)
+        assertNull(saved.note)
     }
 
     @Test

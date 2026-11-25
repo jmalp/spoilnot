@@ -429,9 +429,12 @@ the diff and commit it.
 medians; `--measure-only` runs just the benchmarks with the profile already in the app. `--jank` runs `JankBenchmark`
 (about 25 minutes), one test per Gradle call, with the profile already in the app: the first and steady scrolls of
 Pantry, Groceries, Recipes, Plan and Home, Your kitchen opened from Home while its charts grow, every tab twice, Add
-item and Plan's add sheet opened, dragged and closed, and typing "item 12" in Pantry's search and Groceries' quick add.
-For each it prints frame CPU time (P50, P90, P99) and the share of janky frames, those whose `frameOverrunMs` is above
-0, over all five iterations and per iteration. Compare them with the last run in DESIGN 13.1; run it after changes to
+item and Plan's add sheet opened, dragged and closed, and typing "item 12" in Pantry's search and Groceries' quick add
+(which capitalizes words, so it shows "Item 12"). For each it prints frame CPU time (P50, P90, P99) and the share of
+janky frames, those whose `frameOverrunMs` is above 0, over all five iterations and per iteration. A test that fails
+doesn't stop the others; the script names the failed ones at the end, exits 1, and keeps each one's test report in
+`benchmark/build/jank-failures/<test>/` (the next test's run replaces the one in `build/outputs`). Only a run that
+generated the profile ends with the reminder to commit it. Compare them with the last run in DESIGN 13.1; run it after changes to
 a screen's lists, sheets or animations, and after Compose updates. `StartupBenchmark` reports
 two numbers per start: `timeToInitialDisplayMs`, the first frame (Home's loading skeleton), and
 `timeToFullDisplayMs`, when Home reports itself drawn with its cards (`ReportDrawnWhen`), which is what DESIGN 13.1's
@@ -731,8 +734,8 @@ Compose, Firebase or DataStore update (their code is in it; "Baseline profile").
   it may pick an older patch release that sits outside an advisory's range. When no parent release has the fix, add
   an `overrides` entry in that project's `package.json` (scoped to the old line, like `"glob@^10"`, so other users
   are untouched), check that the callers' APIs still exist in the new version, run the project's tests, and add a
-  DECISIONS entry saying when to remove it. Since 2026-11-14 all four projects pass `npm audit` except `web/`'s
-  deepmerge (no fixed release; build time only). The overrides (DECISIONS 2026-11-14): `@grpc/grpc-js` in `web/` and
+  DECISIONS entry saying when to remove it. All four projects pass `npm audit`: since 2026-11-14, and `web/` since
+  2026-11-25, when the audit stopped listing its build-time deepmerge (DECISIONS 2026-11-25). The overrides (DECISIONS 2026-11-14): `@grpc/grpc-js` in `web/` and
   `firebase/` (the Firebase web SDK pins it to 1.9 for its Node build; drop it when a release lifts that pin, and
   update `firebase` in both projects together), glob, minimatch, uuid and OpenTelemetry core in the Firebase CLI and
   the web build tools, and `@babel/plugin-transform-runtime` in `web/`, which only lets `@vitejs/plugin-react`

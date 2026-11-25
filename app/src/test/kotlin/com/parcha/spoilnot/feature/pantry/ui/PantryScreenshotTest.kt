@@ -51,6 +51,10 @@ class PantryScreenshotTest(private val dark: Boolean, private val fontScale: Flo
             listOf(arrayOf<Any>(false, 1f), arrayOf<Any>(true, 1f), arrayOf<Any>(false, 2f), arrayOf<Any>(true, 2f))
     }
 
+    // The first (v1) rule on purpose: its immediate dispatcher captures the Add item forms before the Name field's
+    // focus border animates in, as the committed references show; the v2 rule captures the border and would change
+    // four of them (DECISIONS 2026-11-25).
+    @Suppress("DEPRECATION")
     @get:Rule
     val compose = createComposeRule()
 

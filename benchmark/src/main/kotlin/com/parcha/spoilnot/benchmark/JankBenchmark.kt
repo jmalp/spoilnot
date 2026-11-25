@@ -92,13 +92,17 @@ class JankBenchmark {
 
     /** Typing in Pantry's search: every key filters the 500 batches again. */
     @Test
-    fun pantrySearchTyping() = typing("Pantry", "pantry_search")
+    fun pantrySearchTyping() = typing("Pantry", "pantry_search", shows = TYPED)
 
-    /** Typing in Groceries' quick add: every key looks for suggestions in 250 products and 150 items (review PERF-04). */
+    /**
+     * Typing in Groceries' quick add: every key looks for suggestions in 250 products and 150 items (review PERF-04).
+     * The field capitalizes words (DESIGN 8.1), so the keyboard turns the first letter into a capital.
+     */
     @Test
-    fun groceriesQuickAddTyping() = typing("Groceries", "grocery_quick_add")
+    fun groceriesQuickAddTyping() = typing("Groceries", "grocery_quick_add", shows = "Item 12")
 
-    private fun typing(tab: String, field: String) = measure(tab, prepare = {
+    /** Types [TYPED] a key at a time into [field], then checks that it [shows] what the keyboard made of it. */
+    private fun typing(tab: String, field: String, shows: String) = measure(tab, prepare = {
         checkNotNull(device.wait(Until.findObject(screen(field)), OPEN_TIMEOUT_MS)) { "No $field" }.click()
         SystemClock.sleep(800) // the keyboard opens
     }) {
@@ -110,7 +114,7 @@ class JankBenchmark {
         // Every letter shows, once and in order (owner, 2026-11-21: Pantry's search lost and doubled letters while
         // its text came back from the view model late).
         val shown = device.findObject(screen(field))?.text
-        check(shown == TYPED) { "$field shows \"$shown\" after typing \"$TYPED\"" }
+        check(shown == shows) { "$field shows \"$shown\" after typing \"$TYPED\" (expected \"$shows\")" }
     }
 
     /** A slow drag down from just above [inSheet] by [by] pixels, let go, so the sheet settles back. */

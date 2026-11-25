@@ -2,7 +2,7 @@ package com.parcha.spoilnot.core.designsystem
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import com.parcha.spoilnot.core.designsystem.component.OFFLINE_BANNER_DELAY_MS
 import com.parcha.spoilnot.core.designsystem.component.OfflineBanner

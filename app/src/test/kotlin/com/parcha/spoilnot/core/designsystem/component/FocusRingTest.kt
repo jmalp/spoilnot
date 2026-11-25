@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -77,11 +77,11 @@ class FocusRingTest {
 
     private fun show() = compose.setThemed(dark = false, fontScale = 1f) {
         primary = MaterialTheme.colorScheme.primary
-        CompositionLocalProvider(LocalInputModeManager provides inputModes) { content() }
+        CompositionLocalProvider(LocalInputModeManager provides inputModes) { Content() }
     }
 
     @Composable
-    private fun content() {
+    private fun Content() {
         FocusRing(Modifier.fillMaxSize()) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 Button(onClick = {}, modifier = Modifier.testTag("one")) { Text("One") }

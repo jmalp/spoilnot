@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- app_name is defined per flavor in app/build.gradle.kts -->
     <string name="tab_home">Home</string>
     <string name="tab_pantry">Pantry</string>
@@ -414,7 +414,6 @@
     <string name="notif_battery">If reminders arrive late, let Spoil Not run without battery restrictions.</string>
     <string name="notif_battery_action">Battery settings</string>
     <string name="notif_explainer_title">Get a heads-up before food expires</string>
-    <string name="notif_explainer_body">Spoil Not sends one notification a day when something is about to expire. You can change the time or turn it off in Settings.</string>
     <string name="notif_explainer_later">Not now</string>
     <!-- After v1 (2026-11-12, review UX-02, UX-03): the explanation names the time; "You're set" after Turn on;
          Home and Settings say when this phone blocks reminders. -->
@@ -599,16 +598,16 @@
     <string name="insights_mood_good">Nice work! Most of what you bought got used.</string>
     <string name="insights_mood_okay">Good start. Needs attention on Home shows what to use first.</string>
     <string name="insights_mood_low">Every item you use counts. Needs attention on Home shows what to use first.</string>
-    <string name="insights_ring_description">This month: %1$d used, %2$d thrown away, %3$d%% used.</string>
+    <string name="insights_ring_description" tools:ignore="PluralsCandidate">This month: %1$d used, %2$d thrown away, %3$d%% used.</string>
     <string name="insights_ring_empty">Nothing used up or thrown away this month yet.</string>
     <string name="insights_legend_used">Used</string>
     <string name="insights_legend_thrown">Thrown away</string>
     <string name="insights_section_months">Last 6 months</string>
     <string name="insights_months_none">Each month\'s bars show up here as items are used up or thrown away.</string>
-    <string name="insights_month_details">%1$d used · %2$d thrown away · %3$d%% used</string>
+    <string name="insights_month_details" tools:ignore="PluralsCandidate">%1$d used · %2$d thrown away · %3$d%% used</string>
     <string name="insights_month_nothing">Nothing used up or thrown away.</string>
     <string name="insights_month_reasons">Thrown away: %1$s</string>
-    <string name="insights_month_entry">%1$s: %2$d used, %3$d thrown away</string>
+    <string name="insights_month_entry" tools:ignore="PluralsCandidate">%1$s: %2$d used, %3$d thrown away</string>
     <string name="insights_section_reasons">Why things were thrown away</string>
     <string name="insights_reasons_none">Nothing thrown away in the last 6 months.</string>
     <string name="insights_section_streak">Streak</string>

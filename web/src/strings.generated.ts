@@ -320,7 +320,6 @@ export const STRINGS = {
   "notif_battery": "If reminders arrive late, let Spoil Not run without battery restrictions.",
   "notif_battery_action": "Battery settings",
   "notif_explainer_title": "Get a heads-up before food expires",
-  "notif_explainer_body": "Spoil Not sends one notification a day when something is about to expire. You can change the time or turn it off in Settings.",
   "notif_explainer_later": "Not now",
   "notif_explainer_body_time": "Spoil Not sends one notification a day, at %1$s, when something is about to expire. You can change the time or turn it off in Settings.",
   "notif_youre_set_title": "You're set",

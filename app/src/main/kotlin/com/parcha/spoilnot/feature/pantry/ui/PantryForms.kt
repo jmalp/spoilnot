@@ -249,7 +249,7 @@ fun AddItemForm(
                             StockDraft(
                                 name = form.cleanName,
                                 quantity = qty,
-                                unit = if (unitLocked) match!!.unit else form.unit,
+                                unit = if (unitLocked) match.unit else form.unit,
                                 expiryDate = form.expiry,
                                 // Date type and notes left the form (beta feedback): new items are "Use by".
                                 dateType = DateType.UseBy,
@@ -271,7 +271,7 @@ fun AddItemForm(
             form = form,
             products = products,
             today = today,
-            unitLockedTo = if (unitLocked) match!!.unit else null,
+            unitLockedTo = if (unitLocked) match.unit else null,
             onChooseProduct = { form.fillFrom(it, today) },
             allowZero = false,
             // The keyboard opens on Name (after v1, UX-09), except for a product chosen beforehand (an Out row).

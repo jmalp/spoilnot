@@ -34,8 +34,7 @@ private fun SemanticsNode.hasName(): Boolean {
     return text || description || editable
 }
 
-private fun SemanticsNode.isHidden(): Boolean =
-    SemanticsProperties.HideFromAccessibility in config || SemanticsProperties.InvisibleToUser in config
+private fun SemanticsNode.isHidden(): Boolean = SemanticsProperties.HideFromAccessibility in config
 
 /**
  * ATF's checks, as `enableAccessibilityChecks()` runs them, from each window's root. No result is excused: until B19,

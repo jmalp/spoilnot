@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.plan.ui
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.household.domain.Member
@@ -28,6 +29,7 @@ import org.robolectric.annotation.GraphicsMode
  * The planner's sheets and Move, in their own windows, light and dark at 1.0× and 2.0× text (after v1, review
  * CODE-07): Add meal, a meal, Move and This week's ingredients.
  */
+@OptIn(ExperimentalRoborazziApi::class)
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
