@@ -1,10 +1,10 @@
 # Spoil Not: Product and Technical Design Document
 
-Version 1.2 · October 8, 2026 · Android only · Written for Claude Code to build from
+Version 1.2 · October 8, 2026, kept current since (section 17) · Android, and a web app for iPhone since October 31, 2026 (section 18) · Written for Claude Code to build from
 
 ## Summary for non-technical readers
 
-**What Spoil Not is.** An Android app that helps a family or a group of friends stop wasting food. You record the food you have at home, and the app warns you before it expires so you can use it in time.
+**What Spoil Not is.** An Android app, with a web app for iPhone since October 31, 2026, that helps a family or a group of friends stop wasting food. You record the food you have at home, and the app warns you before it expires so you can use it in time.
 
 **What it does**
 
@@ -13,12 +13,13 @@ Version 1.2 · October 8, 2026 · Android only · Written for Claude Code to bui
 - **Grocery list:** a shared shopping list. Add things yourself, and the app adds an item for you when you are running low (you choose the minimum for each product). After shopping, the checked items move into the pantry in one step.
 - **Recipes:** save recipes from websites with one tap, cook from the app, and send a recipe's ingredients to the grocery list.
 - **Households:** one person creates a household and gets a code. Others enter the code and the owner approves them. Everyone then shares the same pantry, grocery lists and recipes, and a change on one phone shows up on the others within about a second.
+- **Added after the first version:** a shared meal planner for the week, a monthly picture of what was used and what was thrown away, suggestions for recipes that use what expires soon, a short app tour, color themes and a new look (sections 5.5 to 5.9, 6.4 and 19).
 
-**How it is built, in plain terms.** It is an Android-only app, shared with your testers through Firebase App Distribution. The shared information is stored online with Google's Firebase service on its free plan, and the app keeps working with a weak connection and catches up when the connection returns. The daily reminders are sent by a small free scheduled program. There are no ads, and people outside your household cannot see your data.
+**How it is built, in plain terms.** It is an Android app, shared with your testers through Firebase App Distribution, and since October 31, 2026 also a web app that iPhone users add to their Home Screen (section 18); both share the same households. The shared information is stored online with Google's Firebase service on its free plan, and the app keeps working with a weak connection and catches up when the connection returns. The daily reminders are sent by a small free scheduled program. There are no ads, and people outside your household cannot see your data.
 
 **What it costs.** Nothing to run at this size.
 
-**Not in the first version.** Barcode scanning, camera reading of expiry dates, a meal planner and an iPhone version.
+**Not in the first version.** Barcode scanning, camera reading of expiry dates, a meal planner and an iPhone version. The meal planner and the iPhone web app came after it (sections 5.9 and 18); section 16 has what is still to come.
 
 **How to read the rest.** The rest of the document is technical and written for Claude Code, the AI that will build the app. Sections 1 to 5 describe the product in plain terms, and section 15 lists the decisions that have been made.
 
@@ -39,7 +40,9 @@ This is the single source of truth for building Spoil Not v1. It is written for 
 
 **The problem.** Food gets forgotten and thrown away, household members cannot see what the others bought, and shopping lists are disconnected from what is actually at home.
 
-**Users.** Families and friends sharing a household (typically 2 to 6 people) on Android phones. Distribution is private, to people the owner knows. It is not a public store release.
+**Users.** Families and friends sharing a household (typically 2 to 6 people) on Android phones and, since October 31, 2026, on iPhones through the web app (section 18). Distribution is private, to people the owner knows. It is not a public store release.
+
+**Platforms** (the one place for this fact). v1 was Android only. After v1 the owner asked for a version iPhone users install from the web (2026-10-29): a second front end in `web/`, on the same Firebase project, data and rules, released on 2026-10-31 (section 18). Everything below is about both apps unless it says Android or the web app; section 18 lists what the web app does differently.
 
 **The five pillars**
 
@@ -59,10 +62,10 @@ This is the single source of truth for building Spoil Not v1. It is written for 
 
 **Non-goals for v1**
 
-- Public store release, ads, in-app purchases, or an iPhone version (the app is Android only).
-- Barcode scanning, camera reading of expiry dates, meal planner, receipt scanning (you chose core only; see the roadmap in section 16).
+- Public store release, ads, in-app purchases, or an iPhone version (v1 is Android only; after v1 the web app for iPhone was added, *Platforms* above).
+- Barcode scanning, camera reading of expiry dates, meal planner, receipt scanning (you chose core only; see the roadmap in section 16; the meal planner came after v1, 5.9).
 - Push notifications about household activity (live in-app updates only).
-- More than one household per user, a web app, voice assistants, nutrition tracking.
+- More than one household per user, a web app (after v1 the web app for iPhone, 18), voice assistants, nutrition tracking.
 
 **Success criteria**
 
@@ -78,10 +81,10 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 | Topic | Decision | Basis |
 | --- | --- | --- |
 | Audience | Family and friends only | You |
-| Platform | Android only (no iOS version) | You |
+| Platform | Android only (no iOS version) in v1. After v1 (2026-10-29) also a web app for iPhone, a second front end on the same Firebase project (1, *Platforms*; 18) | You |
 | Application ID | `com.parcha.spoilnot` (dev builds: `com.parcha.spoilnot.dev`) | You |
 | v1 scope | Core only: pantry, reminders, grocery list, recipes, households | You |
-| App framework | Native Android: Kotlin with Jetpack Compose and Material 3 | Android only, so no cross-platform layer is needed; best Material 3 fidelity; first-party Firebase and Android APIs |
+| App framework | Native Android: Kotlin with Jetpack Compose and Material 3; after v1 the web app is Vite, React and TypeScript (18.3) | Android only, so no cross-platform layer is needed; best Material 3 fidelity; first-party Firebase and Android APIs. The web app is a port, not a shared layer: its colors, strings and icons are generated from the Android sources |
 | Backend | Firebase free Spark plan: Authentication, Firestore, Cloud Messaging, Crashlytics | Real-time sync and offline built in, no server to run, $0 |
 | Server code | One small scheduled Node.js job that sends expiry reminders, nothing else | Cloud Functions need the paid Blaze plan |
 | Sign-in | Email and password; no social login in v1 | No OAuth or SHA-1 fingerprint setup; Google sign-in is on the roadmap |
@@ -93,14 +96,14 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 | Language, units | English with strings externalized; no unit conversion in v1 | Keeps v1 small |
 | Telemetry | Crash reports only, with an off switch; no analytics, no ads | Privacy |
 | Distribution | Firebase App Distribution (free) | You |
-| Source code | Private GitHub repository on the free plan | You |
+| Source code | GitHub repository on the free plan: private in v1, public since 2026-10-20 (the one place for this fact; DECISIONS 2026-10-20) | You |
 
 ## 3. What the human must provide, and what it costs
 
 | # | Item | Needed by | Cost |
 | --- | --- | --- | --- |
 | 1 | A Google account to own two Firebase projects, `spoilnot-dev` and `spoilnot-prod`, both on the free Spark plan (no card needed) | M0 | $0 |
-| 2 | A private GitHub repository (code, CI, reminder job) | M0 | $0 |
+| 2 | A GitHub repository (code, CI, reminder job); private at first, public since 2026-10-20 (2) | M0 | $0 |
 | 3 | Android Studio (free) with the Android SDK, plus an Android phone or the emulator | M0 | $0 |
 | 4 | The permanent application ID `com.parcha.spoilnot` (decided; it cannot change after release) | M0 | $0 |
 | 5 | The email addresses of your testers (Firebase App Distribution invites them by email) | M6 | $0 |
@@ -151,13 +154,13 @@ Rows marked **You** are decisions you made. The rest are my defaults: change any
 
 **List**
 
-- One row per product that has stock, plus every **staple** (a product with Keep at least set), which stays visible at 0 with an “Out” badge. Since beta 2 (2026-10-18, DECISIONS) each purchase is its own row instead (`PantryItems`), and a staple with nothing left keeps its Out row; v1's per-product list code was deleted after the 2026-11 review (CODE-01). Only Home's Running low lines still total a product's stock (`PantryList.rows`).
-- A row shows name, total quantity and unit, a status chip for the soonest expiry (color plus icon plus text, such as “Tomorrow”), and the location icon. Tapping expands the row into its batches (quantity, date, location, date type). Since beta 2 a row shows its purchase's amount, date and place, and tapping it opens the Edit window (9.4), which also renames the product; v1's product detail and its save (`updateProduct`) are gone.
+- One row per purchase (stock batch; `PantryItems`), plus one **Out** row for every **staple** (a product with Keep at least set) that has nothing left. Since beta 2 (2026-10-18, DECISIONS); v1 had one row per product that expanded into its batches, and its code was deleted after the 2026-11 review (CODE-01). Only Home's Running low lines still total a product's stock (`PantryList.rows`).
+- A row shows the purchase's name, amount, status and place (since the 2026-11 look a status tile, then the status in words, the location and Opened, below). Tapping it opens the Edit window (9.4), which edits the purchase and its product, name included. v1's product rows showed the total and the soonest batch's status chip, and v1's product detail and its save (`updateProduct`) are gone (below).
 - **Sort:** soonest expiry (default), name, recently added. **Group by:** none (default), location, category.
 - **Filter chips:** Fridge, Freezer, Pantry, Other, Needs attention (expired or expiring within 3 days), Expired, Low stock. After v1 (2026-11-12, review R8) *Needs attention* replaced *Expiring soon*, which left the expired out: it is the one set Home's card counts and the daily reminder opens (5.4, 5.6), with its expired folded at the top as below. A search bar filters by name as you type. After v1 there is no *All* chip: no filter is the default, and tapping the chosen filter again clears it. In the 2026-11 look (19.10) the location chips show their location's icon.
 - Empty state: one sentence explaining the app and a button, “Add your first item”.
 - **Search and filters (owner, 2026-11-21).** The search field shows what was typed at once, from its own copy in the view model, never the list's state, which comes back later (it had lost and doubled letters while typing). A new search, filter, sort or grouping starts the list at its top: with nothing in Use first, the default view and a filtered list share row keys, so taking a filter off left the list on the filtered list's first row with the rows above it out of sight. Both apps.
-- **After v1, row and list polish.** The status chip alone shows the status (a second status icon at the start of the row only repeated it). The amount at the end reads "× 3" for pieces, nothing for a single piece, and "500 g" for other units; an Out row shows only its badge. Names sort the way people expect: case and accents ignored and numbers by value ("Bag 2" before "Bag 10"), here and on the grocery list and in Recipes A to Z. With **3 or more expired** purchases, and no search or Expired filter, they fold into one header at the top ("65 expired items" with *Show*), so a backlog does not push everything else off the screen. Each is thrown away from its row as usual (the bulk *Throw away all* button was removed after beta 7, owner feedback).
+- **After v1, row and list polish.** The status chip alone showed the status (a second status icon at the start of the row only repeated it), until the 2026-11 look's status tile replaced the chip (19.6). The amount at the end reads "× 3" for pieces, nothing for a single piece, and "500 g" for other units; an Out row shows only its badge. Names sort the way people expect: case and accents ignored and numbers by value ("Bag 2" before "Bag 10"), here and on the grocery list and in Recipes A to Z. With **3 or more expired** purchases, and no search or Expired filter, they fold into one header at the top ("65 expired items" with *Show*), so a backlog does not push everything else off the screen. Each is thrown away from its row as usual (the bulk *Throw away all* button was removed after beta 7, owner feedback).
 - **The 2026-11 look (19.6, 19.12; step 3, 2026-11-16).** Rows are grouped (19.5) and each starts with a status tile; the second line says the status in words in its color, then the location and Opened ("Tomorrow · Fridge · Opened"), and an Out staple's says "Out" in the Expired color. In the default view (soonest expiry, no grouping, search or filter) the list splits into *Use first* (the Needs attention set) and *Everything else*, with the folded expired line as Use first's first row. The line above the title counts every row of the unfiltered list ("8 items"). The empty pantry shows a kitchen in a leaf above its sentence.
 
 **Add item** (extended FAB; a bottom sheet that grows to full screen)
@@ -181,7 +184,7 @@ Saving writes a batch. If a batch for the same product, date and location alread
 
 **Batch actions** (swipe or row menu; every swipe action MUST have a menu equivalent): −1 and +1 (*Use 1* and *Add 1* in the menu; the form's stepper says *Remove 1* and *Add 1*, after v1, 2026-11-13), **Used up** (deletes the batch), **Throw away** (asks a reason: Expired, Spoiled, Didn't like it, Other; deletes the batch and logs the event), Edit, Move location. Every destructive action shows an Undo snackbar for 8 seconds, or longer when the phone asks for more: on Android (after v1, 2026-11-12) the time comes from the accessibility manager's recommended timeout, which follows Accessibility > "Time to take action" and what a screen reader requests, and is never under 8 seconds (review A11Y-02). The web app (2026-11-13) keeps 8 seconds, not counting the time its snackbar has focus or the pointer over it: the timer waits and then goes on with the time that was left, since a web page can't read the iPhone's accessibility settings.
 
-**Product detail** (tap the product name): totals, all batches, product settings (unit, category, default location, Keep at least, automatic grocery add, buy quantity), rename, typical shelf life (editable) and the last 20 events.
+**Product detail** (v1 only; removed in beta 2, DECISIONS 2026-10-18). v1 had a product page with totals, all batches, product settings, rename, an editable typical shelf life and the last 20 events. There is none now: a product's name, unit, category, Keep at least, Keep some in stock and buy quantity are edited in the Edit window of any of its purchases (9.4), its typical shelf life is only learned (below), and its history is Home's Recent activity.
 
 **Learning shelf life.** When a batch is saved, set the product's `typicalShelfLifeDays` to the median of (expiry date minus date added) over its last 5 batches. It is only used to pre-fill the date.
 
@@ -306,7 +309,7 @@ After v1, a card with nothing to show (nothing needs attention, no activity yet)
 
 **Activity log.** Clients write events for: pantry item added, grocery item added, recipe saved, member joined, items thrown away (with reason), and after v1 a recipe cooked and the household's data cleared. Events older than 30 days are pruned by the reminder job. After v1 (2026-11-12, review UX-16, R15) checking off a grocery item is no longer logged: the list shows who checked what, and one shopping trip pushed every other event out of the ten lines. Check-offs written by older builds still show until newer events push them out.
 
-**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4; the chosen swatch's check sits on its own dot so it shows on any color); metric or imperial units shown first in the unit menus, *Units shown first* after v1, 2026-11-13; it was *Units for new items*, though new items stay in pieces), Data (Export household data as JSON; after v1 its line reads "Save a copy of all your household's data as a file."), About (version, licenses, privacy summary), and a Crash reports toggle. After v1, *Take the app tour* starts the tour (5.8) again. From 2026-11-17 (the new look, step 7, 19.12) the page reads, top to bottom: the account (a highlight card), Household and Notifications, Appearance, Data (Export household data, which starts the export with a tap on its row, and Send crash reports), the tour and About, then Sign out, Delete account and, for the owner, Clear household data.
+**Settings.** Account, Household, Notifications, Appearance (System, Light or Dark; Colors: Wallpaper on Android 12 and later, Spoil Not green or a preset theme (6.4; the chosen swatch's check sits on its own dot so it shows on any color); metric or imperial units shown first in the unit menus, *Units shown first* after v1, 2026-11-13; it was *Units for new items*, though new items stay in pieces), Data (Export household data as JSON; after v1 its line reads "Save a copy of all your household's data as a file."), About (version, licenses, privacy summary; the licenses are the libraries' and, after v1, 2026-11-24, the two bundled fonts' with their SIL Open Font License, 6.4), and a Crash reports toggle. After v1, *Take the app tour* starts the tour (5.8) again. From 2026-11-17 (the new look, step 7, 19.12) the page reads, top to bottom: the account (a highlight card), Household and Notifications, Appearance, Data (Export household data, which starts the export with a tap on its row, and Send crash reports), the tour and About, then Sign out, Delete account and, for the owner, Clear household data.
 
 ### 5.7 Insights (after v1)
 
@@ -361,15 +364,17 @@ After v1 (2026-11-15) the app is getting a new look, described in section 19. It
 | --- | --- |
 | Welcome, Sign in, Sign up | Logo, email, password, display name (sign-up), reset link |
 | Household gate | Create card, Join card; menu with Sign out and Delete account (after v1) |
-| Home | Four cards (5.6) |
+| Home | The cards of 5.6: Needs attention, Today, Your kitchen this month, Use it up, Grocery list, Recent activity, and Join requests for the owner (four in v1) |
 | Pantry | Search bar, filter chips, grouped list, extended FAB |
 | Add or edit batch | Bottom sheet form (5.2) |
-| Product detail | Totals, batches, settings, history |
 | Groceries | List switcher, quick-add field, grouped items, Add to pantry button |
 | Add to pantry sheet | One row per checked item |
+| Plan (after v1) | The week, its days and slots, the Add meal and meal sheets, This week's ingredients (5.9) |
 | Recipes, detail, cook mode, edit | See 5.5 |
 | Import: paste, browser, preview | See section 11 |
-| Settings and sub-pages | Account, Household (members, invite), Notifications, Appearance, Data, About |
+| Settings and sub-pages | Account, Household (members, invite), Notifications, Appearance, Data, About, the app tour (5.8); Your kitchen opens from Home (5.7) |
+
+v1 also had a Product detail screen; it was removed in beta 2 (5.2).
 
 **6.4 Design tokens**
 
@@ -399,48 +404,52 @@ Status MUST never rely on color alone: always icon plus text. Text contrast at l
 
 **App icon.** "Fresh jar": a cream (#F5FBF5) jar with a leaf cut out of it on the brand green (#2E7D5B). The same shape is the monochrome (themed icon) layer, the notification icon and the welcome screen's mark.
 
-**6.5 Component patterns.** After v1: content cards are outlined everywhere (Home, Insights, Settings, Household), filled cards are kept for recipe tiles, highlights such as join requests and errors; search and quick-add fields are pills; an empty screen offers its ways to start under its sentence. `SearchBar`, horizontally scrolling `FilterChip` rows, filled tonal `Card`s, list rows with a leading status icon, `SwipeToDismissBox` rows with background actions, `ModalBottomSheet` with a drag handle (after v1 every sheet is `SpoilNotSheet`, whose handle has a 48 dp touch target instead of Material's 32 dp, review A11Y-06), snackbars with Undo, `SingleChoiceSegmentedButtonRow` (after v1: a list of radio buttons at font scale 1.5 and above, so labels are never cut off; from 2026-11-17 the theme and units choices, its last users, are a connected button group, 19.9, which does the same), skeleton shimmer on first load only, and an `ExtendedFloatingActionButton` that stays extended (after v1: it used to collapse while scrolling, owner feedback). Amounts in pieces show as just the number ("× 2", "2"), and TalkBack reads "2 pieces"; other units keep their symbol ("500 g") (after v1). Use `Scaffold` with edge-to-edge insets, support predictive back, and provide an adaptive launcher icon with a monochrome layer (themed icons).
+**6.5 Component patterns.** After v1: content cards are outlined everywhere (Home, Insights, Settings, Household), filled cards are kept for recipe tiles, highlights such as join requests and errors; search and quick-add fields are pills; an empty screen offers its ways to start under its sentence. `SearchBar`, horizontally scrolling `FilterChip` rows, filled tonal `Card`s, list rows with a leading status icon (removed after v1, then back as the 2026-11 look's status tile, 19.6), `SwipeToDismissBox` rows with background actions, `ModalBottomSheet` with a drag handle (after v1 every sheet is `SpoilNotSheet`, whose handle has a 48 dp touch target instead of Material's 32 dp, review A11Y-06), snackbars with Undo, `SingleChoiceSegmentedButtonRow` (after v1: a list of radio buttons at font scale 1.5 and above, so labels are never cut off; from 2026-11-17 the theme and units choices, its last users, are a connected button group, 19.9, which does the same), skeleton shimmer on first load only, and an `ExtendedFloatingActionButton` that stays extended (after v1: it used to collapse while scrolling, owner feedback). Amounts in pieces show as just the number ("× 2", "2"), and TalkBack reads "2 pieces"; other units keep their symbol ("500 g") (after v1). Use `Scaffold` with edge-to-edge insets, support predictive back, and provide an adaptive launcher icon with a monochrome layer (themed icons).
 
 **Form sheets** (Add item, Edit, Add to pantry, Edit grocery item, Add to grocery list) close only when dragged past half their height; a quick flick never closes them, and Back or tapping outside still does. They stop below the status bar and pad only the bottom (navigation bar and keyboard), so their height never changes while they move.
 
-**6.6 Wireframes.** In these sketches (SK) is the avatar button that opens Settings; the row icons are ! urgent, \~ soon, ok fresh, o out of stock.
+**6.6 Wireframes.** In these sketches (SK) is the avatar button that opens Settings, the line above each title is the screen's eyebrow (19.7), and the status tiles (19.6) are [!] urgent, [~] soon, [ok] fresh and [o] out of stock; rows are grouped, without dividers (19.5). After v1 (redrawn 2026-11-24): five tabs (5.9) and no *All* chip (5.2); v1's sketches had four tabs and an (All) chip.
 
 Pantry:
 
 ```
-+--------------------------------+
-| Pantry                    (SK) |
-| [ Search pantry              ] |
-| (All)(Fridge)(Freezer)(Soon)>  |
-| ------------------------------ |
-| ! Milk                    x2   |
-|   Tomorrow . Fridge            |
-| ~ Yogurt                  x4   |
-|   In 3 days . Fridge           |
-| ok Rice                  1 kg  |
-|   Mar 2027 . Pantry            |
-| o  Olive oil  OUT (staple)     |
-|                      [+ Add]   |
-| Home  Pantry  Recipes  Lists   |
-+--------------------------------+
++------------------------------------+
+| 8 items                            |
+| Pantry                        (SK) |
+| ( Search pantry                  ) |
+| (Fridge)(Freezer)(Pantry)(Other) > |
+| Use first                          |
+| [!] Milk                       x 2 |
+|     Tomorrow . Fridge              |
+| [~] Yogurt                     x 4 |
+|     In 3 days . Fridge . Opened    |
+| Everything else                    |
+| [ok] Rice                     1 kg |
+|     Mar 2027 . Pantry              |
+| [o] Olive oil                      |
+|     Out                            |
+|                       [+ Add item] |
+| Home Pantry Plan Recipes Groceries |
++------------------------------------+
 ```
 
 Groceries:
 
 ```
-+--------------------------------+
-| Groceries  v              (SK) |
-| [ Add an item...          (+)] |
-| Dairy and eggs                 |
-| [ ] Milk  x2   Added autom.    |
-| [ ] Eggs  x12    added by Sam  |
-| Produce                        |
-| [ ] Spinach                    |
-| In cart (2)  v    Clear cart   |
-|     [ Add 2 to pantry ]        |
-|                                |
-| Home  Pantry  Recipes  Lists   |
-+--------------------------------+
++------------------------------------+
+| 4 to buy                           |
+| Groceries v                   (SK) |
+| ( Add an item...             (+) ) |
+| Dairy and eggs                     |
+| [ ] Milk  x 2  (Added autom.)      |
+| [ ] Eggs  x 12        added by Sam |
+| Produce                            |
+| [ ] Spinach                        |
+| In cart (2)  v         Clear cart  |
+|         [ Add 2 to pantry ]        |
+|                                    |
+| Home Pantry Plan Recipes Groceries |
++------------------------------------+
 ```
 
 **6.7 States.** Loading: skeleton on first load only. Empty: a one-line explanation and a primary action; after v1 (2026-11-12) also Plan's empty week (5.9) and a new household's Home (5.6), whose empty cards say how to start instead of showing an "all done" check. Error: inline message with Retry; after v1 (2026-11-11) a thin banner "Couldn't load." with a Retry button and an error icon, where the Offline banner goes (in place of the first load's spinner or skeleton), on Home, Pantry, Plan, Recipes and Groceries, shown while one of the screen's listeners has failed for a reason other than the quota or the network (the quota and Offline banners already say those). The screen keeps what it already showed, listens again by itself after 1, 2, 4 … 32 s (Retry listens at once), and the banner goes once a listen has stayed up for 2 s. Other screens and sheets retry the same way without the banner. Before, a failed listener ended for good and left its screen blank, spinning or stale until the app restarted (review REL-04, WEB-10). A change the server refuses after the action returned is reported once by the shell, as a snackbar above the navigation bar, whichever screen is open (after v1, 2026-11-11; before, only Pantry, Plan and Groceries reported it, while open, review REL-13). Offline: a thin banner “Offline. Changes will sync later” and a cloud-off icon on rows with pending writes; every tab shows it, Groceries included (after v1, 2026-11-09). Quota reached: banner “Spoil Not has reached its free daily limit and will work again tomorrow.” It sits above whichever top-level screen shows (sign-in, the gate, the loading screen or the app), takes the status bar's space, and holds until midnight Pacific time, when it turns itself off; meanwhile the app keeps working from the phone's copy (after v1, 2026-11-09, 7.5). Update required: full screen with a link.
@@ -481,8 +490,9 @@ app/src/main/
   kotlin/<package>/
     SpoilNotApp.kt        Application class: Firebase init, notification channel, Hilt entry point
     MainActivity.kt       single Activity: edge-to-edge, share and notification intents
-    core/                 clock, ids, error types, Firestore helpers, shared composables, theme
-    feature/<feature>/    auth, household, pantry, grocery, recipes, notifications, settings, home
+    core/                 clock, ids, error types, Firestore helpers and the household writer, shared composables, theme
+    feature/<feature>/    auth, household, pantry, grocery, recipes, notifications, settings, home;
+                          after v1 also insights (5.7), plan (5.9), tutorial (the app tour, 5.8), update (13.3)
       domain/             pure Kotlin: models, enums, business logic (no Android, no Firebase)
       data/               repositories and Firestore mapping
       ui/                 screens, composables, ViewModels (state exposed as StateFlow)
@@ -518,7 +528,7 @@ app/src/androidTest/      instrumented and Compose UI tests
 - **Dates** (expiry and similar) are calendar dates stored as strings `YYYY-MM-DD` with no time zone, and compared as strings.
 - **A food's name is saved with every word capitalized (owner, 2026-11-21):** "black beans" and "Black beans" are both saved as "Black Beans", and "super Pickled pickles of Doom" as "Super Pickled Pickles Of Doom". Each word's first letter becomes a capital and the rest stays as typed ("BBQ Sauce"); punctuation before a word's first letter keeps it open ("(Organic)"), a digit doesn't ("7up"). It applies to pantry items and grocery items however they are added (Add item, Edit, quick add, a recipe's or the plan's ingredients, renames), on both apps (`NameCase`); not to recipe titles, meals, lists, households or people. Names saved before keep their case until the item is edited. The name fields start each word with a capital on the keyboard.
 - `nameKey` is the name lowercased, trimmed, with whitespace collapsed and diacritics removed. It is used for matching and de-duplication. After v1 (2026-11-13, review WEB-06) whitespace has one definition on both apps, written out instead of each language's `\s`: Unicode's White_Space characters (tab to carriage return, space, U+0085, the no-break space U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F, the full-width space U+3000) and U+FEFF (`NameKey.WHITESPACE`). The quick-add field and the ingredient parser read text with these as plain spaces. Keys stored before are normalised when read, not migrated (DECISIONS 2026-11-13).
-- Limits: names up to 80 characters (people 40, households and lists 60, recipe titles 200, meal titles 120), notes up to 500 (recipe text has 11.6's limits), other strings about 100, recipe links and photos http or https up to 2,000 characters, arrays up to 100 items, documents far below 1 MiB. **After v1 (2026-11-08) the rules enforce them:** each collection accepts only the fields the apps write (8.2), every string and list within its limit (lists of names, tags, cooks and aisles also in total characters), and finite numbers; recipe ingredients and steps are checked only by number, because rules cannot walk a list of maps. Both apps also cut names to these lengths when they read them, and Android drops recipe links and photos that are not http or https (the web app skips them when it shows a recipe), so data another client wrote cannot slow a list or open another app.
+- **Limits** (the one place for them in the docs; `firebase/firestore.rules` enforces them, and after v1 (2026-11-24, review B27) `FieldLimitsTest` and the web's `field-limits.test.ts` fail when an app's constants disagree with the rules): food names 80 characters (products, purchases, grocery items, a product's remembered recipe names), people 40, households and lists 60, recipe titles 200, meal titles 120; notes 200 as both apps write them (the rules accept 500 on purchases and grocery items, and 200 on meals); recipe text 11.6's limits (also description 2,000, notes 5,000, source name 100, at most 8 tags of 40); recipe links and photos http or https up to 2,000 characters; servings 1 to 1,000 for recipes and meals (the rules accept up to 10,000 on a recipe); at most 20 cooks a meal, 30 remembered names a product and 30 aisles a list; other strings about 100, other lists up to 100 items; documents far below 1 MiB. **After v1 (2026-11-08) the rules enforce them:** each collection accepts only the fields the apps write (8.2), every string and list within its limit (lists of names, tags, cooks and aisles also in total characters), and finite numbers; recipe ingredients and steps are checked only by number, because rules cannot walk a list of maps. Both apps also cut names to these lengths when they read them, and Android drops recipe links and photos that are not http or https (the web app skips them when it shows a recipe), so data another client wrote cannot slow a list or open another app.
 - **Who wrote it (after v1, 2026-11-08).** `createdBy` is the writer when a document is created or brought back from a tombstone (Undo), and never changes after (a missing one may be filled in by the writer). A grocery item's `checkedBy` is the writer, null, or left as it was. An activity event's `actorUid` is the writer, its `type` one of 8.2's, `actorName` 1 to 40 characters and `params` only 8.2's fields. The apps name an event's author from the member list by `actorUid`; the stored `actorName` is shown only for someone who has left.
 - Write every field explicitly (use null, not a missing field) unless it is documented as optional. New fields MUST be optional on read with defaults, because phones will run different versions.
 - **Tombstones (after v1, 9.8).** Products, stock batches, grocery items and recipes are deleted by merging `deletedAt` (the server time) and the update stamp into the document, not by deleting it, so other phones' change listeners see the deletion. Every reader skips documents with `deletedAt`, also while its time is still waiting for the server (an offline delete, 9.8); restoring (Undo) removes it with a field delete, never `deletedAt: null`. After v1 (2026-11-10) Undo merges only `deletedAt: deleteField()` and the update stamp into the tombstone, which kept every field, so the document comes back as the server has it (8.6). The reminder job deletes tombstones after 2 days. Deleting a whole list or household still deletes for real. After v1 (2026-11-08) members can only tombstone these and meals: an outright delete is the owner's (deleting the household), or a list's items going with their list (8.5).
@@ -532,6 +542,8 @@ users/{uid}:                          # private to the user
   timezone: string                    # IANA name, refreshed at app start
   locale: string                      # en
   units: metric | imperial            # default for new products
+  pendingJoin: { householdId, householdName, code } | null   # optional: the household a waiting join request went to,
+                                      # so any of the user's phones can show and finish it (DECISIONS 2026-10-16)
   notificationPrefs:
     enabled: bool
     digestMinutes: int                # minutes after local midnight; UI offers whole hours; default 540 (9 AM)
@@ -582,6 +594,7 @@ households/{hid}/products/{productId}:
   buyQuantity: number | null
   restockArmed: bool                  # restock engine state (9.6); true when created
   typicalShelfLifeDays: int | null
+  recentShelfLifeDays: [int]          # the last 5 shelf lives (expiry minus date added) the median comes from (5.2)
   lastAddedQuantity: number | null      # after v1: the amount added last time, in unit (5.5 recipe grocery amounts)
   aliases: [string]                     # after v1: recipe names taught by Change (5.5), name keys, at most 30
   openedShelfLifeDays: int | null       # after v1: days it keeps once opened, last chosen in Mark opened (5.2)
@@ -633,7 +646,9 @@ households/{hid}/activity/{eventId}:
   type: stock_added | grocery_added | grocery_checked | recipe_saved | member_joined | discarded | recipe_cooked, household_reset (after v1)
         # grocery_checked: no longer written after v1 (2026-11-12, R15); still read and allowed for older builds
   actorUid, actorName: string
-  params: { name, quantity, reason, listName }    # whatever applies to the type
+  productId: string | null           # optional: the product of a pantry event (DECISIONS 2026-10-16)
+  recipeId: string | null            # optional: the recipe of recipe_saved and recipe_cooked (DECISIONS 2026-10-17)
+  params: { name, quantity, reason, listName, count }    # whatever applies to the type
   createdAt: timestamp
 households/{hid}/meals/{mealId}:      # after v1: one planned meal (5.9)
   date: string (YYYY-MM-DD)
@@ -705,7 +720,7 @@ updatedBy: uidAnna
 9. (After v1, 2026-11-08) An Insights count (5.7) moves by at most one per field per write, and only one day of `thrownByDay` changes per write. The rules see a batch's writes to one document together, so both apps' writers send a larger count (throwing several batches away at once, I cooked this using up several, and their Undo) as one step in the batch it belongs to and further batches of one step each, at most one step per month document in a batch (`WriteBatches` in the app, `planBatches` on the web).
 10. (After v1, 2026-11-09) When two phones finish the same thing, the rules pick the winner and refuse the other phone's whole batch (9.4): a grocery item is tombstoned once (a later write may keep or remove `deletedAt`, never write it again), so a second Add to pantry, Clear checked or delete of the same items fails with everything in its batch; a meal goes from not cooked to cooked once (`cookedAt` is set only where it is null), so a second Cooked takes nothing from the pantry; and an item is created only under a list that exists after the batch (`existsAfter`), so an add or Undo to a deleted list is refused rather than left where no screen shows it. The refused phone reads, from the server, why (the item's tombstone and its `updatedBy`, the meal's `cookedBy`, or the missing list) and names the winner.
 
-**8.6 Versioning.** `households.schemaVersion` and `config/app.minSupportedBuild` allow forced upgrades. Migrations are idempotent scripts in `tools/migrations/`. Never assume every phone runs the same version.
+**8.6 Versioning.** `config/app.minSupportedBuild` (Android) and, after v1, `config/app.minWebBuild` (the web app, 18.5) force upgrades (13.3, RUNBOOK). Both apps write `households.schemaVersion: 1` when they create a household, but nothing reads it yet; it is there for a change of shape that needs one. v1 planned migration scripts in `tools/migrations/`; none was ever needed, so there is no such folder: new fields are optional on read with defaults (8.1), values stored the old way are normalised when read (name keys, 8.1), and writes merge only the fields they set, so an older app keeps a newer app's fields (below). Never assume every phone runs the same version.
 
 **What both apps accept on read (after v1, 2026-11-11).** A document another client wrote can hold a field of another type: a bug in another build, a console edit or a restore. Both apps read every field on its own with a safe cast (Android `core/firebase/Fields.kt`, web `data/fields.ts`): a value of another type reads as missing, so the field's default applies (a text quantity counts as 0, `checked: "yes"` as unchecked, a list field holding text as an empty list, a time of another type as none), and list entries of another type are left out. Each document is mapped on its own, and one that still fails is skipped and logged (debug builds only) while the rest of the list shows. Before, Android's typed getters threw on another type and the web's list fields threw on text, so one such document blanked Pantry, Groceries, Home, Plan or Recipes on every phone of the household until the app restarted, and kept the web spinning even after a reload (review REL-04, WEB-10). Values of the right type but outside what the app writes (an unknown category, a negative or infinite quantity, an impossible date) are handled as before.
 
@@ -713,7 +728,7 @@ updatedBy: uidAnna
 
 ## 9. Real-time sync, offline and the restock engine
 
-**9.1 Listeners.** After sign-in and household resolution the app attaches these listeners as Kotlin `callbackFlow`s collected by ViewModels (`stateIn` with `SharingStarted.WhileSubscribed`), all cancelled on sign-out:
+**9.1 Listeners.** This table is the one place that lists every listener and how long it lives. After sign-in and household resolution the app attaches these listeners as Kotlin `callbackFlow`s collected by ViewModels (`stateIn` with `SharingStarted.WhileSubscribed`), all cancelled on sign-out:
 
 | Listener | Scope | Lifetime |
 | --- | --- | --- |
@@ -722,10 +737,13 @@ updatedBy: uidAnna
 | `joinRequests/{uid}` | own join request; the waiting screen watches it for approval or decline | while waiting |
 | `joinRequests` | all requests (owner only); drives the badge, the Home card and the Join requests list | session, owner only |
 | household doc and `members` | name and member list | session |
-| `products`, `stock` | whole collections | session (after v1: while a screen or sheet shows them, plus 5 s) |
+| `products`, `stock` | whole collections, changes-only after v1 (9.8) | session (after v1: while a screen or sheet shows them, plus 5 s) |
 | `groceryLists`, items | list names always; items of the open list | while visible, plus 30 s |
-| `recipes` | whole collection | from the first visit to the Recipes tab |
-| `activity` | newest 30 by `createdAt` | session |
+| `recipes` | whole collection, changes-only (9.8) | while Home (every open, for Use it up, 5.6), Recipes or a sheet that lists recipes shows them; v1: from the first visit to the Recipes tab |
+| `activity` | newest 10 by `createdAt`, changes-only (`liveNewest`, 9.8) | while Home shows it; v1: newest 30, the whole session |
+| `meals` (after v1) | the dates on screen, changes-only with a window (9.8) | while Plan or Home's Today card shows them |
+| `stats` (after v1) | the month documents from a month on: this month on Home, the last six in Your kitchen (5.7) | while Home or Your kitchen shows them |
+| `config/app` | one document (the update gate, 13.3) | while the activity lives |
 
 Register the stock and grocery listeners with `MetadataChanges.INCLUDE` to read `hasPendingWrites` (pending-sync icon) and `isFromCache`.
 
@@ -796,13 +814,13 @@ Before v1's tombstones (9.8) "never write checked" was enough; a tombstone left 
 
 Properties: idempotent (two phones doing it at once write identical data), respects deletion (it stays disarmed until stock recovers to the minimum), never un-checks an item that is on the list, no nagging. Editing `minQuantity` upward sets `restockArmed = true`. Unit tests MUST cover: crossing down, recovery then dropping again, the user deleting the item, two concurrent evaluations, a product without a minimum, a minimum raised while already low, batches with quantity 0, and after v1 a tombstone brought back, a first sync, which phone writes and a failed listener (`RestockEngineTest`, `RestockRunnerTest`, `GroceryChangeMapperTest`; `restock.test.ts` and `data/grocery.test.ts` on the web). `RestockFlowTest` runs two phones against the rules.
 
-**9.7 Quota budget.** Spark allows 50,000 reads, 20,000 writes and 20,000 deletes per day.
+**9.7 Quota budget.** Spark allows 50,000 reads, 20,000 writes and 20,000 deletes per day. This section gives the budget and how it is worked out; **today's figure** (reads a household a day, and how many households fit under 70%) lives in one place, RUNBOOK's *Check quota usage*, measured with the quota simulation. The bullets below are v1's estimate and how each change after v1 moved it (with section 17's rows); a number in them is the figure of its day.
 
 - A listener costs one read per document it returns. With persistence on, a listener disconnected for more than 30 minutes is billed like a brand-new query, so every return to the app after a long absence re-reads the collections. Security-rule lookups (`exists`, `get`) cost one extra read per dependent document.
-- Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
+- v1's estimate. Typical household: about 130 documents across listeners (30 products, 60 batches, 20 grocery items, 15 recipes, members). A phone that opens the app 8 times a day after long gaps reads about 1,000 documents; four phones, about 4,500 reads a day including rule lookups. Writes: about 40 a day.
 - After v1, Home also listens to the current month's Insights document (one read per open plus its rule lookup); the Insights screen reads up to six month documents when opened. Finishing a batch writes the month document in the same batch. The quota simulation (`npm run quota-sim`, docs/RUNBOOK.md) puts a typical household at about 4,760 reads a day.
 - After v1, the changes-only listeners (9.8) cut a typical household to about 1,890 reads a day: one full read per phone a day, then only changes. Home's Use it up reads recipes on every open (5.6), about 40 more, so about 1,930; reading only new activity events (9.8) brings it to about 1,790. The meal planner (5.9) adds about 150 (this week's meals, their changes, the nightly export and two housekeeping queries): about 1,940; the digest's meals query adds about 8: about 1,950. Checking that each due user is still a member (10.3) adds about 4, one read per member a day: about 1,960.
-- So the free quota supports roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day. After v1 (2026-11-22) the on-time trigger starts the job about 96 more times a day (10.4), and each run reads every user with reminders on: the simulation puts the free plan at about 14 households under the 70% line, from about 17 (RUNBOOK, Check quota usage).
+- So in v1 the free quota supported roughly 10 active households' worth of reads (about 18 after 9.8). The reminder job adds a few hundred reads a day. After v1 (2026-11-22) the on-time trigger starts the job about 96 more times a day (10.4), and each run reads every user with reminders on: the simulation puts the free plan at about 14 households under the 70% line, from about 17 (RUNBOOK, Check quota usage).
 - After v1 (2026-11-08) the simulation also counts what it left out: each activity event as a write with its rule lookup, the documents the daily prune reads before deleting them, the prune's deletes (about 57 per household a day: a day's tombstones, activity events from 30 days ago and meals passing 28 days), and the job's state document (one read per run). It takes the number of job runs that start in a day (`RUNS`) and how many phones are the web app (`WEB`). With 24 runs a day a typical household costs about 2,040 reads, 94 writes and 57 deletes a day, so **about 17 households** fit under 70% of every limit (reads run out first). The job is scheduled 72 times a day (10.4); if every run started it would be about 2,240 reads, about 15.6 households, since each run reads every user with reminders on. GitHub has started far fewer (10.4).
 - After v1 (2026-11-09) the rules look up the list for every batch that creates grocery items (8.5 invariant 10): one read per list per batch (Firestore bills a document a request looks up once, however many writes use it). With 10 item creates a household a day it adds about 10 reads; the simulation now makes 10 of its 40 daily writes item creates, and a typical household costs about 2,020 reads a day: still about 17 households. Explaining a refusal reads up to 11 documents, only when a phone loses a race.
 - After v1 (2026-11-09) Android lets go of every household listener once its screens are gone (9.1). Before, the restock engine and Pantry's and Groceries' screens kept theirs for as long as the process lived; Android often keeps it between opens, and a return after more than 30 minutes paid for them again, usually the day's full read of products and stock (review 09, EFF-01). The simulation's `WARM` and `HELD=1` knobs replay that: with 3 of each phone's 7 later opens finding the process alive it was about 3,720 reads a household a day (about 9 households), with all 7 about 6,340 (about 5). Now an open costs the same whether the process was kept or not: about 2,020, about 17 households. The phone's own listeners on one change also went from up to three per collection to one (EFF-03), which the simulation doesn't model (it lists one query per collection).
@@ -950,39 +968,18 @@ android: { priority: high, notification: { channelId: expiry, tag: expiry_digest
 
 Digest text: one item gives the title “Milk expires tomorrow”; several give “N items need attention”. After v1 the title is decided by distinct names: one product with batches in several stages is one item, and its title is the sentence for its most urgent batch (the body's order), so it never reads “1 items”. Product names and meal titles are cut to 80 characters and the body to 1,000 bytes, ending with “…”, well inside FCM's 4,096-byte limit. The body has up to four lines in this order: Throw away, Today, Tomorrow, In 2 to 3 days. Each line names up to three products, then “+K more”. Best-before items say “past best before” instead of “throw away”. After v1 the cook's meals are a last line, or the whole notification when nothing expires (5.4).
 
-**10.4 Scheduler** (`.github/workflows/reminders.yml`)
+**10.4 Scheduler** (`.github/workflows/reminders.yml`). This section is the one place for when the reminder job starts and why; RUNBOOK's *Reminder job* says how to run and check it.
 
-```yaml
-name: expiry-reminders
-on:
-  schedule:
-    - cron: '7 * * * *'          # after v1 three entries an hour, off the busy top of the hour
-    - cron: '27 * * * *'
-    - cron: '47 * * * *'
-  workflow_dispatch: {}
-concurrency:
-  group: expiry-reminders
-  cancel-in-progress: false
-jobs:
-  send:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: npm
-          cache-dependency-path: backend/reminder/package-lock.json
-      - run: npm ci && npm run build && node dist/main.js
-        working-directory: backend/reminder
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-```
+The workflow, as it is after v1 (the file itself, with its comments, is the reference; v1 sketched one job on one project, started hourly by a schedule, with `actions/checkout@v4`):
+
+- **Started by** an Apps Script trigger in the owner's Google account through `workflow_dispatch`, every quarter hour (since 2026-11-22, below), and by three schedule entries an hour, at minutes 7, 27 and 47, as the backup (since 2026-11-08; hourly in v1).
+- **One job per Firebase project**, a matrix of `spoilnot-prod` and `spoilnot-dev`, each with its own repository secret (`FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_SERVICE_ACCOUNT_JSON_DEV`) and `EXPECTED_PROJECT`, so a key stored under the wrong secret fails the run; a project without its secret logs "nothing to do".
+- **`dry_run`**, the only input, true by default for a run started by hand: it logs what would be sent and changes nothing. Scheduled runs, and the trigger's (which passes false), are live.
+- A concurrency group per project that never cancels a running job, a 5-minute timeout, `contents: read` permission, and actions pinned to full commit SHAs (below).
 
 Pin the action versions to the current majors at build time. *After v1 (2026-11-10):* actions are pinned to commit SHAs (since 2026-11-22 a repository setting requires it, and only allowed actions run), the job declares `environment: production` (its keys are repository secrets since 2026-11-22), and `npm ci --ignore-scripts && npm run build` is a step of its own without secrets before the step that runs `node dist/main.js` (12.2 controls 8 and 9).
 
-**Reliability (verified, Appendix C).** GitHub scheduled runs are best-effort: they can start 15 to 60 minutes late at busy times and are occasionally skipped; the minimum interval is 5 minutes; in public repositories schedules are disabled after 60 days without repository activity. (After v1 the repository is public; `keepalive.yml` re-enables the scheduled workflows monthly.) The design tolerates this: reminders are stateless windows (an item inside the 3-day window appears in every daily digest), the job catches up at any time before 22:00, and `lastDigestDate` prevents duplicates. The hourly job uses about 720 billed minutes per month of the 2,000 free for private repositories, so keep CI frugal (path filters, caching). Make sure Actions failure notifications are enabled in your GitHub notification settings.
+**Reliability (verified, Appendix C).** GitHub scheduled runs are best-effort: they can start 15 to 60 minutes late at busy times and are occasionally skipped; the minimum interval is 5 minutes; in public repositories schedules are disabled after 60 days without repository activity. (After v1 the repository is public; `keepalive.yml` re-enables the scheduled workflows monthly.) The design tolerates this: reminders are stateless windows (an item inside the 3-day window appears in every daily digest), the job catches up at any time before 22:00, and `lastDigestDate` prevents duplicates. In v1, with a private repository, the hourly job used about 720 billed minutes a month of the 2,000 free, so CI was kept frugal (path filters, caching); the repository is public since 2026-10-20 (2), so minutes are free. Make sure Actions failure notifications are enabled in your GitHub notification settings.
 
 *After v1 (2026-11-08), measured.* GitHub started 61 of about 290 hourly runs from 21 October to 2 November 2026, about 5 a day at any minute, with gaps of 5 hours on average and up to 8.5. Morning digests came about three hours late, and a digest chosen for 20:00 or 21:00 often had no run before 22:00 and was skipped for the day. So the workflow has three schedule entries an hour (minutes 7, 27 and 47): a dropped run then costs 20 minutes, not an hour. The job still sends at most one digest a day per user, however many runs start (`lastDigestDate`; `backend/reminder/test/job.test.ts` replays every scheduled start over six days and every offered hour in five time zones). The repository is public, so Actions minutes are free. After a week, compare the start times by hour (`gh run list --workflow reminders.yml`); if whole hours are still missing, the next options are a free external cron service calling `workflow_dispatch` (10.6) or Plan C. The daily prune no longer depends on a run starting in one UTC hour: it runs in the first run of each UTC day (10.3).
 
@@ -1071,7 +1068,7 @@ JSON.stringify({
 11. Privacy: collect only email, display name, household data, device tokens and time zone. No analytics, no ads, no third-party SDKs besides Firebase. Provide in-app Delete account and Export data. Crashlytics is optional and carries no personal data. Add a one-page `docs/PRIVACY.md` listing exactly these data. After v1 (2026-11-12): crash reports stay on by default, with the opt-out in Settings, and prod builds turn Firebase Sessions off (`firebase_sessions_enabled=false` in `src/prod`), so nothing is sent at app start; release builds drop verbose, debug and info calls to the system log, the libraries' included (R8 `-assumenosideeffects` in `proguard-rules.pro`), keeping warnings and errors; the invite code goes to the clipboard marked sensitive, labeled "Invite code" (`sensitiveClip`); PRIVACY.md lists every kind of data both apps, the reminder job and the backups keep, the Firebase installation ID included, and what is left after Delete account.
 12. Web view hardening as in 11.6.
 
-**12.3 Firestore Security Rules: reference draft.** This is a starting point; the tests in 12.4 define correctness. After v1 the deployed rules also cover `meals` (5.9): members read and write; the date must be YYYY-MM-DD, the slot breakfast, lunch or dinner, the title 1 to 120 characters, servings 1 to 100 or null, at most 20 cooks and a note up to 200 characters; tombstones as elsewhere; `cookedAt` and `cookedBy` are both null, set together by the writer at server time, or left as they were (so another member can still change a meal someone cooked). Limits to respect: at most 10 `exists`, `get` and `getAfter` calls per request (20 for batched writes), and each lookup is billed as a read.
+**12.3 Firestore Security Rules: reference draft.** This is a starting point; the tests in 12.4 define correctness. After v1 the deployed rules also cover `meals` (5.9): members read and write; the date must be YYYY-MM-DD, the slot breakfast, lunch or dinner, the title, servings (or null), cooks and note within 8.1's limits; tombstones as elsewhere; `cookedAt` and `cookedBy` are both null, set together by the writer at server time, or left as they were (so another member can still change a meal someone cooked). Limits to respect: at most 10 `exists`, `get` and `getAfter` calls per request (20 for batched writes), and each lookup is billed as a read.
 
 ```
 rules_version = '2';
@@ -1321,7 +1318,7 @@ Joining takes two steps: the person creates a join request with a valid code, th
 
   How many iterations reach the end varies from run to run (the flings' length depends on the emulator), hence the split rows. The janky frames left in Plan's first scroll, as in the iterations that don't stretch, wait for a buffer (`dequeueBuffer`, `waitForBufferRelease`) while the emulator's compositor catches up; they are the same in both builds. Home's first scroll also stretches now and then (Home reaching its top); on `main` those iterations compiled one or two programs more, with the warm-up none. The baseline profile was regenerated for the warm-up and the changed tab bar (17,651 → 17,691 rules); before it, Home and tab switches ran that code unprofiled and were a little more janky (the numbers in brackets).
 
-**13.2 CI** (GitHub Actions). On pull requests and main: `./gradlew spotlessCheck lintDebug testDebugUnitTest assembleDebug`, rules tests against the emulator, and reminder job tests. After v1, CI also compiles the `benchmark` module (`:benchmark:compileBenchmarkKotlin`); the benchmarks themselves need an Android device and run by hand. Use path filters, Gradle caching and a concurrency group to protect the 2,000 free private-repository minutes.
+**13.2 CI** (GitHub Actions, `.github/workflows/ci.yml`). On pull requests and main, what is checked: the Android app's formatting, lint, unit and screenshot-rendering tests and builds (of the `dev` variants: with flavors there are no aggregate `lintDebug` or `testDebugUnitTest` tasks, DECISIONS 2026-10-15), the instrumented tests' and the `benchmark` module's compile; the rules tests against the emulator; the reminder job's type check, tests, build and its integration test against the emulator; and the web app's generated files, checks, unit tests and WebKit browser tests, also under the hosting headers. The commands are `ci.yml`'s and CLAUDE.md's finishing checks, which list the same; this section says what, not how. The benchmarks and the two-phone instrumented tests need an Android device and run on the Mac. Path filters, Gradle caching and a concurrency group keep the wait short (v1 also protected the 2,000 free private-repository minutes).
 
 After v1 (2026-11-22, reviews EFF-08 and BASE-03; the repository is public, so minutes are free and the point is the wait):
 - **Per-job path filters.** A first job, `changes`, compares the change with its base (the pull request's base, or the previous `main` for a push) and each job runs only when its files changed: Android on `app/`, `benchmark/`, `gradle/` and the Gradle files; the rules tests on `firebase/`; the reminder job on `backend/` and `firebase/` (its emulator); the web on `web/`, `firebase/` (hosting headers, emulator) and the Android strings, icons and theme its generated files come from. A change to `ci.yml`, a run started by hand, or a base that can't be fetched runs every job. A skipped job counts as passed; `main`'s ruleset requires no checks.
@@ -1411,7 +1408,7 @@ Each milestone ends with its acceptance checks passing and a short summary to th
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
 | Free Firestore quota exceeded | Features stop for the day | Budget in 9.7, lazy listeners, usage checks, Blaze fallback with alerts |
-| GitHub scheduled runs late or skipped | Late or missing digest | Stateless windows, catch-up until 22:00, failure notifications, Plan B or Plan C (10.6) |
+| GitHub scheduled runs late or skipped | Late or missing digest | Stateless windows, catch-up until 22:00, failure notifications; after v1 an outside trigger starts the job on time, with the schedule as the backup (10.4; Plan B closed, Plan C kept, 10.6) |
 | Recipe sites block fetches or lack structured data | Import fails | Web-view DOM extraction, manual fallback, regression list |
 | Rules complexity | Security bugs | Emulator test matrix, review in M7 |
 | Android battery management delays pushes | Late reminders | High-priority FCM, an in-app tip about battery settings; the digest repeats daily so a late one is still useful |
@@ -1425,19 +1422,17 @@ Each milestone ends with its acceptance checks passing and a short summary to th
 1. Application ID: `com.parcha.spoilnot` (dev builds: `com.parcha.spoilnot.dev`).
 2. Android distribution: Firebase App Distribution (free).
 3. Joining a household needs the owner's approval; the code alone is not enough.
-4. GitHub repository: private. The free plan includes private repositories and 2,000 Actions minutes per month.
+4. GitHub repository: private. The free plan includes private repositories and 2,000 Actions minutes per month. (After v1, public since 2026-10-20, section 2.)
 5. Reminders: the server-sent daily digest from the small scheduled job (the default).
 
 **Still to decide during setup (M0):** the Firestore region (choose the one closest to your household; it cannot be changed later) and whether new products default to metric or imperial units.
 
 ## 16. Roadmap after v1
 
-- **In progress (owner's order, October 18, 2026):** a baseline profile for a faster first start and scroll, waste statistics with charts on Home and an Insights screen, preset color themes, then cheaper syncing that reads only what changed (fewer free-quota reads).
-- **Next:** barcode scanning with the free Open Food Facts database, on-device camera reading of expiry dates, “use it up” recipe suggestions based on expiring items, opened-package tracking (a new expiry once opened).
+- **Done after v1** (from the owner's order of October 18, 2026, and later requests; section 17 has each one's date): a baseline profile for a faster first start and scroll (13.1), waste statistics with charts on Home and an Insights screen (5.7), preset color themes (6.4), cheaper syncing that reads only what changed (9.8), "use it up" recipe suggestions (5.6), opened-package tracking (5.2), the app tour (5.8), the meal planner (5.9), the web app for iPhone (section 18; released October 31, 2026, at https://spoilnot-prod.web.app for testers after the owner's iPhone QA on https://spoilnot-dev.web.app), and the new look (section 19).
+- **Next:** barcode scanning with the free Open Food Facts database, on-device camera reading of expiry dates.
 - **Dropped:** a push notification for the owner when someone asks to join (the owner decided it is not useful enough, October 18, 2026). After v1 (2026-11-10) the waiting screen tells the joiner so, and asks them to let the owner know. Also dropped after v1 (2026-11-13, review R12): Pause joining, since the owner approves every request and New code replaces a leaked code.
-- **Later:** meal planner, home-screen widgets (Jetpack Glance), receipt scanning, recipe photo upload (needs file storage), custom storage locations, import from Paprika export files.
-- **Released (October 31, 2026):** the web app for iPhone (section 18), milestones W0 to W7, at
-  https://spoilnot-prod.web.app for testers after the owner's iPhone QA on https://spoilnot-dev.web.app.
+- **Later:** home-screen widgets (Jetpack Glance), receipt scanning, recipe photo upload (needs file storage), custom storage locations, import from Paprika export files.
 - **Maybe:** Google sign-in (Credential Manager), multiple households, biometric app lock, push notifications for household activity (needs Cloud Functions on the Blaze plan), voice add.
 
 ## 17. Changes after v1
@@ -1454,6 +1449,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-18 | Insights: monthly counts of batches used up and thrown away, the Home card *Your kitchen this month* and the Insights screen with charts | 5.6, 5.7, 8.2, 9.7, 12.3, 13.4, RUNBOOK, QA, PRIVACY |
 | 2026-10-18 | Preset color themes (Fiery Palette, Summer Fun, Enchanted Forest, Watermelon Sorbet, Contrast Pop) and the Colors picker, replacing the wallpaper switch | 5.6, 6.4, Appendix B, QA |
 | 2026-10-18 | Changes-only listeners with tombstones: about 60% fewer reads (1,890 instead of 4,760 per household per day); the reminder job skips and purges tombstones; exports leave them out | 8.1, 8.5, 9.7, 9.8, 10.3, 12.3, 13.4, RUNBOOK, QA |
+| 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 | 2026-10-19 | Beta 4 (1.0.0-beta.4, build 5) with Insights, color themes, the baseline profile and changes-only listeners; rules deployed to both projects | 13.3, RUNBOOK |
 | 2026-10-19 | Lint waits for Hilt code generation (fixes an intermittent local lint crash) | 13.2, DECISIONS |
 | 2026-10-19 | Recipe ingredients go on the grocery list with shopping names, linked to the household's products, with shopping amounts and the recipe line as the note; products remember the amount last added | 5.5, 8.2, QA |
@@ -1499,7 +1495,6 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-10-31 | Two-phone instrumented tests terminate each simulated phone's Firestore after the test, so the full `connectedDevDebugAndroidTest` run no longer stops after about 50 phones (Android allows about 100 network callbacks per app); `TestPhoneTest` guards it. The household-deletion test waits for the member's local reset before its last read, which could hang the run, the share test allows 60 s from the share to the preview on a busy emulator (the app's own 5 s is unchanged), and the tour test waits for Skip to be saved | 13.1, DECISIONS |
 | 2026-11-01 | Reminder digests go only to the household's current members: the job checks each due user's member document (one read per due user) and clears a removed member's household pointer as their app would. The prune and the restore count failed writes instead of throwing them, and every job prints an error as one fixed line with its code | 9.7, 10.1, 10.3, 12.2, 13.4, RUNBOOK, QA, SECURITY_REVIEW |
 | 2026-11-01 | Sign-out and account deletion finish even when Settings closes: they run in the session's application scope, their cleanup steps no longer treat cancellation as a failure, and the phone deletes its push token whenever nobody is signed in (after a sign-out or an account deletion, and at a start without a signed-in user). Instrumented tests sign out and delete an account through Settings and check the phone's cache and the server | 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
-| 2026-10-18 | Baseline profile, macrobenchmarks and `scripts/baseline-profile.sh`. On the emulator: cold start median 457 → 419 ms; first Pantry scroll frame CPU time P90 8.2 → 6.5 ms, P99 13.3 → 10.4 ms | 13.1, 13.2, Appendix B, RUNBOOK |
 | 2026-11-08 | Reminder job: three schedule entries an hour (minutes 7, 27, 47), still one digest a day per user; the daily prune runs in the first run of each UTC day, keyed on `jobs/state.lastPruneDate`, which the summary prints; a failed household or user is counted and the run carries on, then exits non-zero. The job reads devices first (at most the 10 newest), caps the stock query at 500, sends in chunks of 500, marks a user done for the day after 3 runs without a delivery, deletes a token only when FCM says it is unregistered or invalid, cuts names to 80 characters and the body to 1,000 bytes, and decides the title by distinct names. quota-sim counts events, housekeeping reads and deletes and has `RUNS` and `WEB` knobs: about 17 households. Plan B (Cloud Functions) closed | 9.7, 9.8, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 13.4, RUNBOOK, PRIVACY, SECURITY_REVIEW |
 | 2026-11-08 | Instrumented tests cancel each Hilt test's application scope after it (`TestCoroutinesModule`, `ReleaseAppScopes` added by `HiltTestRunner`), so no earlier test's `SessionManager` clears local data and terminates the shared Firestore under a later one; this made `SettingsAccountUiTest.deleteAccountRemovesProfileDevicesMembershipAndSignIn` time out in the full run. `AppScopeReleaseTest` guards it | 13.1, DECISIONS |
 | 2026-11-08 | What stays on a phone after sign-out: both apps clear the sync log with the local data, and Android also clears the built-in browser's cookies, site storage and cache and the cached recipe photos. The web app deletes its push token when a user leaves the phone, keeping a flag until FCM confirms so a phone signed out offline deletes it at its next start. Notification links stay on this site (`safeRoute` resolves the route on the app's origin). Both household gates offer Delete account, and a deletion that fails after the gate gave way to Loading shows its error when the gate comes back | 5.1, 6, 10.2, 12.2, 18.4, QA, PRIVACY, SECURITY_REVIEW |
@@ -1569,6 +1564,7 @@ Every change after M7, newest last. Details and reasons are in `docs/DECISIONS.m
 | 2026-11-24 | Build updates (Dependabot's open Android updates but Compose): AGP 9.5.2, which configures the release variants again (9.4.1 since 2026-10-15, DECISIONS 2026-10-31 and 2026-11-14), Gradle 9.9.2, Robolectric 4.18.1 and error-prone annotations 2.53.0 (the Gradle constraint). Dependabot no longer skips AGP 9.5.0 and 9.5.1. Compose BOM 2026.11.01 follows in its own change: it needs `compileSdk` 37.1 or later and replaces two APIs the app uses | 12.2, RUNBOOK, DECISIONS |
 | 2026-11-24 | Compose BOM 2026.11.01 (Compose 1.13, Material 3 1.5; Dependabot #152): `compileSdk` 37.2, which Compose 1.13 requires (`targetSdk` stays 37); `ExposedDropdownMenu` imported as Material 3 1.5's extension in Groceries' quick add and Pantry's forms; the keyboard focus ring rebuilt on `getFocusedRect`, since Compose 1.13 made `onFocusedBoundsChanged` a no-op, with its first test (`FocusRingTest`: the ring beside the focused button, after a move by code and after Tab, none for touch); the accessibility canary now checks only the app's sheet, since Material 3 1.5's own sheet passes the touch-target check too. Screenshots unchanged; baseline profile regenerated (17,789 rules) | 6.8, 7.6, 13.1, RUNBOOK, DECISIONS |
 | 2026-11-24 | Reminder times on time (both apps): after a day of the Apps Script trigger (106 runs, one every quarter hour, a median of 22 s after it, none missed; 10.4) the apps name the hour again: Settings' row "Daily at 9:00 AM" (was "Daily, after"), the time's helper "It arrives within a few minutes of this time." (was "often a few hours later" and the 22:00 limit), the explanation and You're set "at 9:00 AM" (were "after"), and the battery hint "If reminders arrive late" again. Tests, screenshots of Settings' Notifications page (both apps) and Android's row re-recorded; QA flows 35, 57, 59 and 83 updated | 5.4, 10.2, 10.4, QA, DECISIONS |
+| 2026-11-24 | Docs catch-up (review batch B27: CODE-02, CODE-03, CODE-04, CODE-06, BASE-04, BASE-07). DESIGN's lines that still described v1 now describe the app as it is: both platforms (header, summary, 1, 2), the public repository (2, 3, 15), the pantry's rows per purchase and no product detail (5.2, 6.3), Home's cards (6.3), the wireframes with five tabs and no All chip (6.6), the feature packages (7.2), the field limits (8.1), `pendingJoin`, `recentShelfLifeDays` and the activity's `productId` and `recipeId` (8.2), versioning without migration scripts (8.6), every listener (9.1), the reminder workflow (10.4), what CI checks (13.2), the roadmap (16) and the layout (Appendix B); section 17's one out-of-order row (the 2026-10-18 baseline profile) moved to its date, unchanged. Each repeated fact has one home that the other docs link to: platforms DESIGN 1, repository visibility DESIGN 2, today's quota figure RUNBOOK's *Check quota usage* (9.7 the method), field limits 8.1 with the rules, listeners 9.1, reminder timing 10.4, the restore's contents RUNBOOK once, the layout Appendix B, held library versions the version catalog. README and QA.md cover the planner, the tour, the web app, the new look and on-time reminders; QA.md is for both apps, with an iPhone column and flow 84. CLAUDE.md names `HouseholdWriter.apply`, the meal plan's and activity's listeners, what `core/firebase` holds and the `adb` path; RUNBOOK the `adb` path. About's licence list (Android) adds the two bundled fonts, Manrope and Fredoka, with their SIL Open Font License from AboutLibraries definitions in `app/aboutlibraries` (`AboutLicensesTest`); the unread copies in `assets/licenses` are gone. `FieldLimitsTest` and the web's `field-limits.test.ts` check each app's limits against `firestore.rules` | Header, summary, 1, 2, 3, 5.2, 5.6, 6.3, 6.5, 6.6, 7.2, 8.1, 8.2, 8.6, 9.1, 9.7, 10.4, 12.3, 13.2, 15, 16, 17, 18.3, Appendix A, Appendix B, README, QA, RUNBOOK, CLAUDE.md, DECISIONS |
 
 ## 18. Web app for iPhone (after v1)
 
@@ -1710,7 +1706,8 @@ live. The Android app does not change.
   `web/src/core/preferences.ts`), like the app's DataStore: per phone, not household data. Export downloads the JSON file (Safari asks, then keeps it in
   Files > Downloads), in the app's format with `appVersion` "web <commit>". About lists the open source licenses of
   every run-time package in `package-lock.json` with the text each ships (`public/licenses.json`, written by
-  `npm run gen`, like the app's AboutLibraries data).
+  `npm run gen`, like the app's AboutLibraries data). The two fonts, Manrope and Fredoka, are among them, from their
+  `@fontsource-variable` packages; the app lists its own copies from `app/aboutlibraries` (5.6, after v1).
 - Sheet drafts (after v1, 2026-11-12): iOS discards a page left in the background and loads it again when the person
   comes back, which on Android is process death. Add to pantry and Plan's Add meal and meal sheets keep their open
   state and what was picked in `sessionStorage` (`spoilnot.draft.*`, `useSessionDraft` in `web/src/core/drafts.ts`),
@@ -1980,7 +1977,7 @@ tests, and record any deviation in docs/DECISIONS.md. After each milestone run i
 summarize the results to me before starting the next one.
 ```
 
-**Suggested `CLAUDE.md`**
+**Suggested `CLAUDE.md`** (v1's starting point, kept as it was; the repository's `CLAUDE.md` is the current one, with the web app, the dev-variant tasks and the full finishing checks)
 
 ```
 # Spoil Not
@@ -1997,18 +1994,26 @@ summarize the results to me before starting the next one.
 
 ## Appendix B. Repository layout
 
+The one place for the repository's layout. After v1 (2026-11-24):
+
 ```
 spoilnot/
-  app/                    Android app module (src/main, src/test, src/androidTest)
+  app/                    Android app module (src/main, src/test with the screenshot references, src/androidTest)
+  app/aboutlibraries/     the bundled fonts' entries for About's licence list (5.6)
   gradle/libs.versions.toml   version catalog
-  backend/reminder/       Node.js reminder job (src/, test/, package.json)
-  firebase/               firestore.rules, firestore.indexes.json, firebase.json, rules tests
-  docs/                   DESIGN.md, DECISIONS.md, RUNBOOK.md, PRIVACY.md, import-test-sites.md
+  backend/reminder/       Node.js reminder job, nightly export and restore (src/, test/, apps-script/ the on-time trigger)
+  firebase/               firestore.rules, firestore.indexes.json, firebase.json, rules tests (test/), tools/ (quota-sim)
+  docs/                   DESIGN.md, DECISIONS.md, RUNBOOK.md, QA.md, PRIVACY.md, SECURITY_REVIEW.md,
+                          import-test-sites.md
   benchmark/              macrobenchmarks and the baseline profile generator (never shipped)
-  scripts/                emulators.sh, release-beta.sh, baseline-profile.sh
+  scripts/                emulators.sh, release-beta.sh, deploy-web.sh, baseline-profile.sh, benchmark-summary.py,
+                          subset-fonts.sh, recipe-snapshot.js
   tools/themes/           preset color theme definitions and their generator (not part of the app build)
-  web/                    the web app for iPhone (after v1, section 18): src/, scripts/ (generators), tests/e2e/
-  .github/workflows/      ci.yml, reminders.yml, nightly-export.yml, restore.yml, secret-scan.yml
+  tools/fonts/            the full fonts that scripts/subset-fonts.sh subsets into app/src/main/res/font
+  web/                    the web app for iPhone (after v1, section 18): src/, scripts/ (generators), tests/e2e/ and
+                          tests/preview/ (browser tests)
+  .github/workflows/      ci.yml, reminders.yml, nightly-export.yml, restore.yml, keepalive.yml, secret-scan.yml
+  .github/dependabot.yml  dependency updates (RUNBOOK)
   CLAUDE.md
 ```
 

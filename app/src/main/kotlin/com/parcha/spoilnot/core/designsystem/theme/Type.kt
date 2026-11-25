@@ -15,7 +15,7 @@ private fun manrope(weight: FontWeight) = Font(
     variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
 )
 
-/** Manrope, bundled as one variable font (no runtime downloads). */
+/** Manrope, bundled as one variable font (no runtime downloads); licence in About's list (app/aboutlibraries). */
 val Manrope =
     FontFamily(
         manrope(FontWeight.Normal),
@@ -101,8 +101,8 @@ object SpoilNotText {
 }
 
 /**
- * Fredoka (after v1), a rounded display face bundled as one variable font, for the app's name on the welcome
- * screen only; everything else stays Manrope. Licence in assets/licenses/fredoka-OFL.txt.
+ * Fredoka (after v1), a rounded display face bundled as a static SemiBold subset (DESIGN 6.4), for the app's name on
+ * the welcome screen only; everything else stays Manrope. Its licence is in About's list (app/aboutlibraries).
  */
 val Fredoka =
     FontFamily(
