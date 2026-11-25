@@ -23,13 +23,14 @@ data class EntryEdit(
  * they stay through rotation and process death, and apart from the list of items: when someone else checks off or
  * unchecks an item, the edited lines keep what was typed, new lines start from their defaults, and lines that left the
  * cart aren't shown or added. Lines nobody touched follow their item and product. Cleared when the sheet closes.
+ * Without a [handle] (tests, and the sheet's content on its own) the edits live only as long as this object.
  */
-class AddToPantryDrafts(private val handle: SavedStateHandle = SavedStateHandle()) {
+class AddToPantryDrafts(private val handle: SavedStateHandle? = null) {
     private val edits = mutableStateMapOf<String, EntryEdit>()
     private val expanded = mutableStateOf(emptySet<String>())
 
     init {
-        handle.get<String>(KEY)?.let { saved ->
+        handle?.get<String>(KEY)?.let { saved ->
             runCatching { Json.decodeFromString<Saved>(saved) }.getOrNull()?.let { s ->
                 s.edits.forEach { (id, e) -> e.toEdit()?.let { edits[id] = it } }
                 expanded.value = s.expanded.toSet()
@@ -54,10 +55,11 @@ class AddToPantryDrafts(private val handle: SavedStateHandle = SavedStateHandle(
     fun clear() {
         edits.clear()
         expanded.value = emptySet()
-        handle.remove<String>(KEY)
+        handle?.remove<String>(KEY)
     }
 
     private fun save() {
+        val handle = handle ?: return
         handle[KEY] = Json.encodeToString(
             Saved.serializer(),
             Saved(edits.mapValues { (_, e) -> SavedEdit.of(e) }, expanded.value.toList()),

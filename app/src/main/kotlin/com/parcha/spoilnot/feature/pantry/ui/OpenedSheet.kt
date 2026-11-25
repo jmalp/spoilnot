@@ -118,7 +118,7 @@ fun OpenedSheet(
             }
             Text(
                 if (keepsDate) {
-                    stringResource(R.string.opened_keeps_date, formatDate(batch.expiryDate!!, today))
+                    stringResource(R.string.opened_keeps_date, formatDate(batch.expiryDate, today))
                 } else {
                     stringResource(R.string.opened_new_date, formatDate(byDays, today))
                 },

@@ -2,6 +2,7 @@ package com.parcha.spoilnot.core.firebase
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
@@ -141,7 +142,7 @@ class SyncLog(
     fun lastFullSync(path: String): Instant? = prefs.getLong(path, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
 
     fun markFullSync(path: String) {
-        prefs.edit().putLong(path, clock.millis()).apply()
+        prefs.edit { putLong(path, clock.millis()) }
         changes.update { it + 1 }
     }
 
@@ -159,7 +160,7 @@ class SyncLog(
     @Synchronized
     fun markSeen(key: String, at: Instant) {
         val millis = at.toEpochMilli()
-        if (millis > prefs.getLong(SEEN_PREFIX + key, 0L)) prefs.edit().putLong(SEEN_PREFIX + key, millis).apply()
+        if (millis > prefs.getLong(SEEN_PREFIX + key, 0L)) prefs.edit { putLong(SEEN_PREFIX + key, millis) }
     }
 
     /** Where the server listener for [key] starts; null reads everything ([DeltaSync.cursor]). */
@@ -167,7 +168,7 @@ class SyncLog(
 
     /** Forgets every collection, so the next read of each is a full one. */
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
         changes.update { it + 1 }
     }
 

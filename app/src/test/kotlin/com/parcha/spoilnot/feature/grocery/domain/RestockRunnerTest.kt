@@ -20,6 +20,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,7 @@ import org.junit.Test
  * (and not at all if that phone's write arrives first), and again after a failed listener. After v1 (B09) it reads
  * the local cache only and never opens a server listener of its own.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class RestockRunnerTest {
     private val list = GroceryList("g1", "Groceries", isDefault = true)
     private val other = RestockEngine.OTHER_PHONE_DELAY_MS

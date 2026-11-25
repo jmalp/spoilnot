@@ -2,6 +2,7 @@ package com.parcha.spoilnot.core.coroutines
 
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +29,7 @@ import org.junit.Test
  * listeners, which stop 5 s after the last one leaves, start fresh after that, and do their mapping once, in the
  * app's scope rather than on the collector's (main) thread.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class SharedByKeyTest {
     /** A fake listener: counts starts, stops and how often each snapshot was mapped. */
     private class Listener {

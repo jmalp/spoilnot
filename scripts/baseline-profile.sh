@@ -130,8 +130,12 @@ if $MEASURE; then
 fi
 if $JANK; then
   # One Gradle call per test: a tests_regex with | runs nothing (RUNBOOK, "Benchmark setup"). A failing test doesn't
-  # stop the others; the failures are listed at the end.
+  # stop the others; the failures are listed at the end, each with its test report kept (the next test's run
+  # replaces the reports in build/outputs).
   jank_class="benchmark/src/main/kotlin/com/parcha/spoilnot/benchmark/JankBenchmark.kt"
+  reports="benchmark/build/outputs/androidTest-results/connected"
+  kept="benchmark/build/jank-failures"
+  rm -rf "$kept"
   failed=()
   for test in $(awk '/@Test/ { getline; if (match($0, /fun [A-Za-z0-9]+/)) print substr($0, RSTART + 4, RLENGTH - 4) }' "$jank_class"); do
     step "JankBenchmark#$test"
@@ -140,10 +144,16 @@ if $JANK; then
       find "$OUT_DIR" -name '*benchmarkData.json' -exec python3 -I scripts/benchmark-summary.py {} +
     else
       failed+=("$test")
+      mkdir -p "$kept/$test"
+      find "$reports" -name 'TEST-*.xml' -exec cp {} "$kept/$test/" \; 2>/dev/null || true
     fi
   done
-  [ "${#failed[@]}" -eq 0 ] || die "failed: ${failed[*]} (the Gradle output above says why)"
+  [ "${#failed[@]}" -eq 0 ] || die "failed: ${failed[*]} (the Gradle output above says why; reports in $kept)"
   step "Done. Compare with DESIGN 13.1's numbers."
   exit 0
 fi
-step "Done. Review and commit $PROFILE."
+if $GENERATE; then
+  step "Done. Review and commit $PROFILE."
+else
+  step "Done. The profile was not changed."
+fi

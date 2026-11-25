@@ -15,7 +15,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.isToggleable
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -94,7 +94,7 @@ class GroceryRowTest {
 
     /** A row with the facts the view model works out for it (backInStock, addedBy; review PERF-04). */
     @Composable
-    private fun row(
+    private fun RowUnderTest(
         item: GroceryItem,
         onToggle: (GroceryItem) -> Unit = {},
         onDelete: (GroceryItem) -> Unit = {},
@@ -119,7 +119,7 @@ class GroceryRowTest {
 
     @Test
     fun rowShowsQuantitySourceAndWhoAddedIt() {
-        show { rows.forEach { row(it, {}, {}) } }
+        show { rows.forEach { RowUnderTest(it, {}, {}) } }
         // What the app did by itself says so (after v1, UX-08).
         compose.onNodeWithText("Added automatically", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Recipe", useUnmergedTree = true).assertIsDisplayed()
@@ -131,7 +131,7 @@ class GroceryRowTest {
     /** One line, "Back in stock · Remove", instead of a Low stock badge next to a Back in stock one (UX-08). */
     @Test
     fun backInStockReplacesTheAutomaticBadge() {
-        show { row(rows[0], {}, {}) }
+        show { RowUnderTest(rows[0], {}, {}) }
         compose.onNodeWithText("Back in stock", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Added automatically", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithContentDescription("Remove Milk from the list, it's back in stock").assertIsDisplayed()
@@ -142,7 +142,7 @@ class GroceryRowTest {
     fun swipeRightChecksOffAndSwipeLeftDeletes() {
         val toggled = mutableListOf<String>()
         val deleted = mutableListOf<String>()
-        show { row(item("eggs", "Eggs"), { toggled += it.id }, { deleted += it.id }) }
+        show { RowUnderTest(item("eggs", "Eggs"), { toggled += it.id }, { deleted += it.id }) }
         compose.onNodeWithTag("grocery_item_eggs").performTouchInput { swipeRight() }
         compose.waitForIdle()
         assertEquals(listOf("eggs"), toggled)
@@ -157,7 +157,7 @@ class GroceryRowTest {
     @Test
     fun swipeRightPutsACheckedItemBack() {
         val toggled = mutableListOf<Boolean>()
-        show { row(item("bread", "Bread", checked = true), { toggled += it.checked }, {}) }
+        show { RowUnderTest(item("bread", "Bread", checked = true), { toggled += it.checked }, {}) }
         compose.onNodeWithTag("grocery_item_bread").performTouchInput { swipeRight() }
         compose.waitForIdle()
         assertEquals(listOf(true), toggled)
@@ -165,7 +165,7 @@ class GroceryRowTest {
 
     @Test
     fun swipeBackgroundsNameTheirAction() {
-        show { row(item("eggs", "Eggs"), {}, {}) }
+        show { RowUnderTest(item("eggs", "Eggs"), {}, {}) }
         compose.onNodeWithTag("grocery_item_eggs").performTouchInput {
             down(center)
             moveBy(androidx.compose.ui.geometry.Offset(width * 0.3f, 0f))
@@ -185,7 +185,7 @@ class GroceryRowTest {
     fun tapChecksOffAndMenuDeletes() {
         val toggled = mutableListOf<String>()
         val deleted = mutableListOf<String>()
-        show { row(item("eggs", "Eggs"), { toggled += it.id }, { deleted += it.id }) }
+        show { RowUnderTest(item("eggs", "Eggs"), { toggled += it.id }, { deleted += it.id }) }
         compose.onNode(isToggleable()).assertIsOff().performClick()
         compose.onNodeWithContentDescription("Options for Eggs").performClick()
         compose.onNodeWithText("Delete").performClick()
@@ -195,14 +195,14 @@ class GroceryRowTest {
 
     @Test
     fun checkedRowReadsAsOn() {
-        show { row(item("bread", "Bread", checked = true), {}, {}) }
+        show { RowUnderTest(item("bread", "Bread", checked = true), {}, {}) }
         compose.onNode(isToggleable()).assertIsOn()
     }
 
     @Test
     fun backInStockRemoveDeletes() {
         val deleted = mutableListOf<String>()
-        show { row(rows[0], {}, { deleted += it.id }) }
+        show { RowUnderTest(rows[0], {}, { deleted += it.id }) }
         compose.onNodeWithText("Remove").performClick()
         assertEquals(listOf("low_milk"), deleted)
     }
@@ -216,7 +216,7 @@ class GroceryRowTest {
                 SpoilNotTheme(darkTheme = variant.first, colorTheme = ColorTheme.SpoilNot) {
                     Surface(color = SpoilNotSurfaces.current.page) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(ListGroupGap)) {
-                            rows.forEachIndexed { i, it -> row(it, position = segmentPosition(i, rows.size)) }
+                            rows.forEachIndexed { i, it -> RowUnderTest(it, position = segmentPosition(i, rows.size)) }
                         }
                     }
                 }

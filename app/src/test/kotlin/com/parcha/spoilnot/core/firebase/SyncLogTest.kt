@@ -5,6 +5,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.runCurrent
@@ -20,6 +21,7 @@ import org.robolectric.RuntimeEnvironment
  * The sync log keeps, per collection, the newest change a server snapshot brought, and the cursor comes from it
  * (DESIGN 9.8, after v1 2026-11-09). What lands in the cache some other way (the phone's own writes) never reaches it.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class SyncLogTest {
     private val now = Instant.parse("2026-11-09T12:00:00Z")

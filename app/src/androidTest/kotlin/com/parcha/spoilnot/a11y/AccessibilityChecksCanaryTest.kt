@@ -10,15 +10,16 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.tryPerformAccessibilityChecks
@@ -73,7 +74,11 @@ class AccessibilityChecksCanaryTest {
     @Test
     fun spoilNotSheetPasses() {
         compose.setContent {
-            val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            val state =
+                rememberBottomSheetState(
+                    SheetValue.Hidden,
+                    enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+                )
             SpoilNotSheet(onDismissRequest = {}, sheetState = state) { Text("A sheet", Modifier.padding(24.dp)) }
         }
         compose.enableAccessibilityChecks(spoilNotAccessibilityValidator())

@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.pantry.ui
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
@@ -17,6 +18,7 @@ import org.robolectric.annotation.GraphicsMode
  * Mark opened and Throw away in their own windows, light and dark at 1.0× and 2.0× text (after v1, review CODE-07);
  * the sheet shows its 48 dp drag handle (review A11Y-06).
  */
+@OptIn(ExperimentalRoborazziApi::class)
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
