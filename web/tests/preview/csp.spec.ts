@@ -66,12 +66,12 @@ test('the build calls no Google API host outside connect-src', () => {
   const hosts = new Set<string>();
   for (const file of readdirSync(assets).filter((f) => f.endsWith('.js'))) {
     const code = readFileSync(new URL(file, assets), 'utf8');
-    for (const [host] of code.matchAll(/https:\/\/[a-z0-9.-]+\.googleapis\.com/g)) hosts.add(host);
+    for (const [host] of code.matchAll(/[a-z0-9.-]+\.googleapis\.com/g)) hosts.add(`https://${host}`);
   }
   const sw = readFileSync(new URL('../../dist/sw.js', import.meta.url), 'utf8');
-  for (const [host] of sw.matchAll(/https:\/\/[a-z0-9.-]+\.googleapis\.com/g)) hosts.add(host);
-  // The SDKs are in the build: a test that found nothing would prove nothing.
-  expect([...hosts]).toEqual(expect.arrayContaining(FIREBASE_HOSTS.slice(0, 3)));
+  for (const [host] of sw.matchAll(/[a-z0-9.-]+\.googleapis\.com/g)) hosts.add(`https://${host}`);
+  // The SDKs name their hosts, often without the scheme; a test that found none would prove nothing.
+  expect([...hosts]).toEqual(expect.arrayContaining(FIREBASE_HOSTS));
   const allowed = new Set([...FIREBASE_HOSTS, ...UNUSED_IN_BUILD]);
   expect([...hosts].filter((h) => !allowed.has(h))).toEqual([]);
 });
@@ -114,7 +114,8 @@ test('sign-up, household, sync, sign-out, sign-in, a wrong password and the rese
   // A write and the listener that shows it.
   await page.getByRole('navigation').getByRole('button', { name: 'Groceries' }).click();
   await page.getByTestId('grocery_quick_add').fill('Eggs');
-  await page.getByTestId('grocery_quick_add').press('Enter');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.getByTestId('grocery_quick_add')).toHaveValue('');
   await expect(page.getByText('Eggs', { exact: true })).toBeVisible();
 
   await page
@@ -130,10 +131,8 @@ test('sign-up, household, sync, sign-out, sign-in, a wrong password and the rese
   await expect(page.getByText('Email or password is incorrect.')).toBeVisible();
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
-  // The household's data comes back from the server after the sign-out cleared this browser's copy.
-  await page.getByRole('navigation').getByRole('button', { name: 'Groceries' }).click();
-  await expect(page.getByText('Eggs', { exact: true })).toBeVisible({ timeout: 15_000 });
+  // Back on the tab in the address, with the household's data from the server: sign-out cleared this browser's copy.
+  await expect(page.getByRole('checkbox', { name: 'Eggs' })).toBeVisible({ timeout: 15_000 });
 
   await page
     .getByRole('button', { name: /Open settings/ })
