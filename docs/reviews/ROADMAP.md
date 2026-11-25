@@ -62,7 +62,9 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 - **Groceries swipes (UX-10):** swipe right to check off and left to delete, with both shown under the row (B17).
 - **First-sync budget (PERF-05):** no change to DESIGN 13.1 until the owner's phone check measures it on 4G (B22).
 - **Week start on the web (WEB-08):** a "Week starts on" setting in Settings (B20).
-- **Ideas:** the reports' Ideas sections aren't scheduled, so pick from them when planning new work.
+- **Ideas:** the reports' Ideas sections aren't scheduled, so pick from them when planning new work. The exception is
+  the security reports' Ideas, which the owner added on 2026-11-25 as S5 and S6, apart from refusing local network
+  addresses in recipe links.
 
 ## How every batch is done
 
@@ -146,6 +148,13 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 | --- | --- | --- | --- | --- | --- | --- |
 | B27 | Docs catch-up (any time) | CODE-02, CODE-03, CODE-04, BASE-04, BASE-07, CODE-06 | P3 | — | Docs, Android beta (licence list) | M |
 | B28 | Tests and dead code | CODE-01, CODE-08, BASE-01 | P2 | — | Tests only | M |
+
+**Phase 7: security hardening (added 2026-11-25)**
+
+| # | Batch | Findings | Worst | Web port | Ships via | Effort |
+| --- | --- | --- | --- | --- | --- | --- |
+| S5 | Less on the lock screen, fewer ways in | Ideas in 01 and 02 | — | Same PR | Job, Android release, web | M |
+| S6 | Keys, workflows and the owner's machine | Ideas in 01 | — | — | CI, owner settings, Google Cloud | M |
 
 ## Batches
 
@@ -672,6 +681,47 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
     - an opt-in share-preview timing test.
   - **Web:** the Insights screenshot test gets a fixed clock.
 - **Tests:** the above.
+
+### S5 · Less on the lock screen, fewer ways in
+
+- **Findings:** the Ideas in reports 01 and 02, added by the owner on 2026-11-25. They have no severity: none was a
+  finding.
+- **Change:**
+  - **Private lock-screen digests:** the job sends Android digests with private visibility and a public version
+    ("Spoil Not: N items need attention"), so food and meal names stay off a locked phone. The public text is a
+    product choice; check what iOS shows for the web app's push.
+  - **A narrower web CSP:** `connect-src` lists the Firebase hosts the app uses (Firestore, Identity Toolkit, Secure
+    Token, Firebase Installations, FCM registrations) instead of all of `*.googleapis.com`. `img-src https:` stays
+    for recipe photos.
+  - **Unused Firebase Auth activities:** removed from the merged manifest with `tools:node="remove"`, after checking
+    that email and password sign-in never needs them.
+  - **Remove member:** rotating the invite code, or offering New code at once, since the removed person knows it (the
+    owner chooses which).
+  - **Restore:** restored documents are checked against the rules' shapes, since the Admin SDK skips the rules and a
+    Settings > Export file can be restored from a computer.
+- **DESIGN:** 10.3, 12.2, 13.4, 18.6; SECURITY_REVIEW; RUNBOOK.
+- **Tests:** job tests for the digest's visibility; the web's e2e under the new CSP, on every flow that talks to
+  Firebase, and an iPhone check of sign-in, sync and push; a merged-manifest check; a restore test with a document
+  of the wrong shape; Remove member tests on both apps.
+- **Ships via:** the job on merge; an Android release; a web deploy (hosting headers).
+
+### S6 · Keys, workflows and the owner's machine
+
+- **Findings:** the Ideas in report 01, added by the owner on 2026-11-25.
+- **Change:**
+  - **No key at all:** Workload Identity Federation lets the workflows sign in to Google Cloud with GitHub's OIDC
+    token, limited to this repository and `main`, so there is no JSON key to leak. First check that it works
+    without a billing account. If it does, it replaces the repository secrets that S3's step 5 left in place.
+  - **One service account per job:** the export only reads (Cloud Datastore Viewer), while the reminder job and the
+    restore write. A leaked export key would then be read-only.
+  - **The key on one line,** while there are keys: a minified secret is masked as one value, not line by line.
+  - **A narrower gitleaks allowlist:** from whole `google-services.json` files to the Google API key rule in them.
+  - **`ignore-scripts` on the Mac** (`npm config set ignore-scripts true`, allowing the few packages that need
+    them): the deploy and release scripts run there with the Firebase CLI's credentials and the upload keystore.
+  - **A lower sign-up quota per IP** in Firebase Auth, to slow mass account creation (owner, both projects).
+- **DESIGN:** 10.4, 12.2; SECURITY_REVIEW controls 8 and 9; RUNBOOK; DECISIONS.
+- **Tests:** a dry run of each job after the change; gitleaks against a planted test key in a throwaway branch.
+- **Ships via:** CI, the owner's settings and the Google Cloud console.
 
 ## After the fixes
 

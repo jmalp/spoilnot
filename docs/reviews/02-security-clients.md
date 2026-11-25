@@ -354,6 +354,15 @@ the public reports pointed here.
   with when the request was sent, under "Only approve people you invited." PRIVACY.md says the owner sees the masked
   email. DECISIONS 2026-11-10. Live: apps and rules, 2026-11-21.
 
+## Ideas
+
+Not findings. The owner added the first three to the roadmap on 2026-11-25, as batch S5.
+
+- **Private lock-screen digests:** a public version of the notification without food or meal names.
+- **A narrower web CSP:** `connect-src` limited to the Firebase hosts the app uses.
+- **Removing the unused Firebase Auth activities** from the manifest.
+- **One sign-out path:** `SessionManager` owns sign-out for every caller. Done in jmalp/spoilnot#74.
+
 ## Not covered
 
 - **Real FCM, real phones and the lock screen:** emulator builds can't get FCM tokens, so digests after sign-out

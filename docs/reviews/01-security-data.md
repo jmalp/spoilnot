@@ -473,6 +473,19 @@ on-time trigger (jmalp/spoilnot#151, DECISIONS 2026-11-22) runs in the owner's G
 as a script property. The workflow's only input is `dry_run`, and the restore waits for the owner's approval however
 it was started.
 
+## Ideas
+
+Not findings. The owner added them to the roadmap on 2026-11-25, as batch S6.
+
+- **No key at all:** Workload Identity Federation instead of a JSON key, limited to this repository and `main`.
+- **One service account per job,** so the export's is read-only.
+- **The key stored on one line,** so GitHub masks it as one value.
+- **A narrower gitleaks allowlist:** the API key rule in the Firebase configuration files, not the whole files.
+- **`ignore-scripts` on the Mac,** where the deploy and release scripts run.
+- **Validating restored documents** against the rules' shapes (batch S5).
+- **Rotating the invite code when the owner removes a member** (batch S5).
+- **A lower sign-up quota per IP** in Firebase Auth.
+
 ## Not covered
 
 - **Consoles:** Firebase Auth settings, API key restrictions, IAM and service account keys, and the GitHub account
