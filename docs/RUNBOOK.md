@@ -59,8 +59,8 @@ base64, or the account's `@….iam.gserviceaccount.com` email), treat the key as
 GitHub runs a workflow started through its API (`workflow_dispatch`) at once, but starts scheduled runs hours late
 (DESIGN 10.4). So a Google Apps Script in the owner's Google account starts the job every quarter hour:
 `backend/reminder/apps-script/trigger.gs`, tested in `backend/reminder/test/trigger.test.ts`. It ticks every minute,
-starts the job once per quarter hour (:00, :15, :30 and :45 UTC) on `main` with **dry_run** off, and emails the owner
-at most once a day when GitHub refuses. The job and its keys stay on GitHub.
+starts the job once per quarter hour (:00, :15, :30 and :45 UTC) on `main` with **dry_run** off, and tries again
+every minute when GitHub refuses. The job and its keys stay on GitHub.
 
 **Set it up** (once):
 
@@ -88,7 +88,20 @@ one (step 1) and replace the script property.
 
 **Renew the token** before its expiration date: **Regenerate token** (or make a new one as in step 1), replace the
 script property and run `install` again to check it. An expired token makes the script email you once a day
-("GitHub answered 401"); the reminders then go out on GitHub's schedule, late, until it is replaced.
+("GitHub refused the token (401)"); the reminders then go out on GitHub's schedule, late, until it is replaced.
+
+**Its emails** (at most one of each kind a day; since 2026-11-25):
+
+| Subject | Says | Do |
+| --- | --- | --- |
+| "reminders are not starting on time" | "refused the token (401)" | Renew the token (above) |
+| "reminders are not starting on time" | "answered 403" or "404 … no longer has access" | Check the token's repository access and **Actions: Read and write** (step 1) |
+| "reminders are not starting on time" | "answered 422 …" (another 4xx) | Check that `reminders.yml` on `main` still starts by hand with its `dry_run` input |
+| "reminders are not starting on time" | "GITHUB_TOKEN is missing" | Add the script property (step 3) |
+| "GitHub is slow to start the reminders" | "has answered 500" (or 502, 503, 429), "could not be reached" | Nothing: a quarter hour's run hadn't started 10 minutes in because of GitHub. The script keeps trying; see https://www.githubstatus.com. Shorter hiccups send no email |
+
+**Update the script** after a change to `trigger.gs`: open the project on script.google.com, replace everything in
+`Code.gs` with the new file and save. The trigger runs the saved code from its next minute; no `install` needed.
 
 **Turn it off.** Run `uninstall` in the script (GitHub's schedule carries on), then delete the token. To start the
 job hourly instead of every quarter hour, set `SLOT_MINUTES = 60` in the script: time zones with a half-hour offset
@@ -139,7 +152,7 @@ gh workflow run reminders.yml -f dry_run=true
 - Since 2026-11-22 most runs are started by the Apps Script trigger ("On-time reminders"). If digests come late
   again, see whether it still starts them (`gh run list --repo jmalp/spoilnot --workflow reminders.yml --event
   workflow_dispatch --limit 8`), then the script's **Executions** page on script.google.com and its email: usually
-  the token expired.
+  the token expired (the table under "On-time reminders" says what each email means).
 - Each run prints one summary line, `project <id>: {…}`, with counts only:
 
   | Field | Meaning |
