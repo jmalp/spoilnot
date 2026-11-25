@@ -727,7 +727,7 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
     against a local stand-in for GitHub and Google. Google doesn't say whether a project without billing may use it,
     so the owner's first console step finds out. The owner chose it, with keys as the fallback (DECISIONS
     2026-11-25). No outside action is needed.
-  - **Repository side:** jmalp/spoilnot#PRNUM: the three workflows (workload identity when the repository variables
+  - **Repository side:** jmalp/spoilnot#170: the three workflows (workload identity when the repository variables
     are set, else one key per job on one line, else today's key), the narrower gitleaks allowlist (planted-key check
     on a throwaway branch), `--ignore-scripts` in the repository's scripts, and the docs. It is safe to merge before
     the owner's steps.
