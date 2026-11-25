@@ -117,7 +117,11 @@ export interface HouseholdRepository {
   rename(household: Household, newName: string): Promise<void>;
   /** A new code for the household; the old one stops working (after v1 there is no Pause joining, R12). */
   regenerateInviteCode(household: Household, uid: string, newCode: string): Promise<void>;
-  removeMember(householdId: string, memberUid: string): Promise<void>;
+  /**
+   * Owner only. Removes the member and, in the same batch, replaces the invite code with [newCode] (after v1, S5):
+   * the removed person knows the old one. Requests already sent stay.
+   */
+  removeMember(household: Household, memberUid: string, ownerUid: string, newCode: string): Promise<void>;
   transferOwnership(householdId: string, fromUid: string, toUid: string): Promise<void>;
   /** Requires a connection: the cache is cleared right after. */
   leave(householdId: string, uid: string): Promise<void>;

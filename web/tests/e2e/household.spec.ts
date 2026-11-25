@@ -56,12 +56,19 @@ test('a second phone joins with the code after the owner approves; removing them
   await expect(bob.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
   await expect(alice.getByTestId('card_members')).toContainText('Bob');
 
-  // Removing Bob sends him back to the gate.
+  // Removing Bob sends him back to the gate, and the code he knows stops working (after v1, S5).
   await alice.getByRole('button', { name: 'Options for Bob' }).click();
   await alice.getByRole('menuitem', { name: 'Remove from household' }).click();
+  await expect(alice.getByRole('dialog')).toContainText('the invite code changes');
   await alice.getByTestId('confirm').click();
   await expect(bob.getByRole('heading', { name: 'Welcome, Bob' })).toBeVisible();
   await expect(alice.getByTestId('card_members')).not.toContainText('Bob');
+  await expect(alice.getByTestId('invite_code')).not.toHaveText(code);
+  const newCode = (await alice.getByTestId('invite_code').textContent())!.trim();
+  expect(newCode).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+  await bob.getByLabel('Invite code').fill(code);
+  await bob.getByRole('button', { name: 'Continue' }).click();
+  await expect(bob.getByText("That code doesn't work.")).toBeVisible();
 });
 
 test('an approved request deleted before the joiner opens the app still lets them in (after v1)', async ({

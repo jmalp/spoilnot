@@ -13,7 +13,11 @@ export interface Message {
   token: string;
   notification: { title: string; body: string };
   data: Record<string, string>;
-  android: { priority: 'high'; notification: { channelId: string; tag: string } };
+  /**
+   * `visibility: 'private'` (after v1, S5): a locked phone set to hide sensitive notifications shows Android's own
+   * public version (the app's name, "Contents hidden"), so food and meal names stay off its lock screen (DESIGN 10.3).
+   */
+  android: { priority: 'high'; notification: { channelId: string; tag: string; visibility: 'private' } };
   /**
    * For the web app's tokens (DESIGN 18.4): the same title and body, shown by its service worker, which opens
    * `data.route` when tapped. Android ignores it.
@@ -440,6 +444,27 @@ async function household(db: Firestore, sender: Sender, householdId: string, ent
   }
 }
 
+/**
+ * One device's digest message (DESIGN 10.3). Android shows it private (after v1, S5); the web app's push follows the
+ * iPhone's Show Previews setting, which hides the text on a locked iPhone by default (DESIGN 18.4).
+ */
+export function digestMessage(
+  token: string,
+  digest: { title: string; body: string; mealsOnly: boolean },
+  date: string,
+): Message {
+  return {
+    token,
+    notification: { title: digest.title, body: digest.body },
+    data: { type: 'expiry_digest', route: digest.mealsOnly ? PLAN_ROUTE : ROUTE, date },
+    android: { priority: 'high', notification: { channelId: CHANNEL, tag: 'expiry_digest', visibility: 'private' } },
+    webpush: {
+      headers: { Urgency: 'high' },
+      notification: { title: digest.title, body: digest.body, tag: 'expiry_digest', icon: WEB_ICON },
+    },
+  };
+}
+
 /** The user's newest MAX_DEVICES device tokens. */
 async function devicesOf(db: Firestore, uid: string): Promise<Token[]> {
   const devices = db.collection(`users/${uid}/devices`);
@@ -477,16 +502,7 @@ async function digestFor(
   }
 
   // 5. Send to every device, in chunks; delete tokens FCM says are gone.
-  const messages: Message[] = tokens.map(({ token }) => ({
-    token,
-    notification: { title: digest.title, body: digest.body },
-    data: { type: 'expiry_digest', route: digest.mealsOnly ? PLAN_ROUTE : ROUTE, date: local.date },
-    android: { priority: 'high', notification: { channelId: CHANNEL, tag: 'expiry_digest' } },
-    webpush: {
-      headers: { Urgency: 'high' },
-      notification: { title: digest.title, body: digest.body, tag: 'expiry_digest', icon: WEB_ICON },
-    },
-  }));
+  const messages = tokens.map(({ token }) => digestMessage(token, digest, local.date));
   if (dryRun) {
     // Workflow logs are public with the repository: counts only, never a user ID, item names or meal titles.
     log(`[dry run] ${local.date}: ${items.length} item(s), ${cooking.length} meal(s) to ${messages.length} device(s)`);

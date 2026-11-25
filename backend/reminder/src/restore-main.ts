@@ -8,19 +8,9 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getFirestore } from 'firebase-admin/firestore';
-import { applyRestore, checkTarget, planRestore, shortId, type HouseholdExport } from './backup.ts';
+import { applyRestore, checkTarget, planRestore, shortId, summarize, type HouseholdExport } from './backup.ts';
 import { fromEnv, NO_CREDENTIAL, signedIn } from './credentials.ts';
 import { JobError, runMain } from './errors.ts';
-
-/** Documents a restore would write, by collection: counts only, never contents. */
-function summarize(plan: ReturnType<typeof planRestore>): string {
-  const counts = new Map<string, number>();
-  for (const w of plan.writes) {
-    const kind = w.path.split('/').at(-2) ?? '?';
-    counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  }
-  return `${plan.writes.length} document(s) ${JSON.stringify(Object.fromEntries(counts))}`;
-}
 
 async function list(dir: string): Promise<void> {
   const files = (await readdir(dir)).filter((f) => f.endsWith('.json')).sort();
@@ -65,9 +55,14 @@ async function main(): Promise<void> {
     return;
   }
   const { written, failed } = await applyRestore(db, plan, options);
-  console.log(`project ${credentials.projectId}: restored ${written} document(s), ${failed} failed`);
+  console.log(`project ${credentials.projectId}: restored ${written} document(s), ${failed} failed, ${plan.skipped.length} skipped`);
   if (failed > 0) {
     console.error(`${failed} document(s) were not written. Running the restore again writes the same documents.`);
+    process.exitCode = 1;
+  }
+  if (plan.skipped.length > 0) {
+    // DESIGN 13.4: fix those documents in the file (docs/RUNBOOK.md) and restore again; the others are already back.
+    console.error(`${plan.skipped.length} document(s) were skipped: their shape is one the rules refuse.`);
     process.exitCode = 1;
   }
 }

@@ -4,6 +4,7 @@
 import { FieldValue, Timestamp, type DocumentData, type Firestore } from 'firebase-admin/firestore';
 import { bulkWrites } from './bulk.ts';
 import { JobError } from './errors.ts';
+import { idOk, refusal, type Collection, type Refusal } from './shapes.ts';
 
 export const FORMAT = 'spoilnot-export';
 export const FORMAT_VERSION = 1;
@@ -120,10 +121,18 @@ export interface RestorePlan {
   sourceOwnerUid: string | null;
   /** Document path to its data, in write order. */
   writes: Array<{ path: string; data: Record<string, unknown> }>;
+  /**
+   * Documents left out because the rules would refuse their shape (after v1, S5; shapes.ts), in file order: the
+   * collection and why, never a value from the file. A list's items go with it (`list`), as the rules refuse items
+   * under a list that doesn't exist.
+   */
+  skipped: Array<{ collection: Collection; why: Refusal | 'list' }>;
 }
 
 /** Who wrote a restored document, in `updatedBy` (after v1, 2026-11-11); never a member's uid. */
 export const RESTORE_AUTHOR = 'restore';
+
+const COLLECTIONS = ['products', 'stock', 'groceryLists', 'recipes', 'stats', 'meals'] as const;
 
 /**
  * What a restore writes: products, stock, grocery lists and their items, recipes, Insights counts and planned meals,
@@ -133,29 +142,81 @@ export const RESTORE_AUTHOR = 'restore';
  * The household and its members are never restored: they decide who has access, and the export may be older than a
  * removal. Nor are a profile or the activity log that an app's export may hold. Documents created after the export
  * are left alone.
+ * After v1 (S5): the Admin SDK skips the rules, so each document is first checked against the shape the rules accept
+ * (shapes.ts); one that fails is skipped and counted, and the others are written.
  */
 export function planRestore(file: HouseholdExport, householdId: string): RestorePlan {
   if (file.format !== FORMAT || file.formatVersion > FORMAT_VERSION) {
     throw new JobError('not-an-export', `Not a Spoil Not export this job understands (format ${file.format} ${file.formatVersion})`);
   }
+  for (const key of COLLECTIONS) {
+    const value = file[key];
+    if (!(value === undefined && (key === 'stats' || key === 'meals')) && !Array.isArray(value)) {
+      throw new JobError('not-an-export', `Not a Spoil Not export: ${key} is not a list`);
+    }
+  }
   const base = `households/${householdId}`;
   const writes: RestorePlan['writes'] = [];
-  const add = (path: string, d: JsonDoc, stamp: Record<string, unknown> = fullStamp()) => {
-    const { id: _id, ...fields } = d;
-    writes.push({ path, data: { ...fromJsonDoc(fields), ...stamp } });
+  const skipped: RestorePlan['skipped'] = [];
+  /** Adds the document, or counts it as skipped; returns whether it was added. */
+  const add = (collection: Collection, parent: string, d: unknown, stamp: Record<string, unknown> = fullStamp()) => {
+    if (typeof d !== 'object' || d === null || Array.isArray(d)) {
+      skipped.push({ collection, why: 'id' });
+      return false;
+    }
+    const { id, ...fields } = d as JsonDoc;
+    if (!idOk(collection, id)) {
+      skipped.push({ collection, why: 'id' });
+      return false;
+    }
+    const data = fromJsonDoc(fields);
+    const why = refusal(collection, data);
+    if (why) {
+      skipped.push({ collection, why });
+      return false;
+    }
+    writes.push({ path: `${parent}/${id}`, data: { ...data, ...stamp } });
+    return true;
   };
-  for (const p of file.products) add(`${base}/products/${p.id}`, p);
-  for (const s of file.stock) add(`${base}/stock/${s.id}`, s);
+  for (const p of file.products) add('products', `${base}/products`, p);
+  for (const s of file.stock) add('stock', `${base}/stock`, s);
   for (const list of file.groceryLists) {
-    const { items, ...listDoc } = list;
-    add(`${base}/groceryLists/${list.id}`, listDoc as JsonDoc, { updatedAt: FieldValue.serverTimestamp() });
-    for (const item of items) add(`${base}/groceryLists/${list.id}/items/${item.id}`, item);
+    const { items, ...listDoc } = (typeof list === 'object' && list !== null ? list : {}) as JsonDoc & { items?: unknown };
+    const listItems: unknown[] = Array.isArray(items) ? items : [];
+    // A list whose items aren't a list is refused whole.
+    const added = items === undefined || Array.isArray(items)
+      ? add('groceryLists', `${base}/groceryLists`, listDoc, { updatedAt: FieldValue.serverTimestamp() })
+      : (skipped.push({ collection: 'groceryLists', why: 'items' }), false);
+    for (const item of listItems) {
+      if (added) add('items', `${base}/groceryLists/${listDoc.id}/items`, item);
+      else skipped.push({ collection: 'items', why: 'list' });
+    }
   }
-  for (const r of file.recipes) add(`${base}/recipes/${r.id}`, r);
-  for (const m of file.stats ?? []) add(`${base}/stats/${m.id}`, m);
-  for (const m of file.meals ?? []) add(`${base}/meals/${m.id}`, m);
+  for (const r of file.recipes) add('recipes', `${base}/recipes`, r);
+  for (const m of file.stats ?? []) add('stats', `${base}/stats`, m);
+  for (const m of file.meals ?? []) add('meals', `${base}/meals`, m);
   const owner = file.household?.ownerUid;
-  return { householdId, sourceOwnerUid: typeof owner === 'string' ? owner : null, writes };
+  return { householdId, sourceOwnerUid: typeof owner === 'string' ? owner : null, writes, skipped };
+}
+
+/**
+ * Documents a restore would write, by collection, and those it skips for their shape, by collection and why: counts
+ * and field names only, never contents.
+ */
+export function summarize(plan: RestorePlan): string {
+  const counts = new Map<string, number>();
+  for (const w of plan.writes) {
+    const kind = w.path.split('/').at(-2) ?? '?';
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  const line = `${plan.writes.length} document(s) ${JSON.stringify(Object.fromEntries(counts))}`;
+  if (plan.skipped.length === 0) return line;
+  const skipped = new Map<string, number>();
+  for (const { collection, why } of plan.skipped) {
+    const key = `${collection} (${why})`;
+    skipped.set(key, (skipped.get(key) ?? 0) + 1);
+  }
+  return `${line}; ${plan.skipped.length} skipped, a shape the rules refuse ${JSON.stringify(Object.fromEntries(skipped))}`;
 }
 
 function fullStamp(): Record<string, unknown> {

@@ -137,11 +137,22 @@ internal class FakeHouseholds(private val users: FakeUsers) : HouseholdRepositor
         users.clearHousehold(uid)
     }
 
-    override fun observeHousehold(householdId: String): Flow<Household?> = error("unused")
+    /** Server state of households/{id} and their members, for Household settings. */
+    private val householdDocs = mutableMapOf<String, MutableStateFlow<Household?>>()
+    private val memberLists = mutableMapOf<String, MutableStateFlow<List<Member>>>()
 
-    override fun observeMembers(householdId: String): Flow<List<Member>> = error("unused")
+    fun household(id: String) = householdDocs.getOrPut(id) { MutableStateFlow(null) }
 
-    override fun observeJoinRequests(householdId: String): Flow<List<JoinRequest>> = error("unused")
+    fun members(id: String) = memberLists.getOrPut(id) { MutableStateFlow(emptyList()) }
+
+    /** Remove member calls: household id, member, owner and the new code. */
+    val removals = mutableListOf<List<String>>()
+
+    override fun observeHousehold(householdId: String): Flow<Household?> = household(householdId)
+
+    override fun observeMembers(householdId: String): Flow<List<Member>> = members(householdId)
+
+    override fun observeJoinRequests(householdId: String): Flow<List<JoinRequest>> = MutableStateFlow(emptyList())
 
     override suspend fun createHousehold(uid: String, displayName: String, name: String, inviteCode: String) =
         error("unused")
@@ -159,7 +170,11 @@ internal class FakeHouseholds(private val users: FakeUsers) : HouseholdRepositor
 
     override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String) = error("unused")
 
-    override suspend fun removeMember(householdId: String, memberUid: String) = error("unused")
+    override suspend fun removeMember(household: Household, memberUid: String, ownerUid: String, newCode: String) {
+        removals += listOf(household.id, memberUid, ownerUid, newCode)
+        members(household.id).value = members(household.id).value.filterNot { it.uid == memberUid }
+        household(household.id).value = household.copy(inviteCode = newCode)
+    }
 
     override suspend fun transferOwnership(householdId: String, fromUid: String, toUid: String) = error("unused")
 

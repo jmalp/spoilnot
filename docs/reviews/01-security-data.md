@@ -482,8 +482,8 @@ Not findings. The owner added them to the roadmap on 2026-11-25, as batch S6.
 - **The key stored on one line,** so GitHub masks it as one value.
 - **A narrower gitleaks allowlist:** the API key rule in the Firebase configuration files, not the whole files.
 - **`ignore-scripts` on the Mac,** where the deploy and release scripts run.
-- **Validating restored documents** against the rules' shapes (batch S5).
-- **Rotating the invite code when the owner removes a member** (batch S5).
+- **Validating restored documents** against the rules' shapes (batch S5, *done* 2026-11-25: a document of another shape is skipped and counted).
+- **Rotating the invite code when the owner removes a member** (batch S5, *done* 2026-11-25: in the same batch, on both apps).
 - **A lower sign-up quota per IP** in Firebase Auth.
 
 ## Not covered

@@ -115,7 +115,10 @@ describe('reminder job against the emulator', () => {
     assert.equal(alice.length, 3);
     assert.deepEqual(alice[0]!.notification, { title: '3 items need attention', body: 'Throw away: Milk. Tomorrow: Yogurt, Eggs.' });
     assert.deepEqual(alice[0]!.data, { type: 'expiry_digest', route: ROUTE, date: '2026-10-12' });
-    assert.deepEqual(alice[0]!.android, { priority: 'high', notification: { channelId: 'expiry', tag: 'expiry_digest' } });
+    assert.deepEqual(alice[0]!.android, {
+      priority: 'high',
+      notification: { channelId: 'expiry', tag: 'expiry_digest', visibility: 'private' },
+    });
     // The web app's iPhone gets the same digest through its service worker (DESIGN 18.4).
     const web = alice.find((m) => m.token.startsWith('alice-web'))!;
     assert.deepEqual(web.webpush, {

@@ -358,9 +358,10 @@ the public reports pointed here.
 
 Not findings. The owner added the first three to the roadmap on 2026-11-25, as batch S5.
 
-- **Private lock-screen digests:** a public version of the notification without food or meal names.
-- **A narrower web CSP:** `connect-src` limited to the Firebase hosts the app uses.
-- **Removing the unused Firebase Auth activities** from the manifest.
+- **Private lock-screen digests:** a public version of the notification without food or meal names. *Done* in S5
+  (2026-11-25): private visibility with Android's own public version; iOS already hides previews when locked.
+- **A narrower web CSP:** `connect-src` limited to the Firebase hosts the app uses. *Done* in S5 (2026-11-25): five hosts.
+- **Removing the unused Firebase Auth activities** from the manifest. *Done* in S5 (2026-11-25).
 - **One sign-out path:** `SessionManager` owns sign-out for every caller. Done in jmalp/spoilnot#74.
 
 ## Not covered
