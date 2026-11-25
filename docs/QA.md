@@ -1,10 +1,17 @@
 # Manual QA script
 
-DESIGN 13.1 and the M6 acceptance check: run this on **two physical Android phones (two brands if possible)** and
-on a **small-screen emulator** (for example a 5-inch, 360 dp wide device). Use the beta build from Firebase App
-Distribution (prod). Write the result of each step (pass, fail and what happened) in the table at the end.
+DESIGN 13.1 and the M6 acceptance check, for both apps:
 
-Before starting: Phone A and Phone B have the App Tester app and the beta installed, and two accounts are ready.
+- **Android:** two physical Android phones (two brands if possible) and a **small-screen emulator** (for example a
+  5-inch, 360 dp wide device), with the beta build from Firebase App Distribution (prod).
+- **The web app for iPhone** (DESIGN 18): an iPhone with iOS 16.4 or later, with the app added to the Home Screen from
+  https://spoilnot-dev.web.app (then prod, RUNBOOK). Flows that name the iPhone or the web app run there; flows for
+  both apps run on an Android phone and the iPhone in the same household.
+
+Write the result of each step (pass, fail and what happened) in the table at the end.
+
+Before starting: Phone A and Phone B have the App Tester app and the beta installed, the iPhone has the web app on
+its Home Screen, and three accounts are ready.
 
 ## 1. Install and join (M6 acceptance)
 
@@ -67,8 +74,9 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 19. Insights: the latest month is highlighted with its details below. Tap an earlier month: it is highlighted and the
     details change (counts, % used, reasons). With TalkBack, swipe through the months: each is read on its own with
     "selected" on the chosen one, and the new details are announced.
-20. App tour: on a fresh install, create a household. The tour starts on Home. Follow it by tapping what is
-    highlighted (Pantry, Add item, Recipes, Groceries); each tap moves it on. Taps on the dimmed part do nothing. At
+20. App tour (Android; DESIGN 5.8): on a fresh install, create a household. The tour starts on Home. Follow it by
+    tapping what is highlighted (the Pantry tab, Add item, the Plan tab, the Recipes tab, Add recipe, the Groceries
+    tab); each tap moves it on. Taps on the dimmed part do nothing. At
     200% text the card stays readable and its buttons wrap. Restart the app: no tour. Settings > Take the app tour:
     it starts again; Skip tour ends it at any step. Open Settings from Home and take the tour: Start the tour closes
     Settings and highlights Home's first card.
@@ -619,6 +627,10 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     within a few minutes of this time." Pick the next whole hour and keep some food expiring within 3 days: the digest
     arrives within a few minutes after that hour on both phones. Pick 9:00 PM: the row says "Daily at 9:00 PM". Then
     set the time back.
+84. Font licences (both apps, after v1, 2026-11-24, DESIGN 5.6): Settings > About lists Fredoka and Manrope among the
+    open source licences. On Android each opens the SIL Open Font License 1.1, starting with the font's copyright
+    line ("Copyright 2016 The Fredoka Project Authors …", "Copyright 2019 The Manrope Project Authors …"); the
+    iPhone web app lists both too, from their font packages.
 
 ## 3. Conditions
 
@@ -644,15 +656,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 | Scrolling | Scroll a long pantry quickly | Smooth (60 fps); no stutter after the first pass |
 | Initial sync | Wi-Fi off. Sign out, sign in on mobile data (4G), time from the Sign in tap until Home shows its cards | Under 2 s for a typical household (DESIGN 13.1; this check decides whether that budget stays) |
 
-Measured on the Pixel 8 emulator (2026-10-18): cold start 0.2 to 0.4 s to first frame (release build); 500
-batches scroll at 17 to 19 ms per frame with 1.7% janky frames once warm (23% on the very first pass); a fresh
-sign-in with about 750 documents under LTE speed and 3G latency took 4.3 s including sign-in.
-Again on 2026-11-13, headless on the Mac's GPU (RUNBOOK "Benchmark setup"), dev benchmark build with the profile: cold
-start 0.36 s to the first frame and 0.71 s until Home shows its cards (medians of 10); the first Pantry scroll's
-frame CPU time P50 4.7 ms, P99 21 ms. These are emulator numbers; the phone check is what counts.
-Again on 2026-11-17, after the new look: cold start 0.36 s to the first frame and 0.76 s until Home shows its cards;
-the first Pantry scroll P50 4.8 ms, P99 8.0 ms, no janky frames; every other screen in DESIGN 13.1. On a phone, check
-especially the first scroll of Plan after installing (open in 13.1), and flow 77.
+The emulator's latest measurements are in DESIGN 13.1 (cold start and the first Pantry scroll under *Baseline
+profile*, every screen's frames under *Frames on every screen*), and the earlier ones in the rows of DESIGN 17. The
+first emulator run, on 2026-10-18, also timed a fresh sign-in with about 750 documents under LTE speed and 3G latency:
+4.3 s including sign-in. These are emulator numbers; the phone check is what counts. On a phone, check especially the
+first scroll of Plan after installing (13.1), and flow 77.
 
 ## 5. Crash reports
 
@@ -662,13 +670,13 @@ new report.
 
 ## Results
 
-| Step | Phone A (model, Android) | Phone B (model, Android) | Small emulator |
-| --- | --- | --- | --- |
-| 1 Install and join | | | |
-| 2 Everyday flows | | | |
-| 3 Conditions | | | |
-| 4 Budgets | | | |
-| 5 Crash reports | | | |
+| Step | Phone A (model, Android) | Phone B (model, Android) | Small emulator | iPhone (model, iOS) |
+| --- | --- | --- | --- | --- |
+| 1 Install and join | | | | |
+| 2 Everyday flows (the iPhone: the flows for the web app or both apps) | | | | |
+| 3 Conditions | | | | |
+| 4 Budgets | | | | — |
+| 5 Crash reports | | | | — |
 
-Web app for iPhone (flows 28–36): passed on the owner's iPhone against https://spoilnot-dev.web.app on 2026-10-31,
+Earlier results. Web app for iPhone (flows 28–36): passed on the owner's iPhone against https://spoilnot-dev.web.app on 2026-10-31,
 before the first deploy to https://spoilnot-prod.web.app.

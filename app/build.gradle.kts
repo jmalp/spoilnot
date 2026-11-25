@@ -231,6 +231,15 @@ dependencies {
     kspAndroidTest(libs.hilt.compiler)
 }
 
+// About's licence list (DESIGN 5.6) is generated from the dependencies, plus the definitions in app/aboutlibraries:
+// the two bundled fonts, Manrope and Fredoka, which aren't Maven dependencies, with their SIL Open Font License texts
+// (after v1, review B27, CODE-06; AboutLicensesTest checks them).
+aboutLibraries {
+    collect {
+        configPath = file("aboutlibraries")
+    }
+}
+
 // Lint analysis resolves symbols through every variant's Hilt-generated sources, and crashed with "No such file"
 // when hiltJavaCompileProdDebug rewrote them in parallel (local runs of the full check list, docs/DECISIONS.md).
 // Ordering only: lint waits for any Hilt generation already in the same build, and adds no work.

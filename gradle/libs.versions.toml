@@ -25,6 +25,8 @@ browser = "1.10.0"
 crashlytics = "3.0.8"
 aboutLibraries = "15.3.0"
 splashscreen = "1.2.0"
+# Declared for the app only so the test classpath resolves: AGP pins test dependencies to the app's versions, and the
+# Compose accessibility test library needs these (DECISIONS 2026-10-18, 2026-11-22). The number lives here only.
 concurrentFutures = "1.3.0"
 fragment = "1.9.1"
 profileinstaller = "1.4.1"

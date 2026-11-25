@@ -5,10 +5,9 @@ Operational tasks for Spoil Not. The design is in `DESIGN.md`; deviations are in
 ## Reminder job (DESIGN 10)
 
 The job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml`, once per Firebase project.
-Since 2026-11-22 an Apps Script trigger in the owner's Google account starts it every quarter hour ("On-time
-reminders" below), so a digest arrives about a minute after its time. The schedule at minutes 7, 27 and 47 of every
-hour (since 2026-11-08) stays as the backup, though GitHub starts many scheduled runs late or not at all. The job
-catches up and sends at most one digest a day per user, however many runs start:
+An Apps Script trigger in the owner's Google account starts it every quarter hour, with the workflow's own schedule
+as the backup; DESIGN 10.4 says why, and how on time the runs are. Setting the trigger up is "On-time reminders"
+below. The job catches up and sends at most one digest a day per user, however many runs start:
 
 | Project | Repository secret ("How the jobs get their keys") |
 | --- | --- |
@@ -360,7 +359,9 @@ Then, from a clean checkout:
 ## Benchmark setup (DESIGN 13.1)
 
 Benchmarks and the baseline profile need an emulator that runs at full speed on the Mac's GPU, or the numbers mean
-nothing (review 08, PERF-01). Start Pixel_8 headless:
+nothing (review 08, PERF-01). `adb` in the commands of this section and the next is
+`~/Library/Android/sdk/platform-tools/adb`, which isn't on the PATH (the scripts call it by that path). Start Pixel_8
+headless:
 
 ```bash
 ~/Library/Android/sdk/emulator/emulator -avd Pixel_8 -gpu host -feature -Uwb -no-window -no-snapshot -no-boot-anim -no-audio
@@ -509,8 +510,7 @@ To find an export: **Actions → nightly-export →** pick a run (its URL ends w
 ### Restore a household
 
 This is also the way back after an owner's **Clear household data** (Settings): pick the export from the night before
-the clear. It brings back products, stock, lists and their items, recipes and the monthly counts; the cleared
-activity does not come back.
+the clear. It brings back everything below; the cleared activity does not come back.
 
 Restoring writes back the export's products, stock, grocery lists and their items, recipes, monthly counts and
 planned meals, as they were, each stamped with the time of the restore (`updatedAt`, and `updatedBy: restore`), so
@@ -576,6 +576,11 @@ in the browser console; it names the document ID. Fix the field in the console w
 `updatedAt` (a server timestamp), so the changes-only listeners pick it up.
 
 ## Check quota usage (DESIGN 9.7)
+
+**Today's figure** (the one place for it; other docs link here): about **1,970 reads a household a day**, so about
+**17.8 households** fit under 70% of the free reads, with the default 120 reminder runs a day (quota-sim, 2026-11-23,
+the B25 table below). Reads run out first. DESIGN 9.7 gives the budget and the method, and DESIGN 17 how each change
+moved the figure.
 
 Firebase console → the project → **Usage and billing → Usage** (or Firestore → Usage) shows reads, writes and
 deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 deletes). Look at it after adding a
