@@ -3,7 +3,7 @@ package com.parcha.spoilnot.feature.recipes.ui
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -16,6 +16,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeGrocery
+import com.parcha.spoilnot.feature.recipes.domain.TEST_WORDS
 import com.parcha.spoilnot.feature.recipes.domain.recipe
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -38,8 +39,20 @@ class RecipeComponentsTest {
         }
         compose.onNodeWithText("Chili").assertExists()
         compose.onNodeWithContentDescription("Total 1 hr 15 min").assertExists()
-        compose.onNodeWithContentDescription("Add to favorites").performClick()
+        // One name with an on or off state, not a label that flips (after v1, review A11Y-08).
+        compose.onNodeWithContentDescription("Favorite").assertIsOff().performClick()
         assertEquals(1, toggles)
+    }
+
+    @Test
+    fun `a favorite card's star says Favorite, checked, and the placeholder letter isn't read`() {
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                RecipeCard(Recipe("a", RecipeContent(title = "Spinach omelette"), favorite = true), {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("Favorite").assertIsOn()
+        compose.onNodeWithText("S").assertDoesNotExist()
     }
 
     @Test
@@ -62,6 +75,7 @@ class RecipeComponentsTest {
             recipe("r1", "Stir fry", ingredients = listOf("3 scallions, sliced")),
             PantryData(emptyList(), emptyList(), false),
             emptyList(),
+            TEST_WORDS,
         ).single()
         var edits = 0
         var saved: String? = null

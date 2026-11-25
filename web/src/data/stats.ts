@@ -20,6 +20,7 @@ import { Stamps } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import { querySnapshots, retryAfterOwnWrites } from './firestore-rx';
 import type { ChangeMapper } from './writer';
+import { mapEach, record } from './fields';
 
 export const statsPath = (hid: string) => `households/${hid}/stats`;
 
@@ -29,7 +30,7 @@ const count = (value: unknown): number => (typeof value === 'number' ? Math.max(
 function toMonthStats(s: DocumentSnapshot): MonthStats | null {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(s.id)) return null;
   const byDay: Record<number, number> = {};
-  for (const [day, n] of Object.entries((s.get('thrownByDay') as Record<string, unknown> | null) ?? {})) {
+  for (const [day, n] of Object.entries(record(s.get('thrownByDay')) ?? {})) {
     const d = Number(day);
     if (Number.isInteger(d) && d >= 1 && d <= 31 && count(n) > 0) byDay[d] = count(n);
   }
@@ -49,12 +50,7 @@ export class FirestoreStatsRepository implements StatsRepository {
           retryAfterOwnWrites(db),
         ),
       ),
-      map((snapshot) =>
-        snapshot.docs
-          .map(toMonthStats)
-          .filter((m): m is MonthStats => m !== null)
-          .sort((a, b) => (a.month < b.month ? -1 : 1)),
-      ),
+      map((snapshot) => mapEach(snapshot.docs, toMonthStats).sort((a, b) => (a.month < b.month ? -1 : 1))),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     );
   }

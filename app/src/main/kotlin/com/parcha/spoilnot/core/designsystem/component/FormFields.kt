@@ -3,12 +3,15 @@ package com.parcha.spoilnot.core.designsystem.component
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
@@ -16,7 +19,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,18 +27,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 
-/** A labelled text field with helper or error text below it. */
+/** A labelled one-line text field with helper or error text below it ([SpoilNotTextField], DESIGN 19.10). */
 @Composable
 fun FormTextField(
     value: String,
@@ -51,19 +57,18 @@ fun FormTextField(
     trailingIcon: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
 ) {
-    OutlinedTextField(
+    SpoilNotTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
-        supportingText = (error ?: helper)?.let { { Text(it) } },
-        isError = error != null,
-        singleLine = true,
+        label = label,
+        helper = helper,
+        error = error,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
         trailingIcon = trailingIcon,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
     )
 }
 
@@ -102,15 +107,33 @@ fun PasswordField(
     )
 }
 
-/** Full-width primary button that shows a spinner while [busy]. */
+/**
+ * A screen's or sheet's main button (DESIGN 19.9): full width, filled `primary`, fully round, at least 56 dp tall,
+ * shows a spinner while [busy]. The [icon] before the words is decoration, such as Start cooking's play arrow.
+ */
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, busy: Boolean = false) {
-    Button(onClick = onClick, enabled = !busy, modifier = modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+fun PrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    busy: Boolean = false,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+) {
+    Button(onClick = onClick, enabled = enabled && !busy, modifier = modifier.fillMaxWidth().heightIn(min = 56.dp)) {
         Box(contentAlignment = Alignment.Center) {
-            if (busy) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Text(text)
+            when {
+                busy -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+
+                icon != null -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+                    Text(text, style = SpoilNotText.ButtonLarge, textAlign = TextAlign.Center)
+                }
+
+                else -> Text(text, style = SpoilNotText.ButtonLarge, textAlign = TextAlign.Center)
             }
         }
     }
@@ -120,12 +143,26 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 @Composable
 fun ErrorText(text: String?, modifier: Modifier = Modifier) {
     if (text == null) return
-    Text(
-        text = text,
-        color = MaterialTheme.colorScheme.error,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
-    )
+    // The 2026-11 look (DESIGN 19.12): an icon beside the message, as a field's error has (19.10), so an error is
+    // never told by its color alone. The icon is decoration; the words are read.
+    Row(
+        modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            Icons.Rounded.ErrorOutline,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 1.dp).size(18.dp),
+        )
+        Text(
+            text = text,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
 }
 
 /** Vertical form layout with standard spacing. */

@@ -1,40 +1,41 @@
 import { useState } from 'react';
 import { plural, str } from '../../core/i18n';
 import { GroceryRules, type GroceryItem } from '../../domain/grocery/models';
+import type { RestockReason } from '../../domain/grocery/restock';
 import type { PantryEntry } from '../../domain/grocery/service';
-import { CATEGORIES, unitMenu, type Category, type Location, type PantryData } from '../../domain/pantry/models';
+import { CATEGORIES, unitMenu, type Category, type PantryData } from '../../domain/pantry/models';
 import type { QuantityUnit } from '../../domain/pantry/models';
-import { NameKey, ShelfLife } from '../../domain/pantry/rules';
 import type { LocalDate } from '../../domain/time';
 import { BottomSheet, Button, Icon, SelectField, Switch, TextField } from '../kit';
-import { DateChips, FormSheetColumn, largeText, LocationChoice, parseQuantity } from '../pantry/ItemForm';
-import { amountText, categoryLabel, formatDate, formatQuantity, locationLabel, unitLabel } from '../pantry/labels';
+import { isLargeText } from '../../theme/textScale';
+import { DateChips, FormSheetColumn, LocationChoice, parseQuantity, QuantityStepper } from '../pantry/ItemForm';
+import {
+  amountDescription,
+  amountText,
+  categoryLabel,
+  formatDate,
+  formatQuantity,
+  locationLabel,
+  unitLabel,
+} from '../pantry/labels';
+import { AddToPantryDrafts, type AddToPantryDraft, type EntryEdit, type EntryLine } from './addToPantryDrafts';
 import './grocery.css';
 
-/** One editable line of the Add to pantry sheet. */
-type EntryDraft = {
-  item: GroceryItem;
-  quantity: string;
-  unit: QuantityUnit;
-  expiry: LocalDate | null;
-  location: Location;
-  skip: boolean;
-  /** Showing the full editor instead of the one-line summary (after v1). */
-  expanded: boolean;
-};
-
-const valid = (d: EntryDraft) => d.skip || (parseQuantity(d.quantity) ?? 0) > 0;
+const valid = (line: EntryLine) => line.value.skip || (parseQuantity(line.value.quantity) ?? 0) > 0;
 
 /**
  * Done shopping (DESIGN 5.3): one line per checked item summing up what will be added (amount, location, date from
  * the product's typical shelf life). Tapping a line opens its editor: quantity, unit, quick dates, location and Skip,
- * which removes the item without adding stock. Add all adds them in one write.
+ * which removes the item without adding stock. Add all adds them in one write. What the person sets is kept in
+ * [draft] by item id, so the current [items] can change under it (after v1, REL-08).
  */
 export function AddToPantrySheet({
   items,
   pantry,
   today,
   imperialFirst,
+  draft,
+  onDraft,
   onConfirm,
   onDismiss,
 }: {
@@ -42,73 +43,63 @@ export function AddToPantrySheet({
   pantry: PantryData;
   today: LocalDate;
   imperialFirst: boolean;
+  draft: AddToPantryDraft;
+  onDraft: (change: (draft: AddToPantryDraft) => AddToPantryDraft) => void;
   onConfirm: (entries: PantryEntry[], skipped: GroceryItem[]) => void;
   onDismiss: () => void;
 }) {
-  const [drafts, setDrafts] = useState<EntryDraft[]>(() =>
-    items.map((item) => {
-      const product =
-        pantry.products.find((p) => p.id === item.productId) ??
-        pantry.products.find((p) => p.nameKey === NameKey.of(item.name)) ??
-        null;
-      return {
-        item,
-        quantity: formatQuantity(item.quantity ?? 1),
-        unit: item.unit ?? product?.unit ?? 'pcs',
-        expiry: ShelfLife.suggestExpiry(product?.typicalShelfLifeDays ?? null, today),
-        location: product?.defaultLocation ?? 'fridge',
-        skip: false,
-        expanded: false,
-      };
-    }),
-  );
-  const update = (id: string, change: Partial<EntryDraft>) =>
-    setDrafts((all) => all.map((d) => (d.item.id === id ? { ...d, ...change } : d)));
-  const count = drafts.filter((d) => !d.skip).length;
+  // The current items with the edits kept for them: a check-off elsewhere adds a line and keeps the others.
+  const lines = AddToPantryDrafts.lines(items, pantry, today, draft);
+  const count = lines.filter((l) => !l.value.skip).length;
   const label =
     count === 0
       ? str('grocery_remove_skipped')
-      : count === drafts.length && count > 1
+      : count === lines.length && count > 1
         ? plural('grocery_add_all_to_pantry', count, count)
         : plural('grocery_add_to_pantry', count, count);
   const confirm = () => {
-    if (!drafts.every(valid)) {
+    if (!lines.every(valid)) {
       // Show what needs fixing.
-      setDrafts((all) => all.map((d) => (valid(d) ? d : { ...d, expanded: true })));
+      const wrong = lines.filter((l) => !valid(l)).map((l) => l.item.id);
+      onDraft((d) => AddToPantryDrafts.setExpanded(d, wrong, true));
       return;
     }
     onConfirm(
-      drafts
-        .filter((d) => !d.skip)
-        .map((d) => ({
-          item: d.item,
-          quantity: parseQuantity(d.quantity)!,
-          unit: d.unit,
-          expiryDate: d.expiry,
-          location: d.location,
+      lines
+        .filter((l) => !l.value.skip)
+        .map((l) => ({
+          item: l.item,
+          quantity: parseQuantity(l.value.quantity)!,
+          unit: l.value.unit,
+          expiryDate: l.value.expiry,
+          location: l.value.location,
           dateType: 'use_by',
         })),
-      drafts.filter((d) => d.skip).map((d) => d.item),
+      lines.filter((l) => l.value.skip).map((l) => l.item),
     );
   };
   return (
     <BottomSheet label={str('grocery_add_to_pantry_title')} onDismiss={onDismiss} testId="sheet_add_to_pantry">
       <FormSheetColumn
+        look
         title={str('grocery_add_to_pantry_title')}
         button={
-          <Button full large onClick={confirm} data-testid="button_confirm_add_to_pantry">
+          <Button primary onClick={confirm} data-testid="button_confirm_add_to_pantry">
             {label}
           </Button>
         }
       >
         <div className="sn-entries">
-          {drafts.map((d) => (
+          {lines.map((line) => (
             <EntryRow
-              key={d.item.id}
-              draft={d}
+              key={line.item.id}
+              line={line}
               today={today}
               imperialFirst={imperialFirst}
-              onChange={(change) => update(d.item.id, change)}
+              onChange={(change) =>
+                onDraft((d) => AddToPantryDrafts.setEdit(d, line.item.id, { ...line.value, ...change }))
+              }
+              onToggle={() => onDraft((d) => AddToPantryDrafts.setExpanded(d, [line.item.id], !line.expanded))}
             />
           ))}
         </div>
@@ -118,7 +109,7 @@ export function AddToPantrySheet({
 }
 
 /** "2 · Fridge · Oct 26", "Skipped" or the problem, for one line of the sheet. */
-function summary(d: EntryDraft, today: LocalDate): string {
+function summary(d: EntryEdit, today: LocalDate): string {
   if (d.skip) return str('grocery_entry_skipped');
   const quantity = parseQuantity(d.quantity);
   if (quantity === null || quantity <= 0) return str('error_quantity');
@@ -126,18 +117,37 @@ function summary(d: EntryDraft, today: LocalDate): string {
   return str('grocery_entry_summary', amountText(quantity, d.unit), locationLabel(d.location), date);
 }
 
+/**
+ * The line for VoiceOver, one sentence (after v1, review A11Y-07): "Apples, 6 pieces, Fridge, expires Nov 23", or with
+ * "Skipped" or the problem in place of the details.
+ */
+function entryDescription(d: EntryEdit & { item: { name: string } }, today: LocalDate): string {
+  const quantity = parseQuantity(d.quantity);
+  if (d.skip || quantity === null || quantity <= 0) return `${d.item.name}, ${summary(d, today)}`;
+  return str(
+    'row_description',
+    d.item.name,
+    amountDescription(quantity, d.unit),
+    locationLabel(d.location),
+    d.expiry ? str('grocery_entry_expires', formatDate(d.expiry, today)) : str('status_no_date'),
+  );
+}
+
 function EntryRow({
-  draft,
+  line,
   today,
   imperialFirst,
   onChange,
+  onToggle,
 }: {
-  draft: EntryDraft;
+  line: EntryLine;
   today: LocalDate;
   imperialFirst: boolean;
-  onChange: (change: Partial<EntryDraft>) => void;
+  onChange: (change: Partial<EntryEdit>) => void;
+  onToggle: () => void;
 }) {
-  const id = draft.item.id;
+  const id = line.item.id;
+  const draft = { ...line.value, item: line.item, expanded: line.expanded, unitLocked: line.unitLocked };
   const quantity = parseQuantity(draft.quantity);
   return (
     <div className="sn-entry" data-testid={`entry_${id}`}>
@@ -145,12 +155,12 @@ function EntryRow({
         type="button"
         className="sn-entry__summary m3-state"
         aria-expanded={draft.expanded}
-        aria-label={`${draft.item.name}, ${summary(draft, today)}. ${str(draft.expanded ? 'grocery_entry_done' : 'grocery_entry_edit')}`}
-        onClick={() => onChange({ expanded: !draft.expanded })}
+        aria-label={`${entryDescription(draft, today)}. ${str(draft.expanded ? 'grocery_entry_done' : 'grocery_entry_edit')}`}
+        onClick={onToggle}
       >
         <span className="sn-entry__text">
-          <span className="t-title-medium">{draft.item.name}</span>
-          <span className={`t-body-medium ${valid(draft) ? 'c-on-surface-variant' : 'c-error'}`}>
+          <span className="t-row-title">{draft.item.name}</span>
+          <span className={`t-row-supporting ${valid(line) ? 'c-on-surface-variant' : 'c-error'}`}>
             {summary(draft, today)}
           </span>
         </span>
@@ -159,8 +169,8 @@ function EntryRow({
       {draft.expanded && (
         <div className="sn-entry__editor">
           <label className="sn-entry__skip">
-            <span className="t-body-medium sn-entry__skip-help">{str('grocery_skip_help')}</span>
-            <span className="t-body-medium">{str('grocery_skip')}</span>
+            <span className="t-body-medium c-on-surface-variant sn-entry__skip-help">{str('grocery_skip_help')}</span>
+            <span className="t-row-title">{str('grocery_skip')}</span>
             <Switch
               checked={draft.skip}
               onCheckedChange={(skip) => onChange({ skip })}
@@ -169,40 +179,34 @@ function EntryRow({
           </label>
           {!draft.skip && (
             <>
-              <div className="sn-entry__amount">
-                <TextField
-                  label={str('field_quantity')}
+              {/* The same stepper and unit as Add item (DESIGN 19.9), stacked from 1.5x text. */}
+              <div className={isLargeText() ? 'sn-form-stack' : 'sn-form-row'}>
+                <QuantityStepper
                   value={draft.quantity}
-                  onValueChange={(q) => onChange({ quantity: q })}
-                  inputMode="decimal"
-                  enterKeyHint="next"
+                  onChange={(q) => onChange({ quantity: q })}
                   error={quantity === null || quantity <= 0 ? str('error_quantity') : undefined}
-                  className="sn-entry__quantity"
+                  fill={isLargeText()}
+                  testId={`entry_quantity_${id}`}
                 />
-                <div className="sn-entry__unit">
-                  <SelectField
-                    label={str('field_unit')}
-                    value={draft.unit}
-                    options={unitMenu(imperialFirst)}
-                    optionLabel={unitLabel}
-                    onPick={(unit) => onChange({ unit })}
-                  />
-                </div>
+                <SelectField
+                  label={str('field_unit')}
+                  value={draft.unit}
+                  options={unitMenu(imperialFirst)}
+                  optionLabel={unitLabel}
+                  onPick={(unit) => onChange({ unit })}
+                  disabled={draft.unitLocked}
+                  supportingText={draft.unitLocked ? str('unit_locked_short') : undefined}
+                />
               </div>
-              <span className="t-label-large">
-                {draft.expiry ? formatDate(draft.expiry, today) : str('status_no_date')}
-              </span>
-              <DateChips
-                value={draft.expiry}
-                today={today}
-                twoRows={largeText()}
-                onChange={(expiry) => onChange({ expiry })}
-              />
-              <LocationChoice
-                selected={draft.location}
-                grid={largeText()}
-                onPick={(location) => onChange({ location })}
-              />
+              {/* The label, then the date the chips set ("No expiry date" when none). */}
+              <div className="sn-entry__date">
+                <span className="t-field-label c-on-surface-variant">{str('field_expiry')}</span>
+                <span className="t-field-text sn-entry__date-value">
+                  {draft.expiry ? formatDate(draft.expiry, today) : str('status_no_date')}
+                </span>
+                <DateChips value={draft.expiry} today={today} onChange={(expiry) => onChange({ expiry })} />
+              </div>
+              <LocationChoice selected={draft.location} onPick={(location) => onChange({ location })} />
             </>
           )}
         </div>
@@ -214,11 +218,14 @@ function EntryRow({
 /** Name (after v1), quantity, unit, note and aisle of one item. */
 export function EditGroceryItemSheet({
   item,
+  reason = null,
   imperialFirst,
   onSave,
   onDismiss,
 }: {
   item: GroceryItem;
+  /** Why the app put it here (after v1, UX-08): the row says only "Added automatically". */
+  reason?: RestockReason | null;
   imperialFirst: boolean;
   onSave: (edit: {
     name: string;
@@ -239,11 +246,11 @@ export function EditGroceryItemSheet({
   return (
     <BottomSheet label={str('grocery_edit_item', item.name)} onDismiss={onDismiss} testId="sheet_edit_grocery_item">
       <FormSheetColumn
+        look
         title={str('grocery_edit_item', item.name)}
         button={
           <Button
-            full
-            large
+            primary
             data-testid="button_save_grocery_item"
             onClick={() => {
               if (qtyError || name.trim() === '') return;
@@ -254,12 +261,17 @@ export function EditGroceryItemSheet({
           </Button>
         }
       >
+        {reason && (
+          <p className="t-body-medium c-on-surface-variant sn-grocery-reason" data-testid="grocery_auto_reason">
+            {reasonText(reason)}
+          </p>
+        )}
         <TextField
           label={str('field_name')}
           value={name}
           onValueChange={(v) => setName(v.slice(0, GroceryRules.MAX_NAME_LENGTH))}
           error={name.trim() === '' ? str('error_name_required') : undefined}
-          autoCapitalize="sentences"
+          autoCapitalize="words"
           enterKeyHint="next"
         />
         <TextField
@@ -293,4 +305,11 @@ export function EditGroceryItemSheet({
       </FormSheetColumn>
     </BottomSheet>
   );
+}
+
+/** "Added automatically: you have 0 and keep at least 2." (after v1, UX-08) */
+function reasonText(reason: RestockReason): string {
+  return reason.kind === 'low'
+    ? str('grocery_auto_reason', amountText(reason.have, reason.unit), amountText(reason.keepAtLeast, reason.unit))
+    : str('grocery_auto_reason_gone');
 }

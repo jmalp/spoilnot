@@ -73,6 +73,7 @@ describe('Insights', () => {
     expect(StatsChanges.undo(counted)).toEqual({
       type: 'stats.countThrownAway',
       month: october,
+      counter: october,
       day: 31,
       reason: 'expired',
       delta: -1,
@@ -80,6 +81,7 @@ describe('Insights', () => {
     expect(StatsChanges.undo(StatsChanges.usedUp(today))).toEqual({
       type: 'stats.countUsedUp',
       month: october,
+      counter: october,
       delta: -1,
     });
   });

@@ -30,4 +30,15 @@ describe('RemoteChangeTracker', () => {
     // The server's confirmation of the same data is not a change either.
     expect(t.update([row('a', 2), row('b', 1)])).toEqual(new Set());
   });
+
+  it("a new scope's first load is not highlighted, as another grocery list's rows aren't new", () => {
+    const t = tracker();
+    t.update([row('a', 1)], 'list-1');
+    // The old list's rows under the new list for a moment, then the new list's own rows.
+    expect(t.update([row('a', 1)], 'list-1')).toEqual(new Set());
+    expect(t.update([row('b', 1), row('c', 1)], 'list-2')).toEqual(new Set());
+    expect(t.update([row('b', 1), row('c', 2), row('d', 1)], 'list-2')).toEqual(new Set(['c', 'd']));
+    // And back: the first list again is a first load too.
+    expect(t.update([row('a', 5)], 'list-1')).toEqual(new Set());
+  });
 });

@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.update
 @HiltViewModel
 class RecipesViewModel @Inject constructor(
     session: SessionManager,
-    store: RecipeStore,
+    private val store: RecipeStore,
     private val service: RecipeService,
     events: RecipeEvents,
 ) : RecipeScopeViewModel(session) {
@@ -36,15 +36,19 @@ class RecipesViewModel @Inject constructor(
         val tags: List<String> = emptyList(),
         /** Nothing saved at all (not just filtered out). */
         val boxEmpty: Boolean = false,
+        /** How many recipes the box holds, whatever the search and filter (the line above the title, DESIGN 19.7). */
+        val total: Int = 0,
         val offline: Boolean = false,
         val query: RecipeQuery = RecipeQuery(),
+        /** The box failed to load and is being listened to again (DESIGN 6.7). */
+        val loadFailed: Boolean = false,
     )
 
     private val query = MutableStateFlow(RecipeQuery())
 
-    val state: StateFlow<UiState> = combine(store.box, query) { box, query ->
+    val state: StateFlow<UiState> = combine(store.box, query, store.loadFailed) { box, query, failed ->
         if (box == null) {
-            UiState(query = query)
+            UiState(query = query, loadFailed = failed)
         } else {
             val tags = RecipeBox.tags(box.recipes)
             // A tag chip whose last recipe was deleted falls back to All.
@@ -60,8 +64,10 @@ class RecipesViewModel @Inject constructor(
                 recipes = RecipeBox.list(box.recipes, q),
                 tags = tags,
                 boxEmpty = box.recipes.isEmpty(),
+                total = box.recipes.size,
                 offline = box.fromCache,
                 query = q,
+                loadFailed = failed,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
@@ -69,6 +75,9 @@ class RecipesViewModel @Inject constructor(
     init {
         events.messages.onEach { show(it) }.launchIn(viewModelScope)
     }
+
+    /** Retry on "Couldn't load": listens again at once. */
+    fun retryLoad() = store.retry()
 
     fun setSearch(text: String) = query.update { it.copy(search = text) }
 

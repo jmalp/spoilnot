@@ -1,12 +1,15 @@
 package com.parcha.spoilnot.feature.grocery.ui
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.coroutines.LoadRetry
+import com.parcha.spoilnot.core.coroutines.retryLoading
+import com.parcha.spoilnot.core.prefs.AppPreferences
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
-import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryLayout
@@ -14,6 +17,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryList
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
 import com.parcha.spoilnot.feature.grocery.domain.GroceryService
 import com.parcha.spoilnot.feature.grocery.domain.GroceryView
+import com.parcha.spoilnot.feature.grocery.domain.ItemSource
 import com.parcha.spoilnot.feature.grocery.domain.PantryEntry
 import com.parcha.spoilnot.feature.grocery.domain.QuickAddResult
 import com.parcha.spoilnot.feature.grocery.domain.RestockEngine
@@ -32,22 +36,24 @@ import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -61,10 +67,14 @@ class GroceriesViewModel @Inject constructor(
     grocery: GroceryRepository,
     pantry: PantryRepository,
     households: HouseholdRepository,
-    writer: HouseholdWriter,
     private val service: GroceryService,
     clock: Clock,
+    private val savedState: SavedStateHandle,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
+    /** What was typed in the Add to pantry sheet, by item id (after v1, REL-08). */
+    val pantryDrafts = AddToPantryDrafts(savedState)
+
     /** This phone's current shopping trip, for learning the store order. */
     private val trip = ShoppingTrip(clock)
 
@@ -73,13 +83,34 @@ class GroceriesViewModel @Inject constructor(
         val lists: List<GroceryList> = emptyList(),
         val list: GroceryList? = null,
         val items: List<GroceryItem> = emptyList(),
+        /**
+         * The list [items] belong to: right after a switch the old list's items show under the new list until the new
+         * list's arrive (after v1, 2026-11-18).
+         */
+        val itemsListId: String? = null,
         val view: GroceryView = GroceryView(emptyList(), emptyList()),
         val backInStock: Set<String> = emptySet(),
+        /** Who typed each item in, by item id, when it was someone else (precomputed for the rows, review PERF-04). */
+        val addedBy: Map<String, String> = emptyMap(),
         val memberNames: Map<String, String> = emptyMap(),
         val pantry: PantryData = PantryData(emptyList(), emptyList(), fromCache = true),
         val today: LocalDate = LocalDate.MIN,
         val myUid: String = "",
-    )
+        /** A list failed to load and is being listened to again (DESIGN 6.7). */
+        val loadFailed: Boolean = false,
+    ) {
+        /**
+         * The household data comes from the phone only (DESIGN 6.7, 9.5; after v1, REL-10): the pantry listener, which
+         * this tab always has, hasn't heard from the server, as on the web.
+         */
+        val offline: Boolean get() = !loading && pantry.fromCache
+
+        /** Items still to buy, for the line above the title (DESIGN 19.7). */
+        val toBuy: Int get() = items.count { !it.checked }
+    }
+
+    /** "Couldn't load. Retry" (DESIGN 6.7): the lists, items and pantry listen again instead of ending (REL-04). */
+    private val load = LoadRetry()
 
     private val me = session.session.filterIsInstance<Session.InHousehold>()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -94,11 +125,13 @@ class GroceriesViewModel @Inject constructor(
         } else {
             grocery.observeLists(it)
         }
-    }.catch { }
+    }.retryLoading(load, fallback = emptyList())
     private val currentList = combine(lists, selectedListId) { all, selected ->
         all.firstOrNull { it.id == selected } ?: all.firstOrNull { it.isDefault } ?: all.firstOrNull()
     }.distinctUntilChanged()
-    private val items: Flow<List<GroceryItem>?> = combine(
+
+    /** The open list's items with that list's id, so the state can say which list they belong to. */
+    private val items: Flow<Pair<String, List<GroceryItem>>?> = combine(
         hid,
         currentList.map {
             it?.id
@@ -107,33 +140,73 @@ class GroceriesViewModel @Inject constructor(
         h to
             l
     }
-        .flatMapLatest { (h, l) -> if (h == null || l == null) flowOf(null) else grocery.observeItems(h, l) }
-        .catch { }
-    private val pantryData = hid.flatMapLatest { if (it == null) emptyFlow() else pantry.observe(it) }.catch { }
+        .flatMapLatest { (h, l) ->
+            if (h == null || l == null) flowOf(null) else grocery.observeItems(h, l).map { l to it }
+        }
+        .retryLoading(load, fallback = null)
+    private val pantryData = hid.flatMapLatest { if (it == null) emptyFlow() else pantry.observe(it) }
+        .retryLoading(load, fallback = PantryData(emptyList(), emptyList(), fromCache = true))
     private val members = hid.flatMapLatest { if (it == null) flowOf(emptyList()) else households.observeMembers(it) }
         .map { list -> list.associate { it.uid to it.displayName } }
-        .catch { emit(emptyMap()) }
+        .retryLoading(fallback = emptyMap())
 
+    // "Someone added" is announced from the state's own pipeline, so the listeners stop once the screen is left
+    // (after v1, EFF-01; it was a collector started in init that never let go). Built off the main thread (PERF-02).
     val state: StateFlow<UiState> = combine(
         combine(lists, currentList, items) { l, c, i -> Triple(l, c, i) },
-        pantryData,
+        pantryData.conflate(),
         members,
         todayFlow(clock),
     ) { (allLists, list, listItems), data, names, today ->
-        val itemsNow = listItems.orEmpty()
+        val itemsNow = listItems?.second.orEmpty()
         UiState(
             loading = listItems == null,
             lists = allLists,
             list = list,
             items = itemsNow,
+            itemsListId = listItems?.first,
             view = StoreOrder.sort(GroceryLayout.of(itemsNow), list?.aisleOrder.orEmpty()),
             backInStock = itemsNow.filter { RestockEngine.isBackInStock(it, data) }.map { it.id }.toSet(),
+            addedBy = addedBy(itemsNow, me.value?.user?.uid.orEmpty(), names),
             memberNames = names,
             pantry = data,
             today = today,
             myUid = me.value?.user?.uid.orEmpty(),
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), UiState())
+    }.combine(load.failed) { s, failed -> s.copy(loadFailed = failed) }
+        .onStart { known = null }
+        .onEach(::announceOthersAdditions)
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), UiState())
+
+    /**
+     * The one-time hint that aisles follow the store order (after v1, UX-08): shown once this list has learned an
+     * order and has two aisles or more, until "Got it" on this phone.
+     */
+    val aisleHint: StateFlow<Boolean> = combine(preferences.aisleHintDone, state) { done, s ->
+        !done && s.list?.aisleOrder.orEmpty().isNotEmpty() && s.view.aisles.size >= 2
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), false)
+
+    fun dismissAisleHint() {
+        viewModelScope.launch { preferences.setAisleHintDone() }
+    }
+
+    /** What is typed in the quick-add field, kept across rotation. */
+    val quickAddText: StateFlow<String> = savedState.getStateFlow(QUICK_ADD_KEY, "")
+
+    fun setQuickAddText(text: String) {
+        savedState[QUICK_ADD_KEY] = text
+    }
+
+    /**
+     * Pantry products and names already used for what is typed (DESIGN 5.3), worked out here off the main thread
+     * instead of on every recomposition of the screen (review PERF-04).
+     */
+    val suggestions: StateFlow<List<String>> = combine(quickAddText, state) { text, s ->
+        GroceryLayout.suggestions(text, s.items, s.pantry)
+    }.distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(LIST_LINGER_MS), emptyList())
 
     /** "Already on the list" waiting for an answer, and the text that was typed. */
     val duplicate = MutableStateFlow<QuickAddResult.AlreadyOnList?>(null)
@@ -142,10 +215,8 @@ class GroceriesViewModel @Inject constructor(
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
-    init {
-        writer.errors.onEach { _messages.send(UiMessage(it.messageRes())) }.launchIn(viewModelScope)
-        announceOthersAdditions()
-    }
+    /** Retry on "Couldn't load": listens again at once. */
+    fun retryLoad() = load.retry()
 
     fun selectList(list: GroceryList) = selectedListId.update { list.id }
 
@@ -176,6 +247,7 @@ class GroceriesViewModel @Inject constructor(
     fun increaseDuplicate(onDone: () -> Unit) = act { hid, actor ->
         val pending = duplicate.value ?: return@act
         val list = state.value.list ?: return@act
+        if (!pending.request.canIncrease(pending.existing)) return@act
         service.increase(hid, actor, list.id, pending.existing, pending.request)
         duplicate.value = null
         onDone()
@@ -192,7 +264,7 @@ class GroceriesViewModel @Inject constructor(
     }
 
     fun toggle(item: GroceryItem) = act { hid, actor ->
-        service.setChecked(hid, actor, listId(), item, !item.checked, state.value.list?.name)
+        service.setChecked(hid, actor, listId(), item, !item.checked)
         // Learn the store's aisle order from the order things go into the cart (DESIGN 5.3).
         val list = state.value.list ?: return@act
         if (!item.checked) {
@@ -235,33 +307,40 @@ class GroceriesViewModel @Inject constructor(
         selectedListId.value = null
     }
 
+    /** Done shopping; the snackbar offers Undo (after v1, LOGIC-10). */
     fun addToPantry(entries: List<PantryEntry>, skipped: List<GroceryItem>, onDone: () -> Unit) = act { hid, actor ->
-        service.addToPantry(hid, actor, listId(), entries, skipped, state.value.pantry)
+        val undo = service.addToPantry(hid, actor, listId(), entries, skipped, state.value.pantry)
+        pantryDrafts.clear()
         onDone()
-        if (entries.isNotEmpty()) _messages.send(UiMessage(R.string.grocery_added_to_pantry))
+        val text = if (entries.isNotEmpty()) R.string.grocery_added_to_pantry else R.string.grocery_skipped_removed
+        if (undo != null) _messages.send(UiMessage(text, null, undo))
     }
+
+    fun closeAddToPantry() = pantryDrafts.clear()
 
     fun undo(undo: Undo) = act { hid, actor -> service.undo(hid, actor, undo) }
 
+    /** The items and list of the last state while the screen collects it, for [announceOthersAdditions]. */
+    private var known: Set<String>? = null
+    private var knownList: String? = null
+
     /** "Sam added Eggs" when someone else adds to the list being viewed (DESIGN 9.2). */
-    private fun announceOthersAdditions() {
-        var known: Set<String>? = null
-        var knownList: String? = null
-        state.onEach { s ->
-            if (s.loading) return@onEach
-            val ids = s.items.map { it.id }.toSet()
-            val previous = known
-            if (previous != null && knownList == s.list?.id) {
-                s.items.filter {
-                    it.id !in previous && it.createdBy != null && it.createdBy != s.myUid
-                }.forEach { item ->
-                    val who = s.memberNames[item.createdBy] ?: return@forEach
-                    _messages.send(UiMessage(R.string.grocery_someone_added, listOf(who, item.name)))
-                }
+    private fun announceOthersAdditions(s: UiState) {
+        if (s.loading) return
+        val ids = s.items.map { it.id }.toSet()
+        val previous = known
+        // By the list the items belong to, not the list shown: right after a switch the old list's items show under
+        // the new one, and the new list's own would all count as just added (after v1, 2026-11-18).
+        if (previous != null && knownList == s.itemsListId) {
+            s.items.filter {
+                it.id !in previous && it.createdBy != null && it.createdBy != s.myUid
+            }.forEach { item ->
+                val who = s.memberNames[item.createdBy] ?: return@forEach
+                _messages.trySend(UiMessage(R.string.grocery_someone_added, listOf(who, item.name)))
             }
-            known = ids
-            knownList = s.list?.id
-        }.launchIn(viewModelScope)
+        }
+        known = ids
+        knownList = s.itemsListId
     }
 
     private fun listId(): String = checkNotNull(state.value.list).id
@@ -282,5 +361,16 @@ class GroceriesViewModel @Inject constructor(
     private companion object {
         /** DESIGN 9.1: item listeners stay while visible, plus 30 s. */
         const val LIST_LINGER_MS = 30_000L
+
+        const val QUICK_ADD_KEY = "quickAdd"
     }
 }
+
+/** "added by Sam" for items someone else typed in, by item id; what the app added itself names no one. */
+internal fun addedBy(items: List<GroceryItem>, myUid: String, names: Map<String, String>): Map<String, String> =
+    items.mapNotNull { item ->
+        item.createdBy
+            ?.takeIf { it != myUid && item.source == ItemSource.Manual }
+            ?.let(names::get)
+            ?.let { item.id to it }
+    }.toMap()

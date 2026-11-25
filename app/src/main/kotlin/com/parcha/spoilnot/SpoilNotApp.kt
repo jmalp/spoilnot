@@ -1,6 +1,8 @@
 package com.parcha.spoilnot
 
+import android.app.Activity
 import android.app.Application
+import android.os.Bundle
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -39,8 +41,25 @@ class SpoilNotApp :
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
-        // The restock engine runs on every phone while the user is in a household (DESIGN 9.6).
-        restockRunner.start()
+        // The restock engine runs on every phone while the user is in a household (DESIGN 9.6), from the first time an
+        // activity starts: a process started in the background for a digest starts no household listener (EFF-05).
+        registerActivityLifecycleCallbacks(
+            object : ActivityLifecycleCallbacks {
+                override fun onActivityStarted(activity: Activity) = restockRunner.start()
+
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+
+                override fun onActivityResumed(activity: Activity) = Unit
+
+                override fun onActivityPaused(activity: Activity) = Unit
+
+                override fun onActivityStopped(activity: Activity) = Unit
+
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+
+                override fun onActivityDestroyed(activity: Activity) = Unit
+            },
+        )
         Notifications.createChannel(this)
         deviceSync.start()
         // The Crash reports switch (DESIGN 5.6) applies now and whenever it changes.

@@ -10,7 +10,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Cold start to Home, without precompiled code and with the baseline profile (DESIGN 13.1: under 2 s). */
+/**
+ * Cold start to Home's cards, without precompiled code and with the baseline profile (DESIGN 13.1: under 2.5 s).
+ * `timeToInitialDisplayMs` is the first frame (Home's skeleton); `timeToFullDisplayMs` is when Home reports itself
+ * drawn with its cards, which is what people wait for and what the budget is measured on (after v1 review PERF-05).
+ * The setup signs in first, so every iteration starts signed in, not only the ones after the first.
+ */
 @RunWith(AndroidJUnit4::class)
 class StartupBenchmark {
     @get:Rule
@@ -31,9 +36,12 @@ class StartupBenchmark {
         setupBlock = {
             grantPermissions()
             pressHome()
+            startActivityAndWait()
+            signInIfNeeded()
+            pressHome()
         },
     ) {
         startActivityAndWait()
-        signInIfNeeded()
+        awaitHomeCards()
     }
 }

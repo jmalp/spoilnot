@@ -6,7 +6,6 @@
     <string name="web_coming_soon">This part of Spoil Not for iPhone is on its way.</string>
     <string name="web_update_ready">A new version of Spoil Not is ready</string>
     <string name="web_update_reload">Update</string>
-    <string name="web_not_configured">This copy of Spoil Not has no Firebase configuration.</string>
     <!-- The date picker dialog (the app uses Material's own strings for it). -->
     <string name="web_select_date">Select date</string>
     <string name="web_previous_month">Previous month</string>
@@ -30,4 +29,8 @@
     <string name="web_install_title">Add Spoil Not to your Home Screen</string>
     <string name="web_install_body">In Safari, tap Share, then Add to Home Screen. Spoil Not then opens full screen and can remind you before food expires.</string>
     <string name="web_install_later">Not now</string>
+    <!-- Settings > Appearance > Week starts on (DESIGN 5.9, 18.1): Android follows the phone's own setting, which a web app cannot read. %1$s is a weekday name. -->
+    <string name="web_week_start">Week starts on</string>
+    <string name="web_week_start_auto">Automatic (%1$s)</string>
+    <string name="web_week_start_help">The first day of each week in Plan. Automatic follows this phone\'s region.</string>
 </resources>

@@ -1,5 +1,7 @@
-/* Recipes (DESIGN 5.5), as RecipesScreen, RecipeDetailScreen and their sheets lay them out. */
+/* Recipes in the 2026-11 look (DESIGN 5.5, 19.12), as RecipesScreen, RecipeDetailScreen, cook mode and their sheets
+   lay them out, measured like the app's. Rows are segments of a group (look.css). */
 
+/* A recipe's picture, or its first letter in a leaf on a block of a container color (RecipeImage in the app). */
 .sn-recipe-image {
   display: grid;
   place-items: center;
@@ -12,25 +14,55 @@
   height: 100%;
   object-fit: cover;
 }
+.sn-recipe-leaf {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50% 15% 50% 15%;
+  font-size: 30px;
+  line-height: 30px;
+  font-weight: 800;
+}
+.sn-recipe-image--header .sn-recipe-leaf {
+  width: 96px;
+  height: 96px;
+  font-size: 44px;
+  line-height: 44px;
+}
+/* The hero's leaf sits low, clear of the round buttons and above the page that overlaps it. */
+.sn-recipe-image--header {
+  place-items: end center;
+  padding-bottom: 44px;
+  box-sizing: border-box;
+}
+.sn-recipe-image--header:has(img) {
+  padding-bottom: 0;
+  place-items: stretch;
+}
 .sn-recipe-image--primary {
   background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+}
+.sn-recipe-image--primary .sn-recipe-leaf {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
 }
 .sn-recipe-image--secondary {
   background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-recipe-image--secondary .sn-recipe-leaf {
+  background: var(--md-sys-color-secondary);
+  color: var(--md-sys-color-on-secondary);
 }
 .sn-recipe-image--tertiary {
   background: var(--md-sys-color-tertiary-container);
-  color: var(--md-sys-color-on-tertiary-container);
+}
+.sn-recipe-image--tertiary .sn-recipe-leaf {
+  background: var(--md-sys-color-tertiary);
+  color: var(--md-sys-color-on-tertiary);
 }
 
-/* The recipe chips sit on the page, without the Pantry list's divider (FilterRow in RecipesScreen). */
-.sn-filter-row.sn-filter-row--plain {
-  border-bottom: none;
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
+/* The box: the round search field and the chips on the page (Pantry's), then the cards 8 px apart. */
 .sn-recipe-grid {
   flex: 1;
   min-height: 0;
@@ -39,17 +71,21 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   align-content: start;
-  gap: 12px;
-  padding: 8px 16px 96px;
+  gap: 8px;
+  padding: 12px 16px max(96px, var(--sn-fab-space, 0px));
 }
 .sn-recipe-card {
   position: relative;
   overflow: hidden;
+  border-radius: 24px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
 }
 .sn-recipe-card__open {
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
   padding: 0;
   border: none;
   background: transparent;
@@ -59,13 +95,13 @@
 }
 .sn-recipe-card__image {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  height: 120px;
 }
 .sn-recipe-card__text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px;
+  gap: 6px;
+  padding: 12px 14px 14px;
 }
 /* Two lines on every card, so cards side by side match (after v1). */
 .sn-recipe-card__title {
@@ -73,30 +109,19 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  min-height: calc(2 * var(--sp-24));
+  min-height: calc(2 * var(--sp-22));
+  overflow-wrap: anywhere;
 }
 .sn-recipe-card__time {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-height: var(--sp-20);
+  gap: 6px;
+  min-height: var(--sp-18);
 }
 .sn-recipe-card__star {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border: none;
-  border-radius: 28px;
-  background: color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent);
-  color: var(--md-sys-color-on-surface);
-  cursor: pointer;
-}
-.sn-recipe-card__star--on {
-  color: var(--md-sys-color-primary);
+  top: 6px;
+  right: 6px;
 }
 .sn-recipe-no-matches {
   margin: 0;
@@ -104,139 +129,290 @@
   text-align: center;
 }
 
+/* A recipe: the hero under the status bar, the page overlapping it with 28 px corners. */
 .sn-recipe-detail {
   display: flex;
   flex-direction: column;
-  padding-bottom: 96px;
 }
 .sn-recipe-detail__hero {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: calc(220px + var(--sn-screen-top));
+  flex: none;
 }
-.sn-recipe-detail__body {
+.sn-recipe-detail__page {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 18px;
+  margin-top: -28px;
+  padding: 24px 16px 24px;
+  border-radius: 28px 28px 0 0;
+  background: var(--sn-surface-page);
 }
-.sn-recipe-detail__body p,
-.sn-recipe-detail__body h1,
-.sn-recipe-detail__body h2,
-.sn-recipe-detail__body h3 {
+.sn-recipe-detail__head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+.sn-recipe-detail__page p,
+.sn-recipe-detail__page h1,
+.sn-recipe-detail__page h2,
+.sn-recipe-detail__page h3 {
   margin: 0;
 }
-.sn-info-chips {
+.sn-recipe-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sn-recipe-notes {
+  padding: 0 4px;
+}
+/* The facts as pills on the row color (InfoPill in the app); the site opens the original. */
+.sn-info-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 8px;
+  gap: 8px;
 }
-.sn-info-chip {
+.sn-info-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-height: 32px;
-  padding: 0 8px;
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
-  color: var(--md-sys-color-on-surface);
+  padding: 0 12px 0 10px;
+  border-radius: 16px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface-variant);
   text-decoration: none;
-}
-a.sn-info-chip {
-  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline);
 }
 .sn-recipe-section {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding-top: 8px;
+  padding-left: 4px;
 }
 .sn-recipe-section h2 {
   flex: 1;
 }
-.sn-recipe-group {
-  padding-top: 8px;
+/* From 1.5x text the servings stepper goes under "Ingredients" (after v1, review A11Y-04). */
+:root[data-large-text] .sn-recipe-section {
+  flex-direction: column;
+  align-items: flex-start;
 }
-/* One line; at large text sizes it moves under the heading instead of running off the screen. */
-.sn-stepper {
-  display: flex;
-  align-items: center;
-  flex: none;
+/* The servings beside Ingredients: the joined stepper at 48 px (CountStepper in the app). */
+.sn-servings-stepper .sn-step-button {
+  width: 48px;
+  height: 48px;
 }
-.sn-stepper__label {
-  padding: 0 8px;
+.sn-servings-stepper .sn-joined-stepper__count {
+  min-height: 48px;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
   white-space: nowrap;
 }
-.sn-stepper .m3-icon-button__layer {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+.sn-recipe-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.sn-stepper .m3-icon-button:disabled .m3-icon-button__layer {
-  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+.sn-recipe-groups__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sn-recipe-group {
+  padding: 4px 8px 0;
+}
+/* Rows on a sheet take the field color. */
+.sn-group--field > .sn-segment {
+  background: var(--sn-surface-field);
 }
 .sn-checklist__line {
   display: flex;
   align-items: center;
-  min-height: 48px;
-  border-radius: 8px;
+  gap: 4px;
+  min-height: 56px;
+  padding: 4px 16px 4px 4px;
+  cursor: pointer;
+}
+.sn-checklist__text {
+  font-weight: 600;
 }
 .sn-checklist__line--done {
   color: var(--md-sys-color-on-surface-variant);
 }
 .sn-recipe-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+:root[data-large-text] .sn-recipe-actions {
+  grid-template-columns: 1fr;
 }
 .sn-recipe-step {
   display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px 8px 12px;
+  box-sizing: border-box;
 }
-.sn-recipe-step__number {
-  min-width: 32px;
+.sn-recipe-step__text {
+  font-weight: 500;
+}
+.sn-step-leaf {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50% 15% 50% 15%;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font-size: 15px;
+  font-weight: 800;
+}
+.sn-step-leaf--large {
+  width: 64px;
+  height: 64px;
+  font-size: 29px;
 }
 .sn-open-original {
   align-self: flex-start;
 }
 
+/* Cook mode: Back, the name and the step's chip, a bar per step, the step on a card, the joined buttons. */
 .sn-cook {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-.sn-cook__progress {
-  height: 4px;
-  background: var(--md-sys-color-secondary-container);
-}
-.sn-cook__progress span {
-  display: block;
-  height: 100%;
-  background: var(--md-sys-color-primary);
-  transition: width 200ms var(--sn-motion-standard);
-}
-.sn-cook__step {
-  flex: 1;
-  overflow-y: auto;
+.sn-cook__top {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: calc(8px + var(--sn-screen-top)) calc(16px + var(--sn-safe-right)) 0 calc(16px + var(--sn-safe-left));
+}
+.sn-cook__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sn-cook__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.sn-cook__chip {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.sn-cook__bars {
+  display: flex;
+  gap: 4px;
+}
+.sn-cook__bars--many {
+  gap: 2px;
+}
+.sn-cook__bars span {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--md-sys-color-secondary-container);
+}
+.sn-cook__bars span.sn-cook__bar--done {
+  background: var(--md-sys-color-primary);
+}
+.sn-cook__step {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin: 16px calc(16px + var(--sn-safe-right)) 0 calc(16px + var(--sn-safe-left));
   padding: 24px;
+  border-radius: 28px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
   touch-action: pan-y;
 }
 .sn-cook__step p,
 .sn-cook__step h2 {
   margin: 0;
 }
-.sn-cook__bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
+.sn-cook__text {
+  font-size: var(--sp-32);
+  line-height: var(--sp-40);
+  font-weight: 700;
 }
-.sn-cook__bar .sn-cook__ingredients {
+.sn-cook__controls {
+  display: flex;
+  gap: 2px;
+  padding: 16px calc(16px + var(--sn-safe-right)) calc(16px + var(--sn-safe-bottom, 0px))
+    calc(16px + var(--sn-safe-left));
+}
+.sn-cook-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 60px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  /* The family only: the button's type class sets its size and weight. */
+  font-family: inherit;
+  cursor: pointer;
+}
+.sn-cook-button--next {
+  min-width: 116px;
+  border-radius: 8px 999px 999px 8px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+.sn-cook-button--back {
+  min-width: 92px;
+  border-radius: 999px 8px 8px 999px;
+}
+.sn-cook-button--ingredients {
+  flex: 1;
+}
+.sn-cook-button:disabled {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+  cursor: default;
+}
+/* From 1.5x text Ingredients takes its own line above Back and Next, or it broke mid-word (A11Y-04). */
+:root[data-large-text] .sn-cook__controls {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+:root[data-large-text] .sn-cook-button--ingredients {
+  order: -1;
+  flex: 1 0 100%;
+  border-radius: 999px;
+}
+:root[data-large-text] .sn-cook-button--back,
+:root[data-large-text] .sn-cook-button--next {
   flex: 1;
 }
 
+/* Sheets (DESIGN 19.11). */
 .sn-sheet-rows {
   display: flex;
   flex-direction: column;
@@ -253,32 +429,32 @@ a.sn-info-chip {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 8px 0;
+  scrollbar-width: none;
 }
+/* A recipe line to add: a row of a group on the field color (CandidateRow in the app). */
 .sn-candidate {
   display: flex;
   align-items: flex-start;
+  gap: 4px;
+  padding: 4px 8px 8px 4px;
+  cursor: pointer;
 }
 .sn-candidate > .m3-checkbox {
-  margin-top: -2px;
+  margin-top: 2px;
 }
 .sn-candidate__text {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px 0 4px;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 0 0;
 }
 .sn-candidate__adds {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-.sn-candidate__tag {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-top: 2px;
-  color: var(--md-sys-color-tertiary);
 }
 .sn-cook-row {
   display: flex;
@@ -296,22 +472,44 @@ a.sn-info-chip {
 .sn-cook-row__text {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 .sn-cook-row__amount {
   width: 96px;
   flex: none;
 }
+/* From 1.5x text the amount goes under its ingredient (after v1, review A11Y-04). */
+:root[data-large-text] .sn-cook-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+:root[data-large-text] .sn-cook-row__main {
+  flex: none;
+}
+:root[data-large-text] .sn-cook-row__amount {
+  width: auto;
+  margin-left: 48px;
+}
 .sn-rename-suggestions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-
-.sn-recipe-form {
+.sn-dialog-fields {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+}
+.sn-dialog-fields p {
+  margin: 0;
+}
+
+/* The editor: 20 px from the sides and 18 px between fields, as on a form sheet (DESIGN 19.11). */
+.sn-recipe-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 12px 20px 24px;
 }
 .sn-recipe-form__times {
   display: flex;
@@ -320,4 +518,12 @@ a.sn-info-chip {
 .sn-recipe-form__times > * {
   flex: 1;
   min-width: 0;
+}
+/* From 1.5x text one under the other, so the labels don't break mid-word. */
+:root[data-large-text] .sn-recipe-form__times {
+  flex-direction: column;
+  gap: 18px;
+}
+.sn-cook__sheet {
+  padding-bottom: 24px;
 }

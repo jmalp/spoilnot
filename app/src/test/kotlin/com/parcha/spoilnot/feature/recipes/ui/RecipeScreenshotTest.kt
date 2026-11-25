@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.recipes.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Surface
@@ -12,19 +13,22 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.parcha.spoilnot.core.designsystem.component.SegmentPosition
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
+import com.parcha.spoilnot.feature.recipes.domain.Ingredient
 import com.parcha.spoilnot.feature.recipes.domain.IngredientParser
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
+import com.parcha.spoilnot.feature.recipes.domain.Step
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,7 +62,7 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                 }
             }
         }
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/${name}_$suffix.png")
+        compose.onRoot().captureRoboImage("${name}_$suffix.png")
     }
 
     @Test
@@ -83,6 +87,31 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
         }
     }
 
+    /**
+     * The top of a recipe (after v1, UX-12, R9, R10): one servings control (the stepper, no chip), one source line
+     * (no "By recipes.example.test"), and Start cooking in a bar that covers nothing.
+     */
+    @Test
+    fun recipeDetail() = snap("recipe_detail") {
+        val recipe = Recipe(
+            "r",
+            RecipeContent(
+                title = "Test pancakes",
+                sourceUrl = "https://recipes.example.test/pancakes",
+                sourceName = "recipes.example.test",
+                servings = 4,
+                totalMinutes = 25,
+                ingredients = listOf(Ingredient("2 cups flour"), Ingredient("2 eggs"), Ingredient("1 cup milk")),
+                steps = listOf(Step("Mix."), Step("Cook.")),
+            ),
+        )
+        Column(Modifier.height(640.dp)) {
+            RecipeBody(recipe, servings = 4, onServings = {
+            }, onAddToList = {}, onOpenOriginal = {}, modifier = Modifier.weight(1f))
+            StartCookingBar {}
+        }
+    }
+
     @Test
     fun ingredientChecklist() = snap("recipe_checklist") {
         Column(Modifier.padding(16.dp)) {
@@ -97,7 +126,8 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
     fun groceryCandidates() = snap("recipe_grocery_candidates") {
         val eggs = IngredientParser.parse("3 large eggs")
         val onions = product("onion", "Onions", unit = QuantityUnit.Pounds)
-        Column(Modifier.padding(16.dp)) {
+        // A group of rows, 2 dp apart (DESIGN 19.5).
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val egg = product("egg", "Eggs")
             CandidateRow(
                 GroceryCandidate(
@@ -113,12 +143,14 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                 false,
                 onChange = {
                 },
+                position = SegmentPosition.First,
             )
             val salt = IngredientParser.parse("Salt to taste")
             CandidateRow(
                 GroceryCandidate(salt, "Salt", null, null, "Pancakes: Salt to taste", null, null, true),
                 false,
                 onChange = {},
+                position = SegmentPosition.Middle,
             )
             val onion = IngredientParser.parse("1 extra large onion, diced")
             CandidateRow(
@@ -134,6 +166,7 @@ class RecipeScreenshotTest(private val dark: Boolean, private val fontScale: Flo
                 ),
                 true,
                 onChange = {},
+                position = SegmentPosition.Last,
             )
         }
     }

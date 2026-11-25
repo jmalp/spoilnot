@@ -83,11 +83,11 @@ class IngredientParserTest {
 class ScalingTest {
     @Test
     fun `scales only the quantity and keeps the rest of the line`() {
-        assertEquals("3 cups flour, sifted", Scaling.line("1 ½ cups flour, sifted", 2.0))
-        assertEquals("400g flour", Scaling.line("200g flour", 2.0))
-        assertEquals("1–1½ cloves garlic", Scaling.line("2-3 cloves garlic", 0.5))
-        assertEquals("Salt to taste", Scaling.line("Salt to taste", 3.0))
-        assertEquals("2 cups milk", Scaling.line("2 cups milk", 1.0))
+        assertEquals("3 cups flour, sifted", Scaling.line("1 ½ cups flour, sifted", 2.0, "a pinch of"))
+        assertEquals("400g flour", Scaling.line("200g flour", 2.0, "a pinch of"))
+        assertEquals("1–1½ cloves garlic", Scaling.line("2-3 cloves garlic", 0.5, "a pinch of"))
+        assertEquals("Salt to taste", Scaling.line("Salt to taste", 3.0, "a pinch of"))
+        assertEquals("2 cups milk", Scaling.line("2 cups milk", 1.0, "a pinch of"))
     }
 
     @Test
@@ -106,5 +106,23 @@ class ScalingTest {
         assertEquals("12", Scaling.formatQuantity(12.4))
         assertEquals("1.1", Scaling.formatQuantity(1.1))
         assertEquals("⅛", Scaling.formatQuantity(0.125))
+    }
+
+    @Test
+    fun `servings steppers reach the recipe's own servings`() {
+        // After v1, LOGIC-13: "Makes 120 meatballs" can be planned and cooked at 120.
+        assertEquals(100, Scaling.maxServings(4))
+        assertEquals(100, Scaling.maxServings(null))
+        assertEquals(120, Scaling.maxServings(120))
+        assertEquals(150, Scaling.maxServings(120, current = 150))
+        assertEquals(RecipeLimits.MAX_SERVINGS, Scaling.maxServings(5_000))
+    }
+
+    @Test
+    fun `amounts under a sixteenth are a pinch`() {
+        assertEquals("a pinch of salt", Scaling.line("1/8 tsp salt", 0.1, TEST_WORDS.pinch))
+        assertEquals("a pinch of pepper", Scaling.line("1 pinch of pepper", 0.05, TEST_WORDS.pinch))
+        assertEquals("0.06 tsp salt", Scaling.line("1 tsp salt", 1.0 / 16, TEST_WORDS.pinch))
+        assertEquals("⅛ tsp salt", Scaling.line("1/4 tsp salt", 0.5, TEST_WORDS.pinch))
     }
 }

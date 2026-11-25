@@ -1,20 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { messageId } from '../../core/errors';
 import { useObservable } from '../../core/hooks';
-import { str } from '../../core/i18n';
+import { plural, str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import { NameKey } from '../../domain/pantry/rules';
 import { RecipeBox, type RecipeFilter, type RecipeQuery, type RecipeSort } from '../../domain/recipes/box';
 import type { Recipe } from '../../domain/recipes/models';
-import { FilterChip, Icon, IconButton, Menu, MenuItem, Progress, TextField, useSnackbars } from '../kit';
-import { EmptyState, OfflineBanner, TabScaffold, useOnInnerScroll } from '../Scaffold';
+import { Icon, IconButton, Menu, MenuItem, Progress, SearchField, SpoilNotFilterChip, useSnackbars } from '../kit';
+import { EmptyState, LoadError, OfflineBanner, TabScaffold } from '../Scaffold';
 import { RecipeCard } from './components';
 import '../pantry/pantry.css';
 import './recipes.css';
 
 /**
- * The recipe box (DESIGN 5.5): search, All, Favorites and tag chips, sort, and the cards. Recipes are added in the
- * Android app (DESIGN 18.1), so there is no Add recipe button.
+ * The recipe box (DESIGN 5.5) in the 2026-11 look (19.7, 19.12): how many recipes above the title, the round search
+ * field, Favorites and tag chips, sort, and the cards with the letter in a leaf. Recipes are added in the Android app
+ * (DESIGN 18.1), so there is no Add recipe button.
  */
 export function RecipesScreen({
   onOpenSettings,
@@ -31,16 +32,11 @@ export function RecipesScreen({
   onOpenRecipe: (id: string) => void;
 }) {
   const me = useHouseholdSession();
-  const { recipes, recipeService, writer } = useServices();
+  const { recipes, recipeService } = useServices();
   const snackbars = useSnackbars();
   const box = useObservable(recipes.box$, null);
-  const onScroll = useOnInnerScroll();
+  const loadFailed = useObservable(recipes.load.failed$, false);
   const actor = { uid: me.user.uid, name: me.displayName };
-
-  useEffect(() => {
-    const subscription = writer.errors$.subscribe((e) => snackbars.show(str(messageId(e))));
-    return () => subscription.unsubscribe();
-  }, [writer, snackbars]);
 
   const tags = box ? RecipeBox.tags(box.recipes) : [];
   // A tag chip whose last recipe was deleted falls back to All.
@@ -56,6 +52,12 @@ export function RecipesScreen({
   return (
     <TabScaffold
       title={str('tab_recipes')}
+      // How many recipes the box holds (DESIGN 19.7).
+      eyebrow={
+        box && box.recipes.length > 0
+          ? plural('recipe_eyebrow_count', box.recipes.length, box.recipes.length)
+          : undefined
+      }
       onOpenSettings={onOpenSettings}
       joinRequests={joinRequests}
       innerScroll
@@ -66,39 +68,21 @@ export function RecipesScreen({
         ) : undefined
       }
     >
-      {box?.fromCache && <OfflineBanner />}
+      {loadFailed ? <LoadError onRetry={() => recipes.load.retry()} /> : <OfflineBanner offline={!!box?.fromCache} />}
       {box === null ? (
-        <div className="sn-centered">
-          <Progress />
-        </div>
+        <div className="sn-centered">{!loadFailed && <Progress />}</div>
       ) : box.recipes.length === 0 ? (
         <EmptyState icon="outlined/menu_book" message={str('web_recipes_empty')} />
       ) : (
         <>
-          <div className="sn-pantry-search">
-            <TextField
-              label=""
-              aria-label={str('recipe_search')}
-              placeholder={str('recipe_search')}
+          {/* The page's round search field and the chips on the page (DESIGN 19.10), as on Pantry. */}
+          <div className="sn-pantry-search sn-pantry-search--look">
+            <SearchField
               value={query.search}
               onValueChange={(search) => onQueryChange({ ...query, search })}
-              type="search"
-              enterKeyHint="search"
-              data-testid="recipe_search"
-              leading={
-                <span className="sn-pantry-search__leading">
-                  <Icon name="round/search" />
-                </span>
-              }
-              trailing={
-                query.search ? (
-                  <IconButton
-                    icon="round/clear"
-                    label={str('action_clear_search')}
-                    onClick={() => onQueryChange({ ...query, search: '' })}
-                  />
-                ) : undefined
-              }
+              placeholder={str('recipe_search')}
+              clearLabel={str('action_clear_search')}
+              testId="recipe_search"
             />
           </div>
           <FilterRow
@@ -107,7 +91,7 @@ export function RecipesScreen({
             onSelect={(f) => onQueryChange({ ...query, filter: f })}
           />
           {list.length === 0 && <p className="t-body-large sn-recipe-no-matches">{str('recipe_no_matches')}</p>}
-          <div className="sn-recipe-grid" data-testid="recipe_grid" onScroll={onScroll}>
+          <div className="sn-recipe-grid" data-testid="recipe_grid">
             {list.map((recipe) => (
               <RecipeCard
                 key={recipe.id}
@@ -126,7 +110,10 @@ export function RecipesScreen({
 const sameFilter = (a: RecipeFilter, b: RecipeFilter) =>
   a.kind === b.kind && (a.kind !== 'tag' || (b.kind === 'tag' && a.tag === b.tag));
 
-/** All, Favorites, then the user's tags. */
+/**
+ * Favorites, then the user's tags (DESIGN 5.5). No All chip (after v1, R16), as on Pantry: everything is the default,
+ * and tapping the chosen chip again goes back to it.
+ */
 function FilterRow({
   selected,
   tags,
@@ -137,18 +124,19 @@ function FilterRow({
   onSelect: (filter: RecipeFilter) => void;
 }) {
   const chips: [RecipeFilter, string][] = [
-    [{ kind: 'all' }, str('recipe_filter_all')],
     [{ kind: 'favorites' }, str('recipe_filter_favorites')],
     ...tags.map((tag): [RecipeFilter, string] => [{ kind: 'tag', tag }, tag]),
   ];
   return (
-    <div className="sn-filter-row sn-filter-row--plain">
+    <div className="sn-filter-row sn-filter-row--look">
       {chips.map(([filter, label]) => (
-        <FilterChip
+        <SpoilNotFilterChip
           key={label + filter.kind}
           label={label}
           selected={sameFilter(filter, selected)}
-          onClick={() => onSelect(filter)}
+          // Favorites keeps its star, as the cards show it (DESIGN 19.10).
+          icon={filter.kind === 'favorites' ? 'round/star_border' : undefined}
+          onClick={() => onSelect(sameFilter(filter, selected) ? { kind: 'all' } : filter)}
         />
       ))}
     </div>

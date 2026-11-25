@@ -2,6 +2,7 @@
 // units and reasons, and amounts.
 import { plural, str, type StringId } from '../../core/i18n';
 import type { Category, DateType, DiscardReason, Location, QuantityUnit } from '../../domain/pantry/models';
+import { Amounts } from '../../domain/pantry/amounts';
 import { Expiry, type ExpiryStatus } from '../../domain/pantry/rules';
 import type { LocalDate } from '../../domain/time';
 import type { IconName } from '../kit';
@@ -113,10 +114,8 @@ export function locationIcon(location: Location): IconName {
   }[location] as IconName;
 }
 
-/** 2, 1.5 or 0.25: no trailing zeros (DecimalFormat("0.##")). */
-export function formatQuantity(value: number): string {
-  return String(Math.round(value * 100) / 100);
-}
+/** 2, 1.5 or 0.25: no trailing zeros, in ASCII digits so forms can read it back (Amounts). */
+export const formatQuantity = (value: number): string => Amounts.format(value);
 
 /** "2" or "500 g": a count of pieces needs no unit. */
 export function amountText(quantity: number, unit: QuantityUnit | null): string {

@@ -1,10 +1,12 @@
-// The hourly reminder job (DESIGN 10.1, 10.3). Reads Firestore with the Admin SDK (which bypasses the rules),
-// sends one digest per due user through FCM, and prunes old activity, join requests and tombstones.
-import type { Firestore } from 'firebase-admin/firestore';
+// The reminder job, every quarter hour (DESIGN 10.1, 10.3, 10.4). Reads Firestore with the Admin SDK (which bypasses the
+// rules), sends one digest per due user through FCM, and prunes old activity, join requests and tombstones.
+import { FieldValue, GrpcStatus, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { bulkWrites } from './bulk.ts';
 import {
-  afterSend, buildDigestWithMeals, cookingFor, dueAt, readPrefs, selectItems, stockWindow, type Batch, type Meal,
-  type UserDoc,
+  afterSend, buildDigestWithMeals, cookingFor, dueAt, nextDigestAt, readPrefs, selectItems, stockWindow, type Batch,
+  type Meal, type UserDoc,
 } from './digest.ts';
+import { errorCode } from './errors.ts';
 import { isCalendarDate, type LocalTime } from './time.ts';
 
 export interface Message {
@@ -35,24 +37,45 @@ export interface JobOptions {
   /** Log what would be sent and change nothing (DESIGN 10.5). */
   dryRun?: boolean;
   /**
-   * Delete old activity, join requests and tombstones in this run (default true; the hourly workflow prunes once a
-   * day).
+   * Delete old activity, join requests and tombstones: 'daily' (the default) in the first run of each UTC day, keyed
+   * on `jobs/state.lastPruneDate`; true or false to force it on or off (tests).
    */
-  prune?: boolean;
+  prune?: boolean | 'daily';
   log?: (line: string) => void;
 }
 
 export interface JobSummary {
+  /** Whether this run read every user with reminders on (the first run of each UTC day), not only those due. */
+  fullRead: boolean;
+  /** Profiles the user queries returned: the due (or all, on a full read) and those changed since the last run. */
+  usersRead: number;
   due: number;
   sent: number;
   emptyDigests: number;
   skippedNoDevices: number;
+  /** Due users whose household no longer lists them (removed, or it was deleted): no digest, pointer cleared. */
+  skippedNotMember: number;
+  /** Due users whose profile was deleted while the run went on (an account deletion). */
+  skippedDeleted: number;
+  /** Users marked done for the day after MAX_SEND_ATTEMPTS runs without a delivered digest. */
+  gaveUp: number;
   deadTokens: number;
+  /** Users read but not sent to whose `nextDigestAt` this run set or cleared. */
+  rescheduled: number;
+  /** Households and users whose step failed this run; counted, never named, and the run carries on. */
+  failures: number;
+  /** Whether this run pruned, and the UTC date of the last prune without failures (null if none yet). */
+  pruned: boolean;
+  lastPruneDate: string | null;
   prunedActivity: number;
   prunedJoinRequests: number;
   prunedTombstones: number;
   prunedMeals: number;
+  /** Prune deletions that failed after retries (also in the counts above); the next prune finds them again. */
+  pruneFailures: number;
 }
+
+type Profile = FirebaseFirestore.QueryDocumentSnapshot;
 
 export const ROUTE = '/pantry?filter=expiring';
 /** A digest with only meals opens the Plan tab (after v1, DESIGN 5.9). */
@@ -68,6 +91,95 @@ export const TOMBSTONE_DAYS = 2;
 const TOMBSTONED = ['products', 'stock', 'recipes', 'meals'];
 /** Planned meals are kept this long after their day (DESIGN 5.9). */
 export const MEAL_DAYS = 28;
+/** A user's digest goes to at most this many devices, the most recently registered (DESIGN 10.3). */
+export const MAX_DEVICES = 10;
+/** FCM's sendEach takes at most 500 messages a call. */
+export const SEND_CHUNK = 500;
+/** One household's stock query reads at most this many batches, soonest expiry first. */
+export const MAX_STOCK = 500;
+/** And its meals query at most this many planned meals. */
+export const MAX_MEALS = 100;
+/** After this many runs in one local day without a delivered digest, the user is done for the day. */
+export const MAX_SEND_ATTEMPTS = 3;
+/** The job's own document: the rules match no such path, so clients can neither read nor write it. */
+export const STATE_DOC = 'jobs/state';
+/**
+ * Each run also reads the users whose profile changed since the previous run's reads, less this margin (B25,
+ * DESIGN 10.3). Both apps stamp `updatedAt` with the server's time on every profile write.
+ */
+export const CURSOR_MARGIN_MS = 5 * 60_000;
+/**
+ * FCM error codes that mean the token itself is gone, so its device document is deleted. Other errors, such as
+ * `messaging/invalid-argument` (which also covers a message FCM refuses), keep the token.
+ */
+export const DEAD_TOKEN_CODES: ReadonlySet<string> = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+]);
+
+export function isDeadToken(code: string | undefined): boolean {
+  return code !== undefined && DEAD_TOKEN_CODES.has(code);
+}
+
+/** The UTC calendar date of [now], 'YYYY-MM-DD'. */
+export function utcDate(now: Date): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/** Where a join request's sender stands, from users/{uid}: null when the profile doesn't exist (account deleted). */
+export interface Requester {
+  /** pendingJoin.householdId: the household their app is still waiting on, or null. */
+  waitingOn: string | null;
+}
+
+/**
+ * Whether the daily prune deletes a join request older than 7 days (after v1, SYNC-06). Pending and declined requests
+ * go. An approved one goes only once the join is completed: the sender's profile no longer waits on this household
+ * (their app finished the join, they dismissed it, or the account is gone). Until then their app still needs it:
+ * the builds people have (beta 1.0.0-beta.9, web 55edcc5) would say "expired" to someone who is already a member.
+ */
+export function joinRequestPrunable(status: unknown, householdId: string, requester: Requester | null): boolean {
+  if (status !== 'approved') return true;
+  return requester === null || requester.waitingOn !== householdId;
+}
+
+/** users/{uid}.pendingJoin.householdId, or null. */
+export function waitingOn(profile: { get(field: string): unknown } | null): string | null {
+  const pending = profile?.get('pendingJoin') as { householdId?: unknown } | null | undefined;
+  return typeof pending?.householdId === 'string' ? pending.householdId : null;
+}
+
+/**
+ * The prune, and the full read of every user with reminders on, run in the first run of each UTC day: when the last
+ * one without failures was before today.
+ */
+export function pruneDue(lastPruneDate: string | null, now: Date): boolean {
+  return lastPruneDate === null || lastPruneDate < utcDate(now);
+}
+
+/**
+ * Whether a user's stored `nextDigestAt` ([stored], as read) needs writing to become [target] (B25). Two times at or
+ * before [now] both mean "read me next run", so a due user who was skipped keeps theirs.
+ */
+export function scheduleChanged(stored: unknown, target: Date | null, now: Date): boolean {
+  const ms = stored instanceof Timestamp ? stored.toMillis() : null;
+  if (target === null) return stored !== undefined;
+  if (ms === null) return true;
+  if (target.getTime() <= now.getTime()) return ms > now.getTime();
+  return ms !== target.getTime();
+}
+
+/** The value to store for [next]: a timestamp, or the field removed. */
+function scheduleValue(next: Date | null): Timestamp | FieldValue {
+  return next ? Timestamp.fromDate(next) : FieldValue.delete();
+}
+
+/** [list] in pieces of at most [size]. */
+export function chunks<T>(list: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
 
 function toUser(id: string, data: FirebaseFirestore.DocumentData): UserDoc {
   return {
@@ -75,10 +187,17 @@ function toUser(id: string, data: FirebaseFirestore.DocumentData): UserDoc {
     householdId: typeof data.householdId === 'string' ? data.householdId : null,
     timezone: typeof data.timezone === 'string' ? data.timezone : null,
     locale: typeof data.locale === 'string' ? data.locale : null,
-    prefs: readPrefs(data.notificationPrefs),
+    // Only `enabled: true` counts: the job has always read only those users, and both apps write it.
+    prefs: { ...readPrefs(data.notificationPrefs), enabled: data.notificationPrefs?.enabled === true },
     lastDigestDate: isCalendarDate(data.lastDigestDate) ? data.lastDigestDate : null,
     lastExpiredThrough: isCalendarDate(data.lastExpiredThrough) ? data.lastExpiredThrough : null,
+    digestAttempts: readAttempts(data.digestAttempts),
   };
+}
+
+function readAttempts(raw: unknown): UserDoc['digestAttempts'] {
+  const a = raw as { date?: unknown; count?: unknown } | null | undefined;
+  return a && isCalendarDate(a.date) && typeof a.count === 'number' ? { date: a.date, count: a.count } : null;
 }
 
 function toMeal(data: FirebaseFirestore.DocumentData): Meal | null {
@@ -106,117 +225,355 @@ function toBatch(data: FirebaseFirestore.DocumentData): Batch | null {
   };
 }
 
-export async function runJob(db: Firestore, sender: Sender, options: JobOptions): Promise<JobSummary> {
-  const { now, dryRun = false, prune: shouldPrune = true } = options;
-  const log = options.log ?? (() => {});
-  const summary: JobSummary = { due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, deadTokens: 0, prunedActivity: 0, prunedJoinRequests: 0, prunedTombstones: 0, prunedMeals: 0 };
+type Due = { user: UserDoc; local: LocalTime; profile: Profile };
+type Token = { ref: FirebaseFirestore.DocumentReference; token: string };
 
-  // 1-2. Users with reminders on who are due now.
-  const users = await db.collection('users').where('notificationPrefs.enabled', '==', true).get();
-  const due: Array<{ user: UserDoc; local: LocalTime }> = [];
-  for (const doc of users.docs) {
+export async function runJob(db: Firestore, sender: Sender, options: JobOptions): Promise<JobSummary> {
+  const { now, dryRun = false, prune: pruneOption = 'daily' } = options;
+  const log = options.log ?? (() => {});
+  const summary: JobSummary = {
+    fullRead: false, usersRead: 0, due: 0, sent: 0, emptyDigests: 0, skippedNoDevices: 0, skippedNotMember: 0,
+    skippedDeleted: 0, gaveUp: 0, deadTokens: 0, rescheduled: 0, failures: 0, pruned: false, lastPruneDate: null,
+    prunedActivity: 0, prunedJoinRequests: 0, prunedTombstones: 0, prunedMeals: 0, pruneFailures: 0,
+  };
+  // Workflow logs are public: a failure is one line with its code, never an ID, a path or the error's message.
+  const failed = (step: string, error: unknown) => {
+    summary.failures++;
+    log(`${step} failed: ${errorCode(error)}`);
+  };
+
+  // The job's state: the prune date, the full read's date and the cursor on profile changes. Without it the run
+  // reads every user and leaves the state alone.
+  let state: FirebaseFirestore.DocumentSnapshot | null = null;
+  try {
+    state = await db.doc(STATE_DOC).get();
+  } catch (error) {
+    failed('the job state', error);
+  }
+  const last = state?.get('lastPruneDate');
+  summary.lastPruneDate = isCalendarDate(last) ? last : null;
+  const lastUsersRead = state?.get('lastUsersReadDate');
+  const storedCursor = state?.get('usersCursor');
+  const cursor = storedCursor instanceof Timestamp ? storedCursor : null;
+  summary.fullRead = cursor === null || pruneDue(isCalendarDate(lastUsersRead) ? lastUsersRead : null, now);
+
+  // 1-2. The users who may be due now (B25, DESIGN 10.3): those whose nextDigestAt has come, or on the day's first
+  // run everyone with reminders on, plus anyone whose profile changed since the last run. Without these reads nothing
+  // else can run, so a failure here ends the run (runMain prints its code).
+  const users = db.collection('users');
+  const [main, changed] = await Promise.all([
+    summary.fullRead
+      ? users.where('notificationPrefs.enabled', '==', true).get()
+      : users.where('nextDigestAt', '<=', Timestamp.fromDate(now)).get(),
+    cursor ? users.where('updatedAt', '>', cursor).get() : null,
+  ]);
+  summary.usersRead = main.size + (changed?.size ?? 0);
+  // A profile in both is taken from the later read.
+  const reads = [main, changed].filter((q) => q !== null).sort((a, b) => a.readTime.toMillis() - b.readTime.toMillis());
+  const candidates = new Map<string, Profile>();
+  for (const query of reads) for (const doc of query.docs) candidates.set(doc.id, doc);
+  const nextCursor = Timestamp.fromMillis(reads[0]!.readTime.toMillis() - CURSOR_MARGIN_MS);
+
+  const due: Due[] = [];
+  for (const doc of candidates.values()) {
     const user = toUser(doc.id, doc.data());
     const local = dueAt(user, now);
-    if (local) due.push({ user, local });
+    if (local) due.push({ user, local, profile: doc });
   }
   summary.due = due.length;
+  // Users whose nextDigestAt this run already wrote (with their digest), or whose profile is gone.
+  const settled = new Set<string>();
 
-  // 3. One stock query per household, covering every due member's window.
-  const byHousehold = new Map<string, typeof due>();
+  const byHousehold = new Map<string, Due[]>();
   for (const entry of due) {
     const list = byHousehold.get(entry.user.householdId!) ?? [];
     list.push(entry);
     byHousehold.set(entry.user.householdId!, list);
   }
 
-  for (const [householdId, members] of byHousehold) {
-    const { lo, hi } = stockWindow(members.map((m) => m.local.date));
-    const stock = await db.collection(`households/${householdId}/stock`)
-      .where('expiryDate', '>=', lo)
-      .where('expiryDate', '<=', hi)
-      .get();
-    const batches = stock.docs.map((d) => toBatch(d.data())).filter((b): b is Batch => b !== null);
-    // Today's meals, only when a due member wants them: one more query per household and run (DESIGN 9.7).
-    let meals: Meal[] = [];
-    if (members.some((m) => m.user.prefs.cooking)) {
-      const dates = members.map((m) => m.local.date).sort();
-      const planned = await db.collection(`households/${householdId}/meals`)
-        .where('date', '>=', dates[0]!)
-        .where('date', '<=', dates[dates.length - 1]!)
-        .get();
-      meals = planned.docs.map((d) => toMeal(d.data())).filter((m): m is Meal => m !== null);
-    }
-
-    for (const { user, local } of members) {
-      // 4. Each user's digest from their own stages and local date.
-      const items = selectItems(user, local.date, batches);
-      const cooking = cookingFor(user, local.date, meals);
-      const userRef = db.doc(`users/${user.uid}`);
-      const devices = await db.collection(`users/${user.uid}/devices`).get();
-      if (devices.empty) {
-        // Try again next run (DESIGN 10.3).
-        summary.skippedNoDevices++;
-        continue;
-      }
-      const digest = buildDigestWithMeals(items, cooking);
-      if (!digest) {
-        summary.emptyDigests++;
-        if (!dryRun) await userRef.update({ lastDigestDate: local.date });
-        continue;
-      }
-
-      // 5. Send to every device; delete dead tokens.
-      const tokens = devices.docs
-        .map((d) => ({ ref: d.ref, token: d.get('token') as unknown }))
-        .filter((t): t is { ref: FirebaseFirestore.DocumentReference; token: string } => typeof t.token === 'string');
-      const messages: Message[] = tokens.map(({ token }) => ({
-        token,
-        notification: { title: digest.title, body: digest.body },
-        data: { type: 'expiry_digest', route: digest.mealsOnly ? PLAN_ROUTE : ROUTE, date: local.date },
-        android: { priority: 'high', notification: { channelId: CHANNEL, tag: 'expiry_digest' } },
-        webpush: {
-          headers: { Urgency: 'high' },
-          notification: { title: digest.title, body: digest.body, tag: 'expiry_digest', icon: WEB_ICON },
-        },
-      }));
-      if (dryRun) {
-        // Workflow logs are public with the repository: counts only, never a user ID, item names or meal titles.
-        log(`[dry run] ${local.date}: ${items.length} item(s), ${cooking.length} meal(s) to ${messages.length} device(s)`);
-        summary.sent += messages.length;
-        continue;
-      }
-      const results = await sender.sendEach(messages);
-      const dead = tokens.filter((_, i) => results[i]?.deadToken);
-      await Promise.all(dead.map((t) => t.ref.delete()));
-      summary.deadTokens += dead.length;
-      const delivered = results.filter((r) => r.success).length;
-      summary.sent += delivered;
-      log(`${local.date}: ${delivered}/${messages.length} delivered`);
-
-      // 6. Only a delivered digest counts; otherwise the next run retries.
-      if (delivered > 0) await userRef.update(afterSend(local.date));
+  // 3-6. Each household on its own: one that fails is counted and the next one still gets its digests.
+  for (const [householdId, entries] of byHousehold) {
+    try {
+      await household(db, sender, householdId, entries, { dryRun, log, summary, failed, now, settled });
+    } catch (error) {
+      failed('a household', error);
     }
   }
 
-  // 7. Housekeeping (DESIGN 5.1, 5.6).
-  if (!dryRun && shouldPrune) {
-    const pruned = await prune(db, now);
-    summary.prunedActivity = pruned.activity;
-    summary.prunedJoinRequests = pruned.joinRequests;
-    summary.prunedTombstones = pruned.tombstones;
-    summary.prunedMeals = pruned.meals;
+  // 6b. Everyone else read this run: store when to read them next (B25). Only once these writes are done does the
+  // cursor move on (step 8), so a profile whose write failed is read again next run.
+  let scheduled = true;
+  const pending: Array<() => Promise<void>> = [];
+  for (const doc of candidates.values()) {
+    if (settled.has(doc.id)) continue;
+    const target = nextDigestAt(toUser(doc.id, doc.data()), now);
+    if (!scheduleChanged(doc.get('nextDigestAt'), target, now)) continue;
+    summary.rescheduled++;
+    if (!dryRun) pending.push(async () => { await doc.ref.update({ nextDigestAt: scheduleValue(target) }); });
+  }
+  for (const group of chunks(pending, 50)) {
+    const results = await Promise.allSettled(group.map((write) => write()));
+    for (const result of results) {
+      // A profile deleted since it was read needs nothing.
+      if (result.status === 'rejected' && !isNotFound(result.reason)) {
+        scheduled = false;
+        failed('a schedule', result.reason);
+      }
+    }
+  }
+
+  // 7. Housekeeping (DESIGN 5.1, 5.6), in the first run of each UTC day. Not when the state couldn't be read.
+  const stateUpdate: Record<string, unknown> = {};
+  if (scheduled) {
+    stateUpdate.usersCursor = nextCursor;
+    if (summary.fullRead) stateUpdate.lastUsersReadDate = utcDate(now);
+  }
+  try {
+    const shouldPrune = pruneOption === 'daily' ? pruneDue(summary.lastPruneDate, now) : pruneOption;
+    if (!dryRun && state !== null && shouldPrune) {
+      summary.pruned = true;
+      const pruned = await prune(db, now);
+      summary.prunedActivity = pruned.activity;
+      summary.prunedJoinRequests = pruned.joinRequests;
+      summary.prunedTombstones = pruned.tombstones;
+      summary.prunedMeals = pruned.meals;
+      summary.pruneFailures = pruned.failures;
+      // Only a prune without failures counts; otherwise the next run tries again.
+      if (pruned.failures === 0) {
+        summary.lastPruneDate = utcDate(now);
+        stateUpdate.lastPruneDate = summary.lastPruneDate;
+      }
+    }
+  } catch (error) {
+    failed('the prune', error);
+  }
+
+  // 8. The job's state in one write: the cursor and the full read's date (B25), and the prune's date.
+  if (!dryRun && state !== null && Object.keys(stateUpdate).length > 0) {
+    try {
+      await db.doc(STATE_DOC).set({ ...stateUpdate, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    } catch (error) {
+      if (stateUpdate.lastPruneDate) summary.lastPruneDate = isCalendarDate(last) ? last : null;
+      failed('the job state', error);
+    }
   }
   return summary;
 }
 
+interface Context {
+  dryRun: boolean;
+  log: (line: string) => void;
+  summary: JobSummary;
+  failed: (step: string, error: unknown) => void;
+  now: Date;
+  /** The users whose nextDigestAt this run has written, or whose profile is gone. */
+  settled: Set<string>;
+}
+
+async function household(db: Firestore, sender: Sender, householdId: string, entries: Due[], ctx: Context) {
+  const { dryRun, summary } = ctx;
+  // Only current members (DESIGN 12.2 control 5): a removed member's profile points here until their own app
+  // clears it, so the job clears it instead. One read per due user.
+  const memberships = await db.getAll(...entries.map((e) => db.doc(`households/${householdId}/members/${e.user.uid}`)));
+  const members = entries.filter((_, i) => memberships[i]!.exists);
+  for (const { profile } of entries.filter((_, i) => !memberships[i]!.exists)) {
+    summary.skippedNotMember++;
+    if (dryRun) continue;
+    try {
+      if (await clearHousehold(profile)) ctx.settled.add(profile.id);
+    } catch (error) {
+      ctx.failed('a profile', error);
+    }
+  }
+
+  // Devices first: a user with none is skipped before anything of the household is read (DESIGN 10.3).
+  const ready: Array<Due & { tokens: Token[] }> = [];
+  for (const entry of members) {
+    try {
+      const tokens = await devicesOf(db, entry.user.uid);
+      if (tokens.length === 0) {
+        // Try again next run (DESIGN 10.3).
+        summary.skippedNoDevices++;
+        continue;
+      }
+      ready.push({ ...entry, tokens });
+    } catch (error) {
+      ctx.failed('a device read', error);
+    }
+  }
+  if (ready.length === 0) return;
+
+  // One stock query per household, covering every ready member's window, soonest expiry first and capped.
+  const { lo, hi } = stockWindow(ready.map((m) => m.local.date));
+  const stock = await db.collection(`households/${householdId}/stock`)
+    .where('expiryDate', '>=', lo)
+    .where('expiryDate', '<=', hi)
+    .orderBy('expiryDate')
+    .limit(MAX_STOCK)
+    .get();
+  const batches = stock.docs.map((d) => toBatch(d.data())).filter((b): b is Batch => b !== null);
+  // Today's meals, only when a ready member wants them: one more query per household and run (DESIGN 9.7).
+  let meals: Meal[] = [];
+  if (ready.some((m) => m.user.prefs.cooking)) {
+    const dates = ready.map((m) => m.local.date).sort();
+    const planned = await db.collection(`households/${householdId}/meals`)
+      .where('date', '>=', dates[0]!)
+      .where('date', '<=', dates[dates.length - 1]!)
+      .limit(MAX_MEALS)
+      .get();
+    meals = planned.docs.map((d) => toMeal(d.data())).filter((m): m is Meal => m !== null);
+  }
+
+  // Each user on their own: one failed send is counted and the household's other members still get theirs.
+  for (const entry of ready) {
+    try {
+      await digestFor(db, sender, entry, batches, meals, ctx);
+    } catch (error) {
+      if (isNotFound(error)) {
+        // The profile was deleted during the run: an account deletion, not a failure.
+        summary.skippedDeleted++;
+        ctx.settled.add(entry.user.uid);
+      } else {
+        ctx.failed('a digest', error);
+      }
+    }
+  }
+}
+
+/** The user's newest MAX_DEVICES device tokens. */
+async function devicesOf(db: Firestore, uid: string): Promise<Token[]> {
+  const devices = db.collection(`users/${uid}/devices`);
+  let snapshot = await devices.orderBy('updatedAt', 'desc').limit(MAX_DEVICES).get();
+  // Both apps write updatedAt; a device document without one is read only when the user has no other.
+  if (snapshot.empty) snapshot = await devices.limit(MAX_DEVICES).get();
+  return snapshot.docs
+    .map((d) => ({ ref: d.ref, token: d.get('token') as unknown }))
+    .filter((t): t is Token => typeof t.token === 'string' && t.token.length > 0);
+}
+
+async function digestFor(
+  db: Firestore,
+  sender: Sender,
+  { user, local, profile, tokens }: Due & { tokens: Token[] },
+  batches: Batch[],
+  meals: Meal[],
+  ctx: Context,
+): Promise<void> {
+  const { dryRun, log, summary, now, settled } = ctx;
+  // Done for the day: the next read is tomorrow's window (B25), stored with the day's record.
+  const doneToday = (date: string) => ({ nextDigestAt: scheduleValue(nextDigestAt({ ...user, lastDigestDate: date }, now)) });
+  // 4. Each user's digest from their own stages and local date.
+  const items = selectItems(user, local.date, batches);
+  const cooking = cookingFor(user, local.date, meals);
+  const userRef = profile.ref;
+  const digest = buildDigestWithMeals(items, cooking);
+  if (!digest) {
+    summary.emptyDigests++;
+    if (!dryRun) {
+      await userRef.update({ lastDigestDate: local.date, ...doneToday(local.date) });
+      settled.add(user.uid);
+    }
+    return;
+  }
+
+  // 5. Send to every device, in chunks; delete tokens FCM says are gone.
+  const messages: Message[] = tokens.map(({ token }) => ({
+    token,
+    notification: { title: digest.title, body: digest.body },
+    data: { type: 'expiry_digest', route: digest.mealsOnly ? PLAN_ROUTE : ROUTE, date: local.date },
+    android: { priority: 'high', notification: { channelId: CHANNEL, tag: 'expiry_digest' } },
+    webpush: {
+      headers: { Urgency: 'high' },
+      notification: { title: digest.title, body: digest.body, tag: 'expiry_digest', icon: WEB_ICON },
+    },
+  }));
+  if (dryRun) {
+    // Workflow logs are public with the repository: counts only, never a user ID, item names or meal titles.
+    log(`[dry run] ${local.date}: ${items.length} item(s), ${cooking.length} meal(s) to ${messages.length} device(s)`);
+    summary.sent += messages.length;
+    return;
+  }
+  let results: SendResult[];
+  try {
+    results = [];
+    for (const chunk of chunks(messages, SEND_CHUNK)) results.push(...await sender.sendEach(chunk));
+  } catch (error) {
+    // The send's own error is the one counted.
+    await recordFailedAttempt(userRef, user, local.date, ctx, doneToday).catch(() => {});
+    throw error;
+  }
+  const dead = tokens.filter((_, i) => results[i]?.deadToken);
+  await Promise.all(dead.map((t) => t.ref.delete()));
+  summary.deadTokens += dead.length;
+  const delivered = results.filter((r) => r.success).length;
+  summary.sent += delivered;
+  log(`${local.date}: ${delivered}/${messages.length} delivered`);
+
+  // 6. Only a delivered digest counts; otherwise the next run retries, up to MAX_SEND_ATTEMPTS a day.
+  if (delivered > 0) {
+    await userRef.update({ ...afterSend(local.date), digestAttempts: FieldValue.delete(), ...doneToday(local.date) });
+    settled.add(user.uid);
+  } else {
+    await recordFailedAttempt(userRef, user, local.date, ctx, doneToday);
+  }
+}
+
 /**
- * Deletes activity older than 30 days, join requests older than 7 days, tombstones older than 2 days and planned
- * meals more than 28 days past (after v1). Each query costs at least one read, even when empty (quota simulation).
+ * Counts a run in which the user's digest reached no device. At MAX_SEND_ATTEMPTS in one local day the user is done
+ * for that day (`lastDigestDate`), so a digest that keeps failing stops costing reads in every run.
+ */
+async function recordFailedAttempt(
+  userRef: FirebaseFirestore.DocumentReference,
+  user: UserDoc,
+  date: string,
+  { summary, settled }: Context,
+  doneToday: (date: string) => { nextDigestAt: Timestamp | FieldValue },
+): Promise<void> {
+  const attempts = (user.digestAttempts?.date === date ? user.digestAttempts.count : 0) + 1;
+  if (attempts >= MAX_SEND_ATTEMPTS) {
+    summary.gaveUp++;
+    await userRef.update({ lastDigestDate: date, digestAttempts: FieldValue.delete(), ...doneToday(date) });
+    settled.add(user.uid);
+  } else {
+    await userRef.update({ digestAttempts: { date, count: attempts } });
+  }
+}
+
+function isNotFound(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === GrpcStatus.NOT_FOUND;
+}
+
+/**
+ * What a removed member's app writes when it notices (SessionManager), unless the profile changed since this run read
+ * it: they may have joined a household again. The next run looks again. Without a household nothing is due, so the
+ * job stops reading them (B25). True when the profile is cleared or gone.
+ */
+async function clearHousehold(profile: Profile): Promise<boolean> {
+  try {
+    await profile.ref.update(
+      { householdId: null, updatedAt: FieldValue.serverTimestamp(), nextDigestAt: FieldValue.delete() },
+      { lastUpdateTime: profile.updateTime },
+    );
+    return true;
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    if (code === GrpcStatus.NOT_FOUND) return true;
+    if (code !== GrpcStatus.FAILED_PRECONDITION) throw error;
+    return false;
+  }
+}
+
+/**
+ * Deletes activity older than 30 days, join requests older than 7 days (approved ones only once completed,
+ * [joinRequestPrunable]), tombstones older than 2 days and planned meals more than 28 days past (after v1). Each query
+ * costs at least one read, even when empty (quota simulation); an old approved request costs one more, its sender's
+ * profile.
+ * A deletion that fails is counted, never thrown (bulk.ts), and so is a household whose queries fail.
  */
 async function prune(
   db: Firestore,
   now: Date,
-): Promise<{ activity: number; joinRequests: number; tombstones: number; meals: number }> {
+): Promise<{ activity: number; joinRequests: number; tombstones: number; meals: number; failures: number }> {
   const activityCutoff = new Date(now.getTime() - ACTIVITY_DAYS * 86_400_000);
   const requestCutoff = new Date(now.getTime() - JOIN_REQUEST_DAYS * 86_400_000);
   const tombstoneCutoff = new Date(now.getTime() - TOMBSTONE_DAYS * 86_400_000);
@@ -226,32 +583,46 @@ async function prune(
   let meals = 0;
   let joinRequests = 0;
   let tombstones = 0;
+  let failures = 0;
   const households = await db.collection('households').select().get();
   for (const household of households.docs) {
-    const old = await household.ref.collection('activity').where('createdAt', '<', activityCutoff).get();
-    const stale = await household.ref.collection('joinRequests').where('requestedAt', '<', requestCutoff).get();
-    const pastMeals = await household.ref.collection('meals').where('date', '<', mealCutoff).get();
-    // deletedAt exists only on tombstones, so a range on it reads nothing else.
-    const lists = await household.ref.collection('groceryLists').select().get();
-    const tombstoneQueries = [
-      ...TOMBSTONED.map((name) => household.ref.collection(name)),
-      ...lists.docs.map((list) => list.ref.collection('items')),
-    ].map((collection) => collection.where('deletedAt', '<', tombstoneCutoff).get());
-    const deleted = (await Promise.all(tombstoneQueries)).flatMap((snapshot) => snapshot.docs);
-    const writer = db.bulkWriter();
-    old.docs.forEach((d) => writer.delete(d.ref));
-    stale.docs.forEach((d) => writer.delete(d.ref));
-    deleted.forEach((d) => writer.delete(d.ref));
-    // A past meal that is also an old tombstone is already being deleted.
-    const deletedPaths = new Set(deleted.map((d) => d.ref.path));
-    const oldMeals = pastMeals.docs.filter((d) => !deletedPaths.has(d.ref.path));
-    oldMeals.forEach((d) => writer.delete(d.ref));
-    await writer.close();
-    meals += oldMeals.length;
-    activity += old.size;
-    joinRequests += stale.size;
-    tombstones += deleted.length;
+    // One household whose queries fail is counted; the others are still pruned.
+    try {
+      const old = await household.ref.collection('activity').where('createdAt', '<', activityCutoff).get();
+      const oldRequests = await household.ref.collection('joinRequests').where('requestedAt', '<', requestCutoff).get();
+      const approved = oldRequests.docs.filter((d) => d.get('status') === 'approved');
+      const senders = approved.length === 0 ? [] : await db.getAll(...approved.map((d) => db.doc(`users/${d.id}`)));
+      const requesters = new Map(
+        senders.map((p) => [p.id, p.exists ? { waitingOn: waitingOn(p) } : null] as const),
+      );
+      const stale = oldRequests.docs.filter((d) =>
+        joinRequestPrunable(d.get('status'), household.id, requesters.get(d.id) ?? null),
+      );
+      const pastMeals = await household.ref.collection('meals').where('date', '<', mealCutoff).get();
+      // deletedAt exists only on tombstones, so a range on it reads nothing else.
+      const lists = await household.ref.collection('groceryLists').select().get();
+      const tombstoneQueries = [
+        ...TOMBSTONED.map((name) => household.ref.collection(name)),
+        ...lists.docs.map((list) => list.ref.collection('items')),
+      ].map((collection) => collection.where('deletedAt', '<', tombstoneCutoff).get());
+      const deleted = (await Promise.all(tombstoneQueries)).flatMap((snapshot) => snapshot.docs);
+      const writes = bulkWrites(db);
+      old.docs.forEach((d) => writes.delete(d.ref));
+      stale.forEach((d) => writes.delete(d.ref));
+      deleted.forEach((d) => writes.delete(d.ref));
+      // A past meal that is also an old tombstone is already being deleted.
+      const deletedPaths = new Set(deleted.map((d) => d.ref.path));
+      const oldMeals = pastMeals.docs.filter((d) => !deletedPaths.has(d.ref.path));
+      oldMeals.forEach((d) => writes.delete(d.ref));
+      failures += await writes.close();
+      meals += oldMeals.length;
+      activity += old.size;
+      joinRequests += stale.length;
+      tombstones += deleted.length;
+    } catch {
+      failures++;
+    }
   }
-  return { activity, joinRequests, tombstones, meals };
+  return { activity, joinRequests, tombstones, meals, failures };
 }
 

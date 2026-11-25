@@ -11,15 +11,19 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -36,7 +40,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +70,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.PillField
+import com.parcha.spoilnot.core.designsystem.component.RoundIconButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
+import com.parcha.spoilnot.core.designsystem.component.TonalButton
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.BrowserScript
 import com.parcha.spoilnot.feature.recipes.domain.ExtractionMethod
@@ -117,34 +127,32 @@ fun RecipeBrowserScreen(
 
     Scaffold(
         modifier = modifier.testTag("screen_recipe_browser"),
-        snackbarHost = { SnackbarHost(snackbar) },
+        containerColor = SpoilNotSurfaces.current.page,
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
         topBar = {
-            Column(Modifier.statusBarsPadding()) {
+            // Close, the page's round address field and the page's Back (DESIGN 19.7, 19.10), on the page's color.
+            Column(Modifier.background(SpoilNotSurfaces.current.page).statusBarsPadding()) {
                 Row(
-                    Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                    Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.recipe_close_browser))
-                    }
-                    OutlinedTextField(
+                    RoundIconButton(Icons.Rounded.Close, stringResource(R.string.recipe_close_browser), onBack)
+                    PillField(
                         value = address,
                         onValueChange = { address = it },
-                        placeholder = { Text(stringResource(R.string.recipe_browser_address)) },
-                        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                        singleLine = true,
-                        shape = CircleShape,
+                        placeholder = stringResource(R.string.recipe_browser_address),
+                        leadingIcon = Icons.Rounded.Search,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                         keyboardActions = KeyboardActions(onGo = { load(address) }),
                         modifier = Modifier.weight(1f).focusRequester(addressFocus).testTag("browser_address"),
                     )
                     if (canGoBack) {
-                        IconButton(onClick = { webView?.goBack() }) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.back),
-                            )
-                        }
+                        RoundIconButton(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            stringResource(R.string.back),
+                            { webView?.goBack() },
+                        )
                     }
                 }
                 if (progress < 100) {
@@ -214,7 +222,7 @@ fun RecipeBrowserScreen(
 
 @Composable
 private fun StartHint() {
-    Surface(Modifier.fillMaxSize()) {
+    Surface(Modifier.fillMaxSize(), color = SpoilNotSurfaces.current.page) {
         Column(
             Modifier.padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -230,7 +238,10 @@ private fun StartHint() {
     }
 }
 
-/** "Recipe found: Title. Save" (DESIGN 5.5), then Open once saved. */
+/**
+ * "Recipe found: Title. Save" (DESIGN 5.5), then Open once saved: a bar in the highlight card's colors with rounded top
+ * corners (DESIGN 19.8, 19.11).
+ */
 @Composable
 internal fun FoundBar(
     title: String,
@@ -240,66 +251,74 @@ internal fun FoundBar(
     onSave: () -> Unit,
     onOpen: (String) -> Unit,
 ) {
-    Surface(tonalElevation = 6.dp, shadowElevation = 6.dp, color = MaterialTheme.colorScheme.primaryContainer) {
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shape = BarShape,
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .navigationBarsPadding()
+                .padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 16.dp)
                 .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
                 .testTag("recipe_found_bar"),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     stringResource(if (savedId != null) R.string.recipe_saved else R.string.recipe_found),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = SpoilNotText.RowSupporting,
                 )
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Text(title, style = SpoilNotText.RowTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (heuristic && savedId == null) {
                     Text(stringResource(R.string.recipe_check_this_short), style = MaterialTheme.typography.bodySmall)
                 }
             }
             when {
-                savedId != null -> OutlinedButton(onClick = {
-                    onOpen(savedId)
-                }, modifier = Modifier.testTag("found_open")) {
-                    Text(stringResource(R.string.action_open))
-                }
+                savedId != null -> TonalButton(
+                    text = stringResource(R.string.action_open),
+                    onClick = { onOpen(savedId) },
+                    modifier = Modifier.testTag("found_open"),
+                )
 
                 saving -> CircularProgressIndicator(Modifier.padding(8.dp))
 
-                else -> Button(onClick = onSave, modifier = Modifier.testTag("found_save")) {
-                    Text(stringResource(R.string.action_save))
-                }
+                else -> Button(
+                    onClick = onSave,
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("found_save"),
+                ) { Text(stringResource(R.string.action_save), style = SpoilNotText.ButtonMedium) }
             }
         }
     }
 }
 
+/** "Couldn't find a recipe here" with Create manually, on the bar color with rounded top corners. */
 @Composable
 internal fun NotFoundBar(onCreateManually: () -> Unit) {
-    Surface(tonalElevation = 6.dp, shadowElevation = 6.dp) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = BarShape) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .navigationBarsPadding()
+                .padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 16.dp)
                 .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
                 .testTag("recipe_not_found_bar"),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.recipe_not_found), style = MaterialTheme.typography.bodyLarge)
-            OutlinedButton(
+            TonalButton(
+                text = stringResource(R.string.recipe_add_manual),
                 onClick = onCreateManually,
                 modifier = Modifier.align(Alignment.End).testTag("not_found_create"),
-            ) { Text(stringResource(R.string.recipe_add_manual)) }
+            )
         }
     }
 }
+
+/** The bars under the page: rounded on top, as a sheet is. */
+private val BarShape = RoundedCornerShape(topStart = SpoilNotCorners.Highlight, topEnd = SpoilNotCorners.Highlight)
 
 /**
  * The locked-down web view (DESIGN 11.6): http and https only, no file or content access, and no JavaScript

@@ -1,7 +1,8 @@
 // Ported from PantryItemsTest: one row per purchase.
 import { describe, expect, it } from 'vitest';
+import { addDays } from '../time';
 import { batch, product, TODAY } from './fixtures';
-import { DEFAULT_QUERY, ExpiredFold, PantryItems, type PantryQuery } from './items';
+import { DEFAULT_QUERY, ExpiredFold, NeedsAttention, PantryItems, type PantryQuery } from './items';
 
 const products = [
   product('milk'),
@@ -28,7 +29,8 @@ describe('PantryItems', () => {
 
   it('filters work per purchase', () => {
     expect(keys({ filter: 'freezer' })).toEqual(['m2']);
-    expect(keys({ filter: 'expiringSoon' })).toEqual(['m1']);
+    // Needs attention includes the expired (after v1, R8).
+    expect(keys({ filter: 'needsAttention' })).toEqual(['s1', 'm1']);
     expect(keys({ filter: 'expired' })).toEqual(['s1']);
     expect(keys({ filter: 'lowStock' })).toEqual(['r1', 'out-oil']);
     expect(keys({ filter: 'pantry' })).toEqual(['r1', 'out-oil']);
@@ -54,5 +56,49 @@ describe('PantryItems', () => {
     expect(
       ExpiredFold.of(PantryItems.build(products, [...batches, old[0]!], DEFAULT_QUERY, TODAY), DEFAULT_QUERY),
     ).toBeNull();
+  });
+});
+
+// Ported from NeedsAttentionTest: one set for Home, the Pantry filter and the digest (digest.test.ts), after v1 (R8).
+describe('NeedsAttention', () => {
+  const products = [
+    product('milk'),
+    product('yogurt'),
+    product('chips', { name: 'Tortilla chips' }),
+    product('dill', { name: 'Fresh dill' }),
+    product('rice'),
+    product('oil', { name: 'Olive oil', min: 1 }),
+  ];
+  const batches = [
+    batch('m1', 'milk', { inDays: 0 }),
+    batch('m2', 'milk', { inDays: 3 }),
+    batch('y1', 'yogurt', { inDays: 1 }),
+    batch('c1', 'chips', { inDays: -40 }),
+    batch('d1', 'dill', { inDays: -1 }),
+    batch('r1', 'rice', { inDays: 4 }),
+    batch('u1', 'rice', { inDays: null }),
+    batch('gone', 'yogurt', { quantity: 0, inDays: 1 }),
+  ];
+
+  it('usable first, soonest first, expired apart, and nothing past 3 days, undated, used up or out', () => {
+    const set = NeedsAttention.fromPantry(products, batches, TODAY);
+    expect(set.usable.map((i) => i.key)).toEqual(['m1', 'y1', 'm2']);
+    expect(set.expired.map((i) => i.key)).toEqual(['c1', 'd1']);
+    expect(NeedsAttention.size(set)).toBe(5);
+  });
+
+  it('the 3-day edge follows the injected today', () => {
+    const set = NeedsAttention.fromPantry(products, batches, addDays(TODAY, 1));
+    expect(set.usable.map((i) => i.key)).toEqual(['y1', 'm2', 'r1']);
+    expect(set.expired.map((i) => i.key)).toEqual(['c1', 'd1', 'm1']);
+  });
+
+  it("Pantry's Needs attention filter lists exactly the set, so Home's See all count matches", () => {
+    const set = NeedsAttention.fromPantry(products, batches, TODAY);
+    const filtered = PantryItems.build(products, batches, { ...DEFAULT_QUERY, filter: 'needsAttention' }, TODAY)
+      .flatMap((g) => g.items)
+      .map((i) => i.key);
+    expect(new Set(filtered)).toEqual(new Set([...set.usable, ...set.expired].map((i) => i.key)));
+    expect(filtered).toHaveLength(NeedsAttention.size(set));
   });
 });

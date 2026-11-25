@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,10 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parcha.spoilnot.R
-import com.parcha.spoilnot.core.designsystem.component.DetailScaffold
 import com.parcha.spoilnot.core.designsystem.component.EmptyState
 import com.parcha.spoilnot.core.designsystem.component.FormTextField
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.PushedScaffold
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotTextField
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeForm
@@ -87,11 +89,12 @@ fun RecipeEditScreen(
     LaunchedEffect(state.initial) { if (form == null) form = state.initial }
     MessageEffect(viewModel.messages, snackbar) {}
 
-    DetailScaffold(
+    // A pushed screen of the 2026-11 look (DESIGN 19.7): the round Back over the title.
+    PushedScaffold(
         title = stringResource(if (recipeId == null) R.string.recipe_new else R.string.recipe_edit),
         onBack = onBack,
         modifier = modifier.testTag("screen_recipe_edit"),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SpoilNotSnackbarHost(snackbar) },
     ) { padding ->
         val current = form
         when {
@@ -121,7 +124,7 @@ fun RecipeEditScreen(
 }
 
 @Composable
-private fun RecipeFormFields(
+internal fun RecipeFormFields(
     form: RecipeForm,
     problems: Set<Problem>,
     saving: Boolean,
@@ -131,9 +134,14 @@ private fun RecipeFormFields(
 ) {
     val numberKeyboard = KeyboardOptions(keyboardType = KeyboardType.Number)
     val numberError = if (Problem.Number in problems) stringResource(R.string.recipe_number_invalid) else null
+    // 20 dp from the sides and 18 dp between fields, as on a form sheet (DESIGN 19.11).
     Column(
-        modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         FormTextField(
             value = form.title,
@@ -163,20 +171,34 @@ private fun RecipeFormFields(
             keyboardOptions = numberKeyboard,
             modifier = Modifier.testTag("recipe_field_servings"),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(
-                Triple(form.prepMinutes, R.string.recipe_field_prep) { v: String -> form.copy(prepMinutes = v) },
-                Triple(form.cookMinutes, R.string.recipe_field_cook) { v: String -> form.copy(cookMinutes = v) },
-                Triple(form.totalMinutes, R.string.recipe_field_total) { v: String -> form.copy(totalMinutes = v) },
-            ).forEach { (value, label, update) ->
-                FormTextField(
-                    value = value,
-                    onValueChange = { onChange(update(it)) },
-                    label = stringResource(label),
-                    error = numberError?.takeIf { value.isNotBlank() && !value.isValidNumber() },
-                    keyboardOptions = numberKeyboard,
-                    modifier = Modifier.weight(1f),
-                )
+        val times = listOf(
+            Triple(form.prepMinutes, R.string.recipe_field_prep) { v: String -> form.copy(prepMinutes = v) },
+            Triple(form.cookMinutes, R.string.recipe_field_cook) { v: String -> form.copy(cookMinutes = v) },
+            Triple(form.totalMinutes, R.string.recipe_field_total) { v: String -> form.copy(totalMinutes = v) },
+        )
+        val timeField = @Composable {
+                value: String,
+                label: Int,
+                update: (
+                    String,
+                ) -> RecipeForm,
+                fieldModifier: Modifier,
+            ->
+            FormTextField(
+                value = value,
+                onValueChange = { onChange(update(it)) },
+                label = stringResource(label),
+                error = numberError?.takeIf { value.isNotBlank() && !value.isValidNumber() },
+                keyboardOptions = numberKeyboard,
+                modifier = fieldModifier,
+            )
+        }
+        // Three side by side; from 1.5× text one under the other, so the labels don't break mid-word.
+        if (isLargeText()) {
+            times.forEach { (value, label, update) -> timeField(value, label, update, Modifier) }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                times.forEach { (value, label, update) -> timeField(value, label, update, Modifier.weight(1f)) }
             }
         }
         MultilineField(
@@ -217,15 +239,17 @@ private fun RecipeFormFields(
 
 private fun String.isValidNumber() = trim().toIntOrNull()?.let { it in 1..10_000 } == true
 
+/** A field of several lines in the 2026-11 look (DESIGN 19.10): its label above, at least four lines tall. */
 @Composable
 private fun MultilineField(value: String, onChange: (String) -> Unit, label: String, helper: String, tag: String) {
-    OutlinedTextField(
+    SpoilNotTextField(
         value = value,
         onValueChange = onChange,
-        label = { Text(label) },
-        supportingText = { Text(helper) },
+        label = label,
+        helper = helper,
+        singleLine = false,
         minLines = 4,
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp).testTag(tag),
+        modifier = Modifier.fillMaxWidth().testTag(tag),
     )
 }

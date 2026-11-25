@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import { map, of } from 'rxjs';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { catchError, concatMap, firstValueFrom, map, of, timeout } from 'rxjs';
+import { errorText } from '../core/errors';
 import { useObservable } from '../core/hooks';
 import { str, type StringId } from '../core/i18n';
 import { useNav } from '../core/NavProvider';
 import { useHouseholdSession, useServices } from '../core/services';
 import { DeepLinks, OPEN_ROUTE_MESSAGE } from '../core/deepLinks';
-import { onUpdateReady } from '../core/updates';
+import { onUpdateReady, setUpdateRequired } from '../core/updates';
+import { WEB_BUILD } from '../core/version';
 import { DEFAULT_QUERY, type PantryQuery } from '../domain/pantry/items';
 import { DEFAULT_RECIPE_QUERY, type RecipeQuery } from '../domain/recipes/box';
+import { nextPrompt, updateRequired, type UpdatePrompt as Prompt } from '../domain/updates';
 import { GroceriesScreen } from './grocery/GroceriesScreen';
 import { HomeScreen } from './home/HomeScreen';
 import { HouseholdSettingsScreen } from './household/HouseholdSettingsScreen';
@@ -18,11 +21,21 @@ import { RecipeDetailScreen } from './recipes/RecipeDetailScreen';
 import { RecipeEditScreen } from './recipes/RecipeEditScreen';
 import { RecipesScreen } from './recipes/RecipesScreen';
 import { PantryScreen } from './pantry/PantryScreen';
+import { NotificationExplainer } from './notifications/NotificationExplainer';
 import { NotificationSettingsScreen } from './notifications/NotificationSettingsScreen';
+import { useReminders, useTurnOnReminders } from './notifications/reminders';
 import { AboutScreen } from './settings/AboutScreen';
 import { SettingsScreen } from './settings/SettingsScreen';
 import { top, type Route, type Tab } from '../core/navigation';
-import { NavigationBar, SnackbarProvider, useSnackbars, type IconName, type NavigationItem } from './kit';
+import {
+  INDEFINITE,
+  LONG_MS,
+  NavigationBar,
+  SnackbarProvider,
+  useSnackbars,
+  type IconName,
+  type NavigationItem,
+} from './kit';
 import { EmptyState, TabScaffold } from './Scaffold';
 import './shell.css';
 
@@ -46,12 +59,32 @@ export const TAB_ITEMS: NavigationItem<Tab>[] = (
 export function AppShell() {
   const nav = useNav();
   const route = top(nav.state);
+  const { restock } = useServices();
+  // The restock engine runs on every phone while the household is on screen (DESIGN 9.6): it starts with the
+  // session's shell, not at page load, and reads the cache only (after v1).
+  useEffect(() => {
+    restock.start();
+    return () => restock.stop();
+  }, [restock]);
+  // Reminders are explained on whichever tab is open (after v1, review UX-02), and Home says when they are off.
+  const reminders = useReminders();
+  const turnOn = useTurnOnReminders();
+  // When the system no longer asks, Settings > Notifications says where to turn them on.
+  const turnOnReminders = () => void turnOn(() => nav.navigate({ name: 'notifications' }));
   return (
     <div className="sn-shell">
       <div className="sn-shell__main">
         <SnackbarProvider>
-          <Screen tab={nav.state.tab} route={route} />
+          <Screen
+            tab={nav.state.tab}
+            route={route}
+            reminders={{ off: reminders.offOnThisPhone, turnOn: turnOnReminders }}
+          />
+          {reminders.ask && (
+            <NotificationExplainer hour={reminders.hour} onTurnOn={turnOnReminders} onLater={reminders.later} />
+          )}
           <UpdatePrompt />
+          <WriteRefusals />
         </SnackbarProvider>
       </div>
       <NavigationBar items={TAB_ITEMS} selected={nav.state.tab} onSelect={nav.selectTab} />
@@ -59,17 +92,85 @@ export function AppShell() {
   );
 }
 
-/** A new version is ready (DESIGN 18.5): Update reloads into it; otherwise it starts with the next launch. */
-function UpdatePrompt() {
+/**
+ * Writes the server refused after the action returned, from any screen (after v1, review REL-13): reported once here,
+ * whichever tab or screen is open, instead of by Pantry, Plan, Groceries and Recipes when they happened to be open. A
+ * refusal that lost to another phone names who won (DESIGN 8.5), from one read of the member list.
+ */
+function WriteRefusals() {
   const snackbars = useSnackbars();
-  useEffect(
-    () => onUpdateReady((apply) => snackbars.showAction(str('web_update_ready'), str('web_update_reload'), apply)),
-    [snackbars],
-  );
+  const me = useHouseholdSession();
+  const { writer, households } = useServices();
+  useEffect(() => {
+    const subscription = writer.errors$
+      .pipe(
+        concatMap(async (error) => {
+          const winner = error.byUid !== null && error.byUid !== me.user.uid ? error.byUid : null;
+          const name =
+            winner === null
+              ? undefined
+              : await firstValueFrom(
+                  households.observeMembers(me.householdId).pipe(
+                    map((all) => all.find((m) => m.uid === winner)?.displayName),
+                    timeout(MEMBER_NAME_WAIT_MS),
+                    catchError(() => of(undefined)),
+                  ),
+                );
+          return errorText(error, () => name, me.user.uid);
+        }),
+      )
+      .subscribe((text) => snackbars.show(text));
+    return () => subscription.unsubscribe();
+  }, [writer, households, snackbars, me.householdId, me.user.uid]);
   return null;
 }
 
-function Screen({ tab, route }: { tab: Tab; route: Route }) {
+/** How long a refusal's message waits for the member list to name who won. */
+const MEMBER_NAME_WAIT_MS = 3_000;
+
+/**
+ * A new version is ready (DESIGN 18.5): Update reloads into it; otherwise it starts with the next launch. When
+ * config/app.minWebBuild is newer than this build, the prompt stays until Update is tapped.
+ */
+function UpdatePrompt() {
+  const snackbars = useSnackbars();
+  const { appConfig } = useServices();
+  const required = useObservable(
+    useMemo(() => appConfig.observe().pipe(map((config) => updateRequired(config, WEB_BUILD))), [appConfig]),
+    false,
+  );
+  const [apply, setApply] = useState<{ run: () => void } | null>(null);
+  // What was shown for the waiting version (a new one starts again).
+  const shown = useRef<{ run: () => void; prompt: Prompt } | null>(null);
+  useEffect(() => onUpdateReady((run) => setApply({ run })), []);
+  useEffect(() => {
+    setUpdateRequired(required);
+    return () => setUpdateRequired(false);
+  }, [required]);
+  useEffect(() => {
+    const before = apply && shown.current?.run === apply.run ? shown.current.prompt : null;
+    const prompt = nextPrompt(apply !== null, required, before);
+    if (!apply || !prompt) return;
+    shown.current = { run: apply.run, prompt };
+    snackbars.showAction(
+      str('web_update_ready'),
+      str('web_update_reload'),
+      apply.run,
+      prompt === 'require' ? INDEFINITE : LONG_MS,
+    );
+  }, [apply, required, snackbars]);
+  return null;
+}
+
+function Screen({
+  tab,
+  route,
+  reminders,
+}: {
+  tab: Tab;
+  route: Route;
+  reminders: { off: boolean; turnOn: () => void };
+}) {
   const nav = useNav();
   const me = useHouseholdSession();
   const { households } = useServices();
@@ -148,8 +249,10 @@ function Screen({ tab, route }: { tab: Tab; route: Route }) {
     return (
       <HomeScreen
         joinRequests={joinRequests}
+        remindersOff={reminders.off}
         navigation={{
           openSettings,
+          turnOnReminders: reminders.turnOn,
           // A Home card opens the Pantry tab at its root with its filter (DeepLink.Pantry in the app).
           openPantry: (filter) => {
             setPantryQuery((q) => ({ ...q, filter }));

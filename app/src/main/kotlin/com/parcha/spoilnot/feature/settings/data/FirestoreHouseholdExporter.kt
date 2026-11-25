@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.settings.data
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.GeoPoint
+import com.google.firebase.firestore.Source
 import com.parcha.spoilnot.BuildConfig
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.Tombstones.isTombstone
@@ -20,21 +21,28 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Reads the household's collections once (about 130 reads for a typical household, DESIGN 9.7). */
+/**
+ * Reads the household's collections, the person's profile and the activity log once, from the server (about 130 reads
+ * for a typical household plus the last 30 days of activity, DESIGN 9.7). Offline a server read fails with
+ * UNAVAILABLE, which [awaitMapped] turns into AppError.Offline, so nothing is saved from the phone's copy.
+ */
 class FirestoreHouseholdExporter @Inject constructor(
     private val firestore: FirestoreProvider,
     private val clock: Clock,
 ) : HouseholdExporter {
-    override suspend fun export(householdId: String): String {
+    override suspend fun export(householdId: String, uid: String): String {
         val db = firestore.current
         val base = "households/$householdId"
 
         // Deleted documents wait as tombstones for the daily job (DESIGN 9.8); they are not exported.
-        suspend fun all(path: String) =
-            db.collection(path).get().awaitMapped().documents.filterNot { it.isTombstone() }.map { it.toExport() }
-        val lists = db.collection("$base/groceryLists").get().awaitMapped().documents
+        suspend fun all(path: String) = db.collection(path).get(Source.SERVER).awaitMapped().documents
+            .filterNot { it.isTombstone() }
+            .map { it.toExport() }
+        suspend fun one(path: String) = db.document(path).get(Source.SERVER).awaitMapped().takeIf { it.exists() }
+        val household = one(base)?.toExport()
+        val lists = db.collection("$base/groceryLists").get(Source.SERVER).awaitMapped().documents
         val data = ExportData(
-            household = db.document(base).get().awaitMapped().takeIf { it.exists() }?.toExport(),
+            household = household,
             members = all("$base/members"),
             products = all("$base/products"),
             stock = all("$base/stock"),
@@ -42,6 +50,8 @@ class FirestoreHouseholdExporter @Inject constructor(
             recipes = all("$base/recipes"),
             stats = all("$base/stats"),
             meals = all("$base/meals"),
+            profile = one("users/$uid")?.toExport(),
+            activity = all("$base/activity"),
         )
         return withContext(Dispatchers.Default) {
             ExportFormat.write(data, clock.instant(), "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")

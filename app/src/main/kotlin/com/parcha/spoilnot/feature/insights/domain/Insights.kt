@@ -1,6 +1,6 @@
 package com.parcha.spoilnot.feature.insights.domain
 
-import com.parcha.spoilnot.core.write.HouseholdChange
+import com.parcha.spoilnot.core.write.CounterChange
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import java.time.LocalDate
 import java.time.YearMonth
@@ -25,18 +25,27 @@ data class MonthStats(
     val usedShare: Float? get() = if (total == 0) null else used.toFloat() / total
 }
 
-/** Writes to households/{hid}/stats/{yyyy-MM}. [delta] is +1, or -1 to undo. */
-sealed interface StatsChange : HouseholdChange {
+/**
+ * Writes to households/{hid}/stats/{yyyy-MM}. [delta] is the number of batches (negative to undo); the writer sends
+ * it one step per write, because the rules let a count move by at most one (DESIGN 8.5).
+ */
+sealed interface StatsChange : CounterChange {
     val month: YearMonth
 
-    data class CountUsedUp(override val month: YearMonth, val delta: Int) : StatsChange
+    override val counter: String get() = month.toString()
+
+    data class CountUsedUp(override val month: YearMonth, override val delta: Int) : StatsChange {
+        override fun withDelta(delta: Int) = copy(delta = delta)
+    }
 
     data class CountThrownAway(
         override val month: YearMonth,
         val day: Int,
         val reason: DiscardReason,
-        val delta: Int,
-    ) : StatsChange
+        override val delta: Int,
+    ) : StatsChange {
+        override fun withDelta(delta: Int) = copy(delta = delta)
+    }
 
     companion object {
         fun usedUp(today: LocalDate, delta: Int = 1) = CountUsedUp(YearMonth.from(today), delta)

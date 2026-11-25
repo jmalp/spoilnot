@@ -1,12 +1,10 @@
 package com.parcha.spoilnot.feature.pantry.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,24 +14,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Done
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -48,27 +40,42 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.designsystem.component.ListGroupGap
+import com.parcha.spoilnot.core.designsystem.component.ListSegment
+import com.parcha.spoilnot.core.designsystem.component.ListSegmentMinHeightOneLine
+import com.parcha.spoilnot.core.designsystem.component.SegmentPosition
+import com.parcha.spoilnot.core.designsystem.component.StatusTile
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
+import com.parcha.spoilnot.core.designsystem.component.segmentPosition
+import com.parcha.spoilnot.core.designsystem.component.segmentShape
+import com.parcha.spoilnot.core.designsystem.theme.STATUS_TINT_ALPHA
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotCorners
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotStatus
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
 import com.parcha.spoilnot.core.designsystem.theme.StatusTone
-import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
 import com.parcha.spoilnot.feature.pantry.domain.ExpiryStatus
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryItem
-import com.parcha.spoilnot.feature.pantry.domain.PantryRow
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.LocalDate
 import kotlinx.coroutines.launch
@@ -85,8 +92,9 @@ data class BatchActions(
 )
 
 /**
- * One purchase (beta feedback): status, name, date and location, quantity. Tap to edit; swipe right to use up, left
- * to throw away; the menu has the same actions plus one less, one more and Move. An Out staple's row adds stock.
+ * One purchase (beta feedback) as a row of its group (DESIGN 19.5, 19.6): the status tile, the name, the status in
+ * words and the location, the amount. Tap to edit; swipe right to use up, left to throw away; the menu has the same
+ * actions plus one less, one more and Move. An Out staple's row adds stock. [position] gives its corners.
  */
 @Composable
 fun PantryItemRow(
@@ -95,10 +103,11 @@ fun PantryItemRow(
     actions: BatchActions,
     onOpen: (PantryItem) -> Unit,
     modifier: Modifier = Modifier,
+    position: SegmentPosition = SegmentPosition.Only,
 ) {
     when (item) {
-        is PantryItem.Purchase -> PurchaseRow(item, today, actions, onOpen, modifier)
-        is PantryItem.Out -> OutRow(item, onOpen, modifier)
+        is PantryItem.Purchase -> PurchaseRow(item, today, actions, onOpen, modifier, position)
+        is PantryItem.Out -> OutRow(item, onOpen, modifier, position)
     }
 }
 
@@ -109,6 +118,7 @@ private fun PurchaseRow(
     actions: BatchActions,
     onOpen: (PantryItem) -> Unit,
     modifier: Modifier,
+    position: SegmentPosition,
 ) {
     val batch = item.batch
     val haptics = LocalHapticFeedback.current
@@ -117,21 +127,32 @@ private fun PurchaseRow(
     LaunchedEffect(batch.id, batch.quantity) { swipe.reset() }
     val amount = rowAmount(batch.quantity, batch.unit)
     val location = stringResource(batch.location.label())
-    val status = statusText(batch.expiryDate, batch.dateType, today)
+    val status = ExpiryStatus.of(batch.expiryDate, today)
     val opened = if (batch.openedOn != null) stringResource(R.string.row_opened_suffix) else ""
     val description = stringResource(
         R.string.row_description,
         item.name,
         amountDescription(batch.quantity, batch.unit),
-        status,
+        statusText(batch.expiryDate, batch.dateType, today),
         location,
     ) + opened
-    val editLabel = stringResource(R.string.action_edit)
+    val shape = segmentShape(position)
+    // From 1.5× text the amount joins the second line, so the name keeps the row's width (review A11Y-04).
+    val large = isLargeText()
+    val secondLine = secondLine(
+        status = chipText(batch.expiryDate, batch.dateType, today),
+        tone = status.tone(),
+        rest = listOfNotNull(
+            location,
+            stringResource(R.string.pantry_opened).takeIf { batch.openedOn != null },
+            amount.takeIf { large },
+        ),
+    )
 
-    Column(modifier.fillMaxWidth().testTag("pantry_item_${batch.id}")) {
+    Box(modifier.fillMaxWidth().testTag("pantry_item_${batch.id}")) {
         SwipeToDismissBox(
             state = swipe,
-            backgroundContent = { SwipeBackground(swipe.dismissDirection) },
+            backgroundContent = { SwipeBackground(swipe.dismissDirection, shape) },
             onDismiss = { direction ->
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 when (direction) {
@@ -142,93 +163,88 @@ private fun PurchaseRow(
                 scope.launch { swipe.reset() }
             },
         ) {
-            // Opaque, so the swipe background only shows where the row has moved away.
-            Surface {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable(onClickLabel = editLabel) { onOpen(item) }
-                        .heightIn(min = 64.dp)
-                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        // The chip carries the status (icon, text, color); a second icon here only repeated it.
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            NameLine(item.name, low = item.isLow, out = false, pending = batch.pendingSync)
-                            // Wraps instead of squeezing at large font sizes (DESIGN 6.8: 200% font scale).
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                itemVerticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                StatusChip(batch.expiryDate, batch.dateType, today)
-                                LocationLabel(batch.location, location)
-                                if (batch.openedOn != null) OpenedLabel()
-                            }
-                        }
-                        amount?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                    PurchaseMenu(batch, actions)
+            // The row's surface is opaque, so the swipe background only shows where the row has moved away. The
+            // sentence names the node TalkBack activates, as on Out rows; ⋮ stays its own stop.
+            ListSegment(
+                position = position,
+                onClick = { onOpen(item) },
+                onClickLabel = stringResource(R.string.action_edit),
+                modifier = Modifier.semantics { contentDescription = description },
+                contentPadding = PaddingValues(start = 12.dp, top = 10.dp, bottom = 10.dp),
+            ) {
+                StatusTile(status.tone(), status.icon())
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    NameLine(item.name, low = item.isLow, pending = batch.pendingSync)
+                    Text(
+                        secondLine,
+                        style = SpoilNotText.RowSupporting,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
+                if (!large) amount?.let { Text(it, style = AmountStyle) }
+                PurchaseMenu(batch, actions)
             }
         }
-        HorizontalDivider()
     }
 }
 
+/** A staple with nothing left (Keep at least set): "Out" in the Expired color, words and tile (DESIGN 19.6). */
 @Composable
-private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier: Modifier) {
+private fun OutRow(item: PantryItem.Out, onOpen: (PantryItem) -> Unit, modifier: Modifier, position: SegmentPosition) {
     val product = item.product
-    val location = stringResource(product.defaultLocation.label())
     val description = stringResource(R.string.row_description_out, product.name)
-    Column(modifier.fillMaxWidth().testTag("pantry_item_out_${product.id}")) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClickLabel = stringResource(R.string.action_add_stock)) { onOpen(item) }
-                .heightIn(min = 64.dp)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .semantics(mergeDescendants = true) { contentDescription = description },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            // The Out badge says it; no "0" and no extra icon (after v1).
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                NameLine(product.name, low = false, out = true, pending = false)
-                LocationLabel(product.defaultLocation, location)
-            }
+    val secondLine = secondLine(
+        status = stringResource(R.string.badge_out),
+        tone = StatusTone.Expired,
+        rest = listOf(stringResource(product.defaultLocation.label())),
+    )
+    ListSegment(
+        position = position,
+        onClick = { onOpen(item) },
+        onClickLabel = stringResource(R.string.action_add_stock),
+        modifier = modifier.semantics { contentDescription = description }.testTag("pantry_item_out_${product.id}"),
+        contentPadding = PaddingValues(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+    ) {
+        StatusTile(StatusTone.Expired, Icons.Rounded.RemoveCircleOutline)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            NameLine(product.name, low = false, pending = false)
+            Text(secondLine, style = SpoilNotText.RowSupporting, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        HorizontalDivider()
     }
 }
 
+/**
+ * "Tomorrow · Fridge · Opened": the status in its color and heavier, then the rest (DESIGN 19.6). At large text it
+ * wraps only after a "·", never inside a part ("× 2", "500 g").
+ */
 @Composable
-private fun NameLine(name: String, low: Boolean, out: Boolean, pending: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            name,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        if (out) {
-            Badge(stringResource(R.string.badge_out))
-        } else if (low) {
-            Badge(stringResource(R.string.badge_low))
+private fun secondLine(status: String, tone: StatusTone, rest: List<String>): AnnotatedString {
+    // No date isn't a status to notice: it reads like the rest of the line.
+    val color = if (tone == StatusTone.NoDate) null else SpoilNotStatus.colors.forTone(tone)
+    return buildAnnotatedString {
+        if (color == null) {
+            append(status)
+        } else {
+            withStyle(SpanStyle(color = color, fontWeight = FontWeight.ExtraBold)) { append(status) }
         }
+        rest.forEach {
+            append(NO_BREAK_SPACE)
+            append("· ")
+            append(it.replace(' ', NO_BREAK_SPACE))
+        }
+    }
+}
+
+private const val NO_BREAK_SPACE = ' '
+
+/** "× 2" or "500 g" at the end of a row. */
+private val AmountStyle = SpoilNotText.RowTitle.copy(fontWeight = FontWeight.ExtraBold)
+
+/** The name with its Low badge and the pending icon beside it, or under it from 1.5× text (review A11Y-04). */
+@Composable
+private fun NameLine(name: String, low: Boolean, pending: Boolean) {
+    val marks = @Composable {
+        if (low) Badge(stringResource(R.string.badge_low))
         if (pending) {
             Icon(
                 Icons.Rounded.CloudOff,
@@ -238,43 +254,56 @@ private fun NameLine(name: String, low: Boolean, out: Boolean, pending: Boolean)
             )
         }
     }
-}
-
-/** "Opened", with an icon, so it never relies on color (DESIGN 6.4). */
-@Composable
-private fun OpenedLabel() {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(
-            Icons.Rounded.LockOpen,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            stringResource(R.string.pantry_opened),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
+    val nameText = @Composable { modifier: Modifier ->
+        Text(name, style = SpoilNotText.RowTitle, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = modifier)
+    }
+    if (isLargeText() && low) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            nameText(Modifier)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                marks()
+            }
+        }
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            nameText(Modifier.weight(1f, fill = false))
+            marks()
+        }
     }
 }
 
+/**
+ * "65 expired items" with Show or Hide (after v1): the expired backlog folded into one row of its group, the first
+ * of Use first in the default view (DESIGN 19.12).
+ */
 @Composable
-private fun LocationLabel(location: Location, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(
-            location.icon(),
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            softWrap = false,
-        )
+internal fun ExpiredFoldRow(
+    count: Int,
+    shown: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    position: SegmentPosition = SegmentPosition.Only,
+) {
+    val large = isLargeText()
+    val toggle = @Composable {
+        TextButton(onClick = onToggle, modifier = Modifier.testTag("pantry_expired_toggle")) {
+            Text(
+                stringResource(if (shown) R.string.pantry_expired_hide else R.string.pantry_expired_show),
+                style = SpoilNotText.ButtonMedium,
+            )
+        }
+    }
+    ListSegment(
+        position = position,
+        modifier = modifier.testTag("pantry_expired_header"),
+        contentPadding = PaddingValues(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+    ) {
+        StatusTile(StatusTone.Expired, Icons.Rounded.DeleteOutline)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(pluralStringResource(R.plurals.pantry_expired_count, count, count), style = SpoilNotText.RowTitle)
+            if (large) Box(Modifier.align(Alignment.End)) { toggle() }
+        }
+        if (!large) toggle()
     }
 }
 
@@ -284,7 +313,11 @@ private fun PurchaseMenu(batch: StockBatch, actions: BatchActions) {
     var menu by rememberSaveable { mutableStateOf(false) }
     Box {
         IconButton(onClick = { menu = true }, modifier = Modifier.testTag("menu_${batch.id}")) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.batch_options))
+            Icon(
+                Icons.Rounded.MoreVert,
+                contentDescription = stringResource(R.string.batch_options),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             listOfNotNull(
@@ -307,8 +340,9 @@ private fun PurchaseMenu(batch: StockBatch, actions: BatchActions) {
     }
 }
 
+/** The swipe's tint, icon and words, in the row's [shape] (DESIGN 19.6): right is Used up, left is Throw away. */
 @Composable
-private fun SwipeBackground(direction: SwipeToDismissBoxValue) {
+private fun SwipeBackground(direction: SwipeToDismissBoxValue, shape: Shape) {
     val (color, icon, label, alignment) = when (direction) {
         SwipeToDismissBoxValue.StartToEnd ->
             Quad(SpoilNotStatus.colors.fresh, Icons.Rounded.Done, R.string.action_used_up, Alignment.CenterStart)
@@ -324,12 +358,17 @@ private fun SwipeBackground(direction: SwipeToDismissBoxValue) {
         SwipeToDismissBoxValue.Settled -> return
     }
     Box(
-        Modifier.fillMaxSize().background(color.copy(alpha = 0.16f)).padding(horizontal = 20.dp),
+        Modifier.fillMaxSize().background(color.copy(alpha = STATUS_TINT_ALPHA), shape).padding(horizontal = 20.dp),
         contentAlignment = alignment,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, contentDescription = null, tint = color)
-            Text(stringResource(label), color = color, style = MaterialTheme.typography.labelLarge)
+            Text(
+                stringResource(label),
+                color = color,
+                style = SpoilNotText.ButtonMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
         }
     }
 }
@@ -361,6 +400,10 @@ fun MoveDialog(current: Location, onPick: (Location) -> Unit, onDismiss: () -> U
     )
 }
 
+/**
+ * A dialog that asks for one choice (DESIGN 19.11): its title in [SpoilNotText.DialogTitle] and the choices as a group
+ * of rows, each a radio button that picks and closes; Cancel at the end.
+ */
 @Composable
 private fun <T> ChoiceDialog(
     title: String,
@@ -370,29 +413,44 @@ private fun <T> ChoiceDialog(
     onPick: (T) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val rowColor = SpoilNotSurfaces.current.dialogRow
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { Text(title, style = SpoilNotText.DialogTitle) },
         text = {
-            Column(Modifier.selectableGroup()) {
-                options.forEach { option ->
+            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(ListGroupGap)) {
+                options.forEachIndexed { index, option ->
+                    val shape = segmentShape(segmentPosition(index, options.size), outer = SpoilNotCorners.NestedOuter)
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 48.dp)
+                            .clip(shape)
+                            .background(rowColor)
                             .selectable(selected = option == selected, role = Role.RadioButton, onClick = {
                                 onPick(option)
                                 onDismiss()
-                            }),
+                            })
+                            .heightIn(min = ListSegmentMinHeightOneLine)
+                            .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         RadioButton(selected = option == selected, onClick = null)
-                        Text(label(option), Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            label(option),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel), style = SpoilNotText.ButtonMedium)
+            }
+        },
     )
 }

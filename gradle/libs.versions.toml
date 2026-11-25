@@ -1,44 +1,49 @@
 [versions]
-agp = "9.4.1"
+agp = "9.5.2"
 kotlin = "2.4.21"
-ksp = "2.3.12"
+ksp = "2.3.14"
 hilt = "2.60.1"
-spotless = "8.10.4"
+spotless = "8.12.0"
 ktlint = "1.8.0"
-googleServices = "4.5.0"
+googleServices = "4.6.0"
 
-composeBom = "2026.09.00"
-navigation3 = "1.2.0"
+composeBom = "2026.11.01"
+navigation3 = "1.2.1"
 lifecycle = "2.11.0"
 activityCompose = "1.13.0"
 coreKtx = "1.19.1"
 hiltLifecycle = "1.4.0"
-kotlinxSerialization = "1.12.0"
+kotlinxSerialization = "1.13.0"
 coroutines = "1.11.0"
 timber = "5.0.1"
-firebaseBom = "35.1.0"
+firebaseBom = "35.2.0"
 datastore = "1.3.0"
 okhttp = "5.5.1"
-jsoup = "1.23.2"
+jsoup = "1.24.1"
 coil = "3.6.3"
 browser = "1.10.0"
 crashlytics = "3.0.8"
 aboutLibraries = "15.3.0"
 splashscreen = "1.2.0"
-concurrentFutures = "1.2.0"
+# Declared for the app only so the test classpath resolves: AGP pins test dependencies to the app's versions, and the
+# Compose accessibility test library needs these (DECISIONS 2026-10-18, 2026-11-22). The number lives here only.
+concurrentFutures = "1.3.0"
 fragment = "1.9.1"
 profileinstaller = "1.4.1"
+# Guava comes only through Firestore's gRPC; app/build.gradle.kts sets this as the lowest version allowed.
+guava = "33.8.0-android"
+# Annotations only; app/build.gradle.kts sets this as the lowest version allowed (Firestore 27.2 dropped them from gRPC).
+errorprone = "2.53.0"
 
 junit = "4.13.2"
-mockk = "1.14.11"
-turbine = "1.2.1"
+mockk = "1.14.12"
 androidxTestExtJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
 espresso = "3.7.0"
-robolectric = "4.17"
-roborazzi = "1.77.0"
+robolectric = "4.18.1"
+roborazzi = "1.79.0"
 benchmark = "1.5.0"
-uiautomator = "2.4.0"
+uiautomator = "2.4.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -51,8 +56,6 @@ androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", vers
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
 androidx-compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
-androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
-androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 androidx-compose-ui-test-junit4-accessibility = { module = "androidx.compose.ui:ui-test-junit4-accessibility" }
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
@@ -92,7 +95,6 @@ androidx-datastore-preferences = { module = "androidx.datastore:datastore-prefer
 
 junit = { module = "junit:junit", version.ref = "junit" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExtJunit" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 # Compose UI tests need Espresso 3.7+ on API 36+ (InputManager.getInstance was removed).
@@ -105,6 +107,9 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
+
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone" }
 
 [plugins]
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }

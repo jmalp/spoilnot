@@ -9,6 +9,7 @@ import com.parcha.spoilnot.core.firebase.awaitMapped
 import com.parcha.spoilnot.core.firebase.commitConfirmed
 import com.parcha.spoilnot.core.firebase.commitQueued
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.auth.domain.ProfileDefaults
 import com.parcha.spoilnot.feature.auth.domain.Units
@@ -110,13 +111,13 @@ internal object UserFields {
     )
 }
 
-private fun DocumentSnapshot.toProfile(): UserProfile {
+internal fun DocumentSnapshot.toProfile(): UserProfile {
     @Suppress("UNCHECKED_CAST")
     val pending = get(UserFields.PENDING_JOIN) as? Map<String, Any?>
     return UserProfile(
         uid = id,
-        displayName = getString(UserFields.DISPLAY_NAME).orEmpty(),
-        householdId = getString(UserFields.HOUSEHOLD_ID),
+        displayName = string(UserFields.DISPLAY_NAME).orEmpty(),
+        householdId = string(UserFields.HOUSEHOLD_ID),
         pendingJoin = pending?.let {
             val householdId = it["householdId"] as? String
             val code = it["code"] as? String
@@ -126,6 +127,6 @@ private fun DocumentSnapshot.toProfile(): UserProfile {
                 PendingJoin(householdId, it["householdName"] as? String ?: "", code)
             }
         },
-        units = Units.entries.firstOrNull { it.name.lowercase() == getString("units") } ?: ProfileDefaults.UNITS,
+        units = Units.entries.firstOrNull { it.name.lowercase() == string("units") } ?: ProfileDefaults.UNITS,
     )
 }

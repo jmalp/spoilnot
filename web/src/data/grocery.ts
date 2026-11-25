@@ -5,15 +5,15 @@ import {
   deleteField,
   doc,
   getDocFromCache,
+  getDocFromServer,
   getDocsFromServer,
   increment,
   serverTimestamp,
-  Timestamp,
   type DocumentSnapshot,
   type Firestore,
   type WriteBatch,
 } from 'firebase/firestore';
-import { distinctUntilChanged, map, switchMap, type Observable } from 'rxjs';
+import { distinctUntilChanged, map, NEVER, switchMap, type Observable } from 'rxjs';
 import {
   GroceryRules,
   isGroceryChange,
@@ -22,30 +22,38 @@ import {
   type GroceryList,
   type GroceryRepository,
 } from '../domain/grocery/models';
-import { CATEGORIES, categoryOf, unitOf, type Category } from '../domain/pantry/models';
+import { CATEGORIES, categoryOf, isPantryChange, unitOf, type Category } from '../domain/pantry/models';
+import { lostRace, type AppError } from '../core/errors';
+import { NameKey } from '../domain/pantry/rules';
 import { compareStrings } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
-import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
+import { cachedLiveDocuments, changedFields, liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import { mapped, querySnapshots, retryAfterOwnWrites } from './firestore-rx';
 import { activity } from './pantry';
 import type { ChangeMapper } from './writer';
+import { capTo, ReadCaps } from '../domain/caps';
+import { SharedByKey, STOP_TIMEOUT_MS } from '../domain/shared';
+import { list as entries, mapEach, millis, num, str as text } from './fields';
 
 export const lists = (hid: string) => `households/${hid}/groceryLists`;
 export const items = (hid: string, listId: string) => `households/${hid}/groceryLists/${listId}/items`;
 
-const num = (value: unknown): number | null => (typeof value === 'number' ? value : null);
-const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-
-function toList(s: DocumentSnapshot): GroceryList {
-  const order = (s.get('aisleOrder') as unknown[] | null) ?? [];
+export function toList(s: DocumentSnapshot): GroceryList {
+  const order = entries(s.get('aisleOrder'));
   return {
     id: s.id,
-    name: text(s.get('name')) ?? '',
+    name: capTo(text(s.get('name')) ?? '', ReadCaps.LIST_NAME),
     isDefault: s.get('isDefault') === true,
     aisleOrder: order.filter((c): c is Category => (CATEGORIES as readonly unknown[]).includes(c)),
   };
 }
+
+/** The default list first, then by name. */
+const toLists = (docs: DocumentSnapshot[]): GroceryList[] =>
+  mapEach(docs, toList).sort(
+    (a, b) => Number(b.isDefault) - Number(a.isDefault) || compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
+  );
 
 // New fields are optional on read with defaults (DESIGN 8.1); `checked` absent means false (DESIGN 8.2).
 export function toItem(s: DocumentSnapshot): GroceryItem {
@@ -53,8 +61,9 @@ export function toItem(s: DocumentSnapshot): GroceryItem {
   const category = s.get('category');
   return {
     id: s.id,
-    name: text(s.get('name')) ?? '',
-    nameKey: text(s.get('nameKey')) ?? '',
+    name: capTo(text(s.get('name')) ?? '', ReadCaps.NAME),
+    // Keys written before one whitespace definition (after v1, WEB-06) are normalised here, not migrated.
+    nameKey: NameKey.of(text(s.get('nameKey')) ?? ''),
     quantity: num(s.get('quantity')),
     unit: typeof unit === 'string' ? unitOf(unit) : null,
     note: text(s.get('note')),
@@ -65,39 +74,50 @@ export function toItem(s: DocumentSnapshot): GroceryItem {
     productId: text(s.get('productId')),
     recipeId: text(s.get('recipeId')),
     createdBy: text(s.get('createdBy')),
-    createdAt: (s.get('createdAt', { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null,
+    createdAt: millis(s, 'createdAt'),
     pendingSync: s.metadata.hasPendingWrites,
     aliasOf: text(s.get('aliasOf')),
   };
 }
 
 export class FirestoreGroceryRepository implements GroceryRepository {
+  /** One pair of item listeners per list and phone, shared by every screen (after v1, DESIGN 9.1). */
+  private readonly sharedItems: SharedByKey<string, GroceryItem[]>;
+
   constructor(
     private readonly sdk: FirebaseSdk,
     private readonly log: SyncLog,
-  ) {}
+    stopTimeoutMs: number = STOP_TIMEOUT_MS,
+    /** Emits while the page is off screen: the listeners then stop without waiting (domain/shared). */
+    stopAtOnce$: Observable<unknown> = NEVER,
+  ) {
+    this.sharedItems = new SharedByKey(stopTimeoutMs, stopAtOnce$);
+  }
 
   observeLists(householdId: string): Observable<GroceryList[]> {
     return this.sdk.instance$.pipe(
       switchMap((db) => querySnapshots(collection(db, lists(householdId))).pipe(retryAfterOwnWrites(db))),
-      map((snapshot) =>
-        snapshot.docs
-          .map(toList)
-          .sort(
-            (a, b) =>
-              Number(b.isDefault) - Number(a.isDefault) || compareStrings(a.name.toLowerCase(), b.name.toLowerCase()),
-          ),
-      ),
+      map((snapshot) => toLists(snapshot.docs)),
+      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    );
+  }
+
+  observeCachedLists(householdId: string): Observable<GroceryList[]> {
+    return this.sdk.instance$.pipe(
+      switchMap((db) => cachedLiveDocuments(collection(db, lists(householdId)))),
+      map(toLists),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     );
   }
 
   // Changes-only listeners (DESIGN 9.8); each item keeps its pending-sync flag from the cache.
   observeItems(householdId: string, listId: string): Observable<GroceryItem[]> {
-    return this.sdk.instance$.pipe(
-      switchMap((db) => liveDocuments(db, collection(db, items(householdId, listId)), this.log)),
-      map((live) => live.documents.map(toItem)),
-      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    return this.sharedItems.get(items(householdId, listId), () =>
+      this.sdk.instance$.pipe(
+        switchMap((db) => liveDocuments(db, collection(db, items(householdId, listId)), this.log)),
+        map((live) => mapEach(live.documents, toItem)),
+        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+      ),
     );
   }
 
@@ -133,8 +153,36 @@ const itemFields = (item: GroceryItem) => ({
   aliasOf: item.aliasOf,
 });
 
+/** The items a refusal reads at most to find the one another phone removed first. */
+const MAX_ITEMS_READ = 10;
+
 /** Firestore writes for GroceryChange (GroceryChangeMapper). */
 export const groceryMapper: ChangeMapper = {
+  /**
+   * The rules refuse an item created under a deleted list, and a second tombstone on an item (DESIGN 8.5): Add to
+   * pantry or a removal on two phones, or an add as another member deletes the list. Reads the list, then up to
+   * MAX_ITEMS_READ of the removed items, from the server.
+   */
+  async whyRefused(db: Firestore, hid: string, chunk: HouseholdChange[]): Promise<AppError | null> {
+    const listExists = async (listId: string) => (await getDocFromServer(doc(db, lists(hid), listId))).exists();
+    const changes = chunk.filter(isGroceryChange);
+    const added = changes.find((c) => c.type === 'grocery.createItem' || c.type === 'grocery.restoreItem');
+    if (added && 'listId' in added && !(await listExists(added.listId))) return lostRace('listDeleted');
+    const removed = changes
+      .flatMap((c) => (c.type === 'grocery.deleteItem' && c.tombstone ? [c] : []))
+      .slice(0, MAX_ITEMS_READ);
+    for (const change of removed) {
+      const snapshot = await getDocFromServer(doc(db, items(hid, change.listId), change.itemId));
+      if (!snapshot.exists()) {
+        if (!(await listExists(change.listId))) return lostRace('listDeleted');
+        continue;
+      }
+      if (Tombstones.is(snapshot)) {
+        return lostRace(chunk.some(isPantryChange) ? 'addedToPantry' : 'removed', text(snapshot.get('updatedBy')));
+      }
+    }
+    return null;
+  },
   write(batch: WriteBatch, db: Firestore, hid: string, actor: Actor, change: HouseholdChange): boolean {
     if (!isGroceryChange(change)) return false;
     const list = (id: string) => doc(db, lists(hid), id);
@@ -165,23 +213,16 @@ export const groceryMapper: ChangeMapper = {
           ...stamp,
         });
         break;
+      // Undo removes the tombstone and nothing else (DESIGN 8.6): checked, who checked it, its creator and fields a
+      // newer app added stay as the server has them.
       case 'grocery.restoreItem':
-        batch.set(item(change.listId, change.item.id), {
-          ...itemFields(change.item),
-          ...stamp,
-          createdAt: change.item.createdAt !== null ? Timestamp.fromMillis(change.item.createdAt) : serverTimestamp(),
-          createdBy: change.item.createdBy ?? actor.uid,
-        });
+        batch.set(item(change.listId, change.item.id), Tombstones.restore(actor), { merge: true });
         break;
-      case 'grocery.updateItem':
-        batch.update(item(change.listId, change.itemId), {
-          quantity: change.quantity,
-          unit: change.unit,
-          note: change.note,
-          category: change.category,
-          ...stamp,
-        });
+      case 'grocery.updateItem': {
+        const changed = changedFields(change.before, change.after);
+        if (Object.keys(changed).length > 0) batch.update(item(change.listId, change.itemId), { ...changed, ...stamp });
         break;
+      }
       case 'grocery.renameItem':
         batch.update(item(change.listId, change.itemId), {
           name: change.name,
@@ -216,7 +257,10 @@ export const groceryMapper: ChangeMapper = {
         });
         break;
       case 'grocery.upsertLowStock': {
-        // Merge-write with no `checked` field: an item already in the cart stays checked (DESIGN 9.6).
+        // Merge-write. A live item keeps its `checked` (one already in the cart stays checked); a new item, or a
+        // tombstone coming back (one left by Add to pantry is still checked), starts unchecked (DESIGN 9.6). No
+        // createdBy: the rules would refuse a second phone's identical write naming another creator, so two phones
+        // writing the same item at once both succeed (a tombstone keeps its old creator).
         const fields = {
           name: change.name,
           nameKey: change.nameKey,
@@ -229,7 +273,17 @@ export const groceryMapper: ChangeMapper = {
           [Tombstones.FIELD]: deleteField(),
           ...stamp,
         };
-        const created = change.writeCreated ? { ...Stamps.created(actor), note: null, recipeId: null } : {};
+        const created = change.writeCreated
+          ? {
+              createdAt: serverTimestamp(),
+              note: null,
+              recipeId: null,
+              aliasOf: null,
+              checked: false,
+              checkedBy: null,
+              checkedAt: null,
+            }
+          : {};
         batch.set(
           item(change.listId, GroceryRules.lowStockItemId(change.productId)),
           { ...fields, ...created },

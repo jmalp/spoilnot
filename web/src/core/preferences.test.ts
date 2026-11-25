@@ -6,8 +6,10 @@ describe('AppPreferences', () => {
     expect(new AppPreferences(null).get()).toEqual({
       themeMode: 'system',
       colorTheme: 'spoilnot',
+      weekStart: 'auto',
       notificationExplainerShown: false,
       installHelpDismissed: false,
+      aisleHintDone: false,
     });
   });
 
@@ -21,12 +23,16 @@ describe('AppPreferences', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(prefs.get()).not.toBe(before);
     expect(localStorage.getItem(PREFERENCE_KEYS.colorTheme)).toBe('fiery');
-    prefs.set({ notificationExplainerShown: true });
+    prefs.set({ notificationExplainerShown: true, weekStart: 'monday', aisleHintDone: true });
+    expect(localStorage.getItem(PREFERENCE_KEYS.aisleHintDone)).toBe('true');
+    expect(localStorage.getItem(PREFERENCE_KEYS.weekStart)).toBe('monday');
     expect(new AppPreferences(localStorage).get()).toEqual({
       themeMode: 'dark',
       colorTheme: 'fiery',
+      weekStart: 'monday',
       notificationExplainerShown: true,
       installHelpDismissed: false,
+      aisleHintDone: true,
     });
   });
 
@@ -34,7 +40,12 @@ describe('AppPreferences', () => {
     localStorage.clear();
     localStorage.setItem(PREFERENCE_KEYS.colorTheme, 'wallpaper');
     localStorage.setItem(PREFERENCE_KEYS.themeMode, 'sepia');
-    expect(new AppPreferences(localStorage).get()).toMatchObject({ themeMode: 'system', colorTheme: 'spoilnot' });
+    localStorage.setItem(PREFERENCE_KEYS.weekStart, 'friday');
+    expect(new AppPreferences(localStorage).get()).toMatchObject({
+      themeMode: 'system',
+      colorTheme: 'spoilnot',
+      weekStart: 'auto',
+    });
   });
 
   it('works without storage, for the session', () => {

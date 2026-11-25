@@ -37,7 +37,9 @@ and every link with placeholders, and drops reviews, videos and nutrition.
 
 ## M5 acceptance results (2026-10-17)
 
-`LiveImportTest` on the Pixel 8 emulator (API 37), using the app's fetch and, when that fails, the app's web view:
+`LiveImportTest` on the Pixel 8 emulator (API 37), using the app's fetch and, when that fails, the app's web view.
+It runs only with `live=true`: a plain `connectedDevDebugAndroidTest` run leaves it out (`@LiveTest`, RUNBOOK
+"Opt-in instrumented tests"):
 
 ```
 ./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.live=true \
@@ -60,6 +62,28 @@ and every link with placeholders, and drops reviews, videos and nutrition.
 **10 of 10 imported** (target 9 of 10). Every result had a title and an image. Unparsed quantities are lines without
 one, such as Simply Recipes' optional pizza toppings ("Pesto", "Ham, thinly sliced"); they keep their text and are
 not scaled.
+
+## Built-in browser only (2026-11-12)
+
+After the JSON-LD limits (DESIGN 11.6), the same test with every site read in the app's web view instead of fetched,
+so the browser script runs on each page:
+
+```
+./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.live=true \
+  -Pandroid.testInstrumentationRunnerArguments.browser=true \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.parcha.spoilnot.feature.recipes.LiveImportTest
+```
+
+**10 of 10 imported**, each with the same ingredient, step, servings and time counts as its fetch on the same day (the
+fetch also found all 10). Times were 1.0 to 6.2 s, except Food Network at 31 s (its page keeps loading; the test
+waits up to 45 s).
+
+## After the parser changes (2026-11-13)
+
+After comma decimals and thousands, "1h20m" and mixed-number times, and one-string ingredient lists (DESIGN 11.3,
+11.5, review LOGIC-15), the first command above on the Pixel 8 emulator: **10 of 10 imported**, all by fetch in 0.7
+to 1.0 s, with the same ingredient counts, parsed quantities, servings and times as on 2026-10-17. King Arthur
+Baking now has 10 steps (7 then); its page changed, not the parser, which reads steps as before.
 
 Share sheet: `RecipeUiTest` sends the same intent Chrome's share sheet does. Share to preview took 1.6 s on an idle
 host (target under 5 s).

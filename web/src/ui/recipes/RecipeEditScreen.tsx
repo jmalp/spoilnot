@@ -15,7 +15,8 @@ export function RecipeEditScreen({ recipeId, onBack }: { recipeId: string; onBac
   const box = useObservable(recipes.box$, null);
   const recipe = box?.recipes.find((r) => r.id === recipeId) ?? null;
   return (
-    <DetailScaffold title={str('recipe_edit')} onBack={onBack} testId="screen_recipe_edit">
+    // A pushed screen of the 2026-11 look (DESIGN 19.7): the round Back over the title.
+    <DetailScaffold title={str('recipe_edit')} onBack={onBack} testId="screen_recipe_edit" header="pushed">
       {box === null ? (
         <div className="sn-centered">
           <Progress />
@@ -140,7 +141,7 @@ function RecipeFormFields({ recipe, onSaved }: { recipe: Recipe; onSaved: () => 
         supportingText={str('recipe_field_tags_hint')}
         autoCapitalize="sentences"
       />
-      <Button full large busy={saving} onClick={save} data-testid="recipe_save">
+      <Button primary busy={saving} onClick={save} data-testid="recipe_save">
         {str('action_save')}
       </Button>
     </div>

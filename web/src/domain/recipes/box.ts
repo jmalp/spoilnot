@@ -55,6 +55,9 @@ export const RecipeBox = {
 };
 
 const WORD = /[^\p{L}\p{N}]+/u;
+/** A grade of olive oil, not a different thing to buy (after v1, LOGIC-16): "extra-virgin olive oil" is olive oil. */
+const GRADE = /(?<![\p{L}\p{N}])extra[- ]virgin(?![\p{L}\p{N}])/gu;
+const VOWELS = 'aeiou';
 
 /**
  * "Probably in pantry" (DESIGN 11.5): a product matches an ingredient when every word of its nameKey, singularized,
@@ -72,12 +75,28 @@ export const PantryMatch = {
     return word;
   },
 
+  /**
+   * The form words are compared in (after v1, LOGIC-16), so both singulars of a plural meet: "cookies" (cooky or
+   * cookie), "cookie", "chilies" and "chili" all become "cooki"/"chili"; "leaves" and "leaf", "knives" and "knife",
+   * "olives" and "olive" become "leav", "kniv" and "oliv". Not a word to show anyone.
+   */
+  stem(word: string): string {
+    const w = PantryMatch.singular(word);
+    if (w.endsWith('ie')) return w.slice(0, -1);
+    if (w.length >= 2 && w.endsWith('y') && !VOWELS.includes(w.at(-2)!)) return `${w.slice(0, -1)}i`;
+    if (w.length > 3 && w.endsWith('fe')) return `${w.slice(0, -2)}v`;
+    if (w.length > 3 && w.endsWith('ve')) return w.slice(0, -1);
+    if (w.length > 3 && w.endsWith('f')) return `${w.slice(0, -1)}v`;
+    return w;
+  },
+
   words: (text: string): Set<string> =>
     new Set(
       NameKey.of(text)
+        .replace(GRADE, ' ')
         .split(WORD)
         .filter((w) => w !== '')
-        .map(PantryMatch.singular),
+        .map(PantryMatch.stem),
     ),
 
   matches(nameKey: string, line: string): boolean {

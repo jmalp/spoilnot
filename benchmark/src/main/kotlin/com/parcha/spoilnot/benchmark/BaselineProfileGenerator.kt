@@ -9,7 +9,8 @@ import org.junit.runner.RunWith
 /**
  * Records which code the app runs at start and on its busiest screens, so the release build ships it precompiled
  * (DESIGN 13.1). `./scripts/baseline-profile.sh` runs it and copies the result into the app. It repeats the journey
- * until three runs record the same code (at most 10, about 40 s each).
+ * until three runs record the same code (at most 10, about 40 s each). Every step checks that it opened what it
+ * should and fails the run otherwise, so a renamed button can't leave a screen out of the profile unnoticed.
  */
 @RunWith(AndroidJUnit4::class)
 class BaselineProfileGenerator {
@@ -22,6 +23,7 @@ class BaselineProfileGenerator {
         pressHome()
         startActivityAndWait()
         signInIfNeeded()
+        awaitHomeCards()
         openTab("Home")
         flingList(times = 1)
         openAndCloseInsights()

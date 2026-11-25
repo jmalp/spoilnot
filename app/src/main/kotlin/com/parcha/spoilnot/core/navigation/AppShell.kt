@@ -1,29 +1,15 @@
 package com.parcha.spoilnot.core.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -36,10 +22,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
@@ -48,13 +33,18 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.CoachMarks
 import com.parcha.spoilnot.core.designsystem.component.LocalCoachMarks
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSnackbarHost
 import com.parcha.spoilnot.core.designsystem.component.coachMark
+import com.parcha.spoilnot.core.designsystem.component.rememberScreenReaderOn
+import com.parcha.spoilnot.core.designsystem.motion.Motion
+import com.parcha.spoilnot.core.designsystem.motion.StretchOverscrollWarmUp
 import com.parcha.spoilnot.core.designsystem.motion.rememberReduceMotion
-import com.parcha.spoilnot.core.error.QuotaSignal
+import com.parcha.spoilnot.core.ui.MessageEffect
 import com.parcha.spoilnot.feature.grocery.ui.GroceriesScreen
 import com.parcha.spoilnot.feature.home.ui.HomeNavigation
 import com.parcha.spoilnot.feature.home.ui.HomeScreen
@@ -62,7 +52,10 @@ import com.parcha.spoilnot.feature.household.domain.Role
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.ui.HouseholdSettingsScreen
 import com.parcha.spoilnot.feature.insights.ui.InsightsScreen
+import com.parcha.spoilnot.feature.notifications.ui.NotificationExplainer
 import com.parcha.spoilnot.feature.notifications.ui.NotificationSettingsScreen
+import com.parcha.spoilnot.feature.notifications.ui.RemindersViewModel
+import com.parcha.spoilnot.feature.notifications.ui.rememberTurnOnNotifications
 import com.parcha.spoilnot.feature.pantry.ui.LocalUnits
 import com.parcha.spoilnot.feature.pantry.ui.PantryScreen
 import com.parcha.spoilnot.feature.plan.ui.PlanNavigation
@@ -93,8 +86,20 @@ fun AppShell(
     modifier: Modifier = Modifier,
     shellViewModel: ShellViewModel = hiltViewModel(),
     tourViewModel: TourViewModel = hiltViewModel(),
+    remindersViewModel: RemindersViewModel = hiltViewModel(),
 ) {
     val tourStep by tourViewModel.step.collectAsStateWithLifecycle()
+    // Reminders on this phone (after v1, review UX-02): asked on any tab, and Home says when they are off.
+    val reminders by remindersViewModel.state.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        remindersViewModel.refresh()
+        onPauseOrDispose { }
+    }
+    val askSystem = rememberTurnOnNotifications(onFinished = remindersViewModel::turnOnFinished)
+    val turnOnReminders = {
+        remindersViewModel.turnOnStarted()
+        askSystem()
+    }
     // A tap on a marked element can move a follow-along step on (DESIGN 5.8).
     val coachMarks = remember {
         CoachMarks { key ->
@@ -102,6 +107,8 @@ fun AppShell(
         }
     }
     val pendingJoinRequests by shellViewModel.pendingJoinRequests.collectAsStateWithLifecycle()
+    val shellSnackbar = remember { SnackbarHostState() }
+    MessageEffect(shellViewModel.messages, shellSnackbar, onUndo = {})
     val deepLink by shellViewModel.deepLink.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(TabNavigator.START) }
     val backStacks = TopLevelDestination.entries.associateWith { tab -> key(tab) { rememberNavBackStack(tab.root) } }
@@ -142,7 +149,7 @@ fun AppShell(
     }
     val openRecipe = { id: String -> navigator.navigate(RecipeDetailRoute(id, navigator.currentTab)) }
     val provider = entryProvider<NavKey> {
-        entry<HomeRoute> {
+        entry<HomeRoute>(metadata = onTab(TopLevelDestination.Home)) {
             HomeScreen(
                 navigation = HomeNavigation(
                     openSettings = openSettings,
@@ -152,13 +159,17 @@ fun AppShell(
                     openInsights = { navigator.navigate(InsightsRoute(navigator.currentTab)) },
                     openRecipe = openRecipe,
                     openPlan = { navigator.showRoot(TopLevelDestination.Plan) },
+                    turnOnReminders = turnOnReminders,
                 ),
                 pendingJoinRequests = if (session.role == Role.Owner) pendingJoinRequests else 0,
+                remindersOff = reminders.offOnThisPhone,
             )
         }
-        entry<PantryRoute> { PantryScreen(onOpenSettings = openSettings) }
-        entry<PlanRoute> { PlanScreen(PlanNavigation(openSettings = openSettings, openRecipe = openRecipe)) }
-        entry<RecipesRoute> {
+        entry<PantryRoute>(metadata = onTab(TopLevelDestination.Pantry)) { PantryScreen(onOpenSettings = openSettings) }
+        entry<PlanRoute>(metadata = onTab(TopLevelDestination.Plan)) {
+            PlanScreen(PlanNavigation(openSettings = openSettings, openRecipe = openRecipe))
+        }
+        entry<RecipesRoute>(metadata = onTab(TopLevelDestination.Recipes)) {
             RecipesScreen(
                 RecipesNavigation(
                     openSettings = openSettings,
@@ -169,7 +180,7 @@ fun AppShell(
                 ),
             )
         }
-        entry<RecipeDetailRoute> { key ->
+        entry<RecipeDetailRoute>(metadata = ::onItsTab) { key ->
             RecipeDetailScreen(
                 recipeId = key.recipeId,
                 onBack = { navigator.goBack() },
@@ -177,7 +188,7 @@ fun AppShell(
                 onCook = { servings -> navigator.navigate(CookModeRoute(key.recipeId, servings, key.tab)) },
             )
         }
-        entry<RecipeEditRoute> { key ->
+        entry<RecipeEditRoute>(metadata = ::onItsTab) { key ->
             RecipeEditScreen(
                 recipeId = key.recipeId,
                 prefill = key.prefill(),
@@ -187,7 +198,7 @@ fun AppShell(
                 },
             )
         }
-        entry<RecipeImportRoute> { key ->
+        entry<RecipeImportRoute>(metadata = ::onItsTab) { key ->
             RecipeImportScreen(
                 url = key.url,
                 onBack = { navigator.goBack() },
@@ -208,7 +219,7 @@ fun AppShell(
                 },
             )
         }
-        entry<RecipeBrowserRoute> { key ->
+        entry<RecipeBrowserRoute>(metadata = ::onItsTab) { key ->
             RecipeBrowserScreen(
                 url = key.url,
                 fallback = key.fallback,
@@ -234,11 +245,13 @@ fun AppShell(
                 },
             )
         }
-        entry<CookModeRoute> { key ->
+        entry<CookModeRoute>(metadata = ::onItsTab) { key ->
             CookModeScreen(recipeId = key.recipeId, servings = key.servings, onBack = { navigator.goBack() })
         }
-        entry<GroceriesRoute> { GroceriesScreen(onOpenSettings = openSettings) }
-        entry<SettingsRoute> {
+        entry<GroceriesRoute>(metadata = onTab(TopLevelDestination.Groceries)) {
+            GroceriesScreen(onOpenSettings = openSettings)
+        }
+        entry<SettingsRoute>(metadata = ::onItsTab) {
             SettingsScreen(
                 onBack = { navigator.goBack() },
                 onOpenHousehold = { navigator.navigate(HouseholdSettingsRoute(navigator.currentTab)) },
@@ -246,10 +259,14 @@ fun AppShell(
                 onOpenAbout = { navigator.navigate(AboutRoute(navigator.currentTab)) },
             )
         }
-        entry<AboutRoute> { AboutScreen(onBack = { navigator.goBack() }) }
-        entry<InsightsRoute> { InsightsScreen(onBack = { navigator.goBack() }) }
-        entry<NotificationSettingsRoute> { NotificationSettingsScreen(onBack = { navigator.goBack() }) }
-        entry<HouseholdSettingsRoute> { HouseholdSettingsScreen(onBack = { navigator.goBack() }) }
+        entry<AboutRoute>(metadata = ::onItsTab) { AboutScreen(onBack = { navigator.goBack() }) }
+        entry<InsightsRoute>(metadata = ::onItsTab) { InsightsScreen(onBack = { navigator.goBack() }) }
+        entry<NotificationSettingsRoute>(metadata = ::onItsTab) {
+            NotificationSettingsScreen(onBack = { navigator.goBack() })
+        }
+        entry<HouseholdSettingsRoute>(metadata = ::onItsTab) {
+            HouseholdSettingsScreen(onBack = { navigator.goBack() })
+        }
     }
 
     // Decorate every tab's stack on every composition so saved state and ViewModels of hidden tabs survive.
@@ -266,59 +283,78 @@ fun AppShell(
                 )
             }
         }
-    val visibleEntries = if (currentTab == TabNavigator.START) {
-        entriesByTab.getValue(TabNavigator.START)
-    } else {
-        entriesByTab.getValue(TabNavigator.START) + entriesByTab.getValue(currentTab)
-    }
+    val visibleEntries = navigator.visible(entriesByTab::getValue)
 
     CompositionLocalProvider(
         LocalJoinRequestCount provides pendingJoinRequests,
         LocalUnits provides session.units,
         LocalCoachMarks provides coachMarks,
     ) {
-        Box(modifier) {
-            Scaffold(
-                contentWindowInsets = WindowInsets(0),
-                bottomBar = {
-                    NavigationBar {
-                        TopLevelDestination.entries.forEach { tab ->
-                            val selected = tab == currentTab
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    navigator.selectTab(tab)
-                                    tourViewModel.on(TourEvent.TabOpened(tab.tourTab()))
-                                },
-                                modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
-                                icon = {
-                                    Icon(
-                                        if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                        contentDescription = null,
-                                    )
-                                },
-                                label = { Text(stringResource(tab.label)) },
-                            )
-                        }
-                    }
-                },
-            ) { padding ->
-                val quotaDay by QuotaSignal.exhaustedOn.collectAsStateWithLifecycle()
-                val reduceMotion = rememberReduceMotion()
-                Column(Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    // DESIGN 6.7: the free daily quota was reached; it resets at midnight Pacific time.
-                    if (quotaDay != null && QuotaSignal.isExhausted()) QuotaBanner()
-                    NavDisplay(
-                        entries = visibleEntries,
-                        onBack = { navigator.goBack() },
-                        modifier = Modifier.weight(1f),
-                        transitionSpec = { sharedAxis(forward = true, reduceMotion) },
-                        popTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
-                        predictivePopTransitionSpec = { sharedAxis(forward = false, reduceMotion) },
-                    )
+        val reduceMotion = rememberReduceMotion()
+        // TalkBack stays on the tour's card while it shows (review A11Y-10). Only with a screen reader on: a finger
+        // still follows the tour by tapping the highlighted tab, and UI tests do the same through the tree.
+        val screenReader = rememberScreenReaderOn()
+        ShellLayout(
+            modifier = modifier,
+            hideBehindOverlay = tourStep != null && screenReader,
+            bar = { barModifier ->
+                TabBar(currentTab, barModifier) { tab ->
+                    navigator.selectTab(tab)
+                    tourViewModel.on(TourEvent.TabOpened(tab.tourTab()))
                 }
+            },
+            overlay = { tourStep?.let { TourOverlay(it, coachMarks, tourViewModel::on) } },
+        ) {
+            // The quota banner is above the root (SpoilNotRoot), so it shows on every screen (after v1, REL-02).
+            NavDisplay(
+                entries = visibleEntries,
+                onBack = { navigator.goBack() },
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = { screenChange(forward = true, newOnTop = true, reduceMotion) },
+                popTransitionSpec = { screenChange(forward = false, newOnTop = false, reduceMotion) },
+                predictivePopTransitionSpec = { screenChange(forward = false, newOnTop = false, reduceMotion) },
+            )
+            // Refused writes from any screen (after v1, REL-13), above the navigation bar.
+            SpoilNotSnackbarHost(shellSnackbar, Modifier.align(Alignment.BottomCenter))
+        }
+        if (reminders.ask && tourStep == null) {
+            NotificationExplainer(reminders.hour, onTurnOn = turnOnReminders, onLater = remindersViewModel::later)
+        }
+    }
+}
+
+/**
+ * The five tabs (DESIGN 6.2), each label on one line (review UX-14). In the 2026-11 look (DESIGN 19.11) the bar is
+ * `surfaceContainer` and the current tab's indicator `primaryContainer`.
+ */
+@Composable
+internal fun TabBar(
+    currentTab: TopLevelDestination,
+    modifier: Modifier = Modifier,
+    onSelect: (TopLevelDestination) -> Unit,
+) {
+    val colors = NavigationBarItemDefaults.colors(
+        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Box(modifier) {
+        // Drawn first, so the bar's opaque surface covers it (DESIGN 13.1).
+        StretchOverscrollWarmUp(Modifier.matchParentSize())
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            TopLevelDestination.entries.forEach { tab ->
+                val selected = tab == currentTab
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onSelect(tab) },
+                    modifier = Modifier.coachMark(tab.tourTarget()?.key ?: "tab_${tab.name}"),
+                    icon = { Icon(if (selected) tab.selectedIcon else tab.unselectedIcon, contentDescription = null) },
+                    label = { TabLabel(stringResource(tab.label)) },
+                    colors = colors,
+                )
             }
-            tourStep?.let { TourOverlay(it, coachMarks, tourViewModel::on) }
         }
     }
 }
@@ -349,37 +385,31 @@ private fun RecipeEditRoute.prefill(): RecipeContent? =
         RecipeContent(title = prefillTitle.orEmpty(), imageUrl = prefillImageUrl, sourceUrl = prefillSourceUrl)
     }
 
-@Composable
-private fun QuotaBanner() {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.errorContainer)
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("quota_banner"),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Rounded.CloudOff, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-        Text(
-            stringResource(R.string.error_quota),
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(start = 8.dp),
-        )
-    }
+/**
+ * How the shell moves between two screens (DESIGN 6.4): Material's shared axis within a tab, a single fade between
+ * tabs (after v1, review PERF-09). [newOnTop] is false for a pop, which the navigation draws under the old screen.
+ */
+private fun AnimatedContentTransitionScope<Scene<NavKey>>.screenChange(
+    forward: Boolean,
+    newOnTop: Boolean,
+    reduceMotion: Boolean,
+): ContentTransform = if (initialState.tab() != targetState.tab()) {
+    Motion.tabSwitch(newOnTop, reduceMotion)
+} else {
+    Motion.sharedAxis(forward, reduceMotion)
 }
 
-/**
- * Material shared axis X (DESIGN 6.4): a short slide with a fade, 250 ms; only a fade when the system's Remove
- * animations setting is on.
- */
-private fun sharedAxis(forward: Boolean, reduceMotion: Boolean): ContentTransform {
-    if (reduceMotion) return fadeIn(tween(120)) togetherWith fadeOut(tween(120))
-    val sign = if (forward) 1 else -1
-    return (slideInHorizontally(tween(250)) { sign * it / 8 } + fadeIn(tween(250, delayMillis = 50))) togetherWith
-        (slideOutHorizontally(tween(250)) { -sign * it / 8 } + fadeOut(tween(150)))
-}
+/** The tab a scene's screen belongs to, from its entry's [TAB_METADATA]. */
+private fun Scene<NavKey>.tab(): Any? = entries.lastOrNull()?.metadata?.get(TAB_METADATA)
+
+/** An entry's metadata key for its tab, so a transition can tell a tab switch from a push. */
+private const val TAB_METADATA = "spoilnot.tab"
+
+/** The metadata of a tab's root on [tab]. */
+private fun onTab(tab: TopLevelDestination): Map<String, Any> = mapOf(TAB_METADATA to tab)
+
+/** The metadata of a pushed screen, on the tab it was opened on. */
+private fun onItsTab(key: PushedRoute): Map<String, Any> = onTab(key.tab)
 
 /** Settings and its pages close when their tab is left. */
 private fun isSettingsScreen(key: NavKey) =

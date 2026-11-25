@@ -1,0 +1,16 @@
+{
+  "uniqueId": "font:manrope",
+  "artifactVersion": "4.505",
+  "name": "Manrope",
+  "description": "The app's typeface. Bundled as a subset with every weight.",
+  "website": "https://github.com/googlefonts/manrope",
+  "developers": [
+    {
+      "name": "The Manrope Project Authors",
+      "organisationUrl": "https://github.com/googlefonts/manrope"
+    }
+  ],
+  "licenses": [
+    "OFL-1.1-manrope"
+  ]
+}

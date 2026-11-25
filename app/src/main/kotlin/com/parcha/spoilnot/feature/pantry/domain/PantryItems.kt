@@ -3,6 +3,28 @@ package com.parcha.spoilnot.feature.pantry.domain
 import java.time.Instant
 import java.time.LocalDate
 
+/** Pantry's filter chips (DESIGN 5.2). [NeedsAttention] is the one set Home and the daily reminder use (after v1, R8). */
+enum class PantryFilter { All, Fridge, Freezer, Pantry, Other, NeedsAttention, Expired, LowStock }
+
+enum class PantrySort { SoonestExpiry, Name, RecentlyAdded }
+
+enum class PantryGrouping { None, Location, Category }
+
+data class PantryQuery(
+    val filter: PantryFilter = PantryFilter.All,
+    val sort: PantrySort = PantrySort.SoonestExpiry,
+    val grouping: PantryGrouping = PantryGrouping.None,
+    val search: String = "",
+) {
+    /**
+     * The list as it opens (DESIGN 19.12): soonest expiry first, not grouped, no search and no filter. Only this view
+     * splits into Use first and Everything else.
+     */
+    val isDefaultView: Boolean
+        get() = filter == PantryFilter.All && sort == PantrySort.SoonestExpiry && grouping == PantryGrouping.None &&
+            search.isBlank()
+}
+
 /**
  * One row of the pantry list. Each purchase (batch) is its own row, so two bags of rice with different dates are
  * two rows (beta feedback, replacing the expandable product rows); a staple with nothing left keeps an Out row.
@@ -71,9 +93,12 @@ object PantryItems {
         batches: List<StockBatch>,
         query: PantryQuery,
         today: LocalDate,
-    ): List<PantryItemGroup> {
+    ): List<PantryItemGroup> = build(all(products, batches, today), query)
+
+    /** The groups for [query] from [all]'s result, so a caller that needs both builds the items once. */
+    fun build(all: List<PantryItem>, query: PantryQuery): List<PantryItemGroup> {
         val search = NameKey.of(query.search)
-        val items = all(products, batches, today)
+        val items = all
             .filter { search.isEmpty() || NameKey.of(it.name).contains(search) }
             .filter { matches(it, query.filter) }
         val sorted = sort(items, query.sort)
@@ -90,20 +115,12 @@ object PantryItems {
 
     private fun matches(item: PantryItem, filter: PantryFilter): Boolean = when (filter) {
         PantryFilter.All -> true
-
         PantryFilter.Fridge -> item.location == Location.Fridge
-
         PantryFilter.Freezer -> item.location == Location.Freezer
-
         PantryFilter.Pantry -> item.location == Location.Pantry
-
         PantryFilter.Other -> item.location == Location.Other
-
-        PantryFilter.ExpiringSoon ->
-            item is PantryItem.Purchase && item.status.needsAttention && item.status != ExpiryStatus.Expired
-
+        PantryFilter.NeedsAttention -> NeedsAttention.includes(item)
         PantryFilter.Expired -> item is PantryItem.Purchase && item.status == ExpiryStatus.Expired
-
         PantryFilter.LowStock -> item.isLow
     }
 

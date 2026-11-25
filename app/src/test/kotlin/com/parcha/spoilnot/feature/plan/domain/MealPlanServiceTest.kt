@@ -70,7 +70,7 @@ class MealPlanServiceTest {
     @Test
     fun `changes are kept within the limits`() = runTest {
         val cooks = (1..25).map { "u$it" }
-        service.update("h", actor, existing, servings = 500, cooks = cooks, note = "  ")
+        service.update("h", actor, existing, servings = 5_000, cooks = cooks, note = "  ")
         val update = writer.last.single() as MealPlanChange.Update
         assertEquals(MealPlanLimits.MAX_SERVINGS, update.servings)
         assertEquals(MealPlanLimits.MAX_COOKS, update.cooks.size)

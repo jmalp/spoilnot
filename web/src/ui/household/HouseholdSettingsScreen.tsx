@@ -1,23 +1,28 @@
 import { useMemo, useState } from 'react';
-import { combineLatest, distinctUntilChanged, map, of, switchMap } from 'rxjs';
-import { useAction, useObservable } from '../../core/hooks';
+import { combineLatest, map, of } from 'rxjs';
+import { useAction, useNow, useObservable } from '../../core/hooks';
 import { str } from '../../core/i18n';
 import { useHouseholdSession, useServices } from '../../core/services';
 import { HouseholdRules, InviteCodes, type Household, type JoinRequest, type Member } from '../../domain/household';
 import {
   Button,
-  Card,
   Dialog,
   ErrorText,
+  GroupHeading,
+  HighlightCard,
   IconButton,
-  ListItem,
+  IconTile,
+  ListGroup,
   Menu,
   MenuItem,
+  PlainCard,
   Progress,
+  RoundIconButton,
   TextField,
   useSnackbars,
 } from '../kit';
 import { DetailScaffold } from '../Scaffold';
+import { relativeTime } from '../home/labels';
 import './household.css';
 
 type Content = {
@@ -25,7 +30,6 @@ type Content = {
   members: Member[];
   /** Waiting requests; always empty for members. */
   requests: JoinRequest[];
-  joiningPaused: boolean;
 };
 
 type Confirm =
@@ -36,7 +40,11 @@ type Confirm =
   | { kind: 'leave' }
   | { kind: 'delete' };
 
-/** Settings > Household (DESIGN 5.1): join requests, the invite card, members and the owner's actions. */
+/**
+ * Settings > Household (DESIGN 5.1, 19): a pushed screen titled with the household's name, Rename beside Back for the
+ * owner; join requests as the highlight card, the invite on a plain card, the members as a group of rows, then Delete
+ * household or Leave household.
+ */
 export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
   const me = useHouseholdSession();
   const { households } = useServices();
@@ -49,21 +57,11 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
   const content = useObservable<Content | null>(
     useMemo(() => {
       const household$ = households.observeHousehold(hid);
-      const code$ = household$.pipe(
-        map((h) => h?.inviteCode ?? ''),
-        distinctUntilChanged(),
-        switchMap((code) => (code ? households.observeInviteCode(code) : of(null))),
-      );
       const requests$ = isOwner
         ? households.observeJoinRequests(hid).pipe(map((all) => all.filter((r) => r.status === 'pending')))
         : of([]);
-      return combineLatest([household$, households.observeMembers(hid), requests$, code$]).pipe(
-        map(([household, members, requests, invite]) => ({
-          household,
-          members,
-          requests,
-          joiningPaused: invite?.active === false,
-        })),
+      return combineLatest([household$, households.observeMembers(hid), requests$]).pipe(
+        map(([household, members, requests]) => ({ household, members, requests })),
       );
     }, [households, hid, isOwner]),
     null,
@@ -75,10 +73,15 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
     <DetailScaffold
       title={household?.name ?? str('settings_household')}
       onBack={onBack}
+      header="pushed"
       testId="screen_household"
       actions={
         isOwner && (
-          <IconButton icon="round/edit" label={str('action_rename')} onClick={() => setConfirm({ kind: 'rename' })} />
+          <RoundIconButton
+            icon="round/edit"
+            label={str('action_rename')}
+            onClick={() => setConfirm({ kind: 'rename' })}
+          />
         )
       }
     >
@@ -87,7 +90,7 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
           <Progress />
         </div>
       ) : (
-        <div className="sn-stack">
+        <div className="sn-household">
           <ErrorText text={action.error && str(action.error)} />
           {isOwner && content.requests.length > 0 && (
             <JoinRequestsCard
@@ -100,13 +103,11 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
           <InviteCard
             household={household}
             isOwner={isOwner}
-            paused={content.joiningPaused}
             busy={action.busy}
             onCopied={() => snackbars.show(str('code_copied'))}
             onRegenerate={() => setConfirm({ kind: 'regenerate' })}
-            onPause={(paused) => void action.run(() => households.setJoiningPaused(household.inviteCode, paused))}
           />
-          <MembersCard
+          <MembersGroup
             members={content.members}
             myUid={me.user.uid}
             isOwner={isOwner}
@@ -115,7 +116,7 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
           />
           {isOwner ? (
             <>
-              <p className="t-body-medium c-on-surface-variant">{str('owner_cannot_leave')}</p>
+              <p className="t-body-medium c-on-surface-variant sn-household__note">{str('owner_cannot_leave')}</p>
               <DangerButton
                 label={str('action_delete_household')}
                 busy={action.busy}
@@ -141,9 +142,7 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
             const uid = me.user.uid;
             switch (confirm.kind) {
               case 'regenerate':
-                return void action.run(() =>
-                  households.regenerateInviteCode(household, uid, InviteCodes.generate(), !content?.joiningPaused),
-                );
+                return void action.run(() => households.regenerateInviteCode(household, uid, InviteCodes.generate()));
               case 'remove':
                 return void action.run(() => households.removeMember(hid, confirm.member.uid));
               case 'transfer':
@@ -162,17 +161,10 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function SectionCard({ title, testId, children }: { title: string; testId: string; children: React.ReactNode }) {
-  return (
-    <Card data-testid={testId}>
-      <div className="sn-section">
-        <h2 className="t-title-medium sn-section__title">{title}</h2>
-        {children}
-      </div>
-    </Card>
-  );
-}
-
+/**
+ * The owner's waiting join requests as the highlight card (DESIGN 19.8): each request a nested row with who is asking
+ * (their masked sign-in address) and when, then Approve (filled) and Decline (tonal).
+ */
 function JoinRequestsCard({
   requests,
   busy,
@@ -184,96 +176,131 @@ function JoinRequestsCard({
   onApprove: (r: JoinRequest) => void;
   onDecline: (r: JoinRequest) => void;
 }) {
+  const { clock } = useServices();
+  const now = useNow(clock);
   return (
-    <SectionCard title={str('join_requests_title')} testId="card_join_requests">
-      {requests.map((request) => (
-        <div key={request.uid} className="sn-section__body">
-          <p className="t-title-medium">{request.displayName}</p>
-          <div className="sn-row">
-            <Button variant="tonal" large disabled={busy} onClick={() => onApprove(request)}>
-              {str('action_approve')}
-            </Button>
-            <Button variant="outlined" large disabled={busy} onClick={() => onDecline(request)}>
-              {str('action_decline')}
-            </Button>
+    <HighlightCard className="sn-join-requests" data-testid="card_join_requests">
+      <div className="sn-join-requests__head">
+        <h2 className="t-card-title">{str('join_requests_title')}</h2>
+        {/* After v1: who is asking (their masked sign-in address) and when, not only the name they typed. Requests
+            from builds before this have neither field. */}
+        <p className="t-body-medium">{str('join_requests_hint')}</p>
+      </div>
+      <ListGroup nested>
+        {requests.map((request) => (
+          <div key={request.uid} className="sn-segment sn-join-request" data-testid={`join_request_${request.uid}`}>
+            <div className="sn-join-request__who">
+              <span className="t-row-title">{request.displayName}</span>
+              {request.emailMasked && (
+                <span className="t-row-supporting c-on-surface-variant">{request.emailMasked}</span>
+              )}
+              {request.requestedAt && (
+                <span className="t-row-supporting c-on-surface-variant">
+                  {str('join_request_sent', relativeTime(request.requestedAt.getTime(), now))}
+                </span>
+              )}
+            </div>
+            <div className="sn-row">
+              {/* "Approve Robin Lee": with two requests the buttons name whom they answer (after v1, review A11Y-08). */}
+              <Button
+                large
+                className="t-button-medium"
+                disabled={busy}
+                aria-label={str('join_request_approve_description', request.displayName)}
+                onClick={() => onApprove(request)}
+              >
+                {str('action_approve')}
+              </Button>
+              <Button
+                variant="tonal"
+                large
+                className="t-button-medium"
+                disabled={busy}
+                aria-label={str('join_request_decline_description', request.displayName)}
+                onClick={() => onDecline(request)}
+              >
+                {str('action_decline')}
+              </Button>
+            </div>
           </div>
-        </div>
-      ))}
-    </SectionCard>
+        ))}
+      </ListGroup>
+    </HighlightCard>
   );
 }
 
+/**
+ * Invite people on a plain card: what to do with the code, the code itself large (read character by character), Copy
+ * and Share as tonal buttons, and New code for the owner.
+ */
 function InviteCard({
   household,
   isOwner,
-  paused,
   busy,
   onCopied,
   onRegenerate,
-  onPause,
 }: {
   household: Household;
   isOwner: boolean;
-  paused: boolean;
   busy: boolean;
   onCopied: () => void;
   onRegenerate: () => void;
-  onPause: (paused: boolean) => void;
 }) {
   const formatted = InviteCodes.format(household.inviteCode);
   const shareText = str('share_message', household.name, formatted);
   return (
-    <SectionCard title={str('invite_title')} testId="card_invite">
-      <div className="sn-section__body">
-        <p className="t-body-medium c-on-surface-variant">{str('invite_body')}</p>
-        <p
-          className="t-display-small sn-invite-code"
-          aria-label={str('invite_code_description', [...formatted].join(' '))}
-          data-testid="invite_code"
+    <PlainCard className="sn-invite" data-testid="card_invite">
+      <h2 className="t-section-title">{str('invite_title')}</h2>
+      <p className="t-body-medium c-on-surface-variant">{str('invite_body')}</p>
+      <p
+        className="t-accent-number c-primary sn-invite-code"
+        aria-label={str('invite_code_description', [...formatted].join(' '))}
+        data-testid="invite_code"
+      >
+        {formatted}
+      </p>
+      <div className="sn-row">
+        <Button
+          variant="tonal"
+          large
+          icon="round/content_copy"
+          className="t-button-medium"
+          onClick={() => void navigator.clipboard.writeText(formatted).then(onCopied, () => undefined)}
         >
-          {formatted}
-        </p>
-        {paused && <p className="t-body-medium c-error">{str('invite_paused')}</p>}
+          {str('action_copy')}
+        </Button>
+        <Button
+          variant="tonal"
+          large
+          icon="round/share"
+          className="t-button-medium"
+          onClick={() => {
+            // The iPhone's share sheet; browsers without one copy the message instead.
+            if (navigator.share) void navigator.share({ text: shareText }).catch(() => undefined);
+            else void navigator.clipboard.writeText(shareText).then(onCopied, () => undefined);
+          }}
+        >
+          {str('action_share')}
+        </Button>
+      </div>
+      {isOwner && (
         <div className="sn-row">
-          <Button
-            variant="tonal"
-            large
-            icon="round/content_copy"
-            onClick={() => void navigator.clipboard.writeText(formatted).then(onCopied, () => undefined)}
-          >
-            {str('action_copy')}
-          </Button>
-          <Button
-            variant="tonal"
-            large
-            icon="round/share"
-            onClick={() => {
-              // The iPhone's share sheet; browsers without one copy the message instead.
-              if (navigator.share) void navigator.share({ text: shareText }).catch(() => undefined);
-              else void navigator.clipboard.writeText(shareText).then(onCopied, () => undefined);
-            }}
-          >
-            {str('action_share')}
+          <Button variant="text" large className="t-button-medium" disabled={busy} onClick={onRegenerate}>
+            {str('action_regenerate')}
           </Button>
         </div>
-        {isOwner && (
-          <div className="sn-row">
-            <Button variant="text" large disabled={busy} onClick={onRegenerate}>
-              {str('action_regenerate')}
-            </Button>
-            <Button variant="text" large disabled={busy} onClick={() => onPause(!paused)}>
-              {str(paused ? 'action_resume_joining' : 'action_pause_joining')}
-            </Button>
-          </div>
-        )}
-      </div>
-    </SectionCard>
+      )}
+    </PlainCard>
   );
 }
 
 const joinedFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
 
-function MembersCard({
+/**
+ * The members under their group heading, a row each: the name's initial on a tile, the name (with "(you)"), the role
+ * and when they joined, and for the owner a ⋮ with Make owner and Remove on everyone else's row.
+ */
+function MembersGroup({
   members,
   myUid,
   isOwner,
@@ -287,30 +314,27 @@ function MembersCard({
   onMakeOwner: (m: Member) => void;
 }) {
   return (
-    <SectionCard title={str('household_members')} testId="card_members">
-      {members.map((member, index) => {
-        const isMe = member.uid === myUid;
-        const role = str(member.role === 'owner' ? 'role_owner' : 'role_member');
-        return (
-          <div key={member.uid}>
-            {index > 0 && <hr className="sn-divider" />}
-            <ListItem
-              headline={isMe ? str('member_you', member.displayName) : member.displayName}
-              supporting={
-                <span data-testid="member_since">
+    <section className="sn-household__section" data-testid="card_members">
+      <GroupHeading text={str('household_members')} />
+      <ListGroup>
+        {members.map((member) => {
+          const isMe = member.uid === myUid;
+          const role = str(member.role === 'owner' ? 'role_owner' : 'role_member');
+          return (
+            <div key={member.uid} className="sn-segment sn-member">
+              <IconTile letter={member.displayName.trim().charAt(0).toUpperCase()} />
+              <span className="sn-row-lines">
+                <span className="t-row-title">{isMe ? str('member_you', member.displayName) : member.displayName}</span>
+                <span className="t-row-supporting c-on-surface-variant" data-testid="member_since">
                   {member.joinedAt ? str('member_summary', role, joinedFormat.format(member.joinedAt)) : role}
                 </span>
-              }
-              trailing={
-                isOwner && !isMe ? (
-                  <MemberMenu member={member} onRemove={onRemove} onMakeOwner={onMakeOwner} />
-                ) : undefined
-              }
-            />
-          </div>
-        );
-      })}
-    </SectionCard>
+              </span>
+              {isOwner && !isMe && <MemberMenu member={member} onRemove={onRemove} onMakeOwner={onMakeOwner} />}
+            </div>
+          );
+        })}
+      </ListGroup>
+    </section>
   );
 }
 
@@ -351,9 +375,10 @@ function MemberMenu({
   );
 }
 
+/** Delete household or Leave household: a text button in the error color, the width of the page. */
 function DangerButton({ label, busy, onClick }: { label: string; busy: boolean; onClick: () => void }) {
   return (
-    <Button variant="outlined" danger full large disabled={busy} onClick={onClick}>
+    <Button variant="text" danger full large className="t-button-medium" disabled={busy} onClick={onClick}>
       {label}
     </Button>
   );
@@ -399,6 +424,7 @@ function ConfirmFor({
   return (
     <Dialog
       title={title}
+      titleClassName="t-dialog-title"
       onDismiss={onDismiss}
       actions={
         <>
@@ -437,6 +463,7 @@ function RenameDialog({
   return (
     <Dialog
       title={str('rename_title')}
+      titleClassName="t-dialog-title"
       onDismiss={onDismiss}
       actions={
         <>

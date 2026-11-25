@@ -37,8 +37,10 @@ class ExpiryStatusTest {
 
     @Test
     fun `needs attention means expired or within 3 days`() {
-        listOf(-1L, 0, 1, 2, 3).forEach { assertTrue("$it", status(it).needsAttention) }
-        listOf(4L, 8).forEach { assertFalse("$it", status(it).needsAttention) }
-        assertFalse(status(null).needsAttention)
+        listOf(-1L, 0, 1, 2, 3).forEach { assertTrue("$it", NeedsAttention.includes(status(it))) }
+        listOf(4L, 8).forEach { assertFalse("$it", NeedsAttention.includes(status(it))) }
+        assertFalse(NeedsAttention.includes(status(null)))
+        assertFalse(NeedsAttention.usable(status(-1)))
+        listOf(0L, 1, 2, 3).forEach { assertTrue("$it", NeedsAttention.usable(status(it))) }
     }
 }

@@ -2,7 +2,20 @@
 import { describe, expect, it } from 'vitest';
 import { product } from '../pantry/fixtures';
 import type { Category } from '../pantry/models';
-import { guessAisle, ShoppingTrip, StoreOrder } from './aisles';
+import { guessAisle, guessCategoryForNewProduct, ShoppingTrip, StoreOrder } from './aisles';
+
+describe('guessCategoryForNewProduct (UX-09)', () => {
+  it('gives Add item the same guess as a typed grocery item, and Other when nothing matches', () => {
+    expect(guessCategoryForNewProduct('Greek yogurt', [])).toBe('dairy');
+    expect(guessCategoryForNewProduct('Bananas', [])).toBe('produce');
+    // The household's own products come first.
+    expect(
+      guessCategoryForNewProduct('Oat milk', [product('oat', { name: 'Oat milk', category: 'pantry_staples' })]),
+    ).toBe('pantry_staples');
+    expect(guessCategoryForNewProduct('Zzyzx', [])).toBe('other');
+    expect(guessCategoryForNewProduct('', [])).toBe('other');
+  });
+});
 
 describe('guessAisle', () => {
   it('common names get their aisle, plurals included', () => {
@@ -13,6 +26,20 @@ describe('guessAisle', () => {
     expect(guessAisle('Sourdough bread')).toBe('bakery');
     expect(guessAisle('sparkling water')).toBe('drinks');
     expect(guessAisle('tortilla chips')).toBe('snacks');
+  });
+
+  it('how it is kept and what kind of product it is win over the food word', () => {
+    // After v1, LOGIC-17: "chicken" is longer than "broth", but chicken broth is a pantry staple.
+    expect(guessAisle('chicken broth')).toBe('pantry_staples');
+    expect(guessAisle('beef stock')).toBe('pantry_staples');
+    expect(guessAisle('tomato paste')).toBe('pantry_staples');
+    expect(guessAisle('salad dressing')).toBe('pantry_staples');
+    expect(guessAisle('canned tomatoes')).toBe('pantry_staples');
+    expect(guessAisle('apple juice')).toBe('drinks');
+    expect(guessAisle('frozen spinach')).toBe('frozen');
+    expect(guessAisle('frozen chicken')).toBe('frozen');
+    // "Frozen" wins over a phrase without it, too.
+    expect(guessAisle('frozen ground beef')).toBe('frozen');
   });
 
   it('a longer phrase wins over the words in it', () => {

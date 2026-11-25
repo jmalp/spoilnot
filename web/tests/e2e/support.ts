@@ -1,6 +1,6 @@
 // Helpers for the browser tests: accounts on the Auth emulator and households made through the app, like
 // EmulatorSupport and TestPhone in the Android tests. Needs ./scripts/emulators.sh.
-import { expect, type Browser, type Page } from '@playwright/test';
+import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 export const PASSWORD = 'password1';
 
@@ -44,9 +44,27 @@ export async function createHousehold(page: Page, name: string) {
   await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 }
 
+const phones: BrowserContext[] = [];
+
+/**
+ * Another phone: a browser context of its own. Playwright closes the contexts it makes for a test, but not ones a test
+ * opens itself; those kept their pages, listeners and timers running in the worker's browser through every later test,
+ * which slowed WebKit until unrelated tests timed out. Specs that use this close them after each test
+ * (`test.afterEach(closeOtherPhones)`).
+ */
+export async function newPhone(browser: Browser): Promise<BrowserContext> {
+  const context = await browser.newContext();
+  phones.push(context);
+  return context;
+}
+
+export async function closeOtherPhones(): Promise<void> {
+  await Promise.all(phones.splice(0).map((context) => context.close().catch(() => undefined)));
+}
+
 /** A new phone (browser context) signed up with its own household, on Home. */
 export async function memberWithHousehold(browser: Browser, name: string, options = {}): Promise<Page> {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newPhone(browser)).newPage();
   await openApp(page, options);
   await signUp(page, name);
   await createHousehold(page, `${name}'s home`);
@@ -96,6 +114,23 @@ export async function patchFields(path: string, fields: Record<string, Value>) {
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`patch ${path}: ${response.status} ${await response.text()}`);
+}
+
+/** Deletes [fields] of a document, keeping the others. */
+export async function removeFields(path: string, fields: string[]) {
+  const mask = fields.map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join('&');
+  const response = await fetch(`${FIRESTORE}/${path}?${mask}`, {
+    method: 'PATCH',
+    headers: ADMIN,
+    body: JSON.stringify({ fields: {} }),
+  });
+  if (!response.ok) throw new Error(`remove ${path}: ${response.status} ${await response.text()}`);
+}
+
+/** Deletes a document for real, as another member's Delete list does. */
+export async function deleteDocument(path: string) {
+  const response = await fetch(`${FIRESTORE}/${path}`, { method: 'DELETE', headers: ADMIN });
+  if (!response.ok) throw new Error(`delete ${path}: ${response.status} ${await response.text()}`);
 }
 
 type RestValue = {
@@ -250,6 +285,35 @@ export async function defaultListId(hid: string): Promise<string> {
   return doc.name.split('/').pop()!;
 }
 
+/** The id of a household's grocery list named [name]. */
+export async function listIdNamed(hid: string, name: string): Promise<string> {
+  // The app shows its own write at once, before the emulator has it: wait for the list to arrive (up to 10 s).
+  for (const deadline = Date.now() + 10_000; ;) {
+    const response = await fetch(`${FIRESTORE}/households/${hid}:runQuery`, {
+      method: 'POST',
+      headers: ADMIN,
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'groceryLists' }],
+          where: { fieldFilter: { field: { fieldPath: 'name' }, op: 'EQUAL', value: { stringValue: name } } },
+        },
+      }),
+    });
+    const rows = (await response.json()) as { document?: { name: string } }[];
+    const doc = rows.find((r) => r.document)?.document;
+    if (doc) return doc.name.split('/').pop()!;
+    if (Date.now() > deadline) throw new Error(`No list ${name} in ${hid}`);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+/** The ids of the documents in a collection on the server, tombstones included. */
+export async function documentIds(path: string): Promise<string[]> {
+  const response = await fetch(`${FIRESTORE}/${path}`, { headers: ADMIN });
+  const json = (await response.json()) as { documents?: { name: string }[] };
+  return (json.documents ?? []).map((d) => d.name.split('/').pop()!);
+}
+
 export type SeedGroceryItem = {
   id: string;
   name: string;
@@ -307,6 +371,8 @@ export type SeedRecipe = {
   tags?: string[];
   favorite?: boolean;
   sourceUrl?: string | null;
+  /** The recipe's "By" name, as an import keeps it. */
+  sourceName?: string | null;
   /** Seconds before now, for the box's Recent order. */
   createdSecondsAgo?: number;
 };
@@ -317,7 +383,7 @@ export async function seedRecipe(hid: string, uid: string, r: SeedRecipe) {
   await put(`households/${hid}/recipes/${r.id}`, {
     title: r.title,
     sourceUrl: r.sourceUrl ?? null,
-    sourceName: null,
+    sourceName: r.sourceName ?? null,
     imageUrl: null,
     description: null,
     servings: r.servings ?? null,
@@ -398,4 +464,47 @@ export async function uidOf(email: string): Promise<string> {
   const uid = json.users?.[0]?.localId;
   if (!uid) throw new Error(`No account ${email}`);
   return uid;
+}
+
+/**
+ * Starts noting every row that shows another phone's highlight (`data-remote`, DESIGN 6.4) from now on, including
+ * rows that arrive already highlighted, so a test can say none was highlighted however briefly. [highlightedRows]
+ * reads the list and empties it.
+ */
+export async function recordHighlights(page: Page) {
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    const note = (el: Element) => {
+      if (el.getAttribute('data-remote') === 'true') seen.push(el.getAttribute('data-testid') ?? el.tagName);
+    };
+    new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes') note(m.target as Element);
+        m.addedNodes.forEach((n) => {
+          if (!(n instanceof Element)) return;
+          note(n);
+          n.querySelectorAll('[data-remote]').forEach(note);
+        });
+      }
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-remote'] });
+    (window as unknown as { highlighted: string[] }).highlighted = seen;
+  });
+}
+
+/** The rows highlighted since [recordHighlights] or the last call, waiting [settleMs] first for late highlights. */
+export async function highlightedRows(page: Page, settleMs = 1000): Promise<string[]> {
+  await page.waitForTimeout(settleMs);
+  return page.evaluate(() => {
+    const seen = (window as unknown as { highlighted: string[] }).highlighted;
+    return seen.splice(0, seen.length);
+  });
+}
+
+/**
+ * The open screen has heard from the server: no Offline banner, and none waiting to show. The banner shows only
+ * after 2 s on the phone's data (DESIGN 9.5), so its absence alone no longer says the server answered.
+ */
+export async function expectFromServer(page: Page, timeout = 15_000) {
+  await expect(page.getByTestId('offline_waiting')).toHaveCount(0, { timeout });
+  await expect(page.getByTestId('offline_banner')).toHaveCount(0, { timeout });
 }

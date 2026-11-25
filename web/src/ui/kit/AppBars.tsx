@@ -13,19 +13,30 @@ export function TopAppBar({
   navigation,
   actions,
   scrolled,
+  page = false,
 }: {
   title: ReactNode;
   titleStyle?: 'headline' | 'title';
   navigation?: ReactNode;
   actions?: ReactNode;
   scrolled?: boolean;
+  /** On the page's color, which stays while content scrolls under it (pushed screens, DESIGN 19.7). */
+  page?: boolean;
 }) {
   return (
-    <header className={`m3-top-app-bar ${scrolled ? 'm3-top-app-bar--scrolled' : ''}`}>
+    <header
+      className={`m3-top-app-bar ${scrolled ? 'm3-top-app-bar--scrolled' : ''} ${page ? 'm3-top-app-bar--page' : ''}`}
+    >
       {navigation && <div className="m3-top-app-bar__navigation">{navigation}</div>}
-      <h1 className={`m3-top-app-bar__title ${titleStyle === 'headline' ? 't-headline-small' : 't-title-large'}`}>
-        {title}
-      </h1>
+      {/* No title, no heading: an empty <h1> is a stop VoiceOver reads as nothing (after v1, review A11Y-12). Recipe
+          detail names itself in its content. */}
+      {title === '' || title === null || title === undefined ? (
+        <div className="m3-top-app-bar__title" />
+      ) : (
+        <h1 className={`m3-top-app-bar__title ${titleStyle === 'headline' ? 't-headline-small' : 't-title-large'}`}>
+          {title}
+        </h1>
+      )}
       {actions && <div className="m3-top-app-bar__actions">{actions}</div>}
     </header>
   );

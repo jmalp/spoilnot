@@ -3,6 +3,8 @@ package com.parcha.spoilnot.feature.home.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.coroutines.LoadRetry
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
@@ -10,6 +12,7 @@ import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRepository
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
+import com.parcha.spoilnot.feature.home.domain.ActivityFeed
 import com.parcha.spoilnot.feature.home.domain.ActivityRepository
 import com.parcha.spoilnot.feature.home.domain.HomeDashboard
 import com.parcha.spoilnot.feature.home.domain.HomeSummary
@@ -21,6 +24,7 @@ import com.parcha.spoilnot.feature.insights.domain.InsightsSummary
 import com.parcha.spoilnot.feature.insights.domain.StatsRepository
 import com.parcha.spoilnot.feature.insights.ui.insightsFlow
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
+import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.domain.PantryService
 import com.parcha.spoilnot.feature.pantry.ui.todayFlow
@@ -39,16 +43,18 @@ import java.time.temporal.WeekFields
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -56,8 +62,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), low stock, the grocery list, this month's
- * kitchen (5.7) and recent activity.
+ * The Home tab (DESIGN 5.6): what needs attention, today's meals (5.9), Use it up, the grocery list with low stock,
+ * this month's kitchen (5.7) and recent activity.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -86,6 +92,8 @@ class HomeViewModel @Inject constructor(
         /** Today's planned meals, breakfast first (DESIGN 5.9); the card shows only when there are some. */
         val todayMeals: List<PlannedMeal> = emptyList(),
         val members: List<Member> = emptyList(),
+        /** A card's data failed to load and is being listened to again (DESIGN 6.7). */
+        val loadFailed: Boolean = false,
     )
 
     /** The same week window as the Plan tab, so both share one full read (DESIGN 9.8). */
@@ -93,6 +101,9 @@ class HomeViewModel @Inject constructor(
 
     /** Only the current month: one document per open (DESIGN 9.7). */
     private val insights = insightsFlow(session, stats, clock, YearMonth::from).onStart { emit(null) }
+
+    /** "Couldn't load. Retry" (DESIGN 6.7): Home's listeners listen again instead of ending (after v1, REL-04). */
+    private val load = LoadRetry()
 
     val state: StateFlow<UiState> = session.session
         .map { (it as? Session.InHousehold)?.let { s -> s.householdId to s.user.uid } }
@@ -106,41 +117,62 @@ class HomeViewModel @Inject constructor(
                     .map { lists -> lists.firstOrNull { it.isDefault }?.id }
                     .distinctUntilChanged()
                     .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else grocery.observeItems(hid, id) }
-                    .catch { emit(emptyList()) }
+                    .retryLoading(load)
                     .onStart { emit(emptyList()) }
                 val recent: Flow<List<ActivityEvent>> = activity.observeRecent(hid, RECENT)
-                    .catch { emit(emptyList()) }
+                    .retryLoading(load)
                     .onStart { emit(emptyList()) }
                 val box = recipes.box.map { it?.recipes.orEmpty() }
                 val home =
                     combine(
-                        pantry.observe(hid).catch {
-                        },
+                        // Null only when the first listen fails, so the screen can say "Couldn't load" (6.7).
+                        pantry.observe(hid).retryLoading<PantryData?>(load, null).conflate(),
                         items,
                         recent,
                         todayFlow(clock),
                         insights,
                     ) { p, i, r, today, s ->
-                        UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid, s) to p
+                        if (p == null) {
+                            UiState(today = today, myUid = uid, insights = s) to null
+                        } else {
+                            UiState(HomeDashboard.summary(p, i, r, today), today, p.fromCache, uid, s) to p
+                        }
                     }
-                val today = todayFlow(clock).flatMapLatest { day ->
+                // Today's meals, and the recipes planned from today to the end of the week (Use it up, UX-05).
+                val week = todayFlow(clock).flatMapLatest { day ->
                     val start = MealWeek.start(day, firstDay)
                     mealPlan.observe(hid, start, MealWeek.end(start))
-                        .map { plan -> MealWeek.build(start, plan.meals, day).first { it.isToday }.meals }
-                        .catch { emit(emptyList()) }
-                        .onStart { emit(emptyList()) }
+                        .map { plan ->
+                            PlanToday(
+                                MealWeek.build(start, plan.meals, day).first { it.isToday }.meals,
+                                MealWeek.plannedFrom(plan.meals, day),
+                            )
+                        }
+                        .retryLoading(load)
+                        .onStart { emit(PlanToday(emptyList(), emptySet())) }
                 }
-                val members = households.observeMembers(hid).catch { emit(emptyList()) }.onStart { emit(emptyList()) }
-                combine(home, box, today, members) { (state, p), saved, meals, people ->
+                val members = households.observeMembers(hid).retryLoading().onStart { emit(emptyList()) }
+                combine(home, box, week, members) { (state, p), saved, plan, people ->
+                    val names = people.associate { it.uid to it.displayName }
                     state.copy(
-                        useItUp = UseItUp.suggestions(saved, p, state.today),
-                        todayMeals = meals,
+                        summary = state.summary?.let { it.copy(recent = ActivityFeed.named(it.recent, names)) },
+                        useItUp = p?.let { UseItUp.suggestions(saved, it, state.today, plan.planned) }.orEmpty(),
+                        todayMeals = plan.meals,
                         members = people,
                     )
                 }
             }
         }
+        .combine(load.failed) { s, failed -> s.copy(loadFailed = failed) }
+        // The dashboard and Use it up are built off the main thread (after v1, PERF-02).
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+
+    /** Retry on "Couldn't load": listens again at once. */
+    fun retryLoad() = load.retry()
+
+    /** Today's meals, breakfast first, and the recipes planned from today on. */
+    private data class PlanToday(val meals: List<PlannedMeal>, val planned: Set<String>)
 
     private companion object {
         /** DESIGN 5.6: the last 10 events. */

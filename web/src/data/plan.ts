@@ -3,6 +3,7 @@
 import {
   collection,
   doc,
+  getDocFromServer,
   query,
   serverTimestamp,
   Timestamp,
@@ -24,11 +25,11 @@ import type { Actor, HouseholdChange } from '../domain/write';
 import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
+import { lostRace, type AppError } from '../core/errors';
+import { capTo, ReadCaps } from '../domain/caps';
+import { mapEach, millis, str as text, strings } from './fields';
 
 export const meals = (hid: string) => `households/${hid}/meals`;
-
-const millis = (value: unknown): number | null => (value instanceof Timestamp ? value.toMillis() : null);
-const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 // New fields are optional on read with defaults (DESIGN 8.1); a meal with no valid date or slot is skipped.
 export function toMeal(s: DocumentSnapshot): PlannedMeal | null {
@@ -42,13 +43,14 @@ export function toMeal(s: DocumentSnapshot): PlannedMeal | null {
     slot,
     position: typeof s.get('position') === 'number' ? (s.get('position') as number) : 0,
     recipeId: text(s.get('recipeId')),
-    title: text(s.get('title')) ?? '',
+    title: capTo(text(s.get('title')) ?? '', ReadCaps.MEAL_TITLE),
     servings: typeof servings === 'number' ? Math.trunc(servings) : null,
-    cooks: ((s.get('cooks') as unknown[] | null) ?? []).filter((c): c is string => typeof c === 'string'),
+    cooks: strings(s.get('cooks')),
     note: text(s.get('note')),
-    cookedAt: millis(s.get('cookedAt')),
+    // A Cooked made offline (a pending server time) counts at once (DESIGN 5.9), so it can't be pressed twice.
+    cookedAt: millis(s, 'cookedAt'),
     cookedBy: text(s.get('cookedBy')),
-    createdAt: (s.get('createdAt', { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null,
+    createdAt: millis(s, 'createdAt'),
     createdBy: text(s.get('createdBy')),
     pendingSync: s.metadata.hasPendingWrites,
   };
@@ -70,7 +72,7 @@ export class FirestoreMealPlanRepository implements MealPlanRepository {
         return liveDocuments(db, all, this.log, window, `${all.path}?date=${from}..${to}`);
       }),
       map((live) => ({
-        meals: live.documents.map(toMeal).filter((m): m is PlannedMeal => m !== null),
+        meals: mapEach(live.documents, toMeal),
         fromCache: live.fromCache,
       })),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
@@ -93,6 +95,15 @@ const fields = (meal: PlannedMeal) => ({
 
 /** Firestore writes for MealPlanChange (MealPlanChangeMapper). */
 export const mealPlanMapper: ChangeMapper = {
+  /** The rules mark a meal cooked once (DESIGN 8.5): a refused Cooked lost to another phone's when it is cooked now. */
+  async whyRefused(db: Firestore, hid: string, chunk: HouseholdChange[]): Promise<AppError | null> {
+    const cooked = chunk.filter(isMealPlanChange).find((c) => c.type === 'meal.setCooked' && c.cooked);
+    if (!cooked || cooked.type !== 'meal.setCooked') return null;
+    const snapshot = await getDocFromServer(doc(db, meals(hid), cooked.mealId));
+    if (snapshot.get('cookedAt') == null) return null;
+    const by: unknown = snapshot.get('cookedBy');
+    return lostRace('cooked', typeof by === 'string' ? by : null);
+  },
   write(batch: WriteBatch, db: Firestore, hid: string, actor: Actor, change: HouseholdChange): boolean {
     if (!isMealPlanChange(change)) return false;
     const meal = (id: string) => doc(db, meals(hid), id);
@@ -101,13 +112,9 @@ export const mealPlanMapper: ChangeMapper = {
       case 'meal.create':
         batch.set(meal(change.meal.id), { ...fields(change.meal), ...Stamps.created(actor), ...stamp });
         break;
+      // Undo removes the tombstone and nothing else (DESIGN 8.6).
       case 'meal.restore':
-        batch.set(meal(change.meal.id), {
-          ...fields(change.meal),
-          ...stamp,
-          createdAt: change.meal.createdAt !== null ? Timestamp.fromMillis(change.meal.createdAt) : serverTimestamp(),
-          createdBy: change.meal.createdBy ?? actor.uid,
-        });
+        batch.set(meal(change.meal.id), Tombstones.restore(actor), { merge: true });
         break;
       case 'meal.update':
         batch.update(meal(change.mealId), {

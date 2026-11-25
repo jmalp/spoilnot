@@ -9,6 +9,7 @@ import {
   inDays,
   openApp,
   PASSWORD,
+  seedActivity,
   seedGroceries,
   seedPantry,
   signUp,
@@ -33,6 +34,14 @@ test('theme, colors and units: chosen in Settings, kept after the app opens agai
   await openSettings(page);
   const root = page.locator('html');
   await expect(root).toHaveAttribute('data-mode', 'light');
+  // The 2026-11 look (DESIGN 19.12): the account card with the initial, the rows as one button each with both lines,
+  // and the groups' headings.
+  await expect(page.getByTestId('card_account')).toContainText('Sam');
+  await expect(page.getByTestId('row_household')).toHaveRole('button');
+  await expect(page.getByTestId('row_household')).toHaveAccessibleName(/^Household Looks/);
+  for (const heading of ['Settings', 'Appearance', 'Data']) {
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+  }
 
   const appearance = page.getByTestId('card_appearance');
   await appearance.getByRole('radio', { name: 'Dark' }).click();
@@ -64,6 +73,7 @@ test('export downloads the household as JSON, then the owner clears its data wit
   const uid = await uidOf(email);
   await seedPantry(hid, uid, [{ id: 'milk', name: 'Milk', expiry: inDays(3) }]);
   await seedGroceries(hid, uid, await defaultListId(hid), [{ id: 'bread', name: 'Bread' }]);
+  await seedActivity(hid, uid, 'Sam', { type: 'stock_added', name: 'Milk' });
   await tab(page, 'Pantry');
   await expect(page.getByTestId('pantry_list')).toContainText('Milk');
 
@@ -77,7 +87,19 @@ test('export downloads the household as JSON, then the owner clears its data wit
   expect(json.household.name).toBe(household);
   expect(json.products.map((p: { name: string }) => p.name)).toEqual(['Milk']);
   expect(json.groceryLists[0].items.map((i: { name: string }) => i.name)).toEqual(['Bread']);
+  // After v1 (2026-11-11): the person's own profile and the activity log.
+  expect(json.profile).toMatchObject({ id: uid, displayName: 'Sam' });
+  expect(json.activity.map((a: { type: string }) => a.type)).toContain('stock_added');
   await expect(status(page, 'Export saved')).toBeVisible();
+
+  // Offline it reads nothing from the phone's copy: "You're offline", and no file.
+  let downloads = 0;
+  page.on('download', () => downloads++);
+  await page.context().setOffline(true);
+  await page.getByTestId('button_export').click();
+  await expect(status(page, "You're offline")).toBeVisible();
+  await page.context().setOffline(false);
+  expect(downloads).toBe(0);
 
   // Are you sure, then the password: a wrong one is refused.
   await page.getByTestId('button_clear_household').click();
@@ -107,7 +129,7 @@ test('About shows the build, the privacy summary and the open source licenses', 
   await createHousehold(page, `About ${Date.now()}`);
   await openSettings(page);
   await page.getByTestId('row_about').click();
-  await expect(page.getByTestId('about_version')).toHaveText('Spoil Not for iPhone, build dev');
+  await expect(page.getByTestId('about_version')).toHaveText('Spoil Not for iPhone, build 3 (dev)');
   await expect(page.getByTestId('screen_about')).toContainText('no crash reports');
   const react = page.getByTestId('licenses').getByRole('button', { name: /^react 19/ });
   await expect(react).toContainText('MIT');

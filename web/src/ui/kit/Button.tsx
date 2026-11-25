@@ -12,8 +12,13 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   trailingIcon?: IconName;
   /** Full width, like PrimaryButton in the app. */
   full?: boolean;
-  /** PrimaryButton's 48 px height (a filled button stretched to the touch target), for form buttons. */
+  /** A 48 px button (stretched to the touch target), for buttons in cards and secondary form buttons. */
   large?: boolean;
+  /**
+   * A screen's or sheet's main button (DESIGN 19.9; PrimaryButton in the app): full width, filled, 56 px, ButtonLarge.
+   * Implies [full] and [large].
+   */
+  primary?: boolean;
   /** Error colors, for destructive text buttons such as Remove from plan. */
   danger?: boolean;
   /** Shows a small spinner instead of the label and ignores taps (PrimaryButton's busy). */
@@ -28,6 +33,7 @@ export function Button({
   trailingIcon,
   full,
   large,
+  primary,
   danger,
   busy,
   className,
@@ -41,8 +47,9 @@ export function Button({
     `m3-button--${variant}`,
     icon && 'm3-button--with-icon',
     trailingIcon && 'm3-button--with-trailing-icon',
-    full && 'm3-button--full',
-    large && 'm3-button--large',
+    (full || primary) && 'm3-button--full',
+    (large || primary) && 'm3-button--large',
+    primary && 'm3-button--primary',
     danger && 'm3-button--error',
     className,
   ];

@@ -1,0 +1,16 @@
+{
+  "uniqueId": "font:fredoka",
+  "artifactVersion": "2.001",
+  "name": "Fredoka",
+  "description": "A rounded display typeface. Bundled as a subset for the app's name on the welcome screen.",
+  "website": "https://github.com/hafontia/Fredoka-One",
+  "developers": [
+    {
+      "name": "The Fredoka Project Authors",
+      "organisationUrl": "https://github.com/hafontia/Fredoka-One"
+    }
+  ],
+  "licenses": [
+    "OFL-1.1-fredoka"
+  ]
+}

@@ -2,16 +2,23 @@
 // menu actions with Undo, Mark opened, and a second phone seeing the changes (changes-only listeners).
 import { expect, test, type Page } from '@playwright/test';
 import {
+  closeOtherPhones,
   createHousehold,
+  expectFromServer,
   householdId,
   inDays,
+  highlightedRows,
+  newPhone,
   openApp,
   PASSWORD,
+  recordHighlights,
   seedPantry,
   signUp,
   uidOf,
   uniqueEmail,
 } from './support';
+
+test.afterEach(closeOtherPhones);
 
 // Long flows with two phones: room for slow machines.
 test.setTimeout(60_000);
@@ -42,7 +49,7 @@ async function pantryWithItems(page: Page) {
   ]);
   await page.getByRole('navigation').getByRole('button', { name: 'Pantry' }).click();
   await expect(rows(page)).toHaveCount(5);
-  return email;
+  return { email, hid };
 }
 
 test('the list, filters and search, as on Android', async ({ page }) => {
@@ -54,13 +61,26 @@ test('the list, filters and search, as on Android', async ({ page }) => {
     /Rice.*500 g/,
     /Olive oil.*Out/,
   ]);
-  await expect(page.getByTestId('pantry_item_milk').getByTestId('status_chip')).toHaveAccessibleName(
-    'Expires tomorrow',
-  );
+  // A row says its status in words before its place, and reads the full wording as one sentence (DESIGN 19.6).
+  const milk = page.getByTestId('pantry_item_milk');
+  await expect(milk.locator('.sn-pantry-row__second')).toHaveText('Tomorrow · Fridge');
+  await expect(milk.getByRole('button', { name: 'Milk, 1 piece, Expires tomorrow, Fridge' })).toBeVisible();
 
-  await page.getByTestId('pantry_filter_expiringSoon').click();
-  await expect(rows(page)).toHaveText([/Milk/]);
-  await page.getByTestId('pantry_filter_expiringSoon').click(); // the chosen filter again: everything
+  // The default view in two groups (DESIGN 19.12); the line above the title counts every row (19.7).
+  await expect(page.getByTestId('screen_eyebrow')).toHaveText('5 items');
+  const groups = page.getByTestId('pantry_list');
+  await expect(groups.getByRole('heading')).toHaveText(['Use first', 'Everything else']);
+  await expect(groups.getByRole('region', { name: 'Use first' }).locator('[data-testid^="pantry_item_"]')).toHaveText([
+    /Soup/,
+    /Milk/,
+  ]);
+
+  // Needs attention holds the expired too, as Home and the digest count them (after v1, R8); a filter shows the list
+  // without the two groups.
+  await page.getByTestId('pantry_filter_needsAttention').click();
+  await expect(rows(page)).toHaveText([/Soup/, /Milk/]);
+  await expect(groups.getByRole('heading')).toHaveCount(0);
+  await page.getByTestId('pantry_filter_needsAttention').click(); // the chosen filter again: everything
   await expect(rows(page)).toHaveCount(5);
 
   await page.getByRole('searchbox').fill('YOG');
@@ -73,6 +93,43 @@ test('the list, filters and search, as on Android', async ({ page }) => {
   await expect(list.getByRole('heading')).toHaveText(['Fridge', 'Pantry']);
 });
 
+test("a search, filter or sort changes the rows at once and highlights none; another phone's change still is", async ({
+  page,
+}) => {
+  const { email, hid } = await pantryWithItems(page);
+  const uid = await uidOf(email);
+  await recordHighlights(page);
+  const animations = () =>
+    page.getByTestId('pantry_list').evaluate((list) => list.getAnimations({ subtree: true }).length);
+
+  // Rows a wider search, filter or sort brings back were there all along: none is highlighted, and none fades or slides
+  // (after v1, 2026-11-17, DESIGN 6.4; the web followed the rows shown and highlighted them as another phone's).
+  await page.getByRole('searchbox').fill('YOG');
+  await expect(rows(page)).toHaveText([/Yogurt/]);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(rows(page)).toHaveCount(5);
+  expect(await animations()).toBe(0);
+  await page.getByTestId('pantry_filter_needsAttention').click();
+  await expect(rows(page)).toHaveCount(2);
+  await page.getByTestId('pantry_filter_needsAttention').click();
+  await expect(rows(page)).toHaveCount(5);
+  await page.getByRole('button', { name: 'Sort and group' }).click();
+  await page.getByRole('menuitem', { name: 'Name' }).click();
+  await expect(rows(page).first()).toContainText('Milk');
+  expect(await animations()).toBe(0);
+  expect(await highlightedRows(page)).toEqual([]);
+
+  // Another member's new purchase is highlighted, with the search empty and while it shows the row.
+  await seedPantry(hid, uid, [{ id: 'butter', name: 'Butter', expiry: inDays(20) }]);
+  await expect(page.getByTestId('pantry_item_butter')).toHaveAttribute('data-remote', 'true');
+  await page.getByRole('searchbox').fill('rice');
+  await expect(rows(page)).toHaveText([/Rice/]);
+  await seedPantry(hid, uid, [
+    { id: 'rice', name: 'Rice', quantity: 400, unit: 'g', location: 'pantry', expiry: inDays(200) },
+  ]);
+  await expect(page.getByTestId('pantry_item_rice')).toHaveAttribute('data-remote', 'true');
+});
+
 test('swipe to use up and Undo; throw away with a reason; mark some opened; another phone follows', async ({
   page,
   browser,
@@ -80,12 +137,15 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   // Two phones and a long flow: the same room as the plan and recipes flows (under a full run's load the first phone's
   // part alone took most of 60 s).
   test.setTimeout(90_000);
-  const email = await pantryWithItems(page);
+  const { email } = await pantryWithItems(page);
 
-  // Swipe right: used up, with Undo.
+  // Swipe right: used up, with Undo. The swipe is drawn at the row's measured place, so first wait for the server's
+  // answer: one more than 2 s late brings the Offline banner above the list (DESIGN 9.5), and its going moves the rows.
   const milk = page.getByTestId('pantry_item_milk');
+  await expectFromServer(page);
   const box = (await milk.boundingBox())!;
-  await page.mouse.move(box.x + 20, box.y + box.height / 2);
+  // From a finger's width in: a swipe from the screen's left edge is Safari's Back (after v1, WEB-15).
+  await page.mouse.move(box.x + 40, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2, { steps: 8 });
   await page.mouse.up();
@@ -111,7 +171,7 @@ test('swipe to use up and Undo; throw away with a reason; mark some opened; anot
   await expect(rows(page).filter({ hasText: 'Opened' })).toHaveCount(1);
 
   // The same household on another phone sees all of it.
-  const other = await (await browser.newContext()).newPage();
+  const other = await (await newPhone(browser)).newPage();
   await openApp(other);
   await other.getByRole('button', { name: 'Sign in' }).click();
   await other.getByLabel('Email').fill(email);
@@ -149,4 +209,39 @@ test('three expired purchases fold into a header', async ({ page }) => {
   await expect(rows(page)).toHaveText([/Eggs/]);
   await page.getByTestId('pantry_expired_toggle').click();
   await expect(rows(page)).toHaveCount(4);
+});
+
+test('a new filter starts the list at the top, also when the default view has no Use first (owner, 2026-11-21)', async ({
+  page,
+}) => {
+  const email = uniqueEmail('Sam');
+  const household = `Pantry top ${Date.now()}`;
+  await openApp(page);
+  await signUp(page, 'Sam', email);
+  await createHousehold(page, household);
+  // Nothing needs using up soon: the default view is one group, as a filtered list is.
+  await seedPantry(
+    await householdId(household),
+    await uidOf(email),
+    Array.from({ length: 30 }, (_, i) => ({
+      id: `item${i + 1}`,
+      name: `Item ${i + 1}`,
+      expiry: inDays(30 + i),
+      location: i % 2 === 0 ? 'pantry' : 'fridge',
+    })),
+  );
+  await page.getByRole('navigation').getByRole('button', { name: 'Pantry' }).click();
+  await expect(rows(page)).toHaveCount(30);
+  const list = page.getByTestId('pantry_list');
+
+  await page.getByTestId('pantry_filter_fridge').click();
+  await expect(rows(page)).toHaveCount(15);
+  await list.evaluate((el) => (el.scrollTop = el.scrollHeight));
+  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+  // Taken off: the whole list from its first row, not the place the filtered list was at.
+  await page.getByTestId('pantry_filter_fridge').click();
+  await expect(rows(page)).toHaveCount(30);
+  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
+  await expect(rows(page).first()).toBeInViewport();
 });

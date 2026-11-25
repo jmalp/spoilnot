@@ -16,14 +16,18 @@ plugins {
 
 android {
     namespace = "com.parcha.spoilnot"
-    compileSdk = 37
+    // Compose 1.13 (BOM 2026.11.01) needs Android 37.1 or later to compile against; targetSdk stays 37 (DECISIONS
+    // 2026-11-24).
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "com.parcha.spoilnot"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10
-        versionName = "1.0.0-beta.9"
+        versionCode = 13
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "com.parcha.spoilnot.HiltTestRunner"
     }
@@ -63,6 +67,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Phones only (after v1, review EFF-07): the x86 copies of the two small native libraries serve only
+            // emulators and Chromebooks, which run ARM apps too.
+            //noinspection ChromeOsAbiSupport
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
         // Release code (minified, not debuggable) against the local emulators, for measuring performance with
         // seeded data (DESIGN 13.1). Dev flavor only; never distributed.
@@ -72,6 +80,8 @@ android {
             matchingFallbacks += listOf("release")
             proguardFiles("benchmark-rules.pro")
             configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
+            // Every ABI, so it also runs on an x86_64 emulator.
+            ndk { abiFilters.clear() }
         }
     }
 
@@ -97,11 +107,33 @@ android {
         checkReleaseBuilds = false
     }
 
+    // Files the libraries ship that nothing reads at run time (after v1, review EFF-07): the protobuf, Google API and
+    // Firebase .proto sources (the code uses generated classes), Kotlin's metadata for reflection (the app has no
+    // kotlin-reflect) and the coroutines debug agent's probes.
+    packaging {
+        resources {
+            excludes +=
+                listOf(
+                    "**/*.proto",
+                    "*.proto",
+                    "kotlin/*.kotlin_builtins",
+                    "kotlin/**/*.kotlin_builtins",
+                    "DebugProbesKt.bin",
+                )
+        }
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
         // Robolectric renders Compose on the JVM for component and screenshot tests (DESIGN 13.1).
         unitTests.isIncludeAndroidResources = true
     }
+}
+
+// java.time values are immutable, so rows and states that hold dates skip by equals instead of recomposing on every
+// snapshot (review PERF-07, DECISIONS 2026-11-16).
+composeCompiler {
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("compose-stability.conf"))
 }
 
 // Only dev debug (and dev benchmark) builds talk to the Firebase Emulator Suite (DESIGN 7.4). The Android emulator reaches the
@@ -123,6 +155,16 @@ androidComponents {
 }
 
 dependencies {
+    constraints {
+        // Guava comes only through Firestore's gRPC, which asks for an older release; this raises it to the
+        // catalog's version, so Dependabot keeps it current (DECISIONS 2026-11-10).
+        implementation(libs.guava) { because("Firestore's gRPC asks for an older Guava") }
+        // Firestore 27.2 drops these annotations from gRPC, leaving Firebase's older release in the app while the
+        // test libraries ask for a newer one; AGP makes the tests use the app's version, so they fail to resolve
+        // (DECISIONS 2026-11-14).
+        implementation(libs.errorprone.annotations) { because("the test libraries need a newer release") }
+    }
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -133,10 +175,8 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
-    debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     implementation(libs.hilt.android)
@@ -172,7 +212,6 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
@@ -188,9 +227,17 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
-    androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.hilt.android.testing)
     kspAndroidTest(libs.hilt.compiler)
+}
+
+// About's licence list (DESIGN 5.6) is generated from the dependencies, plus the definitions in app/aboutlibraries:
+// the two bundled fonts, Manrope and Fredoka, which aren't Maven dependencies, with their SIL Open Font License texts
+// (after v1, review B27, CODE-06; AboutLicensesTest checks them).
+aboutLibraries {
+    collect {
+        configPath = file("aboutlibraries")
+    }
 }
 
 // Lint analysis resolves symbols through every variant's Hilt-generated sources, and crashed with "No such file"
@@ -208,7 +255,13 @@ tasks.withType<Test>().configureEach {
     )
 }
 
-// Screenshots are written here by ./gradlew recordRoborazziDevDebug for review; a plain test run only renders.
+// Screenshot references are committed (after v1, review CODE-07, DECISIONS): ./gradlew recordRoborazziDevDebug writes
+// them here, and ./gradlew verifyRoborazziDevDebug compares against them on the Mac, writing differences to
+// build/outputs/roborazzi. A plain test run (CI) only renders. Tests name files relative to this folder
+// (roborazzi.record.filePathStrategy in gradle.properties).
 roborazzi {
-    outputDir.set(layout.buildDirectory.dir("outputs/roborazzi"))
+    outputDir.set(file("src/test/screenshots"))
+    compare {
+        outputDir.set(layout.buildDirectory.dir("outputs/roborazzi"))
+    }
 }

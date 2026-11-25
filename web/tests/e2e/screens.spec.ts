@@ -4,6 +4,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   createHousehold,
   defaultListId,
+  expectFromServer,
   householdId,
   inDays,
   openApp,
@@ -62,7 +63,8 @@ for (const dark of [false, true]) {
       // Loaded: the skeleton is gone and this month's card has its (empty) counts.
       await expect(page.getByTestId('card_home_insights')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId('home_skeleton')).toHaveCount(0);
-      await shot(page, `home_${suffix}`);
+      // Home's line above the title is today's date (DESIGN 19.7).
+      await shot(page, `home_${suffix}`, ['screen_eyebrow']);
       await page.getByTestId('card_install').getByRole('button', { name: 'Not now' }).click();
 
       // Dates relative to today, so the chips read the same on every run.
@@ -88,23 +90,32 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('sheet_add_item')).toHaveCount(0);
 
       // Home's cards and Insights. Thrown away today keeps the streak line the same on every run; month names
-      // change with the calendar, so they are masked.
+      // change with the calendar, so they are masked, and Insights gets fixed ones (below).
       const [thisMonth, lastMonth] = months();
       await seedStats(hid, uid, thisMonth, { used: 3, thrown: { expired: 1 }, byDay: { [new Date().getDate()]: 1 } });
       await seedStats(hid, uid, lastMonth, { used: 12, thrown: { expired: 3, spoiled: 1 }, byDay: { 3: 4 } });
       await seedActivity(hid, uid, 'Sam', { type: 'stock_added', name: 'Greek yogurt' });
       await page.getByRole('navigation').getByRole('button', { name: 'Home' }).click();
-      await expect(page.getByTestId('card_home_insights')).toContainText('3 used');
+      await expect(page.getByTestId('card_home_insights')).toContainText('Used 3');
       await expect(page.getByTestId('card_home_activity')).toContainText('Greek yogurt');
       await page.waitForTimeout(800); // the ring's grow animation
-      await shot(page, `home_cards_${suffix}`);
-      await page.getByTestId('card_home_insights').getByRole('button', { name: 'See insights' }).click();
+      await shot(page, `home_cards_${suffix}`, ['screen_eyebrow']);
+      await page.getByTestId('card_home_insights').click();
       await expect(page.getByTestId('insights_month_details')).toContainText('3 used');
       await page.waitForTimeout(800);
-      const monthNames = [
-        page.locator('.sn-month-bar__label'),
-        page.getByTestId('insights_month_details').locator('.t-title-small'),
-      ];
+      const barLabels = page.locator('.sn-month-bar__label');
+      const detailsTitle = page.getByTestId('insights_month_details').locator('.sn-insights__month-name');
+      // The line above the title is this month's name too (DESIGN 19.7).
+      const eyebrow = page.getByTestId('screen_eyebrow');
+      const monthNames = [barLabels, detailsTitle, eyebrow];
+      // At 200% a month label's width decides where its column sits, so a mask alone left the bars moving from
+      // one month to the next (review 00, BASE-01). Fixed names, like the invite code's below, keep the layout of
+      // the October recording: May to October, October selected.
+      await barLabels.evaluateAll((labels) =>
+        labels.forEach((el, i) => (el.textContent = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'][i] ?? '')),
+      );
+      await detailsTitle.evaluate((el) => (el.textContent = 'October'));
+      await eyebrow.evaluate((el) => (el.textContent = 'October'));
       await shot(page, `insights_${suffix}`, monthNames);
       await expect(page.getByTestId('card_insights_months')).toHaveScreenshot(`insights_months_${suffix}.png`, {
         mask: monthNames,
@@ -113,10 +124,7 @@ for (const dark of [false, true]) {
 
       await page.getByRole('button', { name: /Open settings/ }).click();
       await expect(page.getByTestId('row_household')).toContainText('The Smiths');
-      await page
-        .getByTestId('row_household')
-        .locator('.m3-list-item__supporting')
-        .evaluate((el) => (el.textContent = 'The Smiths · 1 member'));
+      await page.getByTestId('household_summary').evaluate((el) => (el.textContent = 'The Smiths · 1 member'));
       await page.getByTestId('account_email').evaluate((el) => (el.textContent = 'sam@example.com'));
       await shot(page, `settings_${suffix}`);
 
@@ -134,7 +142,9 @@ for (const dark of [false, true]) {
       await page.getByTestId('card_appearance').evaluate((card) => {
         const screen = card.closest('.sn-screen')!;
         const bar = screen.querySelector('header')!.getBoundingClientRect().bottom;
-        screen.scrollTop += card.getBoundingClientRect().top - bar - 8;
+        // The card with its group heading above it (DESIGN 19.5).
+        const section = card.parentElement!;
+        screen.scrollTop += section.getBoundingClientRect().top - bar - 8;
       });
       await shot(page, `settings_appearance_${suffix}`);
       await page.getByTestId('row_about').click();
@@ -166,9 +176,11 @@ for (const dark of [false, true]) {
       await page.getByRole('navigation').getByRole('button', { name: 'Groceries' }).click();
       await expect(page.getByTestId('grocery_item_bread')).toBeVisible();
       await expect(page.getByTestId('grocery_item_low_p-rice')).toContainText('Back in stock');
-      // The restock engine adds the out-of-stock olive oil; rows from the server are highlighted for a moment as
-      // another phone's changes (DESIGN 6.4).
-      await expect(page.getByTestId('grocery_item_low_p-oil')).toContainText('Low stock');
+      // The restock engine adds the out-of-stock olive oil (seeded as another phone would, so after its 5 s wait,
+      // DESIGN 9.6); rows from the server are highlighted for a moment as another phone's changes (DESIGN 6.4).
+      await expect(page.getByTestId('grocery_item_low_p-oil')).toContainText('Added automatically', {
+        timeout: 15_000,
+      });
       await expect(page.locator('[data-remote]')).toHaveCount(0);
       await shot(page, `groceries_${suffix}`);
       await page.getByTestId('fab_add_to_pantry').click();
@@ -198,7 +210,7 @@ for (const dark of [false, true]) {
       await expect(page.getByTestId('recipe_card')).toHaveCount(2);
       await expect(page.locator('[data-remote]')).toHaveCount(0);
       await shot(page, `recipes_${suffix}`);
-      await page.getByRole('button', { name: 'Pancakes', exact: true }).click();
+      await page.getByRole('button', { name: 'Pancakes, Total 20 min', exact: true }).click();
       await expect(page.getByTestId('recipe_title')).toHaveText('Pancakes');
       await shot(page, `recipe_detail_${suffix}`);
       await page.getByTestId('recipe_add_to_list').click();
@@ -210,9 +222,26 @@ for (const dark of [false, true]) {
       // Plan, as the app's PlanScreenshotTest draws it: a cooked meal, Leftovers, two cooks and a deleted recipe.
       // Next week, so the layout does not change with the weekday; the dates are masked.
       await page.getByRole('navigation').getByRole('button', { name: 'Plan' }).click();
+      // Tap once the week has come from the server: before the Offline banner waited 2 s (DESIGN 9.5), its flash on
+      // opening could move the week bar under the tap, which was lost (review B28).
+      await expect(page.getByTestId('plan_week_empty')).toBeVisible();
+      await expectFromServer(page);
       await page.getByTestId('plan_next_week').click();
-      const first = (await page.locator('[data-testid^="plan_day_"]').first().getAttribute('data-testid'))!.slice(9);
-      const second = (await page.locator('[data-testid^="plan_day_"]').nth(1).getAttribute('data-testid'))!.slice(9);
+      // A lost tap fails here, by name, instead of as a screenshot of this week.
+      await expect(page.getByTestId('plan_this_week')).toBeVisible();
+      // An empty week first: its sentence and Copy last week (after v1, UX-15).
+      await expect(page.getByTestId('plan_week_empty')).toBeVisible();
+      // The dates move every week: the range, the day buttons' numbers and the days' headings are masked.
+      const planDates = [
+        page.getByTestId('plan_week_range'),
+        page.locator('.sn-day-button__number'),
+        page.locator('.sn-plan-day__title'),
+      ];
+      await shot(page, `plan_empty_week_${suffix}`, planDates);
+      // The days in the list, not the row of day buttons above it.
+      const listed = page.getByTestId('plan_days').locator('[data-testid^="plan_day_"]');
+      const first = (await listed.first().getAttribute('data-testid'))!.slice(9);
+      const second = (await listed.nth(1).getAttribute('data-testid'))!.slice(9);
       const meals = [
         {
           id: 'm2',
@@ -238,8 +267,8 @@ for (const dark of [false, true]) {
       ] as const;
       for (const m of meals) await seedMeal(hid, uid, { ...m, cooks: 'cooks' in m ? [...m.cooks] : [] });
       await expect(page.getByTestId('plan_days')).toContainText('Old soup');
+      await expect(page.getByTestId('plan_week_empty')).toHaveCount(0);
       await expect(page.locator('[data-remote]')).toHaveCount(0);
-      const planDates = [page.getByTestId('plan_week_range'), page.locator('.sn-day-card__header h2')];
       await shot(page, `plan_${suffix}`, planDates);
       await page.getByTestId(`plan_add_${second}_lunch`).click();
       await expect(page.getByTestId('plan_pick_pancakes')).toBeVisible();

@@ -1,7 +1,9 @@
 // The app shell in WebKit on an iPhone (DESIGN 18.8, W0): five tabs with their own stacks, Settings from the
 // avatar and Back. Screenshots are in screens.spec.ts.
 import { expect, test } from '@playwright/test';
-import { memberWithHousehold } from './support';
+import { closeOtherPhones, memberWithHousehold } from './support';
+
+test.afterEach(closeOtherPhones);
 
 const tabs = ['Home', 'Pantry', 'Plan', 'Recipes', 'Groceries'];
 

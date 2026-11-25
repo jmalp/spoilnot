@@ -1,10 +1,15 @@
 name: expiry-reminders
 
-# DESIGN 10.4: hourly, off the busy top of the hour. Scheduled runs are best effort (late or occasionally
-# skipped); the job catches up until 22:00 local time and never sends twice a day.
+# DESIGN 10.4: an Apps Script trigger in the owner's Google account starts this workflow through workflow_dispatch
+# every quarter hour, with dry_run false (backend/reminder/apps-script/trigger.gs), because GitHub starts scheduled
+# runs hours late or drops them (71 of about 500 in a week of November 2026). The three schedule entries an hour,
+# off the busy top of the hour, stay as the backup. The job catches up until 22:00 local time and sends at most one
+# digest a day per user, however many runs start; the first run of each UTC day also prunes (jobs/state.lastPruneDate).
 on:
   schedule:
     - cron: '7 * * * *'
+    - cron: '27 * * * *'
+    - cron: '47 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -31,15 +36,23 @@ jobs:
       group: expiry-reminders-${{ matrix.project }}
       cancel-in-progress: false
 
+    # The keys are repository secrets; this environment holds none and lists the runs as deployments (DESIGN 12.2
+    # control 8, DECISIONS 2026-11-22).
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
           cache: npm
           cache-dependency-path: backend/reminder/package-lock.json
+      # Install and build without the key, and without packages' install scripts (none is needed): only the step
+      # that runs the job gets the secret (docs/RUNBOOK.md, "How the jobs get their keys").
+      - name: Install and build
+        working-directory: backend/reminder
+        run: npm ci --ignore-scripts && npm run build
       - name: Run the reminder job
         working-directory: backend/reminder
         env:
@@ -47,4 +60,4 @@ jobs:
           EXPECTED_PROJECT: ${{ matrix.project }}
           # Scheduled runs are live; manual runs default to a dry run.
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
-        run: npm ci && npm run build && node dist/main.js
+        run: node dist/main.js

@@ -2,9 +2,11 @@ package com.parcha.spoilnot.core.firebase
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenSource
@@ -13,6 +15,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SnapshotListenOptions
 import com.google.firebase.firestore.Source
+import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.write.Actor
 import dagger.Module
 import dagger.Provides
@@ -24,12 +27,18 @@ import java.time.Duration
 import java.time.Instant
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -38,33 +47,56 @@ import kotlinx.coroutines.tasks.await
  *
  * - a **cache** listener on the whole collection, which is free and shows what the phone has, including its own
  *   unsent writes and whatever the other listener brings in;
- * - a **server** listener on only the documents changed since the newest one in the cache (`updatedAt` after the
- *   cursor), which costs one read per changed document (at least one per query).
+ * - a **server** listener on only the documents changed since the cursor (`updatedAt` after it), which costs one read
+ *   per changed document (at least one per query). The cursor is the newest change this phone's server listener
+ *   received for that collection ([SyncLog.newestSeen], after v1 2026-11-09), less [CURSOR_MARGIN]. It never comes
+ *   from the cache: the phone's own writes and other queries put fresh server times there without anything having
+ *   read the other members' changes before them (SYNC-01).
  *
  * Deleting therefore leaves a tombstone ([Tombstones]) that the server listener can see; the daily job removes
- * tombstones after [Tombstones.KEEP_DAYS]. Once a day, and whenever the cache is empty, the server listener reads
- * the whole collection instead, which also drops anything the phone kept by mistake.
+ * tombstones after [Tombstones.KEEP_DAYS]. Once a day, whenever the cache is empty and until a server snapshot has
+ * brought a change, the server listener reads the whole collection instead, which also drops anything the phone
+ * kept by mistake.
  */
 object DeltaSync {
     /** A full read at least this often per collection and phone. */
     val FULL_SYNC_EVERY: Duration = Duration.ofHours(20)
 
-    /** Reread a little before the newest cached change, in case two writes landed close together. */
+    /**
+     * Reread a little before the newest change received: a snapshot can show the phone's own confirmed write before
+     * the server has sent another member's slightly older one.
+     */
     val CURSOR_MARGIN: Duration = Duration.ofMinutes(5)
 
+    /** The pause before a refused server listener listens again: 1, 2, 4 … 32 s (as `SessionManager`). */
+    fun retryDelay(attempt: Long): Duration = Duration.ofSeconds(1L shl attempt.coerceIn(0, 5).toInt())
+
     /**
-     * Where the server listener starts: null means read everything (no cached change yet, no full read on record,
-     * or the last one is older than [FULL_SYNC_EVERY]).
+     * Where the server listener starts: null means read everything (no change received yet, no full read on record,
+     * the last one is older than [FULL_SYNC_EVERY], or the clock moved back).
      */
-    fun cursor(newestCached: Instant?, lastFullSync: Instant?, now: Instant): Instant? = when {
-        newestCached == null || lastFullSync == null -> null
-
+    fun cursor(
+        newestSeen: Instant?,
+        lastFullSync: Instant?,
+        now: Instant,
+        margin: Duration = CURSOR_MARGIN,
+    ): Instant? = when {
+        newestSeen == null || lastFullSync == null -> null
         Duration.between(lastFullSync, now) >= FULL_SYNC_EVERY -> null
-
         lastFullSync.isAfter(now) -> null
+        else -> newestSeen.minus(margin)
+    }
 
-        // the clock moved back
-        else -> newestCached.minus(CURSOR_MARGIN)
+    /**
+     * The newest [field] time in a server listener's [snapshot], or null when there is nothing to learn from it: a
+     * snapshot from the cache isn't what the server sent, and a document with unsent writes shows the phone's copy.
+     */
+    fun newestReceived(snapshot: QuerySnapshot, field: String): Instant? {
+        if (snapshot.metadata.isFromCache) return null
+        return snapshot.documents
+            .filterNot { it.metadata.hasPendingWrites() }
+            .mapNotNull { it.instant(field, estimate = false) }
+            .maxOrNull()
     }
 }
 
@@ -78,16 +110,73 @@ object Tombstones {
     /** The fields that mark a document deleted, merged into it (rules require the stamp). */
     fun fields(actor: Actor): Map<String, Any> = mapOf(FIELD to FieldValue.serverTimestamp()) + Stamps.updated(actor)
 
-    fun DocumentSnapshot.isTombstone(): Boolean = contains(FIELD) && get(FIELD) != null
+    /**
+     * Undo of a deletion, merged into the tombstone: removes `deletedAt` and stamps the write, and changes nothing
+     * else (after v1, DESIGN 8.6). The tombstone kept every field, so the document comes back as it is on the server,
+     * with fields this app doesn't know, its `createdBy` and any change another member made meanwhile.
+     */
+    fun restore(actor: Actor): Map<String, Any> = mapOf(FIELD to FieldValue.delete()) + Stamps.updated(actor)
+
+    /**
+     * Deleted means `deletedAt` holds a time, the phone's estimate included: until the server confirms an offline
+     * delete, the default read gives null, and the document would stay on screen (DESIGN 9.8). The rules never allow
+     * `deletedAt: null`, so Undo removes the field ([restore]).
+     */
+    fun DocumentSnapshot.isTombstone(): Boolean = get(FIELD, ServerTimestampBehavior.ESTIMATE) != null
 }
 
-/** When each collection was last read in full on this phone (local preference, not household data). */
-class SyncLog(private val prefs: SharedPreferences, private val clock: Clock) {
+/**
+ * Per collection (and meal window) on this phone: when it was last read in full, and the newest change its server
+ * listener received, which is where the next changes-only read starts (local preference, not household data). Its
+ * keys are collection paths, so household and list IDs, and it is cleared with the local data (DESIGN 12.2,
+ * control 6). [margin] is [DeltaSync.CURSOR_MARGIN]; tests shorten it.
+ */
+class SyncLog(
+    private val prefs: SharedPreferences,
+    private val clock: Clock,
+    private val margin: Duration = DeltaSync.CURSOR_MARGIN,
+) {
+    /** Bumped whenever a full read is recorded or the log is cleared. */
+    private val changes = MutableStateFlow(0L)
+
     fun lastFullSync(path: String): Instant? = prefs.getLong(path, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
 
-    fun markFullSync(path: String) = prefs.edit().putLong(path, clock.millis()).apply()
+    fun markFullSync(path: String) {
+        prefs.edit { putLong(path, clock.millis()) }
+        changes.update { it + 1 }
+    }
+
+    /**
+     * [lastFullSync] for [path], now and whenever a full read is recorded or the log is cleared (after v1, for the
+     * restock engine's cache-only listener, DESIGN 9.6).
+     */
+    fun fullSyncs(path: String): Flow<Instant?> = changes.map { lastFullSync(path) }.distinctUntilChanged()
+
+    /** The newest change time a server snapshot of [key] brought (DESIGN 9.8), or null before the first one. */
+    fun newestSeen(key: String): Instant? =
+        prefs.getLong(SEEN_PREFIX + key, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
+
+    /** Records [at] for [key] if it is newer than what is on record; it never moves back. */
+    @Synchronized
+    fun markSeen(key: String, at: Instant) {
+        val millis = at.toEpochMilli()
+        if (millis > prefs.getLong(SEEN_PREFIX + key, 0L)) prefs.edit { putLong(SEEN_PREFIX + key, millis) }
+    }
+
+    /** Where the server listener for [key] starts; null reads everything ([DeltaSync.cursor]). */
+    fun cursor(key: String): Instant? = DeltaSync.cursor(newestSeen(key), lastFullSync(key), now(), margin)
+
+    /** Forgets every collection, so the next read of each is a full one. */
+    fun clear() {
+        prefs.edit { clear() }
+        changes.update { it + 1 }
+    }
 
     fun now(): Instant = clock.instant()
+
+    private companion object {
+        const val SEEN_PREFIX = "seen:"
+    }
 }
 
 @Module
@@ -109,8 +198,8 @@ fun CollectionReference.liveDocuments(db: FirebaseFirestore, log: SyncLog): Flow
 /**
  * [DeltaSync] for part of a collection (after v1: one week of the meal plan). [scope] decides which documents are
  * shown and what the full read reads; changes are still read for the whole collection (they are few, and land in
- * the cache for other windows). Each [key] has its own full-read record, so a week seen for the first time is read
- * in full.
+ * the cache for other windows). Each [key] has its own full-read record and cursor, so a week seen for the first
+ * time is read in full.
  */
 fun CollectionReference.liveDocuments(
     db: FirebaseFirestore,
@@ -119,17 +208,17 @@ fun CollectionReference.liveDocuments(
     key: String,
 ): Flow<LiveDocuments> = flow {
     val collection = this@liveDocuments
-    val cached = runCatching { scope.get(Source.CACHE).await() }.getOrNull()
-    val newest = cached?.documents?.mapNotNull { it.getTimestamp(UPDATED_AT)?.toDate()?.toInstant() }?.maxOrNull()
-    val since = DeltaSync.cursor(newest, log.lastFullSync(key), log.now())
+    val since = if (scope.isCachedEmpty()) null else log.cursor(key)
     val server: Query = if (since == null) scope else collection.whereGreaterThan(UPDATED_AT, Timestamp(since))
     val remote = server.snapshotFlow(MetadataChanges.INCLUDE)
         .retryAfterOwnWrites(db)
-        .onEach { if (since == null && !it.metadata.isFromCache) log.markFullSync(key) }
+        .onEach { log.recordServerSnapshot(key, it, UPDATED_AT, fullRead = since == null) }
+        .map { it.metadata.isFromCache }
+        .keepCacheWhileUnreachable()
     val local = scope.cacheSnapshotFlow()
     emitAll(
-        combine(local, remote) { l, r ->
-            LiveDocuments(l.documents.filterNot { with(Tombstones) { it.isTombstone() } }, r.metadata.isFromCache)
+        combine(local, remote) { l, fromCache ->
+            LiveDocuments(l.documents.filterNot { with(Tombstones) { it.isTombstone() } }, fromCache)
         },
     )
 }
@@ -137,9 +226,9 @@ fun CollectionReference.liveDocuments(
 /**
  * The newest [limit] documents by [field], for collections that are only added to (Recent activity, after v1): the
  * cache listener shows the newest ones the phone has, and the server listener reads only documents newer than the
- * newest cached one (less [DeltaSync.CURSOR_MARGIN]), or the newest [limit] on the daily full read. Removals that
- * happen while a document is in the server listener's result (Undo) show at once; others (pruning, an Undo while
- * the phone was away) by the next full read at the latest.
+ * newest one it received before (less [DeltaSync.CURSOR_MARGIN]), or the newest [limit] on the daily full read.
+ * Removals that happen while a document is in the server listener's result (Undo) show at once; others (pruning, an
+ * Undo while the phone was away) by the next full read at the latest.
  */
 fun CollectionReference.liveNewest(
     db: FirebaseFirestore,
@@ -149,20 +238,72 @@ fun CollectionReference.liveNewest(
 ): Flow<LiveDocuments> = flow {
     val collection = this@liveNewest
     val newestQuery = collection.orderBy(field, Query.Direction.DESCENDING).limit(limit)
-    val cached = runCatching { newestQuery.get(Source.CACHE).await() }.getOrNull()
-    val newest = cached?.documents?.firstNotNullOfOrNull { it.getTimestamp(field)?.toDate()?.toInstant() }
-    val since = DeltaSync.cursor(newest, log.lastFullSync(path), log.now())
+    val since = if (newestQuery.isCachedEmpty()) null else log.cursor(path)
     val server: Query = if (since == null) newestQuery else collection.whereGreaterThan(field, Timestamp(since))
     val remote = server.snapshotFlow(MetadataChanges.INCLUDE)
         .retryAfterOwnWrites(db)
-        .onEach { if (since == null && !it.metadata.isFromCache) log.markFullSync(path) }
+        .onEach { log.recordServerSnapshot(path, it, field, fullRead = since == null) }
+        .map { it.metadata.isFromCache }
+        .keepCacheWhileUnreachable()
     emitAll(
-        combine(newestQuery.cacheSnapshotFlow(), remote) { l, r -> LiveDocuments(l.documents, r.metadata.isFromCache) },
+        combine(newestQuery.cacheSnapshotFlow(), remote) { l, fromCache -> LiveDocuments(l.documents, fromCache) },
     )
 }
 
-/** A listener on the local cache only: free, and updated by local writes and by every other listener. */
-private fun Query.cacheSnapshotFlow(): Flow<QuerySnapshot> = callbackFlow {
+/**
+ * The server listener's "from the cache" flag, kept alive when the server refuses it for the quota or can't be
+ * reached (after v1, REL-02): it then reports the cache (so the screen keeps its list and says "Offline") and listens
+ * again after 1, 2, 4 … 32 s. A refused listen reads nothing, so the retries cost no quota. A permission refusal
+ * still ends the flow, after [retryAfterOwnWrites]; the screen then says "Couldn't load" and retries (DESIGN 6.7).
+ */
+internal fun Flow<Boolean>.keepCacheWhileUnreachable(): Flow<Boolean> = retryWhen { cause, attempt ->
+    if (cause !is AppError.QuotaExceeded && cause !is AppError.Offline) return@retryWhen false
+    emit(true)
+    delay(DeltaSync.retryDelay(attempt).toMillis())
+    true
+}
+
+/** Nothing in the cache for this query (or the cache can't be read): read it in full, whatever the log says. */
+private suspend fun Query.isCachedEmpty(): Boolean =
+    runCatching { get(Source.CACHE).await().isEmpty }.getOrDefault(true)
+
+/** What a server listener's [snapshot] for [key] tells the log: a full read, and the newest change it brought. */
+private fun SyncLog.recordServerSnapshot(key: String, snapshot: QuerySnapshot, field: String, fullRead: Boolean) {
+    if (snapshot.metadata.isFromCache) return
+    DeltaSync.newestReceived(snapshot, field)?.let { markSeen(key, it) }
+    if (fullRead) markFullSync(key)
+}
+
+/**
+ * The live documents of this query in the local cache only, tombstones left out (after v1, DESIGN 9.6): free, with
+ * no server listener, so it reads nothing when the app comes back after a long time.
+ */
+fun Query.cachedLiveDocuments(): Flow<List<DocumentSnapshot>> =
+    cacheSnapshotFlow().map { snapshot -> snapshot.documents.filterNot { with(Tombstones) { it.isTombstone() } } }
+
+/**
+ * A listener on the local cache only: free, and updated by local writes and by every other listener. The SDK hands a
+ * server listener's refusal to every listener of the same query, this one included, so a full read refused right
+ * after creating or joining a household (the membership not on the server yet) would end it too (after v1; seen on the
+ * web, review B11; `BadDataFlowTest` shows it on Android). It listens again ([retryCacheRefusals]), which reads
+ * nothing. The refused server listener is removed at once (callbackFlow's awaitClose), before this one listens again:
+ * removing a refused server listener after another listener of the same query has started trips an assertion in the
+ * SDK.
+ */
+private fun Query.cacheSnapshotFlow(): Flow<QuerySnapshot> = rawCacheSnapshotFlow().retryCacheRefusals()
+
+/** How often, and after how long, a cache listener listens again after a refusal of the same query on the server. */
+internal const val CACHE_RETRIES = 10L
+private const val CACHE_RETRY_DELAY_MS = 250L
+
+/** A cache listener's share of a server refusal is listened again ([cacheSnapshotFlow]); other errors pass. */
+internal fun <T> Flow<T>.retryCacheRefusals(): Flow<T> = retryWhen { cause, attempt ->
+    if (cause !is AppError.PermissionDenied || attempt >= CACHE_RETRIES) return@retryWhen false
+    delay(CACHE_RETRY_DELAY_MS * (attempt + 1))
+    true
+}
+
+private fun Query.rawCacheSnapshotFlow(): Flow<QuerySnapshot> = callbackFlow {
     val options = SnapshotListenOptions.Builder()
         .setMetadataChanges(MetadataChanges.INCLUDE)
         .setSource(ListenSource.CACHE)

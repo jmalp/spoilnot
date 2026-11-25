@@ -5,6 +5,7 @@ import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
@@ -13,8 +14,9 @@ import java.util.regex.Pattern
 const val TARGET_PACKAGE = "com.parcha.spoilnot.dev"
 
 /**
- * The emulator-only account with 500 batches, created by `PantryScrollPerfTest` in the app's instrumented tests
- * (run it once with `-e perf true` before generating or benchmarking; docs/RUNBOOK.md).
+ * The emulator-only account with 500 batches, a long grocery list, recipes, a plan and six months of counts, created
+ * by `PantryScrollPerfTest` in the app's instrumented tests (run it once with `-e perf true` before generating or
+ * benchmarking; docs/RUNBOOK.md).
  */
 private const val PERF_EMAIL = "perf-500@example.com"
 private const val PERF_PASSWORD = "correct-horse-battery"
@@ -56,7 +58,7 @@ fun MacrobenchmarkScope.skipTourIfShown() {
 }
 
 /** A Compose button: the clickable node around the label. */
-private fun button(label: String) = By.clickable(true).hasDescendant(By.text(label))
+internal fun button(label: String) = By.clickable(true).hasDescendant(By.text(label))
 
 private fun MacrobenchmarkScope.field(label: String): UiObject2 =
     checkNotNull(device.wait(Until.findObject(By.text(label)), TIMEOUT_MS)) { "No $label field" }
@@ -66,12 +68,27 @@ private fun MacrobenchmarkScope.type(field: UiObject2, text: String) {
     device.executeShellCommand("input text $text")
 }
 
-/** Opens a bottom navigation tab by its label. */
+/**
+ * A screen's test tag, which the benchmark build shows to UI Automator as its resource id (MainActivity). Windows of
+ * their own (sheets, dialogs) don't get it, so they are found by their text.
+ */
+internal fun screen(tag: String) = By.res(tag)
+
+/** Fails the journey with [what] unless [selector] shows within the timeout, so no step passes without doing it. */
+internal fun MacrobenchmarkScope.expect(selector: BySelector, what: String) {
+    check(device.wait(Until.hasObject(selector), TIMEOUT_MS)) { "$what didn't show" }
+}
+
+/** Opens a bottom navigation tab by its label and checks that its screen (`screen_<label>`) shows. */
 fun MacrobenchmarkScope.openTab(label: String) {
     val tab = checkNotNull(device.wait(Until.findObject(By.text(label)), TIMEOUT_MS)) { "No $label tab" }
     tab.click()
+    expect(screen("screen_${label.lowercase()}"), "The $label tab")
     device.waitForIdle()
 }
+
+/** Waits until Home shows its cards, not the loading skeleton (Home then reports itself drawn, DESIGN 13.1). */
+fun MacrobenchmarkScope.awaitHomeCards() = expect(screen("card_home_attention"), "Home's cards")
 
 /**
  * Flings the current screen's list down and back up with screen swipes. Swipes keep no reference to the list, which
@@ -96,11 +113,17 @@ private const val FLING_STEPS = 10
 
 /**
  * Taps [target] until [opened] shows, at most three times, and says whether it did. A tap right after a fling only
- * stops the fling in Compose, so the first tap can do nothing.
+ * stops the fling in Compose, so the first tap can do nothing, and a row found while a list still settles can be
+ * gone by the time it is tapped (`StaleObjectException`), which counts as a tap that did nothing.
  */
-private fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector): Boolean {
+internal fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector): Boolean {
     repeat(3) {
-        device.wait(Until.findObject(target), TIMEOUT_MS)?.click() ?: return false
+        val found = device.wait(Until.findObject(target), TIMEOUT_MS) ?: return false
+        try {
+            found.click()
+        } catch (_: StaleObjectException) {
+            return@repeat
+        }
         if (device.wait(Until.hasObject(opened), OPEN_TIMEOUT_MS)) return true
     }
     return false
@@ -108,32 +131,54 @@ private fun MacrobenchmarkScope.tapUntil(target: BySelector, opened: BySelector)
 
 /**
  * Presses Back while [shown] is on screen, at most twice (the keyboard, then the window), so a Back never leaves the
- * tab, or the app, by mistake.
+ * tab, or the app, by mistake. Fails when it is still there, and then checks that [back] shows again.
  */
-private fun MacrobenchmarkScope.closeWhileShown(shown: BySelector) {
+internal fun MacrobenchmarkScope.close(shown: BySelector, back: BySelector, what: String) {
     repeat(2) {
-        if (!device.hasObject(shown)) return
+        if (!device.hasObject(shown)) return@repeat
         device.pressBack()
-        device.waitForIdle()
+        device.wait(Until.gone(shown), OPEN_TIMEOUT_MS)
     }
+    check(!device.hasObject(shown)) { "$what didn't close" }
+    expect(back, "The screen under $what")
+    device.waitForIdle()
 }
 
-private const val OPEN_TIMEOUT_MS = 5_000L
+internal const val OPEN_TIMEOUT_MS = 5_000L
 
-/** Opens the Add item window from the Pantry tab and closes it again. */
+/**
+ * Opens the Add item window from the Pantry tab and closes it again. The floating button is found by its name, which
+ * it has had since after-v1 review A11Y-01 (before that the journey never found it and skipped the step).
+ */
 fun MacrobenchmarkScope.openAndCloseAddItem() {
-    if (tapUntil(By.text("Add item"), By.text("Name"))) closeWhileShown(By.text("Name"))
+    val opened = By.text("Name")
+    check(tapUntil(By.text("Add item"), opened)) { "Pantry's Add item didn't open" }
+    close(opened, screen("screen_pantry"), "Add item")
 }
 
 /** Opens the add sheet of the first slot on the Plan tab (DESIGN 5.9) and closes it again. */
 fun MacrobenchmarkScope.openAndCloseAddMeal() {
-    if (tapUntil(By.descStartsWith("Add to "), By.text("Who's cooking?"))) closeWhileShown(By.text("Who's cooking?"))
+    val opened = By.text("Who's cooking?")
+    check(tapUntil(By.descStartsWith("Add to "), opened)) { "Plan's add sheet didn't open" }
+    close(opened, screen("screen_plan"), "Plan's add sheet")
 }
 
-/** Opens Insights from Home's "Your kitchen this month" card and comes back. */
+/** Opens Your kitchen from Home's card, flings it and comes back. */
 fun MacrobenchmarkScope.openAndCloseInsights() {
-    device.findObject(By.scrollable(true))?.scrollUntil(Direction.DOWN, Until.findObject(button("See insights")))
-    if (!tapUntil(button("See insights"), By.text("Last 6 months"))) return
+    openInsights()
     flingList(times = 1)
-    closeWhileShown(By.text("Last 6 months"))
+    closeInsights()
 }
+
+/**
+ * Opens Your kitchen from Home's card. Since the new look (DESIGN 19) the whole card is the button, with no "See your
+ * kitchen" label to find, so it is found by its test tag.
+ */
+fun MacrobenchmarkScope.openInsights() {
+    val card = screen("card_home_insights")
+    device.findObject(By.scrollable(true))?.scrollUntil(Direction.DOWN, Until.findObject(card))
+    check(tapUntil(card, screen("screen_insights"))) { "Your kitchen didn't open from Home" }
+}
+
+/** Goes back from Your kitchen to Home. */
+fun MacrobenchmarkScope.closeInsights() = close(screen("screen_insights"), screen("screen_home"), "Your kitchen")

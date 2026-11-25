@@ -22,7 +22,7 @@ object ShoppingName {
         "finely", "roughly", "coarsely", "thinly", "thickly", "cubed", "halved", "quartered", "mashed", "melted",
         "softened", "beaten", "toasted", "cooked", "uncooked", "drained", "rinsed", "trimmed", "pitted", "seeded",
         "deseeded", "deveined", "boneless", "skinless", "packed", "lightly", "firmly", "sifted", "room-temperature",
-        "room temperature", "about", "approximately", "and",
+        "room temperature", "about", "approximately", "and", "extra-virgin", "extra virgin",
     )
 
     /** Phrases that end the name: "salt to taste", "parsley for garnish", "butter or margarine". */
@@ -31,12 +31,11 @@ object ShoppingName {
         RegexOption.IGNORE_CASE,
     )
     private val PARENS = Regex("""\([^)]*\)""")
-    private val SPACES = Regex("""\s+""")
     private val EDGE_PUNCTUATION = Regex("""^[\s,.;:*-]+|[\s,.;:*-]+$""")
 
     /** The grocery name for [name] (the parsed ingredient name, or the whole line when it has no quantity). */
     fun of(name: String): String {
-        var text = name.replace(PARENS, " ").substringBefore(',').replace(SPACES, " ").trim()
+        var text = NameKey.clean(NameKey.plainSpaces(name).replace(PARENS, " ").substringBefore(','))
         text = text.replace(TAIL, "").replace(EDGE_PUNCTUATION, "")
         var words = text.split(' ').filter { it.isNotEmpty() }
         words = dropLeading(words, SIZE + PREP)

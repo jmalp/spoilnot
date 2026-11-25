@@ -3,6 +3,7 @@ package com.parcha.spoilnot.feature.household.ui
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.feature.household.domain.Household
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
@@ -20,7 +21,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
@@ -45,7 +45,6 @@ class HouseholdViewModel @Inject constructor(
         val members: List<Member>,
         /** Waiting requests; always empty for members. */
         val requests: List<JoinRequest>,
-        val joiningPaused: Boolean,
     ) {
         val isOwner get() = myRole == Role.Owner
     }
@@ -58,20 +57,17 @@ class HouseholdViewModel @Inject constructor(
         .flatMapLatest { me ->
             val hid = me.householdId
             val household = households.observeHousehold(hid)
-            val code = household.map { it?.inviteCode }.distinctUntilChanged().flatMapLatest { code ->
-                if (code.isNullOrEmpty()) flowOf(null) else households.observeInviteCode(code)
-            }
             val requests = if (me.role == Role.Owner) {
                 households.observeJoinRequests(hid).map { all -> all.filter { it.status == JoinRequestStatus.Pending } }
             } else {
                 flowOf(emptyList())
             }
-            combine(household, households.observeMembers(hid), requests, code) { h, members, pending, invite ->
-                Content(me.user.uid, me.role, h, members, pending, joiningPaused = invite?.active == false)
+            combine(household, households.observeMembers(hid), requests) { h, members, pending ->
+                Content(me.user.uid, me.role, h, members, pending)
             }
         }
-        // Losing access ends these listeners; the session moves the user to the gate.
-        .catch { }
+        // Listens again after a failure (DESIGN 6.7). Losing access moves the session to the gate, which ends them.
+        .retryLoading()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _actions = MutableStateFlow(Actions())
@@ -85,10 +81,8 @@ class HouseholdViewModel @Inject constructor(
 
     fun regenerateCode() = run {
         val c = checkNotNull(content.value)
-        households.regenerateInviteCode(household(), c.myUid, InviteCodes.generate(), active = !c.joiningPaused)
+        households.regenerateInviteCode(household(), c.myUid, InviteCodes.generate())
     }
-
-    fun setJoiningPaused(paused: Boolean) = run { households.setJoiningPaused(household().inviteCode, paused) }
 
     fun remove(member: Member) = run { households.removeMember(hid(), member.uid) }
 

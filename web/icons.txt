@@ -30,10 +30,12 @@ round/share
 round/group
 round/keyboard_arrow_right
 round/notifications
+round/notifications_off
 
 # Status and feedback
 round/check_circle
 round/cloud_off
+round/error_outline
 round/person
 round/warning_amber
 round/restaurant_menu
@@ -44,6 +46,7 @@ round/clear
 round/delete_outline
 round/schedule
 round/remove
+round/remove_circle_outline
 round/lock_open
 round/done
 outlined/ac_unit
@@ -90,3 +93,12 @@ round/info
 
 # Install help (W7)
 round/ios_share
+round/sync
+
+# After v1 (B16, B17 web port): reminders off, the grocery swipes and the aisle hint
+round/undo
+round/swap_vert
+
+# The new look, step 7 (Settings and Notifications)
+round/logout
+round/notifications_active

@@ -1,7 +1,10 @@
 package com.parcha.spoilnot.feature.update.data
 
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.long
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.feature.update.domain.AppConfig
 import com.parcha.spoilnot.feature.update.domain.AppConfigRepository
 import dagger.Binds
@@ -11,7 +14,6 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -26,13 +28,14 @@ class FirestoreAppConfigRepository @Inject constructor(private val firestore: Fi
                 null
             } else {
                 AppConfig(
-                    minSupportedBuild = doc.getLong("minSupportedBuild")?.toInt() ?: 0,
-                    message = doc.getString("message")?.takeIf { it.isNotBlank() },
-                    updateUrl = doc.getString("updateUrl")?.takeIf { it.startsWith("https://") },
+                    minSupportedBuild = doc.long("minSupportedBuild")?.toInt() ?: 0,
+                    message = doc.string("message")?.takeIf { it.isNotBlank() },
+                    updateUrl = doc.string("updateUrl")?.takeIf { it.startsWith("https://") },
                 )
             }
         }
-        .catch { emit(null) }
+        // Unreadable: no gate, and it listens again (after v1).
+        .retryLoading(fallback = null)
         .distinctUntilChanged()
 }
 

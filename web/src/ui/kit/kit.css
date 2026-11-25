@@ -131,6 +131,28 @@
   min-height: 48px;
   border-radius: 24px;
 }
+/* A screen's or sheet's main button (DESIGN 19.9; PrimaryButton in the app): full width, filled, at least 56 px,
+   ButtonLarge. */
+.m3-button--primary {
+  min-height: 56px;
+  border-radius: 28px;
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+/* A button given one of the look's label styles (DESIGN 19.4: ButtonMedium, ButtonLarge) takes it over the button's own
+   500 weight, which used to win (same specificity, later file; fixed with step 8). */
+.m3-button.t-button-medium {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 700;
+}
+.m3-button.t-button-large {
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+}
 .m3-button:disabled {
   background: transparent;
   color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
@@ -169,23 +191,27 @@
   cursor: default;
 }
 
-/* Extended FAB: 56 px, 16 px corners, primaryContainer, elevation 3. */
+/* Extended FAB in the 2026-11 look (DESIGN 19.9; SpoilNotFab in the app): 64 px, 22 px corners, primary, elevation 3,
+   ButtonLarge. */
 .m3-fab {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  height: 56px;
+  /* Grows with large text instead of cutting its words; lists leave room for it as measured (TabScaffold). */
+  min-height: 64px;
   min-width: 80px;
-  padding: 0 20px 0 16px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 24px 8px 20px;
+  text-align: start;
   border: none;
-  border-radius: 16px;
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+  border-radius: 22px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   box-shadow: var(--sn-elevation-3);
-  font-size: var(--sp-14);
-  line-height: var(--sp-20);
-  font-weight: 500;
-  letter-spacing: 0.00625rem;
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 /* Cards: 16 px corners (DESIGN 6.4). */
@@ -217,14 +243,19 @@
   z-index: 2;
   display: flex;
   align-items: center;
-  min-height: calc(64px + var(--sn-safe-top));
-  padding: var(--sn-safe-top) calc(4px + var(--sn-safe-right)) 0 calc(4px + var(--sn-safe-left));
+  min-height: calc(64px + var(--sn-screen-top));
+  padding: var(--sn-screen-top) calc(4px + var(--sn-safe-right)) 0 calc(4px + var(--sn-safe-left));
   background: var(--md-sys-color-surface);
   color: var(--md-sys-color-on-surface);
   transition: background-color 200ms var(--sn-motion-standard);
 }
 .m3-top-app-bar--scrolled {
   background: var(--md-sys-color-surface-container);
+}
+/* Pushed screens in the 2026-11 look (DESIGN 19.7): on the page's color, which doesn't change while content scrolls. */
+.m3-top-app-bar--page,
+.m3-top-app-bar--page.m3-top-app-bar--scrolled {
+  background: var(--sn-surface-page);
 }
 .m3-top-app-bar__title {
   flex: 1;
@@ -275,22 +306,28 @@
   isolation: isolate;
   transition: background-color 200ms var(--sn-motion-standard);
 }
+/* The 2026-11 look (DESIGN 19.11): the current tab's indicator is primaryContainer. */
 .m3-navigation-bar__item[aria-current='page'] .m3-navigation-bar__indicator {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 .m3-navigation-bar__item[aria-current='page'] .m3-navigation-bar__label {
   color: var(--md-sys-color-on-surface);
 }
+/* One line, growing with the text size only up to 1.2x (TAB_LABEL_MAX_FONT_SCALE in the app, after v1, review UX-14):
+   all five fit a fifth of an iPhone there, and the icon above says the same; at the accessibility sizes they were cut
+   to "Ho…". 14.4 and 19.2 px are 12 and 16 sp at 1.2x (textScale.ts). An iPhone's fifth is narrower than Android's
+   (79 px on a 393 px iPhone), so the size also stops at 3.3% of the screen's width and the letter spacing stays
+   0.5 px instead of growing with the root size; "Groceries" then fits from the iPhone SE up. */
 .m3-navigation-bar__label {
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--sp-12);
-  line-height: var(--sp-16);
+  font-size: min(var(--sp-12), 14.4px, 3.3vw);
+  line-height: min(var(--sp-16), 19.2px);
   font-weight: 500;
-  letter-spacing: 0.03125rem;
+  letter-spacing: 0.5px;
 }
 
 /* Badges: error colors, a 6 px dot or a 16 px pill with a number. */
@@ -304,7 +341,8 @@
   border-radius: 8px;
   background: var(--md-sys-color-error);
   color: var(--md-sys-color-on-error);
-  font-size: var(--sp-11);
+  /* The badge has a fixed size, so its number grows only to 1.2x text (13.2 px), like tab labels (DESIGN 19.7). */
+  font-size: min(var(--sp-11), 13.2px);
   line-height: 16px;
   font-weight: 500;
   text-align: center;
@@ -407,6 +445,60 @@
 .m3-text-field--error .m3-text-field__supporting {
   color: var(--md-sys-color-error);
 }
+.m3-text-field__supporting {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.m3-text-field__supporting .m3-icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* The 2026-11 look's field (DESIGN 19.10; SpoilNotTextField in the app): the label above a 56 px box on the field
+   color with 16 px corners, no outline at rest, 2 px primary while focused and 2 px error when wrong. */
+.m3-text-field--look {
+  gap: 6px;
+}
+.m3-text-field__label-above {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.m3-text-field--look:focus-within .m3-text-field__label-above {
+  color: var(--md-sys-color-primary);
+}
+.m3-text-field--look.m3-text-field--error .m3-text-field__label-above {
+  color: var(--md-sys-color-error);
+}
+.m3-text-field--look .m3-text-field__box {
+  border-radius: 16px;
+  background: var(--sn-surface-field);
+  box-shadow: none;
+}
+.m3-text-field--look .m3-text-field__box:focus-within {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+.m3-text-field--look.m3-text-field--error .m3-text-field__box {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-error);
+}
+.m3-text-field--look .m3-text-field__input {
+  padding: 14px 16px;
+  border-radius: 16px;
+  /* FieldText (17 / 24, semibold), over the outlined field's 16 px. */
+  font-size: var(--sp-17);
+  line-height: var(--sp-24);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.m3-text-field--look .m3-text-field__supporting {
+  padding: 0 4px;
+}
+/* A field that can't change keeps its label and helper readable and dims its box, as the app does. */
+.m3-text-field--look.m3-text-field--disabled {
+  opacity: 1;
+}
+.m3-text-field--look.m3-text-field--disabled .m3-text-field__box {
+  opacity: 0.5;
+}
 
 /* Filter chips: 32 px, 8 px corners, a check when selected (never color alone). */
 .m3-chip {
@@ -434,7 +526,8 @@
 .m3-chip--with-icon {
   padding-left: 8px;
 }
-.m3-chip[aria-pressed='true'] {
+.m3-chip[aria-pressed='true'],
+.m3-chip[aria-checked='true'] {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
   box-shadow: none;
@@ -561,13 +654,16 @@
 }
 
 /* Modal bottom sheets: 28 px top corners, surfaceContainerLow, a drag handle, at most 640 px wide. */
+/* Above the on-screen keyboard (after v1, WEB-14): BottomSheet sets --sn-keyboard (the part of the page it covers)
+   and --sn-visible-height (what is left) while it is open, and data-keyboard, where the home indicator's inset is
+   under the keyboard too. */
 .m3-sheet {
   position: fixed;
-  inset: auto 0 0 0;
+  inset: auto 0 var(--sn-keyboard, 0px) 0;
   margin: 0 auto;
   width: 100%;
   max-width: var(--sn-content-width);
-  max-height: calc(100dvh - var(--sn-safe-top) - 8px);
+  max-height: calc(var(--sn-visible-height, 100dvh) - var(--sn-safe-top) - 8px);
   padding: 0 0 var(--sn-safe-bottom);
   border: none;
   border-radius: 28px 28px 0 0;
@@ -578,6 +674,9 @@
   overflow: hidden;
   animation: m3-sheet-in 350ms var(--sn-motion-emphasized-decelerate);
   --sn-field-notch: var(--md-sys-color-surface-container-low);
+}
+.m3-sheet[data-keyboard] {
+  padding-bottom: 0;
 }
 .m3-sheet:focus-visible {
   outline: none; /* the sheet takes focus when it opens; the app shows no ring for that */
@@ -609,6 +708,11 @@
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
+  /* A column, so a form sheet's fields shrink and scroll above its pinned button instead of pushing the button out of
+     the sheet (after v1, WEB-14: seen with every Add to pantry row open). */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 @keyframes m3-sheet-in {
   from {
@@ -662,7 +766,7 @@
   color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
 }
 
-/* Snackbars: inverseSurface, 4 px corners, an inversePrimary action, above the navigation bar. */
+/* Snackbars: inverseSurface, 18 px corners (DESIGN 19.11), an inversePrimary action, above the navigation bar. */
 .m3-snackbar-host {
   position: absolute;
   left: 0;
@@ -681,8 +785,8 @@
   width: 100%;
   max-width: 600px;
   min-height: 48px;
-  padding: 6px 8px 6px 16px;
-  border-radius: 4px;
+  padding: 6px 8px 6px 18px;
+  border-radius: 18px;
   background: var(--md-sys-color-inverse-surface);
   color: var(--md-sys-color-inverse-on-surface);
   box-shadow: var(--sn-elevation-3);
@@ -772,11 +876,22 @@
 
 /* An error line under a form, announced when it appears (ErrorText). */
 .sn-error-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 0;
   color: var(--md-sys-color-error);
   font-size: var(--sp-14);
   line-height: var(--sp-20);
+  font-weight: 700;
   letter-spacing: 0.015625rem;
+}
+.sn-error-text[hidden] {
+  display: none;
+}
+.sn-error-text > .m3-icon {
+  flex: none;
+  margin-top: 1px;
 }
 
 /* Select fields: a read-only text field with a menu. */
@@ -870,59 +985,4 @@
     animation: none;
     opacity: 0.6;
   }
-}
-
-/* Segmented buttons (SingleChoiceSegmentedButtonRow): 40 px tall in a 48 px target, outlined, the choice filled with
-   secondaryContainer and a check. At large text sizes a list of radio buttons instead (Segmented.tsx). */
-.m3-segmented-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  color: var(--md-sys-color-on-surface);
-}
-.m3-segmented {
-  display: flex;
-  padding: 4px 0;
-}
-.m3-segmented__button {
-  flex: 1 1 0;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 12px;
-  margin: 0 0 0 -1px;
-  border: 1px solid var(--md-sys-color-outline);
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font-family: inherit;
-}
-.m3-segmented__button:first-child {
-  margin-left: 0;
-  border-radius: 20px 0 0 20px;
-}
-.m3-segmented__button:last-child {
-  border-radius: 0 20px 20px 0;
-}
-.m3-segmented__button--selected {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-}
-.m3-segmented__label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.m3-segmented-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0 -12px;
-}
-.m3-segmented-list__option {
-  display: flex;
-  align-items: center;
-  min-height: 48px;
-  cursor: pointer;
 }

@@ -7,8 +7,9 @@ import org.junit.Test
 
 class DeepLinkTest {
     @Test
-    fun `digest routes open Expiring soon or, with only meals, the Plan tab`() {
-        assertEquals(DeepLink.Pantry(PantryFilter.ExpiringSoon), DeepLink.parse("/pantry?filter=expiring"))
+    fun `digest routes open Needs attention or, with only meals, the Plan tab`() {
+        // The path keeps its old name, which released builds still read as Expiring soon (after v1, R8).
+        assertEquals(DeepLink.Pantry(PantryFilter.NeedsAttention), DeepLink.parse("/pantry?filter=expiring"))
         assertEquals(DeepLink.Plan, DeepLink.parse("/plan"))
         assertNull(DeepLink.parse("/somewhere-else"))
         assertNull(DeepLink.parse(null))

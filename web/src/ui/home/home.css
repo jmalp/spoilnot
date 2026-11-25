@@ -1,13 +1,206 @@
-/* Home (DESIGN 5.6): outlined cards 12 px apart, as HomeScreen lays them out. */
+/* Home in the 2026-11 look (DESIGN 5.6, 19.8, 19.12): cards 12 px apart on the tinted page, as HomeScreen lays them
+   out in the app. */
 .sn-home {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 8px 16px 16px;
 }
-.sn-home h2 {
+.sn-home h2,
+.sn-home h3 {
   margin: 0;
 }
+/* A card's filled button: primary, fully round, 48 px (DESIGN 19.9). */
+.sn-card-button {
+  align-self: flex-end;
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 700;
+}
+
+/* Needs attention, the highlight card. */
+.sn-attention__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+}
+.sn-attention__header h2 {
+  flex: 1;
+  min-width: 0;
+}
+.sn-attention__count {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 20px;
+  background: var(--md-sys-color-on-primary-container);
+  color: var(--md-sys-color-primary-container);
+}
+.sn-home-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sn-home-row--nested {
+  min-height: 56px;
+  padding: 8px 14px 8px 8px;
+}
+.sn-home-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sn-home-row__name {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.sn-home-row__sentence {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+/* From 1.5x text the status or badge goes under the name (after v1, review A11Y-04; NameWithTrailing in the app):
+   beside it, names broke mid-word at 200% and at the largest sizes the chip ran past the card. */
+:root[data-large-text] .sn-home-row--trailing {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+:root[data-large-text] .sn-home-row--trailing .sn-home-row__name {
+  align-self: stretch;
+}
+/* The status in words, in its fixed color (DESIGN 19.6). */
+.sn-home-status--fresh {
+  color: var(--sn-status-fresh);
+}
+.sn-home-status--soon {
+  color: var(--sn-status-soon);
+}
+.sn-home-status--urgent {
+  color: var(--sn-status-urgent);
+}
+.sn-home-status--expired {
+  color: var(--sn-status-expired);
+}
+.sn-home-status--no-date {
+  color: var(--sn-status-no-date);
+}
+
+/* "Reminders are off on this phone · Turn on" (DESIGN 5.6): the last line of Needs attention. */
+.sn-home-reminders {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 8px;
+}
+.sn-home-reminders__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.sn-attention .sn-home-reminders__turn-on {
+  color: var(--md-sys-color-on-primary-container);
+}
+
+/* Today: a section on the page, one tile per meal, two side by side, one per line from 1.5x text. */
+.sn-today {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sn-today__header {
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+}
+.sn-today__header h2 {
+  flex: 1;
+}
+.sn-today__tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+:root[data-large-text] .sn-today__tiles {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sn-today-meal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 24px;
+  background: var(--sn-surface-row);
+}
+.sn-today-meal__details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+/* Your kitchen this month (DESIGN 19.8): primary, the percentage large, the whole card one control. */
+.sn-kitchen-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 18px 20px;
+  border: none;
+  border-radius: 28px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  text-align: start;
+  cursor: pointer;
+}
+.sn-kitchen-card__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* The card's legend (OnPrimaryLegend) is styled with the charts, in insights.css. */
+
+/* Use it up, the accent card: its recipes each open with a tap. */
+.sn-use-it-up__list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sn-use-it-up {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 4px 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  font: inherit;
+}
+.sn-use-it-up__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Plain and calm cards. */
 .sn-home-card {
   display: flex;
   flex-direction: column;
@@ -22,68 +215,36 @@
 .sn-home-card__header h2 {
   flex: 1;
 }
-.sn-home-card__action {
-  align-self: flex-end;
-}
 .sn-home-calm {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 14px 16px;
 }
 .sn-home-calm__text {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
-.sn-home-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.sn-home-row__name {
-  flex: 1;
-  min-width: 0;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-.sn-today-meal {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 0;
-}
-.sn-use-it-up {
-  display: flex;
-  flex-direction: column;
-  min-height: 48px;
-  padding: 4px 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  text-align: start;
-  font: inherit;
+.sn-home-calm__footer {
+  padding: 0 8px 4px 8px;
 }
 .sn-activity {
   display: flex;
   flex-direction: column;
   padding: 2px 0;
 }
-.sn-home-insights {
-  display: flex;
-  align-items: center;
-}
-.sn-home-insights__text {
+/* Running low, inside the Grocery list card (after v1, R1). */
+.sn-home-low {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-left: 16px;
+  gap: 8px;
+  padding-top: 4px;
 }
+
+/* Join requests (DESIGN 5.6): secondaryContainer, 24 px corners. */
 .sn-home-join {
+  border-radius: 24px;
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
@@ -95,7 +256,20 @@
 }
 .sn-home-join__text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
+:root[data-large-text] .sn-home-join__row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+:root[data-large-text] .sn-home-join__row > .m3-button {
+  align-self: flex-end;
+}
+
 .sn-skeleton {
   display: flex;
   flex-direction: column;
@@ -106,7 +280,7 @@
 .sn-skeleton span {
   display: block;
   border-radius: 8px;
-  background: var(--md-sys-color-surface-variant);
+  background: var(--sn-surface-tile);
 }
 @keyframes sn-skeleton {
   from {

@@ -3,9 +3,11 @@ package com.parcha.spoilnot.feature.pantry.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
+import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
@@ -44,35 +47,54 @@ class PantryComponentsTest {
 
     private val noActions = BatchActions({}, {}, {}, {}, {})
 
-    private fun chip(days: Long?, type: DateType = DateType.UseBy) = compose.setContent {
-        SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { StatusChip(days?.let { TODAY.plusDays(it) }, type, TODAY) }
+    /**
+     * A row for one milk that expires in [days] (DESIGN 19.6): short status words on screen, the full wording read. The
+     * second line joins its parts with a no-break space before each "·".
+     */
+    private fun row(days: Long?, type: DateType = DateType.UseBy) {
+        val item = PantryItems.all(
+            listOf(product("milk")),
+            listOf(batch("m1", "milk", inDays = days, dateType = type)),
+            TODAY,
+        ).single()
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, {}) }
+        }
     }
 
     @Test
-    fun statusChipShowsShortTextAndReadsTheFullWording() {
-        chip(1)
-        compose.onNodeWithText("Tomorrow", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNode(hasContentDescription("Expires tomorrow")).assertIsDisplayed()
+    fun aRowShowsShortStatusWordsAndReadsTheFullWording() {
+        row(1)
+        compose.onNodeWithText("Tomorrow\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Milk, 1 piece, Expires tomorrow, Fridge")).assertIsDisplayed()
     }
 
     @Test
     fun expiredUseByTellsYouToThrowItAway() {
-        chip(-2)
-        compose.onNodeWithText("Expired", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNode(hasContentDescription("Expired 2 days ago. Throw it away")).assertIsDisplayed()
+        row(-2)
+        compose.onNodeWithText("Expired\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Expired 2 days ago. Throw it away", substring = true)).assertIsDisplayed()
     }
 
     @Test
     fun bestBeforeUsesSofterWording() {
-        chip(-2, DateType.BestBefore)
-        compose.onNodeWithText("Past best before", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNode(hasContentDescription("Past its best before date. Check before using")).assertIsDisplayed()
+        row(-2, DateType.BestBefore)
+        compose.onNodeWithText("Past best before\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Past its best before date. Check before using", substring = true))
+            .assertIsDisplayed()
     }
 
     @Test
     fun soonAndWeekCountDays() {
-        chip(3)
-        compose.onNode(hasContentDescription("Expires in 3 days")).assertIsDisplayed()
+        row(3)
+        compose.onNodeWithText("3 days\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Expires in 3 days", substring = true)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aRowWithoutADateSaysSo() {
+        row(null)
+        compose.onNodeWithText("No expiry date\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
     }
 
     private fun items(products: List<Product>, batches: List<StockBatch>) = PantryItems.all(products, batches, TODAY)
@@ -99,7 +121,7 @@ class PantryComponentsTest {
         compose.setContent {
             SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(opened, TODAY, noActions, {}) }
         }
-        compose.onNodeWithText("Opened").assertExists()
+        compose.onNodeWithText("Opened", substring = true).assertExists()
         compose.onNodeWithTag("menu_m1").performClick()
         compose.onNodeWithText("Mark opened").assertDoesNotExist()
     }
@@ -121,7 +143,7 @@ class PantryComponentsTest {
             SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) { PantryItemRow(item, TODAY, noActions, { opened = it }) }
         }
         compose.onNode(hasContentDescription("Olive oil, out of stock")).assertIsDisplayed()
-        compose.onNodeWithText("Out", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithText("Out\u00A0· Fridge", useUnmergedTree = true).assertIsDisplayed()
         compose.onNode(hasContentDescription("Olive oil, out of stock")).performClick()
         assertTrue(opened is PantryItem.Out)
     }
@@ -183,7 +205,41 @@ class PantryComponentsTest {
 
         assertEquals("Rice", saved?.name)
         assertEquals(1.5, saved!!.quantity, 0.0)
-        assertEquals(TODAY.plusWeeks(1), saved!!.expiryDate)
+        assertEquals(TODAY.plusWeeks(1), saved.expiryDate)
+    }
+
+    /** After v1 (UX-09): the keyboard opens on Name, and a new name takes the aisle Groceries would guess. */
+    @Test
+    fun addFormFocusesNameAndGuessesTheCategoryUntilOneIsPicked() {
+        var saved: StockDraft? = null
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                AddItemForm(emptyList(), emptySet(), TODAY) { saved = it }
+            }
+        }
+        compose.onNodeWithTag("field_name").assertIsFocused()
+        compose.onNodeWithTag("field_name").performTextInput("Greek yogurt")
+        compose.onNodeWithTag("button_save_item").performClick()
+        assertEquals(Category.Dairy, saved?.category)
+
+        // A category picked by hand stays, whatever the name becomes.
+        compose.onNodeWithText("Dairy and eggs").performScrollTo().performClick()
+        compose.onNodeWithText("Snacks").performClick()
+        compose.onNodeWithTag("field_name").performTextClearance()
+        compose.onNodeWithTag("field_name").performTextInput("Spinach")
+        compose.onNodeWithTag("button_save_item").performClick()
+        assertEquals(Category.Snacks, saved?.category)
+    }
+
+    @Test
+    fun addFormForAChosenProductDoesNotTakeTheFocus() {
+        val rice = product("rice", unit = QuantityUnit.Kilograms)
+        compose.setContent {
+            SpoilNotTheme(colorTheme = ColorTheme.SpoilNot) {
+                AddItemForm(listOf(rice), emptySet(), TODAY, prefill = rice) {}
+            }
+        }
+        compose.onNodeWithTag("field_name").assertIsNotFocused()
     }
 
     @Test
@@ -200,7 +256,7 @@ class PantryComponentsTest {
         }
         compose.onNodeWithTag("field_name").performTextInput("ri")
         compose.onNode(hasText("Rice")).performClick()
-        compose.onNodeWithText("Set while in stock").assertIsDisplayed()
+        compose.onNodeWithText("Can't change while you have some").assertIsDisplayed()
         compose.onNodeWithTag("button_save_item").performClick()
         assertEquals(QuantityUnit.Kilograms, saved?.unit)
         assertEquals(TODAY.plusDays(30), saved?.expiryDate)
@@ -223,9 +279,9 @@ class PantryComponentsTest {
         compose.onNodeWithTag("field_keep_at_least").performTextInput("6")
         compose.onNodeWithTag("button_save_item").performClick()
         assertEquals(6.0, saved!!.minQuantity!!, 0.0)
-        assertTrue(saved!!.autoAddToGrocery)
-        assertEquals(DateType.UseBy, saved!!.dateType)
-        assertNull(saved!!.note)
+        assertTrue(saved.autoAddToGrocery)
+        assertEquals(DateType.UseBy, saved.dateType)
+        assertNull(saved.note)
     }
 
     @Test

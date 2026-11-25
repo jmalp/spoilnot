@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.recipes.domain
 
 import com.parcha.spoilnot.feature.pantry.domain.ExpiryStatus
+import com.parcha.spoilnot.feature.pantry.domain.NeedsAttention
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.Product
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
@@ -49,16 +50,23 @@ data class UseItUpSuggestion(val recipe: Recipe, val uses: List<ExpiringUse>)
 /**
  * "Use it up" on Home (DESIGN 5.6, after v1): saved recipes that use what expires today or in the next few days,
  * the ones using the most expiring products first, then the most urgent. Expired food is left out: it belongs in
- * Needs attention, not in a recipe.
+ * Needs attention, not in a recipe. Recipes already planned from today to the end of the week are left out too
+ * (after v1, UX-05): the plan already uses them.
  */
 object UseItUp {
     /** At most this many recipes on Home. */
     const val MAX = 3
 
-    fun suggestions(recipes: List<Recipe>, pantry: PantryData, today: LocalDate): List<UseItUpSuggestion> {
+    /** [planned]: ids of the recipes planned from today on (`MealWeek.plannedFrom`), left out. */
+    fun suggestions(
+        recipes: List<Recipe>,
+        pantry: PantryData,
+        today: LocalDate,
+        planned: Set<String> = emptySet(),
+    ): List<UseItUpSuggestion> {
         val expiring = pantry.batches
             .filter { it.quantity > 0 && it.expiryDate != null }
-            .filter { ExpiryStatus.of(it.expiryDate, today).let { s -> s.needsAttention && s != ExpiryStatus.Expired } }
+            .filter { NeedsAttention.usable(ExpiryStatus.of(it.expiryDate, today)) }
             .groupBy { it.productId }
             .mapValues { (_, batches) -> batches.minBy { it.expiryDate!! } }
         if (expiring.isEmpty()) return emptyList()
@@ -66,6 +74,7 @@ object UseItUp {
         // Only lines that share a word with an expiring product are linked (after v1, for large recipe boxes).
         val expiringWords = pantry.products.filter { it.id in expiring }.flatMap { index.linkWords(it) }.toSet()
         return recipes
+            .filter { it.id !in planned }
             .mapNotNull { recipe ->
                 val uses = RecipeIngredients.linked(recipe, index, expiringWords)
                     .mapNotNull { it.product }

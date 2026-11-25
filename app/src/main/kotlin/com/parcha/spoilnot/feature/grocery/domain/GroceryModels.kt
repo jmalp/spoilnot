@@ -31,6 +31,18 @@ enum class ItemSource(val wire: String) {
     }
 }
 
+/** What the grocery Edit sheet sets on an item (besides its name). */
+data class GroceryItemFields(
+    val quantity: Double?,
+    val unit: QuantityUnit?,
+    val note: String?,
+    val category: Category?,
+) {
+    companion object {
+        fun of(item: GroceryItem) = GroceryItemFields(item.quantity, item.unit, item.note, item.category)
+    }
+}
+
 /** households/{hid}/groceryLists/{listId}/items/{itemId} (DESIGN 8.2). */
 data class GroceryItem(
     val id: String,
@@ -71,13 +83,12 @@ sealed interface GroceryChange : HouseholdChange {
     /** Puts a deleted item back under its old id (Undo). */
     data class RestoreItem(val listId: String, val item: GroceryItem) : GroceryChange
 
+    /** Writes the fields of [after] that differ from [before], and only those (after v1, DESIGN 9.4). */
     data class UpdateItem(
         val listId: String,
         val itemId: String,
-        val quantity: Double?,
-        val unit: QuantityUnit?,
-        val note: String?,
-        val category: Category?,
+        val before: GroceryItemFields,
+        val after: GroceryItemFields,
     ) : GroceryChange
 
     /** A new name (after v1), relinked to the household's product of that name, if any. */
@@ -97,8 +108,8 @@ sealed interface GroceryChange : HouseholdChange {
     data class DeleteItem(val listId: String, val itemId: String, val tombstone: Boolean = true) : GroceryChange
 
     /**
-     * grocery_added or grocery_checked in the activity log (DESIGN 5.6). [count] is set when several items were added
-     * at once from the recipe called [name].
+     * grocery_added in the activity log (DESIGN 5.6). [count] is set when several items were added at once from the
+     * recipe called [name]. Check-offs (grocery_checked) are no longer logged after v1 (R15).
      */
     data class LogEvent(
         val eventId: String,
@@ -109,8 +120,9 @@ sealed interface GroceryChange : HouseholdChange {
     ) : GroceryChange
 
     /**
-     * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). Never writes `checked`, so an item already
-     * in the cart stays there; [writeCreated] is false when the item already exists in the local cache.
+     * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). [writeCreated] is true when the item is not
+     * live in the local cache (new, or a tombstone coming back): then it also writes `createdAt` (never `createdBy`) and
+     * starts unchecked. Otherwise `checked` is left alone, so a live item already in the cart stays there.
      */
     data class UpsertLowStock(
         val listId: String,
@@ -126,7 +138,6 @@ sealed interface GroceryChange : HouseholdChange {
 
 enum class GroceryEventType(val wire: String) {
     Added("grocery_added"),
-    Checked("grocery_checked"),
 }
 
 object GroceryRules {
@@ -142,7 +153,10 @@ interface GroceryRepository {
     /** List names, always listened to (DESIGN 9.1). */
     fun observeLists(householdId: String): Flow<List<GroceryList>>
 
-    /** Items of one list, while it is visible (DESIGN 9.1). */
+    /** List names from the local cache only, for the restock engine (after v1, DESIGN 9.6). */
+    fun observeCachedLists(householdId: String): Flow<List<GroceryList>>
+
+    /** Items of one list, while it is visible (DESIGN 9.1); one shared pair of listeners per list and phone. */
     fun observeItems(householdId: String, listId: String): Flow<List<GroceryItem>>
 
     /** Whether an item is in the local cache, so the restock engine knows whether to write createdAt. */

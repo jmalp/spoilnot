@@ -54,6 +54,14 @@ class DurationsTest {
         assertEquals(75, Durations.minutes("1 hour 15 mins"))
         assertEquals(120, Durations.minutes("2 hrs"))
         assertEquals(45, Durations.minutes("45"))
+        // After v1, LOGIC-15: a unit straight before the minutes, mixed numbers and comma decimals.
+        assertEquals(80, Durations.minutes("1h20m"))
+        assertEquals(80, Durations.minutes("1 h 20 min"))
+        assertEquals(90, Durations.minutes("1 1/2 hours"))
+        assertEquals(90, Durations.minutes("1½ hours"))
+        assertEquals(90, Durations.minutes("1,5 hours"))
+        assertEquals(30, Durations.minutes("1/2 hour"))
+        assertEquals(80, Durations.minutes("1\u00A0hour 20\u00A0minutes"))
     }
 
     @Test
@@ -77,6 +85,17 @@ class YieldTest {
 }
 
 class SourceUrlTest {
+    /** After v1 (R10): "By …" shows only when it names someone other than the site. */
+    @Test
+    fun `a By name that is only the site is recognized`() {
+        assertEquals(true, SourceUrl.namesSite("recipes.example.test", "recipes.example.test"))
+        assertEquals(true, SourceUrl.namesSite("BBC Good Food", "bbcgoodfood.com"))
+        assertEquals(true, SourceUrl.namesSite("Serious Eats", "seriouseats.com"))
+        assertEquals(false, SourceUrl.namesSite("Kenji López-Alt", "seriouseats.com"))
+        assertEquals(false, SourceUrl.namesSite("Grandma", null))
+        assertEquals(false, SourceUrl.namesSite("—", "example.com"))
+    }
+
     @Test
     fun `canonical drops tracking parameters, the fragment and default ports`() {
         assertEquals(

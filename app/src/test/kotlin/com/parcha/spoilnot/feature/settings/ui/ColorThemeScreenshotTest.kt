@@ -10,8 +10,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.parcha.spoilnot.core.designsystem.theme.ColorTheme
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotSurfaces
 import com.parcha.spoilnot.core.designsystem.theme.SpoilNotTheme
 import com.parcha.spoilnot.core.prefs.ThemeMode
 import com.parcha.spoilnot.feature.auth.domain.Units
@@ -60,14 +62,16 @@ class ColorThemeScreenshotTest(private val dark: Boolean, private val fontScale:
 
     private val suffix get() = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
 
+    /** A taller window than the theme gallery's, so the card fits at 2.0× text. */
     @Test
+    @Config(qualifiers = "w411dp-h1500dp-xxhdpi", sdk = [35])
     fun appearanceCard() {
         var picked by mutableStateOf(ColorTheme.Fiery)
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 SpoilNotTheme(darkTheme = dark, colorTheme = picked) {
-                    Surface {
+                    Surface(color = SpoilNotSurfaces.current.page) {
                         Column(Modifier.padding(16.dp)) {
                             AppearanceCard(
                                 SettingsViewModel.Device(ThemeMode.System, picked, true),
@@ -82,7 +86,11 @@ class ColorThemeScreenshotTest(private val dark: Boolean, private val fontScale:
             }
         }
         compose.onNodeWithTag("color_theme_fiery").assertIsSelected()
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/settings_colors_$suffix.png")
+        // Theme and units are single choices, joined buttons or (from 1.5× text) radio buttons (DESIGN 19.9).
+        compose.onNodeWithTag("theme_mode_system").assertIsSelected()
+        compose.onNodeWithTag("theme_mode_dark").assertIsNotSelected()
+        compose.onNodeWithTag("units_metric").assertIsSelected()
+        compose.onRoot().captureRoboImage("settings_colors_$suffix.png")
         compose.onNodeWithTag("color_theme_summer_fun").performClick()
         compose.onNodeWithTag("color_theme_summer_fun").assertIsSelected()
     }
@@ -103,7 +111,7 @@ class ColorThemeScreenshotTest(private val dark: Boolean, private val fontScale:
         var theme by mutableStateOf(ColorTheme.SpoilNot)
         compose.setContent {
             SpoilNotTheme(darkTheme = dark, colorTheme = theme) {
-                Surface {
+                Surface(color = SpoilNotSurfaces.current.page) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         HomeCards(summary, TODAY, "me", HomeNavigation({}, {}, {}, {}), insights)
                     }
@@ -113,7 +121,7 @@ class ColorThemeScreenshotTest(private val dark: Boolean, private val fontScale:
         ColorTheme.entries.filter { it != ColorTheme.Wallpaper }.forEach {
             theme = it
             compose.waitForIdle()
-            compose.onRoot().captureRoboImage("build/outputs/roborazzi/theme_${it.id}_$suffix.png")
+            compose.onRoot().captureRoboImage("theme_${it.id}_$suffix.png")
         }
     }
 }

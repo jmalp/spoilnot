@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { Timestamp } from 'firebase-admin/firestore';
-import { FORMAT, fromJson, planRestore, shortId, toJson, type HouseholdExport } from '../src/backup.ts';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FORMAT, fromJsonDoc, planRestore, shortId, toJson, type HouseholdExport } from '../src/backup.ts';
 
 describe('export values', () => {
-  it('timestamps become ISO strings and come back as timestamps; calendar dates stay strings', () => {
+  it('timestamps become ISO strings and the known timestamp fields come back as timestamps', () => {
     const at = Timestamp.fromDate(new Date('2026-10-17T12:00:00.000Z'));
     const json = toJson({ createdAt: at, expiryDate: '2026-10-20', tags: ['a'], nested: { at }, n: 2, none: null });
     assert.deepEqual(json, {
@@ -15,11 +15,26 @@ describe('export values', () => {
       none: null,
       tags: ['a'],
     });
-    const back = fromJson(json) as Record<string, unknown>;
+    const back = fromJsonDoc(json as Record<string, never>);
     assert.ok(back.createdAt instanceof Timestamp);
     assert.equal((back.createdAt as Timestamp).toMillis(), at.toMillis());
     assert.equal(back.expiryDate, '2026-10-20');
-    assert.ok((back.nested as Record<string, unknown>).at instanceof Timestamp);
+    assert.deepEqual(back.tags, ['a']);
+  });
+
+  it('text that looks like a date-time stays text outside the timestamp fields', () => {
+    const back = fromJsonDoc({
+      note: '2026-12-24T18:00:00Z',
+      name: '2026-12-24T18:00:00.000Z',
+      steps: [{ text: '2026-12-24T18:00:00Z' }],
+      checkedAt: '2026-12-24T18:00:00Z',
+      cookedAt: 'not a time',
+    });
+    assert.equal(back.note, '2026-12-24T18:00:00Z');
+    assert.equal(back.name, '2026-12-24T18:00:00.000Z');
+    assert.deepEqual(back.steps, [{ text: '2026-12-24T18:00:00Z' }]);
+    assert.ok(back.checkedAt instanceof Timestamp);
+    assert.equal(back.cookedAt, 'not a time');
   });
 });
 
@@ -51,6 +66,25 @@ describe('restore plan', () => {
     assert.equal(plan.writes[0]!.data.id, undefined);
     assert.equal(plan.writes[2]!.data.items, undefined);
     assert.ok(plan.writes[4]!.data.createdAt instanceof Timestamp);
+    assert.equal(plan.sourceOwnerUid, 'u1');
+  });
+
+  it("stamps every document with the server's time and 'restore'; lists with updatedAt only", () => {
+    const plan = planRestore({ ...file, stock: [{ ...file.stock[0]!, updatedAt: '2026-10-01T08:00:00.000Z', updatedBy: 'u1' }] }, 'h1');
+    for (const w of plan.writes) {
+      assert.ok((w.data.updatedAt as FieldValue).isEqual(FieldValue.serverTimestamp()), w.path);
+      if (w.path.endsWith('/groceryLists/g1')) assert.equal('updatedBy' in w.data, false, w.path);
+      else assert.equal(w.data.updatedBy, 'restore', w.path);
+    }
+  });
+
+  it('never writes a profile or the activity log from an app export', () => {
+    const plan = planRestore({ ...file, profile: { id: 'u1', displayName: 'Sam' }, activity: [{ id: 'a1', type: 'stock_added' }] }, 'h1');
+    assert.equal(plan.writes.some((w) => w.path.includes('activity') || w.path.startsWith('users/')), false);
+  });
+
+  it('names no owner for a file without its household', () => {
+    assert.equal(planRestore({ ...file, household: null }, 'h1').sourceOwnerUid, null);
   });
 
   it('restores files from before stats existed', () => {

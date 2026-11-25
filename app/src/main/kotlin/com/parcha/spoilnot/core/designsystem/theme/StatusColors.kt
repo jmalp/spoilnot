@@ -21,11 +21,19 @@ data class StatusColors(val fresh: Color, val soon: Color, val urgent: Color, va
     }
 }
 
+/**
+ * How strongly a status color tints what sits behind its text: the status chip and the Pantry swipe backgrounds.
+ * `ColorThemesContrastTest` checks the text on this blend, not on the bare surface (after v1, review A11Y-03).
+ */
+const val STATUS_TINT_ALPHA = 0.12f
+
+// Light Fresh, Soon and Today/Tomorrow are about 10% darker than DESIGN's first table (after v1, 2026-11-12), so
+// their text reaches 4.5:1 on the chip's tint in every theme (DECISIONS).
 internal val LightStatusColors =
     StatusColors(
-        fresh = Color(0xFF2E7D32),
-        soon = Color(0xFFA05F00), // DESIGN says #B26A00 (4.04:1); darkened for 4.5:1, see DECISIONS
-        urgent = Color(0xFFC2410C),
+        fresh = Color(0xFF28702C),
+        soon = Color(0xFF8F5500),
+        urgent = Color(0xFFB03A0A),
         expired = Color(0xFFBA1A1A),
         noDate = LightColors.onSurfaceVariant,
     )

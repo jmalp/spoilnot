@@ -20,15 +20,14 @@ interface HouseholdRepository {
     /** The current user's own request, or null once the server confirms there is none. */
     fun observeOwnJoinRequest(householdId: String, uid: String): Flow<JoinRequest?>
 
-    fun observeInviteCode(code: String): Flow<InviteCode?>
-
     /** Writes the household, owner membership, invite code, default list and profile together. Returns its id. */
     suspend fun createHousehold(uid: String, displayName: String, name: String, inviteCode: String): String
 
     /** Null when no household uses this code. The code must be well-formed. */
     suspend fun findInviteCode(code: String): InviteCode?
 
-    suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode)
+    /** [email] is the requester's sign-in address; the owner sees it masked (after v1, [EmailMask]). */
+    suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode, email: String? = null)
 
     /** After approval: points the profile at the household and removes the request. */
     suspend fun completeJoin(uid: String, displayName: String, pending: PendingJoin)
@@ -42,9 +41,8 @@ interface HouseholdRepository {
 
     suspend fun rename(household: Household, newName: String)
 
-    suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String, active: Boolean)
-
-    suspend fun setJoiningPaused(code: String, paused: Boolean)
+    /** A new code for the household; the old one stops working (after v1 there is no Pause joining, R12). */
+    suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String)
 
     suspend fun removeMember(householdId: String, memberUid: String)
 
@@ -62,13 +60,34 @@ interface HouseholdRepository {
      * tombstones so
      * every phone's changes-only listeners drop them; extra grocery lists, activity and Insights counts are deleted;
      * the default list gets its name back and forgets its store order; a household_reset event is logged last.
-     * Requires a connection. Cannot be undone.
+     * Refuses to start offline: it reads from the server first. Each chunk waits for the server; when one times out
+     * (a connection that stalls half-way) it is still queued, so the rest are queued after it instead of stopping
+     * half done, and the result says the clear finishes once the phone is online (after v1, SYNC-08). Cannot be
+     * undone.
      */
-    suspend fun resetData(householdId: String, actor: Actor)
+    suspend fun resetData(householdId: String, actor: Actor): ResetOutcome
+}
+
+/** How Clear household data ended. */
+enum class ResetOutcome {
+    /** The server has all of it. */
+    Cleared,
+
+    /** Part of it is queued on this phone and is sent, in order, once it is online. */
+    FinishesWhenOnline,
 }
 
 /** The on-device copy of household data. */
 interface LocalData {
-    /** Sends pending writes if possible, then wipes the cache (DESIGN 12.2, control 6). */
+    /**
+     * Sends pending writes if possible, then wipes the cache, the sync log, the built-in browser's data and the
+     * cached photos (DESIGN 12.2, control 6).
+     */
     suspend fun clear()
+
+    /**
+     * Waits a few seconds for this phone's unsent changes to reach the server. False when some are still waiting
+     * (offline, or a slow connection): clearing now would throw them away (after v1, SYNC-09).
+     */
+    suspend fun flushPendingWrites(): Boolean
 }

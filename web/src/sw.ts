@@ -1,15 +1,23 @@
 /// <reference lib="webworker" />
 // The service worker (DESIGN 18.5): caches the app shell so the app opens offline, and switches to a new version
-// when the app asks (Update). Firestore keeps its own offline copy of the data.
+// when the app asks (Update). The browser fetches this file again when the app is loaded and when the app asks for a
+// check (core/updates.ts: on becoming visible, at most hourly); a changed file installs and waits for Update.
+// Firestore keeps its own offline copy of the data.
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { notificationFor, openRoute, safeRoute } from './core/pushMessages';
+import { respond, runtimeRouteFor } from './core/runtimeCache';
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: (string | { url: string; revision: string | null })[] };
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
+// The licenses and the other scripts' font subsets are cached when first used, not at install (core/runtimeCache).
+registerRoute(
+  ({ request, url }) => request.method === 'GET' && runtimeRouteFor(url.href, self.location.origin) !== null,
+  ({ request, url }) => respond(request, runtimeRouteFor(url.href, self.location.origin)!, self.caches),
+);
 
 self.addEventListener('message', (event) => {
   if ((event.data as { type?: string } | null)?.type === 'SKIP_WAITING') void self.skipWaiting();
@@ -23,12 +31,12 @@ self.addEventListener('push', (event) => {
   } catch {
     // Not JSON: the notification still shows, with the app's name.
   }
-  const { title, options } = notificationFor(payload);
+  const { title, options } = notificationFor(payload, self.location.origin);
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const route = safeRoute((event.notification.data as { route?: unknown } | null)?.route);
+  const route = safeRoute((event.notification.data as { route?: unknown } | null)?.route, self.location.origin);
   event.waitUntil(openRoute(self.clients, route, self.location.origin));
 });

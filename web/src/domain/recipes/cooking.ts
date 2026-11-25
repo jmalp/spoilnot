@@ -1,9 +1,10 @@
 // "I cooked this" and "Use it up" (DESIGN 5.5, 5.6, after v1), ported from Cooking and UseItUp.
 import type { PantryData, Product, QuantityUnit, StockBatch } from '../pantry/models';
+import { NeedsAttention } from '../pantry/items';
 import { Expiry } from '../pantry/rules';
 import { compareStrings, sortedWith, type LocalDate } from '../time';
 import { PantryMatch } from './box';
-import type { Ingredient, Recipe } from './models';
+import type { Ingredient, Recipe, RecipeWords } from './models';
 import { IngredientParser, Scaling } from './parser';
 import { ProductIndex, ProductLink, ShoppingName } from './shopping';
 
@@ -63,12 +64,18 @@ function amount(i: Ingredient, product: Product): number | null {
   return null;
 }
 
+/** Scaled pieces rounded up, ignoring floating-point dust: 4.5 is 5, 3.0000000001 is 3. */
+const wholePieces = (value: number, factor: number): number =>
+  Math.abs(factor - 1) < 1e-9 ? value : Math.ceil(value - 1e-9);
+
 export const Cooking = {
   /**
    * The in-stock products [recipe] uses, at [factor] times its servings (the detail screen's stepper), in recipe
-   * order. Lines that mean the same product add up.
+   * order. Lines that mean the same product add up. Scaled, a product kept in pieces is suggested in whole pieces,
+   * rounded up like the grocery list ("4½ eggs" takes 5, after v1, LOGIC-13); at the recipe's own servings the amount
+   * is as written ("½ onion"). [words] give tiny scaled amounts their text (Scaling.line).
    */
-  lines(recipe: Recipe, pantry: PantryData, factor = 1): CookLine[] {
+  lines(recipe: Recipe, pantry: PantryData, words: RecipeWords, factor = 1): CookLine[] {
     const stock = new Map<string, number>();
     for (const b of pantry.batches)
       if (b.quantity > 0) stock.set(b.productId, (stock.get(b.productId) ?? 0) + b.quantity);
@@ -81,11 +88,12 @@ export const Cooking = {
     }
     return [...groups.values()].map(({ product, ingredients }) => {
       const amounts = ingredients.map((i) => amount(i, product));
+      const total = amounts.every((a) => a !== null) ? amounts.reduce((s, a) => s + a!, 0) * factor : null;
       return {
         product,
-        lines: ingredients.map((i) => Scaling.line(i.raw, factor)),
+        lines: ingredients.map((i) => Scaling.line(i.raw, factor, words.pinch)),
         inStock: stock.get(product.id)!,
-        suggested: amounts.every((a) => a !== null) ? amounts.reduce((s, a) => s + a!, 0) * factor : null,
+        suggested: total !== null && product.unit === 'pcs' ? wholePieces(total, factor) : total,
       };
     });
   },
@@ -99,18 +107,25 @@ export type UseItUpSuggestion = { recipe: Recipe; uses: ExpiringUse[] };
 
 /**
  * "Use it up" on Home: saved recipes that use what expires today or in the next few days, the ones using the most
- * expiring products first, then the most urgent. Expired food is left out: it belongs in Needs attention.
+ * expiring products first, then the most urgent. Expired food is left out: it belongs in Needs attention. Recipes
+ * already planned from today to the end of the week ([planned], `MealWeek.plannedFrom`) are left out too (after v1,
+ * UX-05).
  */
 export const UseItUp = {
   /** At most this many recipes on Home. */
   MAX: 3,
 
-  suggestions(recipes: Recipe[], pantry: PantryData, today: LocalDate): UseItUpSuggestion[] {
+  suggestions(
+    recipes: Recipe[],
+    pantry: PantryData,
+    today: LocalDate,
+    planned: ReadonlySet<string> = new Set(),
+  ): UseItUpSuggestion[] {
     const expiring = new Map<string, StockBatch>();
     for (const b of pantry.batches) {
       if (b.quantity <= 0 || b.expiryDate === null) continue;
       const status = Expiry.of(b.expiryDate, today);
-      if (!Expiry.needsAttention(status) || status === 'expired') continue;
+      if (!NeedsAttention.usable(status)) continue;
       const first = expiring.get(b.productId);
       if (!first || b.expiryDate < first.expiryDate!) expiring.set(b.productId, b);
     }
@@ -121,6 +136,7 @@ export const UseItUp = {
       pantry.products.filter((p) => expiring.has(p.id)).flatMap((p) => [...index.linkWords(p)]),
     );
     const suggestions = recipes.flatMap((recipe): UseItUpSuggestion[] => {
+      if (planned.has(recipe.id)) return [];
       const seen = new Set<string>();
       const uses: ExpiringUse[] = [];
       for (const { product } of RecipeIngredients.linked(recipe, index, expiringWords)) {

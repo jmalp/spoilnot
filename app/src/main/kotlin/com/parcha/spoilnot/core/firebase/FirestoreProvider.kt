@@ -24,10 +24,19 @@ class FirestoreProvider(private val app: FirebaseApp, private val emulatorHost: 
 
     val current: FirebaseFirestore get() = _instance.value
 
+    /** Waits a few seconds for pending writes to reach the server; false when some are still waiting. */
+    suspend fun flushPendingWrites(): Boolean = withTimeoutOrNull(PENDING_WRITES_TIMEOUT_MS) {
+        _instance.value.waitForPendingWrites().await()
+        true
+    } ?: false
+
     /** Sends pending writes if it can, then terminates, clears the cache and starts a fresh instance. */
     suspend fun clearLocalData() = mutex.withLock {
         val old = _instance.value
-        val flushed = withTimeoutOrNull(PENDING_WRITES_TIMEOUT_MS) { old.waitForPendingWrites().await() }
+        val flushed = withTimeoutOrNull(PENDING_WRITES_TIMEOUT_MS) {
+            old.waitForPendingWrites().await()
+            true
+        }
         if (flushed == null) Timber.w("Clearing local data with unsent writes")
         old.terminate().await()
         old.clearPersistence().await()

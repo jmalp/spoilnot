@@ -4,17 +4,17 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.auth.FirebaseAuth
@@ -105,12 +105,10 @@ class SignUpToHouseholdUiTest {
         field(R.string.field_password).performTextInput("not-the-password")
         button(R.string.action_sign_in).performClick()
 
-        compose.waitUntilAtLeastOneExists(
-            SemanticsMatcher.expectValue(
-                SemanticsProperties.Text,
-                listOf(AnnotatedString(str(R.string.error_invalid_credentials))),
-            ),
-            15_000,
-        )
+        // On the password field, as its error (DESIGN 19.12, step 8), and the focus moves there.
+        val passwordWithError = hasSetTextAction() and hasText(str(R.string.field_password)) and
+            SemanticsMatcher.expectValue(SemanticsProperties.Error, str(R.string.error_invalid_credentials))
+        compose.waitUntilAtLeastOneExists(passwordWithError, 15_000)
+        compose.onNode(passwordWithError).assertIsFocused()
     }
 }

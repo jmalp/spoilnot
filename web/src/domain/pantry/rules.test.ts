@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, daysBetween } from '../time';
 import { TODAY } from './fixtures';
+import { NeedsAttention } from './items';
 import { Expiry, NameKey, naturalOrder, ShelfLife } from './rules';
 
 const status = (days: number | null) => Expiry.of(days === null ? null : addDays(TODAY, days), TODAY);
@@ -32,8 +33,10 @@ describe('Expiry', () => {
   });
 
   it('needs attention means expired or within 3 days', () => {
-    for (const d of [-1, 0, 1, 2, 3]) expect(Expiry.needsAttention(status(d))).toBe(true);
-    for (const d of [4, 8, null]) expect(Expiry.needsAttention(status(d))).toBe(false);
+    for (const d of [-1, 0, 1, 2, 3]) expect(NeedsAttention.includes(status(d))).toBe(true);
+    for (const d of [4, 8, null]) expect(NeedsAttention.includes(status(d))).toBe(false);
+    expect(NeedsAttention.usable(status(-1))).toBe(false);
+    for (const d of [0, 1, 2, 3]) expect(NeedsAttention.usable(status(d))).toBe(true);
   });
 });
 
@@ -43,6 +46,21 @@ describe('NameKey and ShelfLife', () => {
     expect(NameKey.of('JALAPEÑO')).toBe('jalapeno');
     expect(NameKey.of('Greek yogurt')).toBe(NameKey.of('greek  YOGURT'));
     expect(NameKey.clean('  Greek   yogurt ')).toBe('Greek yogurt');
+  });
+
+  it('any whitespace counts, the same on both apps', () => {
+    // After v1, WEB-06: a no-break space pasted from a web page, a Japanese keyboard's full-width space.
+    expect(NameKey.of('Milk\u00A0 2%')).toBe('milk 2%');
+    expect(NameKey.of('x\u3000y')).toBe('x y');
+    expect(NameKey.clean('\u2009Thin\u202Fspace\u205F')).toBe('Thin space');
+    expect(NameKey.plainSpaces('a\u00A0\u3000b')).toBe('a  b');
+  });
+
+  it("a key stored before then normalises to today's key", () => {
+    // DECISIONS 2026-11-13: keys are normalised when read, not migrated. Android wrote "milk\u00A0 2%" for this.
+    const old = 'Milk\u00A0 2%'.toLowerCase();
+    expect(NameKey.of(old)).toBe(NameKey.of('Milk\u00A0 2%'));
+    for (const key of ['creme fraiche', 'milk 2%', '牛乳 2本']) expect(NameKey.of(key)).toBe(key);
   });
 
   it('shelf life keeps the last 5 and ignores undated or backdated batches', () => {

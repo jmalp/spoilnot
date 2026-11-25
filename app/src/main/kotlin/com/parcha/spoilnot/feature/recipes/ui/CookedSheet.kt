@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,11 +25,20 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.parcha.spoilnot.R
 import com.parcha.spoilnot.core.designsystem.component.PrimaryButton
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotSheet
+import com.parcha.spoilnot.core.designsystem.component.SpoilNotTextField
+import com.parcha.spoilnot.core.designsystem.component.isLargeText
 import com.parcha.spoilnot.core.designsystem.component.rememberFormSheet
+import com.parcha.spoilnot.core.designsystem.theme.SpoilNotText
+import com.parcha.spoilnot.core.ui.rememberSaveableMap
 import com.parcha.spoilnot.feature.pantry.ui.amountText
 import com.parcha.spoilnot.feature.pantry.ui.formatQuantity
 import com.parcha.spoilnot.feature.pantry.ui.label
@@ -51,22 +59,22 @@ fun CookedSheet(
     onDismiss: () -> Unit,
     markCooked: Boolean = false,
 ) {
-    val chosen = remember { mutableStateMapOf<String, Boolean>() }
-    val amounts = remember { mutableStateMapOf<String, String>() }
+    val chosen = rememberSaveableMap<String, Boolean>()
+    val amounts = rememberSaveableMap<String, String>()
     fun isChosen(line: CookLine) = chosen[line.product.id] ?: line.selectedByDefault
     fun amountText(line: CookLine) = amounts[line.product.id] ?: formatQuantity(line.defaultAmount)
     val use = lines.filter(::isChosen).mapNotNull { line ->
         parseQuantity(amountText(line))?.takeIf { it > 0 }?.let { line.product.id to it }
     }.toMap()
     val sheet = rememberFormSheet()
-    ModalBottomSheet(
+    SpoilNotSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet.state,
         contentWindowInsets = sheet.contentWindowInsets,
         modifier = sheet.modifier.testTag("sheet_cooked"),
     ) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-            Text(stringResource(R.string.recipe_cooked_title), style = MaterialTheme.typography.titleLarge)
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 16.dp)) {
+            Text(stringResource(R.string.recipe_cooked_title), style = SpoilNotText.SheetTitle)
             if (lines.isEmpty()) {
                 Text(
                     stringResource(R.string.recipe_cooked_none),
@@ -96,13 +104,14 @@ fun CookedSheet(
                 }
             }
             PrimaryButton(
+                // The sheet's main button (DESIGN 19.9).
                 text = if (markCooked && use.isEmpty()) {
                     stringResource(R.string.plan_mark_cooked)
                 } else {
                     pluralStringResource(R.plurals.recipe_cooked_use, use.size, use.size)
                 },
                 onClick = { if (use.isNotEmpty() || markCooked) onUse(use) },
-                modifier = Modifier.padding(top = 12.dp).testTag("recipe_cooked_use"),
+                modifier = Modifier.padding(top = 16.dp).testTag("recipe_cooked_use"),
             )
         }
     }
@@ -117,23 +126,23 @@ internal fun CookRow(
     onAmount: (String) -> Unit,
 ) {
     val unit = stringResource(line.product.unit.label())
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    // The field is named for its ingredient, and read after the row it belongs to: it sat higher, so TalkBack read
+    // "1, edit box, kg" before the name (review A11Y-07).
+    val fieldName = stringResource(R.string.recipe_cooked_amount_description, line.product.name, unit)
+    val choice = @Composable { choiceModifier: Modifier ->
         Row(
-            Modifier.weight(
-                1f,
-            ).toggleable(chosen, role = Role.Checkbox, onValueChange = onChosen).heightIn(min = 48.dp),
+            choiceModifier
+                .toggleable(chosen, role = Role.Checkbox, onValueChange = onChosen)
+                .heightIn(min = 48.dp)
+                .semantics { traversalIndex = 0f },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(checked = chosen, onCheckedChange = null, modifier = Modifier.padding(12.dp))
-            Column {
-                Text(line.product.name, style = MaterialTheme.typography.bodyLarge)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(line.product.name, style = SpoilNotText.RowTitle)
                 Text(
                     stringResource(R.string.recipe_cooked_have, amountText(line.inStock, line.product.unit)),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = SpoilNotText.RowSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 line.lines.forEach {
@@ -145,13 +154,39 @@ internal fun CookRow(
                 }
             }
         }
-        OutlinedTextField(
+    }
+    // The amount in a field of the 2026-11 look, its unit as the label above it (DESIGN 19.10).
+    val field = @Composable { fieldModifier: Modifier ->
+        SpoilNotTextField(
             value = amount,
             onValueChange = onAmount,
-            label = { Text(unit) },
-            singleLine = true,
+            label = unit,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.width(96.dp).testTag("cook_amount_${line.product.id}"),
+            modifier = fieldModifier
+                .semantics {
+                    contentDescription = fieldName
+                    traversalIndex = 1f
+                }
+                .testTag("cook_amount_${line.product.id}"),
         )
+    }
+    // From 1.5× text the amount goes under the ingredient instead of squeezing its name.
+    if (isLargeText()) {
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { isTraversalGroup = true },
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            choice(Modifier.fillMaxWidth())
+            field(Modifier.padding(start = 48.dp).fillMaxWidth())
+        }
+    } else {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { isTraversalGroup = true },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            choice(Modifier.weight(1f))
+            field(Modifier.width(96.dp))
+        }
     }
 }

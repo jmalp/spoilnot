@@ -10,6 +10,7 @@ import com.parcha.spoilnot.feature.grocery.domain.GroceryEventType
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
+import com.parcha.spoilnot.feature.pantry.domain.NameCase
 import com.parcha.spoilnot.feature.pantry.domain.NameKey
 import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
@@ -75,6 +76,7 @@ object RecipeGrocery {
         recipe: Recipe,
         pantry: PantryData,
         listItems: List<GroceryItem>,
+        words: RecipeWords,
         factor: Double = 1.0,
     ): List<GroceryCandidate> {
         val unchecked = listItems.filter { !it.checked }
@@ -88,7 +90,7 @@ object RecipeGrocery {
             }
             val cleaned = ShoppingName.of(parsed.name ?: parsed.raw)
             val product = ProductLink.find(cleaned, pantry.products)
-            val name = (product?.name ?: cleaned).take(GroceryRules.MAX_NAME_LENGTH).trim()
+            val name = NameCase.title((product?.name ?: cleaned).take(GroceryRules.MAX_NAME_LENGTH).trim())
             val usual = product?.let { it.buyQuantity ?: it.lastAddedQuantity }
             val recipeCount = parsed.qty?.takeIf { parsed.unit in COUNTED }?.let { scaledCount(it, factor) }
             val count = recipeCount?.takeIf { product == null || product.unit == QuantityUnit.Pieces }
@@ -97,7 +99,7 @@ object RecipeGrocery {
                 name = name,
                 quantity = usual ?: count,
                 unit = if (usual != null) product.unit else null,
-                note = note(recipe.content.title, Scaling.line(ingredient.raw, factor)),
+                note = note(recipe.content.title, Scaling.line(ingredient.raw, factor, words.pinch)),
                 product = product,
                 inPantry = PantryMatch.productFor(parsed.raw, pantry),
                 onList = NameKey.of(name) in onListKeys || (product != null && product.id in onListProducts),
@@ -117,14 +119,14 @@ object RecipeGrocery {
      * way by itself. Naming it back to the recipe's own name forgets the rename.
      */
     fun rename(candidate: GroceryCandidate, newName: String, products: List<Product>): GroceryCandidate {
-        val name = NameKey.clean(newName).take(GroceryRules.MAX_NAME_LENGTH).trim()
+        val name = NameCase.of(newName).take(GroceryRules.MAX_NAME_LENGTH).trim()
         if (name.isEmpty()) return candidate
         val key = NameKey.of(name)
         val product = products.firstOrNull { it.nameKey == key }
         val usual = product?.let { it.buyQuantity ?: it.lastAddedQuantity }
         val count = candidate.recipeCount?.takeIf { product == null || product.unit == QuantityUnit.Pieces }
         return candidate.copy(
-            name = product?.name ?: name,
+            name = NameCase.title(product?.name ?: name),
             product = product,
             quantity = usual ?: count,
             unit = if (usual != null) product.unit else null,
@@ -243,7 +245,7 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
             val product = c.product ?: pantry.products.firstOrNull { it.nameKey == key }
             GroceryItem(
                 id = writer.newId(),
-                name = product?.name ?: c.name,
+                name = NameCase.title(product?.name ?: c.name),
                 nameKey = key,
                 quantity = c.quantity,
                 unit = c.unit,
@@ -290,7 +292,7 @@ class RecipeService @Inject constructor(private val writer: HouseholdWriter) {
             sourceName = RecipeText.clean(content.sourceName, RecipeLimits.SOURCE_NAME),
             imageUrl = content.imageUrl?.trim()?.takeIf { SourceUrl.isWebUrl(it) },
             description = content.description?.trim()?.take(RecipeLimits.DESCRIPTION)?.ifEmpty { null },
-            servings = content.servings?.takeIf { it in 1..1000 },
+            servings = content.servings?.takeIf { it in 1..RecipeLimits.MAX_SERVINGS },
             servingsText = RecipeText.clean(content.servingsText, RecipeLimits.SERVINGS_TEXT),
             prepMinutes = content.prepMinutes?.takeIf { it > 0 },
             cookMinutes = content.cookMinutes?.takeIf { it > 0 },

@@ -33,6 +33,8 @@ const PREP = [
   'about',
   'approximately',
   'and',
+  'extra-virgin',
+  'extra virgin',
 ];
 const LEADING = new Set([...SIZE, ...PREP]);
 const TRAILING = new Set(PREP);
@@ -65,7 +67,7 @@ function dropTrailing(words: string[], drop: Set<string>): string[] {
  */
 export const ShoppingName = {
   of(name: string): string {
-    let text = name.replace(PARENS, ' ').split(',')[0]!.replace(/\s+/g, ' ').trim();
+    let text = NameKey.clean(NameKey.plainSpaces(name).replace(PARENS, ' ').split(',')[0]!);
     text = text.replace(TAIL, '').replace(EDGE_PUNCTUATION, '');
     let words = text.split(' ').filter((w) => w !== '');
     words = dropLeading(words, LEADING);

@@ -23,11 +23,13 @@ import {
   type JoinRequest,
   type LocalData,
   type Member,
+  maskEmail,
   type Membership,
+  type ResetOutcome,
   type Role,
 } from '../domain/household';
 import type { Actor } from '../domain/write';
-import { Tombstones } from './delta-sync';
+import { Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import {
   commitConfirmed,
@@ -38,6 +40,8 @@ import {
   retryAfterOwnWrites,
 } from './firestore-rx';
 import { UserFields } from './users';
+import { capTo, ReadCaps } from '../domain/caps';
+import { mapEach } from './fields';
 
 const SCHEMA_VERSION = 1;
 /** DESIGN 8.5: chunk batched writes at 400 operations. */
@@ -61,28 +65,43 @@ const text = (s: DocumentSnapshot, field: string): string => {
 };
 const same = <T>(a: T, b: T) => JSON.stringify(a) === JSON.stringify(b);
 
-function toHousehold(s: DocumentSnapshot): Household {
-  return { id: s.id, name: text(s, 'name'), ownerUid: text(s, 'ownerUid'), inviteCode: text(s, 'inviteCode') };
-}
-
-function toInviteCode(s: DocumentSnapshot): InviteCode {
+export function toHousehold(s: DocumentSnapshot): Household {
   return {
-    code: s.id,
-    householdId: text(s, 'householdId'),
-    householdName: text(s, 'householdName'),
-    active: s.get('active') === true,
+    id: s.id,
+    name: capTo(text(s, 'name'), ReadCaps.LIST_NAME),
+    ownerUid: text(s, 'ownerUid'),
+    inviteCode: text(s, 'inviteCode'),
   };
 }
 
-function toJoinRequest(s: DocumentSnapshot): JoinRequest | null {
+export function toMember(d: DocumentSnapshot): Member {
+  return {
+    uid: d.id,
+    displayName: capTo(text(d, 'displayName'), ReadCaps.PERSON),
+    role: roleOf(d),
+    joinedAt: dateOf(d.get('joinedAt')),
+  };
+}
+
+export function toInviteCode(s: DocumentSnapshot): InviteCode {
+  return {
+    code: s.id,
+    householdId: text(s, 'householdId'),
+    householdName: capTo(text(s, 'householdName'), ReadCaps.LIST_NAME),
+  };
+}
+
+export function toJoinRequest(s: DocumentSnapshot): JoinRequest | null {
   const status: unknown = s.get('status');
   if (status !== 'pending' && status !== 'approved' && status !== 'declined') return null;
   return {
     uid: s.id,
-    displayName: text(s, 'displayName'),
+    displayName: capTo(text(s, 'displayName'), ReadCaps.PERSON),
     code: text(s, 'joinCode'),
     status,
     requestedAt: dateOf(s.get('requestedAt')),
+    // Older builds don't write it; another type is ignored rather than failing the list.
+    emailMasked: typeof s.get('emailMasked') === 'string' ? capTo(text(s, 'emailMasked'), ReadCaps.PERSON * 3) : null,
   };
 }
 
@@ -92,10 +111,12 @@ const profilePointer = (householdId: string | null) => ({
   [UserFields.UPDATED_AT]: serverTimestamp(),
 });
 
-const codeDoc = (householdId: string, householdName: string, uid: string, active: boolean) => ({
+// `active` is always true (after v1, R12 removed Pause joining): builds before it still refuse a code without it.
+// Nothing reads it any more.
+const codeDoc = (householdId: string, householdName: string, uid: string) => ({
   householdId,
   householdName,
-  active,
+  active: true,
   createdBy: uid,
   createdAt: serverTimestamp(),
 });
@@ -134,13 +155,7 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
       querySnapshots(collection(db, `${householdPath(householdId)}/members`)).pipe(retryAfterOwnWrites(db)),
     ).pipe(
       map((snapshot) =>
-        snapshot.docs
-          .map((d): Member => ({
-            uid: d.id,
-            displayName: text(d, 'displayName'),
-            role: roleOf(d),
-            joinedAt: dateOf(d.get('joinedAt')),
-          }))
+        mapEach(snapshot.docs, toMember)
           // Ordered by join date; a join not yet stamped by the server goes last.
           .sort((a, b) => (a.joinedAt?.getTime() ?? Infinity) - (b.joinedAt?.getTime() ?? Infinity)),
       ),
@@ -153,10 +168,9 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
       querySnapshots(collection(db, `${householdPath(householdId)}/joinRequests`)).pipe(retryAfterOwnWrites(db)),
     ).pipe(
       map((snapshot) =>
-        snapshot.docs
-          .map(toJoinRequest)
-          .filter((r): r is JoinRequest => r !== null)
-          .sort((a, b) => (a.requestedAt?.getTime() ?? Infinity) - (b.requestedAt?.getTime() ?? Infinity)),
+        mapEach(snapshot.docs, toJoinRequest).sort(
+          (a, b) => (a.requestedAt?.getTime() ?? Infinity) - (b.requestedAt?.getTime() ?? Infinity),
+        ),
       ),
       distinctUntilChanged(same),
     );
@@ -166,13 +180,6 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     return this.follow((db) => docSnapshots(doc(db, requestPath(householdId, uid)), true)).pipe(
       filter((s) => s.exists() || !s.metadata.fromCache),
       map((s) => (s.exists() ? toJoinRequest(s) : null)),
-      distinctUntilChanged(same),
-    );
-  }
-
-  observeInviteCode(code: string): Observable<InviteCode | null> {
-    return this.follow((db) => docSnapshots(doc(db, codePath(code))).pipe(retryAfterOwnWrites(db))).pipe(
-      map((s) => (s.exists() ? toInviteCode(s) : null)),
       distinctUntilChanged(same),
     );
   }
@@ -191,7 +198,7 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
       updatedAt: serverTimestamp(),
     });
     batch.set(doc(db, memberPath(household.id, uid)), { role: 'owner', displayName, joinedAt: serverTimestamp() });
-    batch.set(doc(db, codePath(inviteCode)), codeDoc(household.id, name.trim(), uid, true));
+    batch.set(doc(db, codePath(inviteCode)), codeDoc(household.id, name.trim(), uid));
     batch.set(defaultList, {
       name: HouseholdRules.DEFAULT_GROCERY_LIST_NAME,
       isDefault: true,
@@ -208,26 +215,39 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     return snapshot.exists() ? toInviteCode(snapshot) : null;
   }
 
-  async requestToJoin(uid: string, displayName: string, invite: InviteCode): Promise<void> {
+  async requestToJoin(uid: string, displayName: string, invite: InviteCode, email?: string | null): Promise<void> {
     const db = this.sdk.current;
     const pending: PendingJoin = {
       householdId: invite.householdId,
       householdName: invite.householdName,
       code: invite.code,
     };
-    // Must reach the server: the rules check the code there, and a rejection must be shown now.
-    const batch = writeBatch(db);
-    batch.set(doc(db, requestPath(invite.householdId, uid)), {
-      displayName,
-      joinCode: invite.code,
-      status: 'pending',
-      requestedAt: serverTimestamp(),
-    });
-    batch.update(doc(db, UserFields.path(uid)), {
-      [UserFields.PENDING_JOIN]: UserFields.pendingJoin(pending),
-      [UserFields.UPDATED_AT]: serverTimestamp(),
-    });
-    await commitConfirmed(batch);
+    // After v1: the owner sees who is asking, not only the name they typed. The rules check it.
+    const masked = maskEmail(email);
+    const send = async (emailMasked: string | null) => {
+      // Must reach the server: the rules check the code there, and a rejection must be shown now.
+      const batch = writeBatch(db);
+      batch.set(doc(db, requestPath(invite.householdId, uid)), {
+        displayName,
+        joinCode: invite.code,
+        status: 'pending',
+        requestedAt: serverTimestamp(),
+        ...(emailMasked === null ? {} : { emailMasked }),
+      });
+      batch.update(doc(db, UserFields.path(uid)), {
+        [UserFields.PENDING_JOIN]: UserFields.pendingJoin(pending),
+        [UserFields.UPDATED_AT]: serverTimestamp(),
+      });
+      await commitConfirmed(batch);
+    };
+    try {
+      await send(masked);
+    } catch (error) {
+      // Rules from before the field refuse it: send the request without it (the same refusal for any other reason,
+      // such as a paused code, comes back again).
+      if (masked === null || !isAppError(error, 'permissionDenied')) throw error;
+      await send(null);
+    }
   }
 
   async completeJoin(uid: string, displayName: string, pending: PendingJoin): Promise<void> {
@@ -285,19 +305,12 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     await commitQueued(batch);
   }
 
-  async regenerateInviteCode(household: Household, uid: string, newCode: string, active: boolean): Promise<void> {
+  async regenerateInviteCode(household: Household, uid: string, newCode: string): Promise<void> {
     const db = this.sdk.current;
     const batch = writeBatch(db);
-    batch.set(doc(db, codePath(newCode)), codeDoc(household.id, household.name, uid, active));
+    batch.set(doc(db, codePath(newCode)), codeDoc(household.id, household.name, uid));
     batch.update(doc(db, householdPath(household.id)), { inviteCode: newCode, updatedAt: serverTimestamp() });
     batch.delete(doc(db, codePath(household.inviteCode)));
-    await commitQueued(batch);
-  }
-
-  async setJoiningPaused(code: string, paused: boolean): Promise<void> {
-    const db = this.sdk.current;
-    const batch = writeBatch(db);
-    batch.update(doc(db, codePath(code)), { active: !paused });
     await commitQueued(batch);
   }
 
@@ -343,7 +356,7 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
     await commitConfirmed(batch);
   }
 
-  async resetData(householdId: string, actor: Actor): Promise<void> {
+  async resetData(householdId: string, actor: Actor): Promise<ResetOutcome> {
     const db = this.sdk.current;
     const base = householdPath(householdId);
     const read = async (path: string) => (await mapped(getDocsFromServer(collection(db, path)))).docs;
@@ -386,11 +399,23 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
         createdAt: serverTimestamp(),
       }),
     );
+    // A chunk that times out is still queued: queue the rest after it rather than stop half done (SYNC-08).
+    let queued = false;
     for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
       const batch = writeBatch(db);
       ops.slice(i, i + BATCH_LIMIT).forEach((op) => op(batch));
-      await commitConfirmed(batch);
+      if (queued) {
+        batch.commit().catch(() => undefined);
+        continue;
+      }
+      try {
+        await commitConfirmed(batch);
+      } catch (error) {
+        if (!isAppError(error, 'offline')) throw error;
+        queued = true;
+      }
     }
+    return queued ? 'finishesWhenOnline' : 'cleared';
   }
 
   /** Every document under the household, deepest first, read from the server so nothing is missed. */
@@ -411,9 +436,21 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
   }
 }
 
+/** The household's copy in this browser: Firestore's cache, and the sync log that names its collections. */
 export class FirestoreLocalData implements LocalData {
-  constructor(private readonly sdk: FirebaseSdk) {}
-  clear(): Promise<void> {
-    return this.sdk.clearLocalData();
+  constructor(
+    private readonly sdk: FirebaseSdk,
+    private readonly log: SyncLog,
+  ) {}
+  async clear(): Promise<void> {
+    try {
+      await this.sdk.clearLocalData();
+    } finally {
+      this.log.clear();
+    }
+  }
+
+  flushPendingWrites(): Promise<boolean> {
+    return this.sdk.flushPendingWrites();
   }
 }

@@ -1,0 +1,429 @@
+/* The shared pieces of the 2026-11 look (DESIGN 19), measured like the app's core/designsystem. The surfaces are
+   --sn-surface-* from theme.ts (DESIGN 19.2). */
+
+/* List groups (DESIGN 19.5): a row's corners come from its place in the group. */
+.sn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sn-segment {
+  border-radius: 6px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
+}
+.sn-group > .sn-segment:first-child {
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+}
+.sn-group > .sn-segment:last-child {
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+.sn-group--nested > .sn-segment {
+  background: var(--sn-surface-nested-row);
+}
+.sn-group--nested > .sn-segment:first-child {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+.sn-group--nested > .sn-segment:last-child {
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+}
+
+/* Status tile (DESIGN 19.6): the status color at 12% (STATUS_TINT_ALPHA) over the row; a neutral tile for no date. */
+.sn-status-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  color: var(--sn-tone);
+  background: color-mix(in srgb, var(--sn-tone) 12%, var(--sn-surface-row));
+}
+.sn-status-tile--nested {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sn-tone) 12%, var(--sn-surface-nested-row));
+}
+.sn-status-tile--fresh {
+  --sn-tone: var(--sn-status-fresh);
+}
+.sn-status-tile--soon {
+  --sn-tone: var(--sn-status-soon);
+}
+.sn-status-tile--urgent {
+  --sn-tone: var(--sn-status-urgent);
+}
+.sn-status-tile--expired {
+  --sn-tone: var(--sn-status-expired);
+}
+.sn-status-tile--no-date {
+  --sn-tone: var(--sn-status-no-date);
+  background: var(--sn-surface-tile);
+}
+
+/* Cards (DESIGN 19.8). */
+.sn-highlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 12px 12px;
+  border-radius: 28px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.sn-accent-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 24px;
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+.sn-plain-card {
+  border-radius: 24px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
+  /* A field on the card takes the page's color: the field color is the row's own in light (step 8). */
+  --sn-surface-field: var(--sn-surface-page);
+}
+
+/* The leaf (DESIGN 19.3): two opposite corners round and the other two at 15%. */
+.sn-leaf-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50% 15% 50% 15%;
+  background: var(--md-sys-color-on-tertiary-container);
+  color: var(--md-sys-color-tertiary-container);
+}
+
+/* Label chips (DESIGN 19.10). */
+.sn-label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.sn-label-chip:has(.m3-icon) {
+  padding-left: 6px;
+}
+.sn-label-chip--source {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+.sn-label-chip--person {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+/* The search field on a page (DESIGN 19.10): 56 px, fully round, on the row color; a 2 px primary border while it has
+   the keyboard (DECISIONS 2026-11-16). */
+.sn-search {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 4px 0 20px;
+  border-radius: 28px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-search:focus-within {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+.sn-search__input {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  padding: 14px 12px;
+  border: none;
+  background: transparent;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  color: var(--md-sys-color-on-surface);
+  caret-color: var(--md-sys-color-primary);
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 500;
+}
+.sn-search__input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.sn-search__input::-webkit-search-cancel-button {
+  display: none;
+}
+.sn-search__spacer {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+
+/* Filter chips (DESIGN 19.10): 44 px on the row color with 12 px corners; chosen, fully round and primary. */
+.sn-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+.sn-filter-chip--icon {
+  padding-left: 12px;
+}
+.sn-filter-chip[aria-pressed='true'],
+.sn-filter-chip[aria-checked='true'] {
+  border-radius: 999px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-weight: 800;
+}
+
+/* A connected button group (DESIGN 19.9): 48 px, 2 px apart, round outside and 8 px joins; the chosen one round and
+   primary. A label may take two lines before 1.5x text turns the group into a list. */
+.sn-connected {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+.sn-connected__button {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: 4px;
+  border: none;
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 700;
+  text-align: center;
+}
+.sn-connected__button:first-child {
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+.sn-connected__button:last-child {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+.sn-connected__button[aria-checked='true'] {
+  border-radius: 999px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-weight: 800;
+}
+.sn-connected__label {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sn-connected-list {
+  display: flex;
+  flex-direction: column;
+}
+.sn-connected-list__option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 4px 0 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+}
+/* A radio button drawn as Material's: the ring, and the dot when chosen. */
+.sn-radio-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-on-surface-variant);
+}
+[aria-checked='true'] > .sn-radio-mark {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+[aria-checked='true'] > .sn-radio-mark::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--md-sys-color-primary);
+}
+
+/* The round field without a leading icon (Groceries' quick add): its text starts where the icon would. */
+.sn-search--plain .sn-search__input {
+  padding-left: 0;
+}
+/* A filled + at the end of a round field (DESIGN 19.10): primary, 48 px, grey until there is something to add. */
+.sn-pill-add {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 24px;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+.sn-pill-add:disabled {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+}
+
+/* A stepper (DESIGN 19.9; StepButton and CountStepper in the app): − and + joined to the value, 56 px, 2 px apart. */
+.sn-joined-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sn-step-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border: none;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-step-button--start {
+  border-radius: 28px 8px 8px 28px;
+}
+.sn-step-button--end {
+  border-radius: 8px 28px 28px 8px;
+}
+.sn-step-button:disabled {
+  opacity: 0.5;
+}
+/* A count shown between − and +, not typed (Mark opened, a meal's servings): at least as wide as Add item's amount. */
+.sn-joined-stepper__count {
+  display: grid;
+  place-items: center;
+  min-width: 72px;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: var(--sn-surface-field);
+  font-weight: 800;
+}
+
+/* A round icon button over a header or a picture (DESIGN 19.7): 48 px on the row color; a toggle is primary while on. */
+.sn-round-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 24px;
+  background: var(--sn-surface-row);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+.sn-round-button[aria-pressed='true'] {
+  color: var(--md-sys-color-primary);
+}
+.sn-round-button[aria-pressed='false'] {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* A filter chip on a dialog or a sheet takes that place's row color (DESIGN 19.2), not the page's row color. */
+.sn-filter-chip--dialog:not([aria-pressed='true']):not([aria-checked='true']) {
+  background: var(--sn-surface-dialog-row);
+}
+.sn-filter-chip--field:not([aria-pressed='true']):not([aria-checked='true']) {
+  background: var(--sn-surface-field);
+}
+
+/* The account's initial (Settings): the leaf in the highlight card's colors, swapped. */
+.sn-leaf-badge--highlight {
+  background: var(--md-sys-color-on-primary-container);
+  color: var(--md-sys-color-primary-container);
+}
+
+/* Settings' kind of row (DESIGN 19.5; ActionRow, SwitchRow and IconTile in the app): an icon on a 40 px tile, two
+   lines, and a chevron or a switch at the end; 68 px with two lines, 56 px with one. */
+.sn-icon-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.sn-icon-tile__letter {
+  font-weight: 800;
+}
+.sn-row-lines {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  text-align: start;
+}
+.sn-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sn-action-row--one-line {
+  min-height: 56px;
+}
+.sn-action-row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.sn-action-row__chevron {
+  display: grid;
+  flex: none;
+}
+/* One-line rows with a checkbox or a radio button at the start (Notifications' stages and expired food). */
+.sn-choice-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 0 16px 0 4px;
+  cursor: pointer;
+}
+.sn-group-heading {
+  margin: 0;
+  padding: 4px 8px 0;
+  color: var(--md-sys-color-primary);
+}

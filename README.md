@@ -1,7 +1,8 @@
 # Spoil Not
 
-Spoil Not is an Android app for a household that shares one kitchen. It keeps track of the food you have, reminds
-you before it expires, and keeps a grocery list that everyone in the home can see and add to.
+Spoil Not is an Android app, with a web app for iPhone, for a household that shares one kitchen. It keeps track of
+the food you have, reminds you before it expires, plans the week's meals, and keeps a grocery list that everyone in
+the home can see and add to.
 
 I designed it and directed its construction, and [Claude Code](https://claude.com/claude-code) wrote the code. This
 README covers what the app does and, in more detail, how I planned, guided and checked the work.
@@ -40,20 +41,31 @@ architecture and the quality bar. A small app that solves a real problem at home
   at home.
 - **Households.** One person creates a household and shares an invite code; the owner approves each person who asks
   to join. Changes on one phone show up on the others in about a second, and the app keeps working offline.
+- **Meal planner.** A shared week of breakfasts, lunches and dinners with who is cooking, suggestions that use what
+  expires soon, the week's ingredients sent to the grocery list in one step, and a reminder line for whoever cooks
+  today.
 - **Insights.** A monthly view of how much was used versus thrown away, with charts, a streak and the reasons food
   was wasted.
+- **App tour.** On Android, a short follow-along tour on the first open that points at each tab and its main button,
+  and can be taken again from Settings.
+- **Web app for iPhone.** The same app as a web app added to the iPhone's Home Screen, with the same look, sharing the
+  household live with Android phones, offline use and push reminders; [DESIGN 18](docs/DESIGN.md) lists the few
+  differences.
 - **Personalization.** Light and dark mode, Material You colors, and five preset color themes built from palettes I
-  picked.
+  picked, on a look redesigned after v1 around grouped rows, one highlight card per screen and the app icon's leaf.
 
 Every destructive action can be undone, and status is never shown by color alone.
 
 ## How it's built
 
-A native Android app in Kotlin with Jetpack Compose and Material 3. Firebase handles sign-in, the shared database
-(Firestore) and push notifications, all on the free Spark plan. A small TypeScript job on GitHub Actions sends the
-daily reminders and makes a nightly backup. There are no paid services, no ads and no analytics.
+A native Android app in Kotlin with Jetpack Compose and Material 3, and a web app for iPhone in TypeScript with
+React and Vite that takes its colors, strings and icons from the Android sources. Firebase handles sign-in, the
+shared database (Firestore), push notifications and the web app's hosting, all on the free Spark plan. A small
+TypeScript job on GitHub Actions sends the daily reminders on time and makes a nightly backup.
+There are no paid services, no ads and no analytics.
 
-The app is in beta with a small group of testers through Firebase App Distribution. It is Android only.
+Version 1.0.0 is with a small group of testers: the Android app through Firebase App Distribution, the web app on
+Firebase Hosting.
 
 ## How I built it with Claude Code
 
@@ -87,14 +99,15 @@ icon to ship, what to build next, and what to cut or skip when the cost outweigh
 
 ### 5. I tested with real people and fed back what I saw
 
-Four betas went to testers, and their feedback reshaped the pantry, the add and edit forms and several smaller
+Eleven betas went to testers before 1.0.0, and their feedback reshaped the pantry, the add and edit forms and several smaller
 interactions. For larger requests I had Claude Code restate the changes in its own words before writing any code,
 which caught misunderstandings early.
 
 ### 6. I held the line on quality, security and cost
 
-The app has about 360 automated tests across unit, screenshot, security-rule and two-phone instrumented tests, all
-running in CI. I signed off a security review against the design. When a simulation showed the free quota would run
+The app has hundreds of automated tests: unit, screenshot, security-rule, reminder-job, web and browser tests run in
+[CI](.github/workflows/ci.yml) on every pull request, and the two-phone instrumented tests and the screenshot
+comparisons run on the Mac before a change is done. I signed off a security review against the design. When a simulation showed the free quota would run
 out at about seven households, I made cheaper syncing a priority, which cut reads by about 60%.
 
 ### 7. Every change leaves a record
@@ -113,3 +126,5 @@ change also updates the design document in the same pull request, so anyone can 
 | [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) | The security review and its sign-off |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | What data the app keeps and why |
 | [CLAUDE.md](CLAUDE.md) | The working rules for Claude Code |
+
+The repository's layout is in [DESIGN Appendix B](docs/DESIGN.md#appendix-b-repository-layout).

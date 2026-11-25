@@ -3,10 +3,11 @@ package com.parcha.spoilnot.feature.plan.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.coroutines.LoadRetry
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.core.ui.UiMessage
 import com.parcha.spoilnot.core.ui.messageRes
 import com.parcha.spoilnot.core.write.Actor
-import com.parcha.spoilnot.core.write.HouseholdWriter
 import com.parcha.spoilnot.core.write.Undo
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.grocery.domain.GroceryList
@@ -21,6 +22,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryRepository
 import com.parcha.spoilnot.feature.pantry.ui.todayFlow
 import com.parcha.spoilnot.feature.plan.domain.MealGroceries
+import com.parcha.spoilnot.feature.plan.domain.MealPlanData
 import com.parcha.spoilnot.feature.plan.domain.MealPlanGrocery
 import com.parcha.spoilnot.feature.plan.domain.MealPlanRepository
 import com.parcha.spoilnot.feature.plan.domain.MealPlanService
@@ -34,6 +36,7 @@ import com.parcha.spoilnot.feature.recipes.domain.GroceryCandidate
 import com.parcha.spoilnot.feature.recipes.domain.Recipe
 import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import com.parcha.spoilnot.feature.recipes.domain.RecipeStore
+import com.parcha.spoilnot.feature.recipes.domain.RecipeWords
 import com.parcha.spoilnot.feature.recipes.domain.UseItUp
 import com.parcha.spoilnot.feature.recipes.domain.UseItUpSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,23 +47,23 @@ import java.time.temporal.WeekFields
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
@@ -83,10 +86,10 @@ class PlanViewModel @Inject constructor(
     recipes: RecipeStore,
     pantry: PantryRepository,
     groceries: GroceryRepository,
-    writer: HouseholdWriter,
     private val service: MealPlanService,
     private val recipeService: RecipeService,
     clock: Clock,
+    private val words: RecipeWords,
 ) : ViewModel() {
     data class UiState(
         val loading: Boolean = true,
@@ -99,6 +102,8 @@ class PlanViewModel @Inject constructor(
         val myUid: String = "",
         /** Recipes in this week still to cook, so "Add to grocery list" has something to add. */
         val canShop: Boolean = false,
+        /** The week failed to load and is being listened to again (DESIGN 6.7). */
+        val loadFailed: Boolean = false,
     ) {
         fun meal(id: String): PlannedMeal? = days.firstNotNullOfOrNull { d ->
             d.slots.values.flatten().find {
@@ -117,15 +122,20 @@ class PlanViewModel @Inject constructor(
     private val me = session.session.filterIsInstance<Session.InHousehold>()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** "Couldn't load. Retry" (DESIGN 6.7): the week listens again instead of ending (after v1, REL-04). */
+    private val load = LoadRetry()
+
     val state: StateFlow<UiState> = combine(me, weekOffset, todayFlow(clock)) { me, offset, today ->
         Triple(me, MealWeek.start(today, firstDay).plusWeeks(offset), today)
     }.flatMapLatest { (me, start, today) ->
         if (me == null) return@flatMapLatest flowOf(UiState())
         combine(
-            repository.observe(me.householdId, start, MealWeek.end(start)).catch { },
-            households.observeMembers(me.householdId).onStart { emit(emptyList()) }.catch { emit(emptyList()) },
+            // Null only when the first listen fails, so the screen can say "Couldn't load" (DESIGN 6.7).
+            repository.observe(me.householdId, start, MealWeek.end(start)).retryLoading<MealPlanData?>(load, null),
+            households.observeMembers(me.householdId).onStart { emit(emptyList()) }.retryLoading(),
             recipes.box.map { box -> box?.recipes.orEmpty().sortedWith(compareBy(NaturalOrder) { it.title }) },
         ) { plan, members, box ->
+            if (plan == null) return@combine UiState(myUid = me.user.uid)
             UiState(
                 loading = false,
                 weekStart = start,
@@ -137,24 +147,39 @@ class PlanViewModel @Inject constructor(
                 myUid = me.user.uid,
             ).let { it.copy(canShop = MealPlanGrocery.toShop(it.days, it.recipes).isNotEmpty()) }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+    }.combine(load.failed) { s, failed -> s.copy(loadFailed = failed) }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
-    /** One pantry listener shared by the sheets that need it, running only while one of them is open. */
+    /** The household's shared pantry flow (DESIGN 9.1), for the sheets that need it while one of them is open. */
     private val pantryData: Flow<PantryData> = me
         .map { it?.householdId }
         .distinctUntilChanged()
         // On an error the sheets still open, without pantry hints.
-        .flatMapLatest { hid -> if (hid == null) emptyFlow() else pantry.observe(hid).catch { emit(EMPTY_PANTRY) } }
+        .flatMapLatest { hid ->
+            if (hid ==
+                null
+            ) {
+                emptyFlow()
+            } else {
+                pantry.observe(hid).retryLoading(fallback = EMPTY_PANTRY)
+            }
+        }
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    /** Recipes the shown week plans from today on, which Use it up leaves out (after v1, UX-05). */
+    private val plannedFromToday: Flow<Set<String>> = combine(state, todayFlow(clock)) { s, today ->
+        MealWeek.plannedFrom(s.days.flatMap { it.meals }, today)
+    }.distinctUntilChanged()
 
     /**
      * "Use it up" at the top of the recipe picker (DESIGN 5.9): saved recipes using food that expires soon. Null until
      * the pantry has loaded, so the sheet opens at its full height.
      */
     val useItUp: StateFlow<List<UseItUpSuggestion>?> =
-        combine(pantryData, recipes.box, todayFlow(clock)) { p, box, today ->
-            UseItUp.suggestions(box?.recipes.orEmpty(), p, today)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        combine(pantryData.conflate(), recipes.box, plannedFromToday, todayFlow(clock)) { p, box, planned, today ->
+            UseItUp.suggestions(box?.recipes.orEmpty(), p, today, planned)
+        }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The Cooked sheet for a recipe meal: the pantry products it uses, at the meal's servings. */
     data class CookState(val meal: PlannedMeal, val recipe: Recipe, val lines: List<CookLine>, val pantry: PantryData)
@@ -171,7 +196,7 @@ class PlanViewModel @Inject constructor(
                 if (meal == null || recipe == null) {
                     null
                 } else {
-                    CookState(meal, recipe, Cooking.lines(recipe, p, MealPlanGrocery.factor(meal, recipe)), p)
+                    CookState(meal, recipe, Cooking.lines(recipe, p, words, MealPlanGrocery.factor(meal, recipe)), p)
                 }
             }
         }
@@ -191,7 +216,7 @@ class PlanViewModel @Inject constructor(
     val weekGrocery: StateFlow<WeekGroceryState> = me.map { it?.householdId }.distinctUntilChanged()
         .flatMapLatest { hid ->
             if (hid == null) return@flatMapLatest flowOf(WeekGroceryState())
-            val lists = groceries.observeLists(hid).catch { emit(emptyList()) }
+            val lists = groceries.observeLists(hid).retryLoading(fallback = emptyList())
             val listId = combine(lists, chosenList) { all, chosen ->
                 all.firstOrNull { it.id == chosen }?.id ?: all.firstOrNull { it.isDefault }?.id ?: all.firstOrNull()?.id
             }.distinctUntilChanged()
@@ -201,14 +226,14 @@ class PlanViewModel @Inject constructor(
                 ) {
                     flowOf(emptyList())
                 } else {
-                    groceries.observeItems(hid, id).catch { emit(emptyList<GroceryItem>()) }
+                    groceries.observeItems(hid, id).retryLoading(fallback = emptyList<GroceryItem>())
                 }
             }
             combine(state, lists, listId, items, pantryData) { s, all, id, listItems, p ->
                 WeekGroceryState(
                     lists = all,
                     listId = id,
-                    sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(s.days, s.recipes), p, listItems),
+                    sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(s.days, s.recipes), p, listItems, words),
                     pantry = p,
                     loading = false,
                 )
@@ -219,9 +244,8 @@ class PlanViewModel @Inject constructor(
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
-    init {
-        writer.errors.onEach { _messages.send(UiMessage(it.messageRes())) }.launchIn(viewModelScope)
-    }
+    /** Retry on "Couldn't load": listens again at once. */
+    fun retryLoad() = load.retry()
 
     fun previousWeek() = weekOffset.update { it - 1 }
 
@@ -303,7 +327,7 @@ class PlanViewModel @Inject constructor(
                     UiMessage(if (previous.isEmpty()) R.string.plan_copy_none else R.string.plan_copy_already),
                 )
             } else {
-                _messages.send(UiMessage(R.string.plan_copied, listOf(copied.first.toString()), copied.second))
+                _messages.send(UiMessage.plural(R.plurals.plan_copied_meals, copied.first, copied.second))
             }
         }
     }

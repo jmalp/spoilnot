@@ -8,24 +8,35 @@
   /* Text sizes at 100 %; theme/textScale.ts sets them for the phone's text size (DESIGN 18.2). */
   --sp-11: 11px;
   --sp-12: 12px;
+  --sp-13: 13px;
   --sp-14: 14px;
   --sp-16: 16px;
+  --sp-17: 17px;
+  --sp-18: 18px;
   --sp-20: 20px;
   --sp-22: 22px;
   --sp-24: 24px;
+  --sp-26: 26px;
   --sp-28: 28px;
+  --sp-30: 30px;
   --sp-32: 32px;
+  --sp-34: 34px;
   --sp-36: 36px;
   --sp-40: 40px;
   --sp-44: 44px;
   --sp-45: 45px;
+  --sp-48: 48px;
   --sp-52: 52px;
+  --sp-54: 54px;
   --sp-57: 57px;
   --sp-64: 64px;
+  --sp-70: 70px;
   --sn-safe-top: env(safe-area-inset-top, 0px);
   --sn-safe-bottom: env(safe-area-inset-bottom, 0px);
   --sn-safe-left: env(safe-area-inset-left, 0px);
   --sn-safe-right: env(safe-area-inset-right, 0px);
+  /* Where a screen's own content starts: below the status bar, or 0 under the quota banner, which takes it (App). */
+  --sn-screen-top: var(--sn-safe-top);
   --sn-elevation-1: 0 1px 2px rgb(0 0 0 / 30%), 0 1px 3px 1px rgb(0 0 0 / 15%);
   --sn-elevation-2: 0 1px 2px rgb(0 0 0 / 30%), 0 2px 6px 2px rgb(0 0 0 / 15%);
   --sn-elevation-3: 0 1px 3px rgb(0 0 0 / 30%), 0 4px 8px 3px rgb(0 0 0 / 15%);
@@ -71,9 +82,21 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* One focus ring for every control from a keyboard (after v1, review A11Y-11; FocusRing in the app): 2 px of primary
+   around it. Rows that fill a clipped container draw it inside their edge (.sn-ring-inset), or it would be cut off.
+   Taps don't show it: :focus-visible is for keyboard focus only. */
 :focus-visible {
-  outline: 2px solid var(--md-sys-color-secondary);
+  outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 2px;
+}
+.sn-ring-inset:focus-visible,
+.m3-list-item:focus-visible,
+.m3-navigation-bar__item:focus-visible,
+.sn-pantry-row :focus-visible,
+.sn-grocery-row :focus-visible,
+.sn-recipe-card :focus-visible,
+.sn-cart-header :focus-visible {
+  outline-offset: -2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -169,6 +192,108 @@ button {
   line-height: var(--sp-16);
   font-weight: 500;
   letter-spacing: 0.03125rem;
+}
+
+/* The 2026-11 look's text styles (DESIGN 19.4; SpoilNotText in the app): heavier titles and tighter numbers than
+   Material's scale has. Manrope's variable font reaches 800 (ExtraBold). */
+.t-screen-title {
+  font-size: var(--sp-30);
+  line-height: var(--sp-40);
+  font-weight: 800;
+  letter-spacing: -0.03125rem;
+}
+.t-screen-eyebrow {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 600;
+}
+.t-group-heading {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 800;
+}
+.t-row-title {
+  font-size: var(--sp-16);
+  line-height: calc(var(--sp-16) * 1.375);
+  font-weight: 700;
+}
+.t-row-supporting {
+  font-size: var(--sp-13);
+  line-height: calc(var(--sp-13) * 1.385);
+  font-weight: 600;
+}
+.t-row-status {
+  font-size: var(--sp-13);
+  line-height: calc(var(--sp-13) * 1.385);
+  font-weight: 800;
+}
+.t-section-title {
+  font-size: var(--sp-18);
+  line-height: var(--sp-24);
+  font-weight: 800;
+}
+.t-card-title {
+  font-size: var(--sp-22);
+  line-height: var(--sp-28);
+  font-weight: 800;
+  letter-spacing: -0.0125rem;
+}
+.t-big-number {
+  font-size: var(--sp-48);
+  line-height: var(--sp-54);
+  font-weight: 800;
+  letter-spacing: -0.09375rem;
+}
+/* Step 7: the month's percentage on Your kitchen, and an accent card's number (the streak's days, the invite code). */
+.t-hero-number {
+  font-size: var(--sp-64);
+  line-height: var(--sp-70);
+  font-weight: 800;
+  letter-spacing: -0.125rem;
+}
+.t-accent-number {
+  font-size: var(--sp-26);
+  line-height: var(--sp-32);
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.t-button-large {
+  font-size: var(--sp-16);
+  line-height: var(--sp-24);
+  font-weight: 800;
+}
+.t-button-medium {
+  font-size: var(--sp-14);
+  line-height: var(--sp-20);
+  font-weight: 700;
+}
+.t-chip-label {
+  font-size: var(--sp-12);
+  line-height: var(--sp-16);
+  font-weight: 700;
+}
+/* Step 3 (DESIGN 19.4): a sheet's and a dialog's titles, a field's label above it and what is typed in it. */
+.t-sheet-title {
+  font-size: var(--sp-26);
+  line-height: var(--sp-34);
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.t-dialog-title {
+  font-size: var(--sp-24);
+  line-height: var(--sp-32);
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.t-field-label {
+  font-size: var(--sp-13);
+  line-height: var(--sp-18);
+  font-weight: 700;
+}
+.t-field-text {
+  font-size: var(--sp-17);
+  line-height: var(--sp-24);
+  font-weight: 600;
 }
 
 .c-on-surface-variant {

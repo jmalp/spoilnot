@@ -14,6 +14,7 @@ import { meal, THURSDAY } from './fixtures';
 import { MealPlanLimits, type MealPlanChange, type PlannedMeal } from './models';
 import { MealPlanGrocery, MealPlanService } from './service';
 import { MealWeek } from './week';
+import { TEST_WORDS } from '../recipes/fixtures';
 
 class RecordingWriter implements HouseholdWriter {
   last: HouseholdChange[] = [];
@@ -65,7 +66,7 @@ describe('MealPlanGrocery', () => {
     const soup = recipe('soup', { title: 'Soup', servings: 4, ingredients: ['3 eggs', '1 onion, diced'] });
     const m = planned('m1', wednesday, 'soup', { servings: 6 });
     expect(MealPlanGrocery.factor(m, soup)).toBe(1.5);
-    const lines = MealPlanGrocery.sections([[m, soup]], empty, [])[0]!.candidates;
+    const lines = MealPlanGrocery.sections([[m, soup]], empty, [], TEST_WORDS)[0]!.candidates;
     // 4.5 eggs are 5 eggs to buy; 1.5 onions are 2.
     expect(lines.map((l) => l.quantity)).toEqual([5, 2]);
     expect(lines[0]!.note).toBe('Soup: 4½ eggs');
@@ -103,6 +104,7 @@ describe('MealPlanGrocery', () => {
       ],
       pantry,
       [onList],
+      TEST_WORDS,
     );
     expect(sections).toHaveLength(1);
     const lines = sections[0]!.candidates;
@@ -121,6 +123,7 @@ describe('MealPlanGrocery', () => {
       ],
       empty,
       [],
+      TEST_WORDS,
     );
     const merged = RecipeGrocery.merge(sections.flatMap((s) => s.candidates));
     expect(merged).toHaveLength(1);
@@ -172,7 +175,7 @@ describe('MealPlanService', () => {
 
   it('changes are kept within the limits', async () => {
     const cooks = Array.from({ length: 25 }, (_, i) => `u${i + 1}`);
-    await service.update('h', actor, existing, 500, cooks, '  ');
+    await service.update('h', actor, existing, 5_000, cooks, '  ');
     const update = only('meal.update')[0]!;
     expect(update.servings).toBe(MealPlanLimits.MAX_SERVINGS);
     expect(update.cooks).toHaveLength(MealPlanLimits.MAX_COOKS);

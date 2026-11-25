@@ -2,7 +2,7 @@ package com.parcha.spoilnot.feature.auth.ui
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -39,6 +39,6 @@ class WelcomeScreenshotTest(private val dark: Boolean, private val fontScale: Fl
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/welcome_$suffix.png")
+        compose.onRoot().captureRoboImage("welcome_$suffix.png")
     }
 }

@@ -18,9 +18,6 @@ enum class ExpiryStatus {
     NoDate,
     ;
 
-    /** Within 3 days or already past: what the Expiring soon filter and Home card show. */
-    val needsAttention: Boolean get() = this == Expired || this == Today || this == Tomorrow || this == Soon
-
     companion object {
         /** Calendar days from [today] to [expiry]; negative once expired. */
         fun daysUntil(expiry: LocalDate, today: LocalDate): Long = ChronoUnit.DAYS.between(today, expiry)

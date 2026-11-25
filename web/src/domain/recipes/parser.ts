@@ -1,5 +1,6 @@
 // Best-effort ingredient parsing and servings scaling (DESIGN 5.5, 11.5), ported from IngredientParser and Scaling.
-import { ingredient, type Ingredient } from './models';
+import { NameKey } from '../pantry/rules';
+import { ingredient, RecipeLimits, type Ingredient } from './models';
 
 /** Where the quantity is in the line, so scaling can replace just that part and keep the rest. */
 export type Quantity = { value: number; max: number | null; end: number };
@@ -22,7 +23,11 @@ const VULGAR: Record<string, number> = {
   '⅞': 7 / 8,
 };
 const V = Object.keys(VULGAR).join('');
-const ONE = `\\d+\\s+\\d+/\\d+|\\d+/\\d+|\\d+(?:\\.\\d+)?(?:\\s*[${V}])?|\\.\\d+|[${V}]`;
+/** "1,000" is a thousand (a comma before exactly three digits); "1,5" and "1,25" are decimals (after v1, LOGIC-15). */
+const ONE =
+  `\\d+\\s+\\d+/\\d+|\\d+/\\d+|\\d{1,3}(?:,\\d{3})+(?!\\d)|` +
+  `\\d+(?:\\.\\d+|,\\d{1,2}(?!\\d))?(?:\\s*[${V}])?|\\.\\d+|[${V}]`;
+const THOUSANDS = /^\d{1,3}(?:,\d{3})+$/;
 const QUANTITY = new RegExp(`^\\s*(${ONE})(?:\\s*(?:-|–|—|to|or)\\s*(${ONE}))?`, 'i');
 
 /** Canonical unit to the words that mean it (DESIGN 11.5 list, with common spellings). */
@@ -76,7 +81,7 @@ function number(text: string): number | null {
     return Number.isFinite(w) && f !== null ? w + f : null;
   }
   if (t.includes('/')) return fraction(t);
-  const value = Number(t);
+  const value = Number(THOUSANDS.test(t) ? t.replaceAll(',', '') : t.replace(',', '.'));
   return t !== '' && Number.isFinite(value) ? value : null;
 }
 
@@ -87,7 +92,7 @@ export const IngredientParser = {
    * leading quantity keep only `raw`.
    */
   parse(raw: string, group: string | null = null): Ingredient {
-    const line = raw.replaceAll('⁄', '/');
+    const line = NameKey.plainSpaces(raw).replaceAll('⁄', '/');
     const quantity = IngredientParser.quantity(line);
     if (!quantity) return ingredient(raw, { group });
     // "1 (14 ounce) can tomatoes": the size in parentheses sits between the quantity and the unit.
@@ -99,9 +104,17 @@ export const IngredientParser = {
     return ingredient(raw, { qty: quantity.value, unit, name: name === '' ? null : name, group });
   },
 
+  /** [rest] (what follows a quantity) without a leading size in parentheses and unit word: " tsp salt" is "salt". */
+  withoutUnit(rest: string): string {
+    const text = NameKey.plainSpaces(rest).replace(LEADING_PARENS, '');
+    const unit = UNIT.exec(text);
+    if (!unit) return text.trim();
+    return text.slice(unit[0].length).trim().replace(OF, '');
+  },
+
   /** The leading quantity of [line], or null when it does not start with one. */
   quantity(line: string): Quantity | null {
-    const text = line.replaceAll('⁄', '/');
+    const text = NameKey.plainSpaces(line).replaceAll('⁄', '/');
     const match = QUANTITY.exec(text);
     if (!match) return null;
     const value = number(match[1]!);
@@ -127,17 +140,38 @@ const FRACTIONS: [number, string][] = [
 
 /** Servings scaling (DESIGN 5.5): only quantities that could be parsed change; the rest of the line is kept. */
 export const Scaling = {
+  /** Below this a scaled amount is "a pinch" instead of a number that would read 0 (after v1, LOGIC-13). */
+  PINCH_BELOW: 1 / 16,
+  /** The servings steppers' usual top. */
+  STEPPER_MAX: 100,
+
+  /**
+   * Where a servings stepper stops (after v1, LOGIC-13): [STEPPER_MAX], or the recipe's own servings when it makes
+   * more ("Makes 120 meatballs"), or the [current] value when that is higher; never above RecipeLimits.MAX_SERVINGS.
+   */
+  maxServings: (recipeServings: number | null, current: number | null = null): number =>
+    Math.min(RecipeLimits.MAX_SERVINGS, Math.max(Scaling.STEPPER_MAX, recipeServings ?? 0, current ?? 0)),
+
   factor: (original: number | null, target: number | null): number =>
     original === null || target === null || original <= 0 ? 1 : target / original,
 
-  line(raw: string, factor: number): string {
+  /**
+   * [raw] at [factor] times its amount. An amount under [PINCH_BELOW] becomes [pinch] (`recipe_scaled_pinch`, "a pinch
+   * of") followed by the name, without the unit: "1/8 tsp salt" at a tenth is "a pinch of salt".
+   */
+  line(raw: string, factor: number, pinch: string): string {
     if (Math.abs(factor - 1) < 1e-9) return raw;
     const quantity = IngredientParser.quantity(raw);
     if (!quantity) return raw;
+    const rest = raw.replaceAll('⁄', '/').slice(quantity.end);
+    if (quantity.value * factor < Scaling.PINCH_BELOW) {
+      const name = IngredientParser.withoutUnit(rest).trim();
+      return name === '' ? pinch.trim() : `${pinch.trim()} ${name}`;
+    }
     const scaled =
       Scaling.formatQuantity(quantity.value * factor) +
       (quantity.max !== null ? `–${Scaling.formatQuantity(quantity.max * factor)}` : '');
-    return scaled + raw.replaceAll('⁄', '/').slice(quantity.end);
+    return scaled + rest;
   },
 
   /** 1.5 becomes "1½", 0.333 becomes "⅓", 12.4 becomes "12"; other values keep up to two decimals. */

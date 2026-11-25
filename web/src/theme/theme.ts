@@ -14,13 +14,52 @@ export function isThemeId(value: unknown): value is ThemeId {
 
 const kebab = (role: string) => role.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
-/** The custom properties for [theme] in light or dark. */
+/** The surface roles the page and rows come from. */
+type SurfaceRoles = Record<
+  | 'surface'
+  | 'surfaceContainerLowest'
+  | 'surfaceContainerLow'
+  | 'surfaceContainer'
+  | 'surfaceContainerHigh'
+  | 'surfaceContainerHighest',
+  string
+>;
+
+/**
+ * The surfaces of the 2026-11 look (DESIGN 19.2; appSurfaces in the app): a tinted page with rows one step lighter.
+ * The roles differ in light and dark, because dark's surfaceContainerLowest is darker than the page.
+ */
+export function surfaces(scheme: SurfaceRoles, dark: boolean) {
+  return dark
+    ? {
+        page: scheme.surface,
+        row: scheme.surfaceContainer,
+        nestedRow: scheme.surfaceContainerLow,
+        field: scheme.surfaceContainerHigh,
+        tile: scheme.surfaceContainerHighest,
+        // A dialog's choices (step 3): in dark, field is the dialog's own color.
+        dialogRow: scheme.surfaceContainerHighest,
+      }
+    : {
+        page: scheme.surfaceContainerLow,
+        row: scheme.surfaceContainerLowest,
+        nestedRow: scheme.surfaceContainerLowest,
+        field: scheme.surfaceContainerLowest,
+        tile: scheme.surfaceContainer,
+        dialogRow: scheme.surfaceContainerLowest,
+      };
+}
+
+/** The custom properties for [theme] in light or dark, the surfaces as --sn-surface-<name>. */
 export function themeVariables(theme: ThemeId, dark: boolean): Record<string, string> {
   const scheme = SCHEMES[theme][dark ? 'dark' : 'light'];
   const status = STATUS_COLORS[dark ? 'dark' : 'light'];
   return {
     ...Object.fromEntries(Object.entries(scheme).map(([role, color]) => [`--md-sys-color-${kebab(role)}`, color])),
     ...Object.fromEntries(Object.entries(status).map(([tone, color]) => [`--sn-status-${kebab(tone)}`, color])),
+    ...Object.fromEntries(
+      Object.entries(surfaces(scheme, dark)).map(([name, color]) => [`--sn-surface-${kebab(name)}`, color]),
+    ),
   };
 }
 

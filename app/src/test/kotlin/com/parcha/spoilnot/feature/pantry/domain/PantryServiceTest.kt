@@ -156,7 +156,7 @@ class PantryServiceTest {
     fun `a new name creates a product, a batch and an added event`() = runTest {
         val result = service.add("h", actor, draft(name = "  Greek   yogurt "), data())
         val product = (repo.last[0] as PantryChange.CreateProduct).product
-        assertEquals("Greek yogurt", product.name)
+        assertEquals("Greek Yogurt", product.name)
         assertEquals("greek yogurt", product.nameKey)
         assertEquals(listOf(7), product.recentShelfLifeDays)
         assertEquals(7, product.typicalShelfLifeDays)
@@ -214,13 +214,25 @@ class PantryServiceTest {
     }
 
     @Test
-    fun `minus one at one uses the batch up, counts it, and undo takes both back`() = runTest {
+    fun `minus one at one is an increment that counts the purchase used, and undo takes both back`() = runTest {
+        // SYNC-04: never a tombstone, so another member's addition meanwhile is kept; a phone that sees 0 on the
+        // server removes the batch (invariant 1), and Undo also brings it back from there.
         val b = batch("m1", "milk", quantity = 1.0)
         val undo = service.adjust("h", actor, b, -1.0)
         val month = YearMonth.from(TODAY)
-        assertEquals(listOf(PantryChange.DeleteBatch("m1"), StatsChange.CountUsedUp(month, 1)), repo.last)
+        assertEquals(listOf(PantryChange.AddToBatch("m1", -1.0), StatsChange.CountUsedUp(month, 1)), repo.last)
         service.undo("h", actor, undo!!)
-        assertEquals(listOf(PantryChange.RestoreBatch(b), StatsChange.CountUsedUp(month, -1)), repo.last)
+        assertEquals(
+            listOf(PantryChange.AddToBatch("m1", 1.0, revive = true), StatsChange.CountUsedUp(month, -1)),
+            repo.last,
+        )
+    }
+
+    @Test
+    fun `minus one on less than one takes what is left, so the copy reaches 0 and not below`() = runTest {
+        val undo = service.adjust("h", actor, batch("r1", "rice", quantity = 0.25), -1.0)!!
+        assertEquals(PantryChange.AddToBatch("r1", -0.25), repo.last.first())
+        assertEquals(PantryChange.AddToBatch("r1", 0.25, revive = true), undo.changes.first())
     }
 
     @Test
@@ -279,70 +291,23 @@ class PantryServiceTest {
     }
 
     @Test
-    fun `editing to zero uses the batch up, moving keeps everything else`() = runTest {
+    fun `editing to zero takes what the window opened with, moving sets the location only`() = runTest {
         val b = batch("m1", "milk", quantity = 2.0)
-        val undo = service.edit("h", actor, b, BatchEdit(0.0, null, DateType.UseBy, Location.Fridge, null))
+        val base = ItemEditBase(b, null)
+        val undo = service.editItem("h", actor, base, base.edit.copy(quantity = 0.0), data(batches = listOf(b)))
         val month = YearMonth.from(TODAY)
-        assertEquals(listOf(PantryChange.DeleteBatch("m1"), StatsChange.CountUsedUp(month, 1)), repo.last)
-        assertEquals(listOf(PantryChange.RestoreBatch(b), StatsChange.CountUsedUp(month, -1)), undo!!.changes)
-        service.move("h", actor, b, Location.Freezer)
-        val edit = (repo.last.single() as PantryChange.UpdateBatch).edit
-        assertEquals(BatchEdit(2.0, b.expiryDate, b.dateType, Location.Freezer, null), edit)
-    }
-
-    @Test
-    fun `renaming a product updates all its batches in the same write`() = runTest {
-        val milk = product("milk")
-        val batches = (1..3).map { batch("m$it", "milk", inDays = it.toLong()) } + batch("o1", "oat")
-        service.updateProduct("h", actor, milk, edit(milk, name = "Whole milk"), data(listOf(milk), batches))
-        assertEquals("whole milk", (repo.last[0] as PantryChange.UpdateProduct).product.nameKey)
+        assertEquals(listOf(PantryChange.AddToBatch("m1", -2.0), StatsChange.CountUsedUp(month, 1)), repo.last)
         assertEquals(
-            listOf("m1", "m2", "m3"),
-            repo.last.filterIsInstance<PantryChange.SyncBatchProduct>().map {
-                it.batchId
-            },
+            listOf(PantryChange.AddToBatch("m1", 2.0, revive = true), StatsChange.CountUsedUp(month, -1)),
+            undo!!.changes,
         )
-    }
-
-    @Test
-    fun `a rename onto another product's name is a conflict`() = runTest {
-        val milk = product("milk")
-        val oat = product("oat", name = "Oat milk")
-        try {
-            service.updateProduct("h", actor, milk, edit(milk, name = "oat MILK"), data(listOf(milk, oat)))
-            throw AssertionError("expected a conflict")
-        } catch (e: AppError.Conflict) {
-            assertTrue(repo.last.isEmpty())
-        }
-    }
-
-    @Test
-    fun `the unit can only change without stock, and raising keep at least re-arms restock`() = runTest {
-        val milk = product("milk", min = 1.0).copy(restockArmed = false)
-        service.updateProduct(
-            "h",
-            actor,
-            milk,
-            edit(milk, unit = QuantityUnit.Liters, min = 2.0),
-            data(listOf(milk), listOf(batch("m1", "milk"))),
-        )
-        val updated = (repo.last[0] as PantryChange.UpdateProduct).product
-        assertEquals(QuantityUnit.Pieces, updated.unit)
-        assertTrue(updated.restockArmed)
-
-        service.updateProduct("h", actor, milk, edit(milk, unit = QuantityUnit.Liters, min = 1.0), data(listOf(milk)))
-        val again = (repo.last[0] as PantryChange.UpdateProduct).product
-        assertEquals(QuantityUnit.Liters, again.unit)
-        assertFalse("same minimum does not re-arm", again.restockArmed)
-    }
-
-    @Test
-    fun `clearing keep at least turns automatic add off`() = runTest {
-        val milk = product("milk", min = 2.0)
-        service.updateProduct("h", actor, milk, edit(milk, min = null), data(listOf(milk)))
-        val updated = (repo.last[0] as PantryChange.UpdateProduct).product
-        assertNull(updated.minQuantity)
-        assertFalse(updated.autoAddToGrocery)
+        service.move("h", actor, b, Location.Freezer)
+        val move = repo.last.single() as PantryChange.UpdateBatch
+        assertEquals(BatchEdit.of(b), move.before)
+        assertEquals(BatchEdit.of(b).copy(location = Location.Freezer), move.after)
+        repo.last = emptyList()
+        service.move("h", actor, b, b.location)
+        assertTrue("moving to where it is writes nothing", repo.last.isEmpty())
     }
 
     @Test
@@ -359,17 +324,24 @@ class PantryServiceTest {
         assertEquals(listOf(PantryChange.DeleteBatch("a")), repo.last)
     }
 
-    private fun edit(p: Product, name: String = p.name, unit: QuantityUnit = p.unit, min: Double? = p.minQuantity) =
-        ProductEdit(
-            name,
-            p.category,
-            p.defaultLocation,
-            unit,
-            min,
-            autoAddToGrocery = true,
-            buyQuantity = null,
-            typicalShelfLifeDays = p.typicalShelfLifeDays,
-        )
+    @Test
+    fun `a clean-up the server refused is quiet and isn't tried again`() = runTest {
+        val refusing = RecordingWriter(refuse = true)
+        val quiet = PantryService(refusing, clock, EmptyBatchCleanups())
+        val data = data(batches = listOf(batch("neg", "milk", quantity = -3.0)))
+        quiet.deleteEmptyBatches("h", actor, data)
+        assertEquals(listOf(PantryChange.DeleteBatch("neg")), refusing.last)
+        assertEquals(1, refusing.quietApplies)
+        // The rules rolled it back, so the data shows it again: no second write, no message (review REL-11).
+        refusing.last = emptyList()
+        quiet.deleteEmptyBatches("h", actor, data)
+        assertEquals(emptyList<HouseholdChange>(), refusing.last)
+        assertEquals(1, refusing.quietApplies)
+    }
+
+    /** The Edit window opened on [batch] with the product as [data] has it. */
+    private fun planEdit(batch: StockBatch, edit: ItemEdit, data: PantryData) =
+        service.planEdit(ItemEditBase(batch, data.products.firstOrNull { it.id == batch.productId }), edit, data)
 
     private fun itemEdit(
         name: String = "Milk",
@@ -379,21 +351,20 @@ class PantryServiceTest {
         autoAdd: Boolean = false,
         min: Double? = null,
         buy: Double? = null,
-    ) = ItemEdit(name, quantity, unit, category, TODAY.plusDays(4), Location.Freezer, autoAdd, min, buy)
+        location: Location = Location.Freezer,
+    ) = ItemEdit(name, quantity, unit, category, TODAY.plusDays(4), location, autoAdd, min, buy)
 
     @Test
     fun `the edit window changes the purchase and its product in one write, keeping date type and note`() {
         val milk = product("milk")
         val b1 = batch("b1", "milk").copy(dateType = DateType.BestBefore, note = "Lactose free")
         val data = PantryData(listOf(milk), listOf(b1), false)
-        val changes = service.planEdit(b1, itemEdit(name = "Oat milk", autoAdd = true, min = 2.0, buy = 4.0), data)
+        val changes = planEdit(b1, itemEdit(name = "Oat milk", autoAdd = true, min = 2.0, buy = 4.0), data)
         val batch = changes.filterIsInstance<PantryChange.UpdateBatch>().single()
-        assertEquals(
-            BatchEdit(2.0, TODAY.plusDays(4), DateType.BestBefore, Location.Freezer, "Lactose free"),
-            batch.edit,
-        )
+        assertEquals(BatchEdit(TODAY.plusDays(4), DateType.BestBefore, Location.Freezer, "Lactose free"), batch.after)
+        assertEquals(PantryChange.AddToBatch("b1", 1.0), changes.filterIsInstance<PantryChange.AddToBatch>().single())
         val product = changes.filterIsInstance<PantryChange.UpdateProduct>().single().product
-        assertEquals("Oat milk", product.name)
+        assertEquals("Oat Milk", product.name)
         assertEquals(2.0, product.minQuantity!!, 0.0)
         assertTrue(product.autoAddToGrocery)
         assertEquals(4.0, product.buyQuantity!!, 0.0)
@@ -405,7 +376,7 @@ class PantryServiceTest {
     fun `turning auto-add off clears Keep at least and Buy quantity`() {
         val rice = product("rice", min = 5.0).copy(buyQuantity = 10.0)
         val b1 = batch("b1", "rice")
-        val changes = service.planEdit(
+        val changes = planEdit(
             b1,
             itemEdit(name = "Rice", min = 5.0, buy = 10.0),
             PantryData(listOf(rice), listOf(b1), false),
@@ -417,14 +388,36 @@ class PantryServiceTest {
     }
 
     @Test
+    fun `an older staple keeps Keep at least when edited with the switch off`() {
+        // LOGIC-05: products from before the beta can have Keep at least with automatic add off; the form never
+        // shows it, so saving must not clear it.
+        val flour = product("flour", min = 2.0).copy(autoAddToGrocery = false, buyQuantity = 3.0)
+        val b1 = batch("b1", "flour")
+        val data = PantryData(listOf(flour), listOf(b1), false)
+        val kept = planEdit(b1, itemEdit(name = "Flour", quantity = 1.0), data)
+        assertTrue("the product did not change", kept.none { it is PantryChange.UpdateProduct })
+        val renamed = planEdit(b1, itemEdit(name = "Bread flour"), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertEquals(2.0, renamed.minQuantity!!, 0.0)
+        assertFalse(renamed.autoAddToGrocery)
+        assertEquals(3.0, renamed.buyQuantity!!, 0.0)
+        // Turning the switch on uses the form's values as for any product.
+        val on = planEdit(b1, itemEdit(name = "Flour", autoAdd = true, min = 4.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertEquals(4.0, on.minQuantity!!, 0.0)
+        assertTrue(on.autoAddToGrocery)
+        assertNull(on.buyQuantity)
+    }
+
+    @Test
     fun `the unit changes only when this is the product's only purchase`() {
         val rice = product("rice")
         val only = PantryData(listOf(rice), listOf(batch("b1", "rice")), false)
         val two = PantryData(listOf(rice), listOf(batch("b1", "rice"), batch("b2", "rice")), false)
         val kg = itemEdit(name = "Rice", unit = QuantityUnit.Kilograms)
-        val alone = service.planEdit(only.batches[0], kg, only)
+        val alone = planEdit(only.batches[0], kg, only)
         assertEquals(QuantityUnit.Kilograms, alone.filterIsInstance<PantryChange.UpdateProduct>().single().product.unit)
-        val shared = service.planEdit(two.batches[0], kg, two)
+        val shared = planEdit(two.batches[0], kg, two)
         assertTrue(
             shared.filterIsInstance<PantryChange.UpdateProduct>().none {
                 it.product.unit != QuantityUnit.Pieces
@@ -433,21 +426,104 @@ class PantryServiceTest {
     }
 
     @Test
+    fun `the edit window writes only what changed, so another member's use stays (SYNC-03)`() = runTest {
+        // Review 04's p05: Alice opens Milk x3; Bob uses 2; Alice changes only the date and saves.
+        val milk = product("milk")
+        val opened = batch("m1", "milk", quantity = 3.0, inDays = 5)
+        val base = ItemEditBase(opened, milk)
+        val now = PantryData(listOf(milk), listOf(opened.copy(quantity = 1.0, updatedBy = "bob")), false)
+        val dateOnly = base.edit.copy(expiryDate = TODAY.plusDays(9))
+        assertNull(service.editItem("h", actor, base, dateOnly, now))
+        val update = repo.last.single() as PantryChange.UpdateBatch
+        assertEquals(BatchEdit.of(opened), update.before)
+        assertEquals(BatchEdit.of(opened).copy(expiryDate = TODAY.plusDays(9)), update.after)
+
+        // A changed quantity is the difference: "3 to 2" takes 1 off whatever the server has.
+        service.editItem("h", actor, base, base.edit.copy(quantity = 2.0), now)
+        assertEquals(listOf(PantryChange.AddToBatch("m1", -1.0)), repo.last)
+
+        // Nothing changed: nothing is written.
+        repo.last = emptyList()
+        service.editItem("h", actor, base, base.edit, now)
+        assertTrue(repo.last.isEmpty())
+    }
+
+    @Test
+    fun `the edit window leaves product fields it didn't change as the phone has them now`() {
+        // The window opened with Keep at least 2 and the staple armed; meanwhile Bob raised Keep at least to 5 and the
+        // restock engine disarmed it. Alice only renames.
+        val opened = product("milk", min = 2.0)
+        val now = opened.copy(minQuantity = 5.0, restockArmed = false, updatedBy = "bob")
+        val b1 = batch("m1", "milk")
+        val base = ItemEditBase(b1, opened)
+        val data = PantryData(listOf(now), listOf(b1), false)
+        val changes = service.planEdit(base, base.edit.copy(name = "Whole milk"), data)
+        val update = changes.filterIsInstance<PantryChange.UpdateProduct>().single()
+        assertEquals(now, update.before)
+        assertEquals(now.copy(name = "Whole Milk", nameKey = "whole milk"), update.product)
+        assertEquals(listOf("m1"), changes.filterIsInstance<PantryChange.SyncBatchProduct>().map { it.batchId })
+    }
+
+    @Test
+    fun `a rename copies the new name to every purchase of the product in the same write, and no others`() {
+        val milk = product("milk")
+        val batches = (1..3).map { batch("m$it", "milk", inDays = it.toLong()) } +
+            batch("gone", "milk", quantity = 0.0) + batch("o1", "oat")
+        val data = PantryData(listOf(milk, product("oat")), batches, false)
+        val changes =
+            planEdit(batches[1], itemEdit(name = "whole milk", quantity = 1.0, location = Location.Fridge), data)
+        assertEquals("whole milk", changes.filterIsInstance<PantryChange.UpdateProduct>().single().product.nameKey)
+        assertEquals(
+            listOf("m1", "m3", "m2"),
+            changes.filterIsInstance<PantryChange.SyncBatchProduct>().map { it.batchId },
+        )
+        assertTrue(changes.filterIsInstance<PantryChange.SyncBatchProduct>().all { it.name == "Whole Milk" })
+    }
+
+    @Test
+    fun `only a raised keep at least re-arms restocking`() {
+        val rice = product("rice", min = 2.0).copy(restockArmed = false)
+        val b1 = batch("b1", "rice")
+        val data = PantryData(listOf(rice), listOf(b1), false)
+        val same = planEdit(b1, itemEdit(name = "Rice", quantity = 1.0, autoAdd = true, min = 2.0, buy = 3.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertFalse("same minimum does not re-arm", same.restockArmed)
+        val lower = planEdit(b1, itemEdit(name = "Rice", quantity = 1.0, autoAdd = true, min = 1.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertFalse("a lower minimum does not re-arm", lower.restockArmed)
+        val raised = planEdit(b1, itemEdit(name = "Rice", quantity = 1.0, autoAdd = true, min = 4.0), data)
+            .filterIsInstance<PantryChange.UpdateProduct>().single().product
+        assertTrue(raised.restockArmed)
+    }
+
+    @Test
     fun `a rename onto another product's name is refused`() {
         val data = PantryData(listOf(product("milk"), product("eggs")), listOf(batch("b1", "milk")), false)
         assertThrows(AppError.NameTaken::class.java) {
-            service.planEdit(data.batches[0], itemEdit(name = "eggs"), data)
+            planEdit(data.batches[0], itemEdit(name = "eggs"), data)
         }
     }
 
-    private class RecordingWriter : HouseholdWriter {
+    private class RecordingWriter(private val refuse: Boolean = false) : HouseholdWriter {
         var last: List<HouseholdChange> = emptyList()
+        var quietApplies = 0
         private var next = 0
 
         override fun newId() = "id${next++}"
 
         override suspend fun apply(householdId: String, actor: Actor, changes: List<HouseholdChange>) {
             last = changes
+        }
+
+        override suspend fun applyQuietly(
+            householdId: String,
+            actor: Actor,
+            changes: List<HouseholdChange>,
+            onAnswer: (AppError?) -> Unit,
+        ) {
+            last = changes
+            quietApplies++
+            onAnswer(if (refuse) AppError.PermissionDenied() else null)
         }
 
         override val errors: Flow<AppError> = emptyFlow()

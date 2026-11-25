@@ -3,7 +3,6 @@ import {
   collection,
   doc,
   serverTimestamp,
-  Timestamp,
   type DocumentSnapshot,
   type Firestore,
   type WriteBatch,
@@ -24,21 +23,17 @@ import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import { activity } from './pantry';
 import type { ChangeMapper } from './writer';
+import { capTo, ReadCaps } from '../domain/caps';
+import { int, mapEach, millis, num, records, str as text, strings } from './fields';
 
 export const recipes = (hid: string) => `households/${hid}/recipes`;
-
-const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-const num = (value: unknown): number | null => (typeof value === 'number' ? value : null);
-const int = (value: unknown): number | null => (typeof value === 'number' ? Math.trunc(value) : null);
-const maps = (value: unknown): Record<string, unknown>[] =>
-  Array.isArray(value) ? value.filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null) : [];
 
 // New fields are optional on read with defaults (DESIGN 8.1).
 export function toRecipe(s: DocumentSnapshot): Recipe {
   return {
     id: s.id,
     content: {
-      title: text(s.get('title')) ?? '',
+      title: capTo(text(s.get('title')) ?? '', ReadCaps.RECIPE_TITLE),
       sourceUrl: text(s.get('sourceUrl')),
       sourceName: text(s.get('sourceName')),
       imageUrl: text(s.get('imageUrl')),
@@ -48,23 +43,23 @@ export function toRecipe(s: DocumentSnapshot): Recipe {
       prepMinutes: int(s.get('prepMinutes')),
       cookMinutes: int(s.get('cookMinutes')),
       totalMinutes: int(s.get('totalMinutes')),
-      ingredients: maps(s.get('ingredients')).flatMap((m): Ingredient[] => {
+      ingredients: records(s.get('ingredients')).flatMap((m): Ingredient[] => {
         const raw = text(m.raw);
         return raw === null
           ? []
           : [{ raw, qty: num(m.qty), unit: text(m.unit), name: text(m.name), group: text(m.group) }];
       }),
-      steps: maps(s.get('steps')).flatMap((m): Step[] => {
+      steps: records(s.get('steps')).flatMap((m): Step[] => {
         const t = text(m.text);
         return t === null ? [] : [{ text: t, group: text(m.group) }];
       }),
       notes: text(s.get('notes')),
-      tags: ((s.get('tags') as unknown[] | null) ?? []).filter((t): t is string => typeof t === 'string'),
+      tags: strings(s.get('tags')),
       importMethod: importMethodOf(s.get('importMethod')),
     },
     favorite: s.get('favorite') === true,
     rating: int(s.get('rating')),
-    createdAt: (s.get('createdAt', { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null,
+    createdAt: millis(s, 'createdAt'),
     createdBy: text(s.get('createdBy')),
   };
 }
@@ -79,7 +74,7 @@ export class FirestoreRecipeRepository implements RecipeRepository {
   observe(householdId: string): Observable<RecipeBoxData> {
     return this.sdk.instance$.pipe(
       switchMap((db) => liveDocuments(db, collection(db, recipes(householdId)), this.log)),
-      map((live) => ({ recipes: live.documents.map(toRecipe), fromCache: live.fromCache })),
+      map((live) => ({ recipes: mapEach(live.documents, toRecipe), fromCache: live.fromCache })),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     );
   }
@@ -111,16 +106,9 @@ export const recipeMapper: ChangeMapper = {
     const recipe = (id: string) => doc(db, recipes(hid), id);
     const stamp = Stamps.updated(actor);
     switch (change.type) {
+      // Undo removes the tombstone and nothing else (DESIGN 8.6).
       case 'recipe.restore':
-        batch.set(recipe(change.recipe.id), {
-          ...contentFields(change.recipe.content),
-          ...stamp,
-          favorite: change.recipe.favorite,
-          rating: change.recipe.rating,
-          createdAt:
-            change.recipe.createdAt !== null ? Timestamp.fromMillis(change.recipe.createdAt) : serverTimestamp(),
-          createdBy: change.recipe.createdBy ?? actor.uid,
-        });
+        batch.set(recipe(change.recipe.id), Tombstones.restore(actor), { merge: true });
         break;
       case 'recipe.update':
         batch.update(recipe(change.recipeId), { ...contentFields(change.content), ...stamp });

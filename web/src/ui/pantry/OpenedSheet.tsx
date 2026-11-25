@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { plural, str } from '../../core/i18n';
 import type { StockBatch } from '../../domain/pantry/models';
 import { addDays, type LocalDate } from '../../domain/time';
-import { BottomSheet, Button, FilterChip, IconButton } from '../kit';
+import { BottomSheet, Button, CountStepper, SpoilNotFilterChip } from '../kit';
 import { formatDate, formatQuantity } from './labels';
+import './form.css';
 
 /** "Use within" choices for Mark opened, in days; a remembered value outside them is offered too. */
 const OPENED_DAY_CHOICES = [1, 3, 5, 7, 14, 30];
@@ -20,6 +21,7 @@ const daysLabel = (days: number) =>
 /**
  * Mark opened (DESIGN 5.2): how many were opened (for a batch kept in pieces) and how long they keep once opened,
  * starting from what was chosen for this product last time. Shows the date it will get, never later than its date.
+ * In the 2026-11 look (step 3): the sheet title, − and + joined to the count, the choices as filter chips.
  */
 export function OpenedSheet({
   batch,
@@ -43,43 +45,41 @@ export function OpenedSheet({
   const byDays = addDays(today, days);
   const keepsDate = batch.expiryDate !== null && batch.expiryDate < byDays;
   const max = Math.floor(batch.quantity);
+  const withinId = useId();
   return (
     <BottomSheet label={str('opened_title', batch.productName)} onDismiss={onDismiss} testId="sheet_opened">
       <div className="sn-opened">
-        <h2 className="t-headline-small">{str('opened_title', batch.productName)}</h2>
+        <h2 className="t-sheet-title">{str('opened_title', batch.productName)}</h2>
         {pieces && (
-          <>
-            <p className="t-label-large">{str('opened_how_many')}</p>
-            <div className="sn-opened__count">
-              <IconButton
-                icon="round/remove"
-                label={str('opened_fewer')}
-                disabled={count <= 1}
-                onClick={() => setCount(Math.max(1, count - 1))}
-              />
-              <span className="t-title-medium" data-testid="opened_count">
-                {str('opened_count', count, formatQuantity(batch.quantity))}
-              </span>
-              <IconButton
-                icon="round/add"
-                label={str('opened_more')}
-                disabled={count >= max}
-                onClick={() => setCount(Math.min(max, count + 1))}
-              />
-            </div>
-          </>
-        )}
-        <p className="t-label-large">{str('opened_use_within')}</p>
-        <div className="sn-opened__chips">
-          {choices.map((choice) => (
-            <FilterChip
-              key={choice}
-              label={daysLabel(choice)}
-              selected={days === choice}
-              onClick={() => setDays(choice)}
-              data-testid={`opened_days_${choice}`}
+          <div className="sn-stepper-field">
+            <p className="t-field-label sn-stepper-field__label">{str('opened_how_many')}</p>
+            <CountStepper
+              value={str('opened_count', count, formatQuantity(batch.quantity))}
+              minusLabel={str('opened_fewer')}
+              plusLabel={str('opened_more')}
+              onMinus={() => setCount(Math.max(1, count - 1))}
+              onPlus={() => setCount(Math.min(max, count + 1))}
+              minusDisabled={count <= 1}
+              plusDisabled={count >= max}
+              valueTestId="opened_count"
             />
-          ))}
+          </div>
+        )}
+        <div className="sn-field-group">
+          <p className="t-field-label c-on-surface-variant" id={withinId}>
+            {str('opened_use_within')}
+          </p>
+          <div className="sn-opened__chips" role="group" aria-labelledby={withinId}>
+            {choices.map((choice) => (
+              <SpoilNotFilterChip
+                key={choice}
+                label={daysLabel(choice)}
+                selected={days === choice}
+                onClick={() => setDays(choice)}
+                data-testid={`opened_days_${choice}`}
+              />
+            ))}
+          </div>
         </div>
         <p className="t-body-large">
           {keepsDate
@@ -87,12 +87,7 @@ export function OpenedSheet({
             : str('opened_new_date', formatDate(byDays, today))}
         </p>
         <p className="t-body-small c-on-surface-variant">{str('opened_remembered', batch.productName)}</p>
-        <Button
-          full
-          large
-          onClick={() => onSave(pieces ? count : batch.quantity, days)}
-          data-testid="button_mark_opened"
-        >
+        <Button primary onClick={() => onSave(pieces ? count : batch.quantity, days)} data-testid="button_mark_opened">
           {str('action_mark_opened')}
         </Button>
       </div>

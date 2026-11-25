@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { getFirestore } from 'firebase-admin/firestore';
 import { exportHousehold, householdIds } from './backup.ts';
 import { fromEnv } from './credentials.ts';
+import { runMain } from './errors.ts';
 
 async function main(): Promise<void> {
   const credentials = fromEnv('export');
@@ -28,7 +29,4 @@ async function main(): Promise<void> {
   console.log(`project ${credentials.projectId}: exported ${ids.length} household(s), ${documents} document(s)`);
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+runMain('nightly-export', main);

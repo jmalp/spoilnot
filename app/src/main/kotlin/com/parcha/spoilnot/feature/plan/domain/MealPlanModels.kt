@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.plan.domain
 
 import com.parcha.spoilnot.core.write.HouseholdChange
+import com.parcha.spoilnot.feature.recipes.domain.RecipeLimits
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -73,7 +74,12 @@ object MealPlanLimits {
     const val NOTE = 200
     const val MAX_COOKS = 20
     const val MIN_SERVINGS = 1
-    const val MAX_SERVINGS = 100
+
+    /**
+     * As many as a recipe can make (after v1, LOGIC-13), so a recipe for 120 is planned at full size; the stepper
+     * stops at `Scaling.maxServings`.
+     */
+    const val MAX_SERVINGS = RecipeLimits.MAX_SERVINGS
 
     /** Past meals are kept this long, then the daily job deletes them. */
     const val KEEP_DAYS = 28L

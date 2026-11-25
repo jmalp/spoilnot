@@ -21,6 +21,17 @@ class ActivityFeedTest {
     }
 
     @Test
+    fun `authors are named from the member list, and someone who left keeps the stored name`() {
+        val events = listOf(
+            ActivityEvent("e2", ActivityType.Discarded, "u1", "Alice", null, null, null, null, null, Instant.EPOCH),
+            ActivityEvent("e1", ActivityType.StockAdded, "u9", "Former", null, null, null, null, null, Instant.EPOCH),
+        )
+        val named = ActivityFeed.named(events, mapOf("u1" to "Sam", "u2" to "Alice"))
+        assertEquals(listOf("Sam", "Former"), named.map { it.actorName })
+        assertEquals(events, ActivityFeed.named(events, emptyMap()))
+    }
+
+    @Test
     fun `without a clear every event shows`() {
         val events = listOf(event("e2", ActivityType.GroceryAdded), event("e1", ActivityType.StockAdded))
         assertEquals(events, ActivityFeed.sinceReset(events))

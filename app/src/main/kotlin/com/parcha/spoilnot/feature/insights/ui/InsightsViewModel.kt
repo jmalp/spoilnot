@@ -2,6 +2,7 @@ package com.parcha.spoilnot.feature.insights.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parcha.spoilnot.core.coroutines.retryLoading
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
 import com.parcha.spoilnot.feature.insights.domain.Insights
@@ -17,7 +18,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -46,7 +46,7 @@ fun insightsFlow(
             today.map(from).distinctUntilChanged()
                 .flatMapLatest { first -> stats.observeMonths(hid, first) }
                 .combine(today) { months, day -> Insights.summary(months, day) }
-                .catch { emit(Insights.summary(emptyList(), LocalDate.now(clock))) }
+                .retryLoading(fallback = Insights.summary(emptyList(), LocalDate.now(clock)))
         }
     }
 

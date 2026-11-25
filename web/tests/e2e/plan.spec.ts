@@ -79,8 +79,9 @@ test('plan meals, change and cook one, move with Undo, copy and clear weeks, sho
   await expect(tacos).toContainText('Cooked');
 
   // Move Leftovers to another day of the week, then Undo.
-  const firstDay = (await page.locator('[data-testid^="plan_day_"]').first().getAttribute('data-testid'))!.slice(9);
-  const days = page.locator('[data-testid^="plan_day_"]');
+  // The days in the list, not the row of day buttons above it.
+  const days = page.getByTestId('plan_days').locator('[data-testid^="plan_day_"]');
+  const firstDay = (await days.first().getAttribute('data-testid'))!.slice(9);
   const target = firstDay !== today ? firstDay : (await days.nth(1).getAttribute('data-testid'))!.slice(9);
   await leftovers.click();
   await page.getByTestId('plan_move_meal').click();
@@ -96,7 +97,7 @@ test('plan meals, change and cook one, move with Undo, copy and clear weeks, sho
   await expect(page.getByTestId('plan_this_week')).toBeVisible();
   await page.getByTestId('plan_menu').click();
   await page.getByTestId('plan_copy_last_week').click();
-  await expect(status(page, "Copied last week's meals (2)")).toBeVisible();
+  await expect(status(page, 'Copied 2 meals from last week')).toBeVisible();
   const nextWeek = page.getByTestId('plan_days');
   await expect(nextWeek).toContainText('Tacos');
   await expect(nextWeek).not.toContainText('Cooked');
@@ -111,9 +112,9 @@ test('plan meals, change and cook one, move with Undo, copy and clear weeks, sho
   await expect(shop).toHaveCount(0);
 
   await page.getByTestId('plan_menu').click();
+  // No dialog: it clears at once, with Undo (after v1, one rule for confirmations, R13).
   await page.getByTestId('plan_clear_week').click();
-  await expect(page.getByRole('dialog')).toContainText('Removes all 2 meals');
-  await page.getByTestId('plan_clear_confirm').click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(nextWeek).not.toContainText('Tacos');
   await status(page, 'Cleared this week').getByRole('button', { name: 'Undo' }).click();
   await expect(nextWeek).toContainText('Tacos');
@@ -126,4 +127,84 @@ test('plan meals, change and cook one, move with Undo, copy and clear weeks, sho
   await expect(page.getByTestId('grocery_list')).toContainText('Meal plan');
   await tab(page, 'Pantry');
   await expect(page.getByTestId('pantry_item_eggs')).toContainText('× 3');
+});
+
+test("an empty week says how to fill it, and its Copy last week copies or says there's nothing", async ({ page }) => {
+  await openApp(page);
+  await signUp(page, 'Sam');
+  await createHousehold(page, `Empty week ${Date.now()}`);
+
+  // This week, empty: the sentence and its button come first, and the list opens there, not on today (UX-15).
+  await tab(page, 'Plan');
+  const empty = page.getByTestId('plan_week_empty');
+  await expect(empty).toHaveText(/Nothing planned this week\. Tap \+ on a meal, or copy last week's meals\./);
+  await expect(empty.getByTestId('plan_empty_copy')).toHaveText('Copy last week');
+  await expect(page.getByTestId('plan_days')).toHaveJSProperty('scrollTop', 0);
+
+  // Last week has nothing: the button says so.
+  await page.getByTestId('plan_empty_copy').click();
+  await expect(status(page, 'Last week has no meals to copy')).toBeVisible();
+
+  // The first meal: the sentence goes.
+  const today = inDays(0);
+  await page.getByTestId(`plan_add_${today}_dinner`).click();
+  await page.getByTestId('plan_other_field').fill('Soup');
+  await page.getByTestId('plan_add_other').click();
+  await expect(page.getByTestId(`plan_day_${today}`)).toContainText('Soup');
+  await expect(empty).toHaveCount(0);
+
+  // Next week is empty: Copy last week brings Soup over, with Undo.
+  await page.getByTestId('plan_next_week').click();
+  await expect(empty).toBeVisible();
+  await page.getByTestId('plan_empty_copy').click();
+  await expect(status(page, 'Copied 1 meal from last week')).toBeVisible();
+  await expect(page.getByTestId('plan_days')).toContainText('Soup');
+  await expect(empty).toHaveCount(0);
+  await status(page, 'Copied 1 meal from last week').getByRole('button', { name: 'Undo' }).click();
+  await expect(empty).toBeVisible();
+
+  // Back on this week, which has a meal: no sentence.
+  await page.getByTestId('plan_this_week').click();
+  await expect(page.getByTestId(`plan_day_${today}`)).toContainText('Soup');
+  await expect(empty).toHaveCount(0);
+});
+
+test('"This week" above the title, and the row of days names each day in full and shows the day tapped', async ({
+  page,
+}) => {
+  await openApp(page);
+  await signUp(page, 'Sam');
+  await createHousehold(page, `Day row ${Date.now()}`);
+  await tab(page, 'Plan');
+  const eyebrow = page.getByTestId('screen_eyebrow');
+  await expect(eyebrow).toHaveText('This week');
+
+  // Seven buttons in the week's order; today's says so, and each says what a tap does (DESIGN 19.12).
+  const today = inDays(0);
+  const buttons = page.getByTestId('plan_day_row').getByRole('button');
+  await expect(buttons).toHaveCount(7);
+  const todayButton = page.getByTestId(`plan_day_button_${today}`);
+  await expect(todayButton).toHaveAccessibleName(/, today$/);
+  await expect(todayButton).toHaveAttribute('aria-description', 'Show this day');
+  // Named like its day's heading ("Monday, Nov 16"), which is today's card's.
+  const name = (await todayButton.getAttribute('aria-label'))!.replace(/, today$/, '');
+  await expect(page.getByTestId(`plan_day_${today}`).getByRole('heading')).toHaveText(name);
+
+  // A tap brings that day's heading to the top of the list.
+  const list = page.getByTestId('plan_days');
+  const third = (await buttons.nth(2).getAttribute('data-testid'))!.slice('plan_day_button_'.length);
+  await buttons.nth(2).click();
+  await expect
+    .poll(async () => {
+      const day = await page.getByTestId(`plan_day_${third}`).boundingBox();
+      const box = await list.boundingBox();
+      return day && box ? Math.round(day.y - box.y) : null;
+    })
+    .toBe(12);
+
+  // Another week: no line above the title, no today, and Go to this week.
+  await page.getByTestId('plan_next_week').click();
+  await expect(eyebrow).toHaveCount(0);
+  await expect(page.getByTestId('plan_this_week')).toBeVisible();
+  await expect(page.getByTestId('plan_day_row').getByRole('button', { name: /, today$/ })).toHaveCount(0);
 });

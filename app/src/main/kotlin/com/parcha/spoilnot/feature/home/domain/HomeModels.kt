@@ -2,11 +2,12 @@ package com.parcha.spoilnot.feature.home.domain
 
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
-import com.parcha.spoilnot.feature.pantry.domain.ExpiryStatus
+import com.parcha.spoilnot.feature.pantry.domain.NeedsAttention
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
+import com.parcha.spoilnot.feature.pantry.domain.PantryItem
+import com.parcha.spoilnot.feature.pantry.domain.PantryItems
 import com.parcha.spoilnot.feature.pantry.domain.PantryList
 import com.parcha.spoilnot.feature.pantry.domain.PantryRow
-import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -15,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 enum class ActivityType(val wire: String) {
     StockAdded("stock_added"),
     GroceryAdded("grocery_added"),
+
+    /** Written by builds before R15 (after v1); still shown while such events are among the newest. */
     GroceryChecked("grocery_checked"),
     RecipeSaved("recipe_saved"),
     MemberJoined("member_joined"),
@@ -57,6 +60,16 @@ object ActivityFeed {
         val reset = events.indexOfFirst { it.type == ActivityType.HouseholdReset }
         return if (reset < 0) events else events.take(reset + 1)
     }
+
+    /**
+     * [events] with each author's name from the member list ([names], uid to display name), so a line always names
+     * who wrote it (the rules check `actorUid`, not the stored `actorName`). Someone who has left keeps the name
+     * stored with the event.
+     */
+    fun named(events: List<ActivityEvent>, names: Map<String, String>): List<ActivityEvent> = events.map { event ->
+        val name = names[event.actorUid]
+        if (name == null || name == event.actorName) event else event.copy(actorName = name)
+    }
 }
 
 interface ActivityRepository {
@@ -66,12 +79,15 @@ interface ActivityRepository {
 
 /** What the Home tab shows (DESIGN 5.6). */
 data class HomeSummary(
-    /** Expired and expiring within 3 days, soonest first. */
-    val attention: List<PantryRow>,
-    val expiredCount: Int,
-    /** Staples below Keep at least, out of stock first. */
+    /** The one Needs attention set (after v1, R8): Home lists [NeedsAttention.usable] and folds the expired. */
+    val attention: NeedsAttention,
+    /** Products below Keep at least, out of stock first; shown in the Grocery list card (after v1, R1). */
     val lowStock: List<PantryRow>,
     val groceryCount: Int,
+    /** No product has Keep some in stock on yet, so the Grocery list card says how to start (after v1, UX-07). */
+    val noStaples: Boolean,
+    /** Nothing is in the pantry yet, so Needs attention says how to start instead of "all clear" (after v1, UX-07). */
+    val pantryEmpty: Boolean,
     val recent: List<ActivityEvent>,
 )
 
@@ -82,17 +98,16 @@ object HomeDashboard {
         recent: List<ActivityEvent>,
         today: LocalDate,
     ): HomeSummary {
-        val rows = PantryList.rows(pantry.products, pantry.batches, today)
-        val attention = rows
-            .filter { it.batches.any { b -> ExpiryStatus.of(b.expiryDate, today).needsAttention } }
-            .sortedWith(compareBy(nullsLast()) { it.soonest?.expiryDate })
+        val items = PantryItems.all(pantry.products, pantry.batches, today)
+        val rows = PantryList.rows(pantry.products, pantry.batches)
         return HomeSummary(
-            attention = attention,
-            expiredCount = attention.count { it.status == ExpiryStatus.Expired },
+            attention = NeedsAttention.of(items),
             lowStock = rows.filter {
                 it.isLow || it.isOut
             }.sortedWith(compareByDescending<PantryRow> { it.isOut }.thenBy { it.name.lowercase() }),
             groceryCount = groceryItems.count { !it.checked },
+            noStaples = pantry.products.none { it.isStaple },
+            pantryEmpty = items.none { it is PantryItem.Purchase },
             recent = recent,
         )
     }

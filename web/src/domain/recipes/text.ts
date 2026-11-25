@@ -1,9 +1,9 @@
 // Recipe text rules (DESIGN 11.3, 11.6), ported from RecipeText and SourceUrl: what the web edits and shows. The
 // import-only parts (durations, yields, HTML blocks) stay on Android, which adds the recipes.
-import { NameKey } from '../pantry/rules';
+import { NameKey, WHITESPACE } from '../pantry/rules';
 import { RecipeLimits } from './models';
 
-const SPACES = /[\s\u00A0]+/g;
+const SPACES = new RegExp(`[${WHITESPACE}]+`, 'g');
 const ENTITY = /&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/;
 
 /** The text of [html] as a browser parses it (Jsoup's text() in the app). */
@@ -19,7 +19,11 @@ export const RecipeText = {
     let plain = text.includes('<') || text.includes('&') ? htmlText(text) : text;
     // Some sites encode twice ("&amp;amp;").
     if (ENTITY.test(plain)) plain = htmlText(plain);
-    const cut = plain.replace(SPACES, ' ').trim().slice(0, limit).trim();
+    const cut = plain
+      .replace(SPACES, ' ')
+      .replace(/^ +| +$/g, '')
+      .slice(0, limit)
+      .replace(/^ +| +$/g, '');
     return cut === '' ? null : cut;
   },
 
@@ -72,4 +76,19 @@ export const SourceUrl = {
     parseUrl(url)
       ?.hostname.toLowerCase()
       .replace(/^www\./, '') ?? null,
+
+  /**
+   * The recipe's "By" name is only the site again (after v1, R10): "recipes.example.test", "BBC Good Food" for
+   * bbcgoodfood.com, "Serious Eats" for seriouseats.com. Letters and digits are compared, ignoring case, with the
+   * site's name with or without its last part (".com").
+   */
+  namesSite(name: string, site: string | null): boolean {
+    if (site === null) return false;
+    const key = lettersAndDigits(name);
+    if (key === '') return false;
+    const dot = site.lastIndexOf('.');
+    return key === lettersAndDigits(site) || key === lettersAndDigits(dot < 0 ? site : site.slice(0, dot));
+  },
 };
+
+const lettersAndDigits = (text: string): string => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');

@@ -4,19 +4,35 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.WriteBatch
+import com.parcha.spoilnot.core.error.AppError
+import com.parcha.spoilnot.core.error.AppError.LostRace.Race
 import com.parcha.spoilnot.core.firebase.FirestoreChangeMapper
 import com.parcha.spoilnot.core.firebase.Stamps
 import com.parcha.spoilnot.core.firebase.Tombstones
+import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.changedFields
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.core.write.HouseholdChange
 import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository.Companion.items
 import com.parcha.spoilnot.feature.grocery.data.FirestoreGroceryRepository.Companion.lists
 import com.parcha.spoilnot.feature.grocery.domain.GroceryChange
 import com.parcha.spoilnot.feature.grocery.domain.GroceryItem
+import com.parcha.spoilnot.feature.grocery.domain.GroceryItemFields
 import com.parcha.spoilnot.feature.grocery.domain.GroceryRules
 import com.parcha.spoilnot.feature.grocery.domain.ItemSource
+import com.parcha.spoilnot.feature.pantry.domain.PantryChange
 import javax.inject.Inject
+
+/** What the grocery Edit sheet sets, as written (after v1: only the ones that changed are). */
+internal fun itemEditFields(f: GroceryItemFields): Map<String, Any?> = mapOf(
+    "quantity" to f.quantity,
+    "unit" to f.unit?.wire,
+    "note" to f.note,
+    "category" to f.category?.wire,
+)
 
 /** Firestore writes for [GroceryChange]s. */
 class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
@@ -64,23 +80,18 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     itemFields(change.item) + Stamps.created(actor) + stamp,
                 )
 
+            // Undo removes the tombstone and nothing else (DESIGN 8.6): checked, who checked it, its creator and
+            // fields a newer app added stay as the server has them.
             is GroceryChange.RestoreItem -> batch.set(
                 item(db, hid, change.listId, change.item.id),
-                itemFields(change.item) + stamp + mapOf(
-                    "createdAt" to (change.item.createdAt?.let { Timestamp(it) } ?: FieldValue.serverTimestamp()),
-                    "createdBy" to (change.item.createdBy ?: actor.uid),
-                ),
+                Tombstones.restore(actor),
+                SetOptions.merge(),
             )
 
-            is GroceryChange.UpdateItem -> batch.update(
-                item(db, hid, change.listId, change.itemId),
-                mapOf(
-                    "quantity" to change.quantity,
-                    "unit" to change.unit?.wire,
-                    "note" to change.note,
-                    "category" to change.category?.wire,
-                ) + stamp,
-            )
+            is GroceryChange.UpdateItem -> {
+                val changed = changedFields(itemEditFields(change.before), itemEditFields(change.after))
+                if (changed.isNotEmpty()) batch.update(item(db, hid, change.listId, change.itemId), changed + stamp)
+            }
 
             is GroceryChange.RenameItem -> batch.update(
                 item(db, hid, change.listId, change.itemId),
@@ -121,7 +132,10 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
             )
 
             is GroceryChange.UpsertLowStock -> {
-                // Merge-write with no `checked` field: an item already in the cart stays checked (DESIGN 9.6).
+                // Merge-write. A live item keeps its `checked` (one already in the cart stays checked); a new item, or
+                // a tombstone coming back (one left by Add to pantry is still checked), starts unchecked (DESIGN 9.6).
+                // No createdBy: the rules would refuse a second phone's identical write naming another creator, so
+                // two phones writing the same item at once both succeed (a tombstone keeps its old creator).
                 val fields = mutableMapOf<String, Any?>(
                     "name" to change.name,
                     "nameKey" to change.nameKey,
@@ -134,7 +148,15 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
                     Tombstones.FIELD to FieldValue.delete(),
                 ) + stamp
                 val all = if (change.writeCreated) {
-                    fields + Stamps.created(actor) + mapOf("note" to null, "recipeId" to null)
+                    fields + mapOf(
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "note" to null,
+                        "recipeId" to null,
+                        "aliasOf" to null,
+                        "checked" to false,
+                        "checkedBy" to null,
+                        "checkedAt" to null,
+                    )
                 } else {
                     fields
                 }
@@ -147,6 +169,42 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
         }
         return true
     }
+
+    /**
+     * The rules refuse an item created under a deleted list, and a second tombstone on an item (DESIGN 8.5): Add to
+     * pantry or a removal on two phones, or an add as another member deletes the list. Reads the list, then up to
+     * [MAX_ITEMS_READ] of the removed items, from the server.
+     */
+    override suspend fun whyRefused(
+        db: FirebaseFirestore,
+        householdId: String,
+        chunk: List<HouseholdChange>,
+    ): AppError? {
+        val addedTo = chunk.firstNotNullOfOrNull {
+            when (it) {
+                is GroceryChange.CreateItem -> it.listId
+                is GroceryChange.RestoreItem -> it.listId
+                else -> null
+            }
+        }
+        if (addedTo != null && !listExists(db, householdId, addedTo)) return AppError.LostRace(Race.ListDeleted)
+        val removed = chunk.filterIsInstance<GroceryChange.DeleteItem>().filter { it.tombstone }.take(MAX_ITEMS_READ)
+        for (change in removed) {
+            val doc = item(db, householdId, change.listId, change.itemId).get(Source.SERVER).awaitMapped()
+            if (!doc.exists()) {
+                if (!listExists(db, householdId, change.listId)) return AppError.LostRace(Race.ListDeleted)
+                continue
+            }
+            if (with(Tombstones) { doc.isTombstone() }) {
+                val race = if (chunk.any { it is PantryChange }) Race.AddedToPantry else Race.Removed
+                return AppError.LostRace(race, doc.string("updatedBy"))
+            }
+        }
+        return null
+    }
+
+    private suspend fun listExists(db: FirebaseFirestore, hid: String, listId: String): Boolean =
+        db.document("${lists(hid)}/$listId").get(Source.SERVER).awaitMapped().exists()
 
     private fun item(db: FirebaseFirestore, hid: String, listId: String, itemId: String) =
         db.document("${items(hid, listId)}/$itemId")
@@ -167,4 +225,9 @@ class GroceryChangeMapper @Inject constructor() : FirestoreChangeMapper {
         "recipeId" to item.recipeId,
         "aliasOf" to item.aliasOf,
     )
+
+    private companion object {
+        /** The items a refusal reads at most to find the one another phone removed first. */
+        const val MAX_ITEMS_READ = 10
+    }
 }

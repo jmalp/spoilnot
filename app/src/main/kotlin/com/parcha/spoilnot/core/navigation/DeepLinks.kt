@@ -9,7 +9,10 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** Where a notification tap or a share from another app should land (DESIGN 10.2, 11.1). */
 sealed interface DeepLink {
-    /** The Pantry tab with a filter: a digest opens Expiring soon (`/pantry?filter=expiring`), Home cards others. */
+    /**
+     * The Pantry tab with a filter: a digest opens Needs attention, Home's card too. The path keeps its old name
+     * (`/pantry?filter=expiring`), so released builds, which open Expiring soon, still understand it (after v1, R8).
+     */
     data class Pantry(val filter: PantryFilter) : DeepLink
 
     /** The Plan tab: a digest with only today's meals (`/plan`, after v1, DESIGN 5.9). */
@@ -24,7 +27,7 @@ sealed interface DeepLink {
         const val PLAN = "/plan"
 
         fun parse(route: String?): DeepLink? = when (route) {
-            PANTRY_EXPIRING -> Pantry(PantryFilter.ExpiringSoon)
+            PANTRY_EXPIRING -> Pantry(PantryFilter.NeedsAttention)
             PLAN -> Plan
             else -> null
         }

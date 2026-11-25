@@ -2,10 +2,18 @@
 import { guessAisle } from '../grocery/aisles';
 import { GroceryRules, type GroceryChange, type GroceryItem, type ItemSource } from '../grocery/models';
 import { PantryLimits, type PantryChange, type PantryData, type Product, type QuantityUnit } from '../pantry/models';
+import { NameCase } from '../pantry/nameCase';
 import { NameKey } from '../pantry/rules';
 import type { Actor, HouseholdChange, HouseholdWriter, Undo } from '../write';
 import { PantryMatch } from './box';
-import { RecipeLimits, type Ingredient, type Recipe, type RecipeChange, type RecipeContent } from './models';
+import {
+  RecipeLimits,
+  type Ingredient,
+  type Recipe,
+  type RecipeChange,
+  type RecipeContent,
+  type RecipeWords,
+} from './models';
 import { IngredientParser, Scaling } from './parser';
 import { ProductLink, ShoppingName } from './shopping';
 import { RecipeText, SourceUrl } from './text';
@@ -59,7 +67,13 @@ const usualOf = (product: Product | null) => (product ? (product.buyQuantity ?? 
  */
 export const RecipeGrocery = {
   /** [factor] scales the recipe: counts are rounded up to whole items ("1½ eggs" is 2). */
-  candidates(recipe: Recipe, pantry: PantryData, listItems: GroceryItem[], factor = 1): GroceryCandidate[] {
+  candidates(
+    recipe: Recipe,
+    pantry: PantryData,
+    listItems: GroceryItem[],
+    words: RecipeWords,
+    factor = 1,
+  ): GroceryCandidate[] {
     const unchecked = listItems.filter((i) => !i.checked);
     const onListKeys = new Set(unchecked.map((i) => i.nameKey));
     const onListProducts = new Set(unchecked.flatMap((i) => (i.productId ? [i.productId] : [])));
@@ -68,7 +82,7 @@ export const RecipeGrocery = {
         ingredient.qty === null && ingredient.name === null ? IngredientParser.parse(ingredient.raw) : ingredient;
       const cleaned = ShoppingName.of(parsed.name ?? parsed.raw);
       const product = ProductLink.find(cleaned, pantry.products);
-      const name = (product?.name ?? cleaned).slice(0, GroceryRules.MAX_NAME_LENGTH).trim();
+      const name = NameCase.title((product?.name ?? cleaned).slice(0, GroceryRules.MAX_NAME_LENGTH).trim());
       const usual = usualOf(product);
       const recipeCount = parsed.qty !== null && COUNTED.has(parsed.unit) ? scaledCount(parsed.qty, factor) : null;
       const count = product === null || product.unit === 'pcs' ? recipeCount : null;
@@ -77,7 +91,7 @@ export const RecipeGrocery = {
         name,
         quantity: usual ?? count,
         unit: usual !== null ? product!.unit : null,
-        note: note(recipe.content.title, Scaling.line(ingredient.raw, factor)),
+        note: note(recipe.content.title, Scaling.line(ingredient.raw, factor, words.pinch)),
         product,
         inPantry: PantryMatch.productFor(parsed.raw, pantry),
         onList: onListKeys.has(NameKey.of(name)) || (product !== null && onListProducts.has(product.id)),
@@ -95,7 +109,7 @@ export const RecipeGrocery = {
    * recipe's own name forgets the rename.
    */
   rename(candidate: GroceryCandidate, newName: string, products: Product[]): GroceryCandidate {
-    const name = NameKey.clean(newName).slice(0, GroceryRules.MAX_NAME_LENGTH).trim();
+    const name = NameCase.of(newName).slice(0, GroceryRules.MAX_NAME_LENGTH).trim();
     if (name === '') return candidate;
     const key = NameKey.of(name);
     const product = products.find((p) => p.nameKey === key) ?? null;
@@ -103,7 +117,7 @@ export const RecipeGrocery = {
     const count = product === null || product.unit === 'pcs' ? candidate.recipeCount : null;
     return {
       ...candidate,
-      name: product?.name ?? name,
+      name: NameCase.title(product?.name ?? name),
       product,
       quantity: usual ?? count,
       unit: usual !== null ? product!.unit : null,
@@ -221,7 +235,7 @@ export class RecipeService {
       const product = c.product ?? pantry.products.find((p) => p.nameKey === key) ?? null;
       return {
         id: this.writer.newId(),
-        name: product?.name ?? c.name,
+        name: NameCase.title(product?.name ?? c.name),
         nameKey: key,
         quantity: c.quantity,
         unit: c.unit,
@@ -280,7 +294,7 @@ export class RecipeService {
       sourceName: RecipeText.clean(c.sourceName, RecipeLimits.SOURCE_NAME),
       imageUrl: c.imageUrl !== null && SourceUrl.isWebUrl(c.imageUrl.trim()) ? c.imageUrl.trim() : null,
       description: trimmedOrNull(c.description, RecipeLimits.DESCRIPTION),
-      servings: c.servings !== null && c.servings >= 1 && c.servings <= 1000 ? c.servings : null,
+      servings: c.servings !== null && c.servings >= 1 && c.servings <= RecipeLimits.MAX_SERVINGS ? c.servings : null,
       servingsText: RecipeText.clean(c.servingsText, RecipeLimits.SERVINGS_TEXT),
       prepMinutes: c.prepMinutes !== null && c.prepMinutes > 0 ? c.prepMinutes : null,
       cookMinutes: c.cookMinutes !== null && c.cookMinutes > 0 ? c.cookMinutes : null,

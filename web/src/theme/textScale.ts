@@ -63,16 +63,28 @@ export function textScale(): number {
 }
 
 /** The text sizes in the type scale and the kit, in sp. */
-export const SP_SIZES = [11, 12, 14, 16, 20, 22, 24, 28, 32, 36, 40, 44, 45, 52, 57, 64] as const;
+export const SP_SIZES = [
+  11, 12, 13, 14, 16, 17, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40, 44, 45, 48, 52, 54, 57, 64, 70,
+] as const;
 
 let applied = 1;
 
 /** The scale applyTextScale set, for layouts that change at large sizes (fontScale in the app). */
 export const appliedTextScale = (): number => applied;
 
+/**
+ * From this scale what sits beside a name goes under it (LARGE_TEXT_FONT_SCALE in the app, after v1, review A11Y-04).
+ * applyTextScale marks the page with data-large-text, so the CSS can stack rows without each component asking.
+ */
+export const LARGE_TEXT_SCALE = 1.5;
+
+/** Whether text is at or past [LARGE_TEXT_SCALE] (isLargeText() in the app). */
+export const isLargeText = (): boolean => applied >= LARGE_TEXT_SCALE;
+
 export function applyTextScale(scale = textScale()): void {
   applied = scale;
   const root = document.documentElement.style;
   root.fontSize = `${BASE_PX * scale}px`;
+  document.documentElement.toggleAttribute('data-large-text', scale >= LARGE_TEXT_SCALE);
   for (const sp of SP_SIZES) root.setProperty(`--sp-${sp}`, `${Math.round(scaledSp(sp, scale) * 100) / 100}px`);
 }

@@ -10,7 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -73,7 +73,7 @@ class TourScreenshotTest(private val dark: Boolean, private val fontScale: Float
             }
         }
         val suffix = "${if (dark) "dark" else "light"}_font${fontScale.toInt()}"
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/${name}_$suffix.png")
+        compose.onRoot().captureRoboImage("${name}_$suffix.png")
     }
 
     @Test

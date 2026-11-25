@@ -10,6 +10,12 @@ data class PantryData(
     val batches: List<StockBatch>,
     /** Served from the local cache only: offline or still connecting (DESIGN 9.5). */
     val fromCache: Boolean,
+    /**
+     * Both products and stock have been read from the server at least once: in this listener, or in a full read on
+     * record on this phone. Until then a missing batch may only be not loaded yet, so the restock engine waits
+     * (DESIGN 9.6).
+     */
+    val serverRead: Boolean = false,
 )
 
 /**
@@ -19,8 +25,11 @@ data class PantryData(
 sealed interface PantryChange : HouseholdChange {
     data class CreateProduct(val product: Product) : PantryChange
 
-    /** Writes every editable field of [product]. */
-    data class UpdateProduct(val product: Product) : PantryChange
+    /**
+     * Writes the fields of [product] that differ from [before], and only those, so an edit never puts back what
+     * another member changed meanwhile (after v1, DESIGN 9.4). [before] is the product as this phone last read it.
+     */
+    data class UpdateProduct(val product: Product, val before: Product) : PantryChange
 
     /** The restock engine's own flag only, so it never overwrites someone's concurrent product edit (DESIGN 9.6). */
     data class SetRestockArmed(val productId: String, val armed: Boolean) : PantryChange
@@ -36,10 +45,14 @@ sealed interface PantryChange : HouseholdChange {
 
     data class CreateBatch(val batch: StockBatch) : PantryChange
 
-    /** Adds [delta] with an atomic increment, so +1 and -1 from two phones commute (DESIGN 9.3). */
-    data class AddToBatch(val batchId: String, val delta: Double) : PantryChange
+    /**
+     * Adds [delta] with an atomic increment, so +1 and -1 from two phones commute (DESIGN 9.3). [revive] also removes
+     * a tombstone: the Undo of a -1 that used the batch up, which a phone may already have removed (8.5 invariant 1).
+     */
+    data class AddToBatch(val batchId: String, val delta: Double, val revive: Boolean = false) : PantryChange
 
-    data class UpdateBatch(val batchId: String, val edit: BatchEdit) : PantryChange
+    /** Writes the fields of [after] that differ from [before], and only those (after v1, DESIGN 9.4). */
+    data class UpdateBatch(val batchId: String, val before: BatchEdit, val after: BatchEdit) : PantryChange
 
     /** Keeps a batch's copies of the product fields in line with the product (DESIGN 8.5, invariant 2). */
     data class SyncBatchProduct(val batchId: String, val name: String, val unit: QuantityUnit, val category: Category) :
@@ -47,7 +60,17 @@ sealed interface PantryChange : HouseholdChange {
 
     data class DeleteBatch(val batchId: String) : PantryChange
 
-    /** Puts a deleted batch back under its old id (Undo). */
+    /**
+     * A product's tombstone (after v1): only the Undo of an addition that created it writes one (LOGIC-10), so a
+     * product nobody meant to make goes again.
+     */
+    data class DeleteProduct(val productId: String) : PantryChange
+
+    /**
+     * Puts a deleted batch back (Undo): removes the tombstone and changes nothing else, so what the document holds
+     * stays, including another member's change and fields a newer app added (after v1, DESIGN 8.6). [batch] is this
+     * phone's copy, for planning.
+     */
     data class RestoreBatch(val batch: StockBatch) : PantryChange
 
     data class LogEvent(
@@ -64,7 +87,24 @@ sealed interface PantryChange : HouseholdChange {
 
 /** Products, batches and their history. Writes go through the HouseholdWriter. */
 interface PantryRepository {
+    /**
+     * The products and stock as the server listeners bring them (DESIGN 9.8). One pair of listeners per household
+     * and phone, shared by every collector, which stops 5 s after the last one leaves (after v1, DESIGN 9.1).
+     */
     fun observe(householdId: String): Flow<PantryData>
+
+    /**
+     * The same from the local cache only, with no server listener (after v1, DESIGN 9.6): free, and it sees whatever
+     * the screens' listeners and this phone's own writes put in the cache. [PantryData.fromCache] is always true, and
+     * [PantryData.serverRead] means a full read of both collections is on record on this phone.
+     */
+    fun observeCached(householdId: String): Flow<PantryData>
+
+    /**
+     * Who deleted [batchId], from the tombstone in the local cache (no read is billed); null when it isn't there
+     * (after v1, DESIGN 9.2: the Edit window says who removed its item).
+     */
+    suspend fun removedBy(householdId: String, batchId: String): String?
 
     /** The most recent events for one product, newest first (DESIGN 5.2 product detail). */
     fun observeEvents(householdId: String, productId: String, limit: Int): Flow<List<PantryEvent>>

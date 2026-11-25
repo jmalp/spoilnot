@@ -17,6 +17,16 @@ const SUNDAY_REGIONS = new Set(
   ),
 );
 
+/** Regions whose weeks start on Saturday (CLDR), for browsers without Intl week info (after v1, WEB-08). */
+const SATURDAY_REGIONS = new Set('AE AF BH DJ DZ EG IQ IR JO KW LY OM QA SD SY'.split(' '));
+
+/** The first day of the week in [region] (an ISO 3166 code) by the fallback lists; Monday when unknown. */
+export function regionFirstDay(region: string | undefined): DayOfWeek {
+  if (region && SUNDAY_REGIONS.has(region)) return 7;
+  if (region && SATURDAY_REGIONS.has(region)) return 6;
+  return 1;
+}
+
 /** The first day of the week in the phone's region (WeekFields.of(Locale.getDefault()) in the app). */
 export function firstDayOfWeek(locale: string): DayOfWeek {
   try {
@@ -26,12 +36,25 @@ export function firstDayOfWeek(locale: string): DayOfWeek {
     };
     const info = l.getWeekInfo?.() ?? l.weekInfo;
     if (info && info.firstDay >= 1 && info.firstDay <= 7) return info.firstDay as DayOfWeek;
-    const region = l.maximize().region;
-    return region && SUNDAY_REGIONS.has(region) ? 7 : 1;
+    return regionFirstDay(l.maximize().region);
   } catch {
     return 1;
   }
 }
+
+/**
+ * Settings > Appearance > Week starts on (web only, after v1, WEB-08): Automatic follows the browser's region, since
+ * a web app cannot read the iPhone's own First Day of Week setting; the others pick a day.
+ */
+export type WeekStart = 'auto' | 'sunday' | 'monday' | 'saturday';
+export const WEEK_STARTS: readonly WeekStart[] = ['auto', 'sunday', 'monday', 'saturday'];
+export const isWeekStart = (value: unknown): value is WeekStart => WEEK_STARTS.includes(value as WeekStart);
+
+const CHOSEN_DAY: Record<Exclude<WeekStart, 'auto'>, DayOfWeek> = { sunday: 7, monday: 1, saturday: 6 };
+
+/** The first day of Plan's week for the setting [choice], with [locale] deciding Automatic. */
+export const weekFirstDay = (choice: WeekStart, locale: string): DayOfWeek =>
+  choice === 'auto' ? firstDayOfWeek(locale) : CHOSEN_DAY[choice];
 
 /** One day of the plan: its meals by slot, in order. */
 export type PlanDay = {
@@ -75,19 +98,33 @@ export const MealWeek = {
     });
   },
 
+  /**
+   * The recipes planned on [today] or later among [meals], cooked or not, so Use it up doesn't suggest what the plan
+   * already uses (after v1, UX-05).
+   */
+  plannedFrom(meals: PlannedMeal[], today: LocalDate): Set<string> {
+    return new Set(meals.filter((m) => m.date >= today && m.recipeId !== null).map((m) => m.recipeId!));
+  },
+
   /** Where a new meal goes in a slot: after the last one. */
   nextPosition: (slotMeals: PlannedMeal[]): number => Math.max(-1, ...slotMeals.map((m) => m.position)) + 1,
 
   /**
    * Copy last week: [previous] meals moved by whole weeks from [from] to [to], keeping recipe, title, servings, cooks
-   * and note but not Cooked. A meal already in [existing] on the same day and slot with the same name is skipped, so
-   * copying twice adds nothing. Copies go after the meals already in their slot, in their old order. Ids are left
-   * empty for the service to fill.
+   * and note but not Cooked. Meals of the same name in a slot are counted (after v1, LOGIC-14): as many are copied as
+   * last week had, minus those already in [existing] on that day and slot, so two "Leftovers" stay two and copying
+   * twice adds nothing. Copies go after the meals already in their slot, in their old order. Ids are left empty for
+   * the service to fill.
    */
   copy(previous: PlannedMeal[], from: LocalDate, to: LocalDate, existing: PlannedMeal[]): PlannedMeal[] {
     const shift = daysBetween(from, to);
     const key = (date: LocalDate, slot: MealSlot, title: string) => `${date}|${slot}|${NameKey.of(title)}`;
-    const taken = new Set(existing.map((m) => key(m.date, m.slot, m.title)));
+    // Meals of the same name in a slot are counted (after v1, LOGIC-14).
+    const already = new Map<string, number>();
+    for (const m of existing) {
+      const k = key(m.date, m.slot, m.title);
+      already.set(k, (already.get(k) ?? 0) + 1);
+    }
     const next = new Map<string, number>();
     for (const m of existing) {
       const k = `${m.date}|${m.slot}`;
@@ -103,8 +140,11 @@ export const MealWeek = {
     for (const meal of ordered) {
       const date = addDays(meal.date, shift);
       const k = key(date, meal.slot, meal.title);
-      if (taken.has(k)) continue;
-      taken.add(k);
+      const there = already.get(k) ?? 0;
+      if (there > 0) {
+        already.set(k, there - 1);
+        continue;
+      }
       const slotKey = `${date}|${meal.slot}`;
       const position = next.get(slotKey) ?? 0;
       next.set(slotKey, position + 1);

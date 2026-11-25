@@ -73,6 +73,8 @@ export type Product = {
   aliases: string[];
   /** How many days it keeps once opened, as last chosen in Mark opened. */
   openedShelfLifeDays: number | null;
+  /** Who wrote it last (DESIGN 8.1); the Edit window names them (after v1, 9.2). Missing counts as null. */
+  updatedBy?: string | null;
 };
 
 export const isStaple = (product: Product) => product.minQuantity !== null;
@@ -94,19 +96,40 @@ export type StockBatch = {
   pendingSync: boolean;
   /** When it was opened; null while sealed. */
   openedOn: LocalDate | null;
+  /** Who wrote it last (DESIGN 8.1); the Edit window names them (after v1, 9.2). Missing counts as null. */
+  updatedBy?: string | null;
 };
 
 /** The household's products and batches as the listeners see them (DESIGN 9.1). */
-export type PantryData = { products: Product[]; batches: StockBatch[]; fromCache: boolean };
+export type PantryData = {
+  products: Product[];
+  batches: StockBatch[];
+  fromCache: boolean;
+  /**
+   * Both products and stock have been read from the server at least once: in this listener, or in a full read on
+   * record on this phone. Until then a missing batch may only be not loaded yet, so the restock engine waits
+   * (DESIGN 9.6). Missing counts as false.
+   */
+  serverRead?: boolean;
+};
 
-/** Changes to one batch from the edit sheet or Move. */
+/**
+ * A batch's own fields that an edit or Move sets. The quantity is not one of them: it only ever changes by an
+ * increment (after v1, DESIGN 9.3).
+ */
 export type BatchEdit = {
-  quantity: number;
   expiryDate: LocalDate | null;
   dateType: DateType;
   location: Location;
   note: string | null;
 };
+
+export const batchEditOf = (b: StockBatch): BatchEdit => ({
+  expiryDate: b.expiryDate,
+  dateType: b.dateType,
+  location: b.location,
+  note: b.note,
+});
 
 /** A pantry event in the activity log, as product history shows it. */
 export type PantryEventType = 'added' | 'discarded';
@@ -121,18 +144,35 @@ export const PantryLimits = {
 /** One write in a pantry plan (PantryChange). */
 export type PantryChange =
   | { type: 'pantry.createProduct'; product: Product }
-  | { type: 'pantry.updateProduct'; product: Product }
+  /**
+   * Writes the fields of `product` that differ from `before` (the product as this phone last read it), and only
+   * those, so an edit never puts back what another member changed meanwhile (after v1, DESIGN 9.4).
+   */
+  | { type: 'pantry.updateProduct'; product: Product; before: Product }
   | { type: 'pantry.setRestockArmed'; productId: string; armed: boolean }
   | { type: 'pantry.markOpened'; batchId: string; openedOn: LocalDate | null; expiryDate: LocalDate | null }
   | { type: 'pantry.setOpenedShelfLife'; productId: string; days: number }
   | { type: 'pantry.addAlias'; productId: string; alias: string }
   | { type: 'pantry.createBatch'; batch: StockBatch }
-  /** An atomic increment, so +1 and -1 from two phones commute (DESIGN 9.3). */
-  | { type: 'pantry.addToBatch'; batchId: string; delta: number }
-  | { type: 'pantry.updateBatch'; batchId: string; edit: BatchEdit }
+  /**
+   * An atomic increment, so +1 and -1 from two phones commute (DESIGN 9.3). `revive` also removes a tombstone: the
+   * Undo of a -1 that used the batch up, which a phone may already have removed (8.5 invariant 1).
+   */
+  | { type: 'pantry.addToBatch'; batchId: string; delta: number; revive?: boolean }
+  /** Writes the fields of `after` that differ from `before`, and only those (after v1, DESIGN 9.4). */
+  | { type: 'pantry.updateBatch'; batchId: string; before: BatchEdit; after: BatchEdit }
   | { type: 'pantry.syncBatchProduct'; batchId: string; name: string; unit: QuantityUnit; category: Category }
   | { type: 'pantry.deleteBatch'; batchId: string }
-  /** Puts a deleted batch back under its old id (Undo). */
+  /**
+   * A product's tombstone (after v1): only the Undo of an addition that created it writes one (LOGIC-10), so a
+   * product nobody meant to make goes again.
+   */
+  | { type: 'pantry.deleteProduct'; productId: string }
+  /**
+   * Puts a deleted batch back (Undo): removes the tombstone and changes nothing else, so what the document holds
+   * stays, another member's change and fields a newer app added included (after v1, DESIGN 8.6). `batch` is this
+   * phone's copy, for planning.
+   */
   | { type: 'pantry.restoreBatch'; batch: StockBatch }
   | {
       type: 'pantry.logEvent';

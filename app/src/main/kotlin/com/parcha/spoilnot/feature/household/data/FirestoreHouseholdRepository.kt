@@ -8,18 +8,27 @@ import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.WriteBatch
+import com.parcha.spoilnot.core.cache.DeviceCaches
 import com.parcha.spoilnot.core.error.AppError
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
+import com.parcha.spoilnot.core.firebase.SyncLog
 import com.parcha.spoilnot.core.firebase.Tombstones
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.boolean
 import com.parcha.spoilnot.core.firebase.commitConfirmed
 import com.parcha.spoilnot.core.firebase.commitQueued
+import com.parcha.spoilnot.core.firebase.instant
+import com.parcha.spoilnot.core.firebase.mapEach
 import com.parcha.spoilnot.core.firebase.retryAfterOwnWrites
 import com.parcha.spoilnot.core.firebase.snapshotFlow
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.core.write.Actor
+import com.parcha.spoilnot.core.write.ReadCaps
+import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.auth.data.UserFields
 import com.parcha.spoilnot.feature.auth.domain.PendingJoin
 import com.parcha.spoilnot.feature.home.domain.ActivityType
+import com.parcha.spoilnot.feature.household.domain.EmailMask
 import com.parcha.spoilnot.feature.household.domain.Household
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.HouseholdRules
@@ -29,6 +38,7 @@ import com.parcha.spoilnot.feature.household.domain.JoinRequestStatus
 import com.parcha.spoilnot.feature.household.domain.LocalData
 import com.parcha.spoilnot.feature.household.domain.Member
 import com.parcha.spoilnot.feature.household.domain.Membership
+import com.parcha.spoilnot.feature.household.domain.ResetOutcome
 import com.parcha.spoilnot.feature.household.domain.Role
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -69,14 +79,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         }
         .map { snapshot ->
             snapshot.documents
-                .map {
-                    Member(
-                        it.id,
-                        it.getString("displayName").orEmpty(),
-                        it.role(),
-                        it.getTimestamp("joinedAt")?.toInstant(),
-                    )
-                }
+                .mapEach { it.toMember() }
                 .sortedWith(compareBy(nullsLast()) { it.joinedAt })
         }
         .distinctUntilChanged()
@@ -85,7 +88,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         .flatMapLatest { db ->
             db.collection("${householdPath(householdId)}/joinRequests").snapshotFlow().retryAfterOwnWrites(db)
         }
-        .map { snapshot -> snapshot.documents.mapNotNull { it.toJoinRequest() }.sortedBy { it.requestedAt } }
+        .map { snapshot -> snapshot.documents.mapEach { it.toJoinRequest() }.sortedBy { it.requestedAt } }
         .distinctUntilChanged()
 
     override fun observeOwnJoinRequest(householdId: String, uid: String): Flow<JoinRequest?> = firestore.instance
@@ -96,11 +99,6 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
                 !snapshot.metadata.isFromCache -> emit(null)
             }
         }
-        .distinctUntilChanged()
-
-    override fun observeInviteCode(code: String): Flow<InviteCode?> = firestore.instance
-        .flatMapLatest { db -> db.document(codePath(code)).snapshotFlow().retryAfterOwnWrites(db) }
-        .map { if (it.exists()) it.toInviteCode() else null }
         .distinctUntilChanged()
 
     override suspend fun createHousehold(uid: String, displayName: String, name: String, inviteCode: String): String {
@@ -123,7 +121,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
                 db.document(memberPath(household.id, uid)),
                 mapOf("role" to ROLE_OWNER, "displayName" to displayName, "joinedAt" to FieldValue.serverTimestamp()),
             )
-            .set(db.document(codePath(inviteCode)), codeDoc(household.id, name.trim(), uid, active = true))
+            .set(db.document(codePath(inviteCode)), codeDoc(household.id, name.trim(), uid))
             .set(
                 defaultList,
                 mapOf(
@@ -143,28 +141,39 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         return if (snapshot.exists()) snapshot.toInviteCode() else null
     }
 
-    override suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode) {
+    override suspend fun requestToJoin(uid: String, displayName: String, invite: InviteCode, email: String?) {
         val db = firestore.current
         val pending = PendingJoin(invite.householdId, invite.householdName, invite.code)
-        // Must reach the server: the rules check the code there, and a rejection must be shown now.
-        db.batch()
-            .set(
-                db.document(requestPath(invite.householdId, uid)),
-                mapOf(
-                    "displayName" to displayName,
-                    "joinCode" to invite.code,
-                    "status" to STATUS_PENDING,
-                    "requestedAt" to FieldValue.serverTimestamp(),
-                ),
-            )
-            .update(
-                db.document(UserFields.path(uid)),
-                mapOf(
-                    UserFields.PENDING_JOIN to UserFields.pendingJoin(pending),
-                    UserFields.UPDATED_AT to FieldValue.serverTimestamp(),
-                ),
-            )
-            .commitConfirmed()
+        // After v1: the owner sees who is asking, not only the name they typed. The rules check it.
+        val masked = EmailMask.mask(email)
+        suspend fun send(emailMasked: String?) {
+            val request = buildMap {
+                put("displayName", displayName)
+                put("joinCode", invite.code)
+                put("status", STATUS_PENDING)
+                put("requestedAt", FieldValue.serverTimestamp())
+                emailMasked?.let { put(EMAIL_MASKED, it) }
+            }
+            // Must reach the server: the rules check the code there, and a rejection must be shown now.
+            db.batch()
+                .set(db.document(requestPath(invite.householdId, uid)), request)
+                .update(
+                    db.document(UserFields.path(uid)),
+                    mapOf(
+                        UserFields.PENDING_JOIN to UserFields.pendingJoin(pending),
+                        UserFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
+                .commitConfirmed()
+        }
+        try {
+            send(masked)
+        } catch (e: AppError.PermissionDenied) {
+            // Rules from before the field refuse it: send the request without it (the same refusal for any other
+            // reason, such as a paused code, comes back again).
+            if (masked == null) throw e
+            send(null)
+        }
     }
 
     override suspend fun completeJoin(uid: String, displayName: String, pending: PendingJoin) {
@@ -229,21 +238,16 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             .commitQueued()
     }
 
-    override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String, active: Boolean) {
+    override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String) {
         val db = firestore.current
         db.batch()
-            .set(db.document(codePath(newCode)), codeDoc(household.id, household.name, uid, active))
+            .set(db.document(codePath(newCode)), codeDoc(household.id, household.name, uid))
             .update(
                 db.document(householdPath(household.id)),
                 mapOf("inviteCode" to newCode, "updatedAt" to FieldValue.serverTimestamp()),
             )
             .delete(db.document(codePath(household.inviteCode)))
             .commitQueued()
-    }
-
-    override suspend fun setJoiningPaused(code: String, paused: Boolean) {
-        val db = firestore.current
-        db.batch().update(db.document(codePath(code)), "active", !paused).commitQueued()
     }
 
     override suspend fun removeMember(householdId: String, memberUid: String) {
@@ -288,7 +292,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             .commitConfirmed()
     }
 
-    override suspend fun resetData(householdId: String, actor: Actor) {
+    override suspend fun resetData(householdId: String, actor: Actor): ResetOutcome {
         val db = firestore.current
         val base = householdPath(householdId)
         suspend fun live(path: String) = db.collection(path).get(Source.SERVER).awaitMapped().documents
@@ -302,7 +306,7 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         val lists = db.collection("$base/groceryLists").get(Source.SERVER).awaitMapped().documents
         for (list in lists) {
             val items = list.reference.collection("items").get(Source.SERVER).awaitMapped().documents
-            if (list.getBoolean("isDefault") == true) {
+            if (list.boolean("isDefault") == true) {
                 items.filterNot { with(Tombstones) { it.isTombstone() } }
                     .forEach { doc -> ops += { it.set(doc.reference, tombstone, SetOptions.merge()) } }
                 ops += {
@@ -338,11 +342,22 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
                 ),
             )
         }
+        // A chunk that times out is still queued: queue the rest after it rather than stop half done (SYNC-08).
+        var queued = false
         ops.chunked(BATCH_LIMIT).forEach { chunk ->
             val batch = db.batch()
             chunk.forEach { op -> op(batch) }
-            batch.commitConfirmed()
+            if (queued) {
+                batch.commit()
+            } else {
+                try {
+                    batch.commitConfirmed()
+                } catch (e: AppError.Offline) {
+                    queued = true
+                }
+            }
         }
+        return if (queued) ResetOutcome.FinishesWhenOnline else ResetOutcome.Cleared
     }
 
     /** Every document under the household, deepest first, read from the server so nothing is missed. */
@@ -366,21 +381,26 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
         UserFields.UPDATED_AT to FieldValue.serverTimestamp(),
     )
 
-    private fun codeDoc(householdId: String, householdName: String, uid: String, active: Boolean) = mapOf(
+    /**
+     * `active` is always true (after v1, R12 removed Pause joining): builds before it still refuse a code without it.
+     * Nothing reads it any more.
+     */
+    private fun codeDoc(householdId: String, householdName: String, uid: String) = mapOf(
         "householdId" to householdId,
         "householdName" to householdName,
-        "active" to active,
+        "active" to true,
         "createdBy" to uid,
         "createdAt" to FieldValue.serverTimestamp(),
     )
 
-    private companion object {
+    internal companion object {
         const val SCHEMA_VERSION = 1
         const val ROLE_OWNER = "owner"
         const val ROLE_MEMBER = "member"
         const val STATUS_PENDING = "pending"
         const val STATUS_APPROVED = "approved"
         const val STATUS_DECLINED = "declined"
+        const val EMAIL_MASKED = "emailMasked"
 
         /** DESIGN 8.5: chunk batched writes at 400 operations. */
         const val BATCH_LIMIT = 400
@@ -397,24 +417,30 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
 
         fun codePath(code: String) = "inviteCodes/$code"
 
-        fun DocumentSnapshot.role() = if (getString("role") == ROLE_OWNER) Role.Owner else Role.Member
+        fun DocumentSnapshot.role() = if (string("role") == ROLE_OWNER) Role.Owner else Role.Member
+
+        fun DocumentSnapshot.toMember() = Member(
+            id,
+            string("displayName").orEmpty().capTo(ReadCaps.PERSON),
+            role(),
+            instant("joinedAt", estimate = false),
+        )
 
         fun DocumentSnapshot.toHousehold() = Household(
             id = id,
-            name = getString("name").orEmpty(),
-            ownerUid = getString("ownerUid").orEmpty(),
-            inviteCode = getString("inviteCode").orEmpty(),
+            name = string("name").orEmpty().capTo(ReadCaps.LIST_NAME),
+            ownerUid = string("ownerUid").orEmpty(),
+            inviteCode = string("inviteCode").orEmpty(),
         )
 
         fun DocumentSnapshot.toInviteCode() = InviteCode(
             code = id,
-            householdId = getString("householdId").orEmpty(),
-            householdName = getString("householdName").orEmpty(),
-            active = getBoolean("active") == true,
+            householdId = string("householdId").orEmpty(),
+            householdName = string("householdName").orEmpty().capTo(ReadCaps.LIST_NAME),
         )
 
         fun DocumentSnapshot.toJoinRequest(): JoinRequest? {
-            val status = when (getString("status")) {
+            val status = when (string("status")) {
                 STATUS_PENDING -> JoinRequestStatus.Pending
                 STATUS_APPROVED -> JoinRequestStatus.Approved
                 STATUS_DECLINED -> JoinRequestStatus.Declined
@@ -422,15 +448,34 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
             }
             return JoinRequest(
                 uid = id,
-                displayName = getString("displayName").orEmpty(),
-                code = getString("joinCode").orEmpty(),
+                displayName = string("displayName").orEmpty().capTo(ReadCaps.PERSON),
+                code = string("joinCode").orEmpty(),
                 status = status,
-                requestedAt = getTimestamp("requestedAt")?.toInstant(),
+                requestedAt = instant("requestedAt", estimate = false),
+                // Older builds don't write it; another type is ignored rather than failing the list.
+                emailMasked = (get(EMAIL_MASKED) as? String)?.capTo(ReadCaps.PERSON * 3),
             )
         }
     }
 }
 
-class FirestoreLocalData @Inject constructor(private val firestore: FirestoreProvider) : LocalData {
-    override suspend fun clear() = firestore.clearLocalData()
+/**
+ * The phone's copy of household data: Firestore's cache, the sync log that names its collections, and the browser
+ * data and photos kept from using the app ([DeviceCaches]).
+ */
+class FirestoreLocalData @Inject constructor(
+    private val firestore: FirestoreProvider,
+    private val syncLog: SyncLog,
+    private val caches: DeviceCaches,
+) : LocalData {
+    override suspend fun clear() {
+        try {
+            firestore.clearLocalData()
+        } finally {
+            syncLog.clear()
+            caches.clear()
+        }
+    }
+
+    override suspend fun flushPendingWrites(): Boolean = firestore.flushPendingWrites()
 }

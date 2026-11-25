@@ -3,7 +3,12 @@ package com.parcha.spoilnot.feature.home.data
 import com.google.firebase.firestore.DocumentSnapshot
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.SyncLog
+import com.parcha.spoilnot.core.firebase.instant
 import com.parcha.spoilnot.core.firebase.liveNewest
+import com.parcha.spoilnot.core.firebase.mapEach
+import com.parcha.spoilnot.core.firebase.string
+import com.parcha.spoilnot.core.write.ReadCaps
+import com.parcha.spoilnot.core.write.capTo
 import com.parcha.spoilnot.feature.home.domain.ActivityEvent
 import com.parcha.spoilnot.feature.home.domain.ActivityFeed
 import com.parcha.spoilnot.feature.home.domain.ActivityRepository
@@ -31,24 +36,27 @@ class FirestoreActivityRepository @Inject constructor(
         .flatMapLatest { db ->
             db.collection("households/$householdId/activity").liveNewest(db, syncLog, "createdAt", limit.toLong())
         }
-        .map { live -> ActivityFeed.sinceReset(live.documents.mapNotNull { it.toEvent() }) }
+        .map { live -> ActivityFeed.sinceReset(live.documents.mapEach { it.toEvent() }) }
         .distinctUntilChanged()
 
-    private fun DocumentSnapshot.toEvent(): ActivityEvent? {
-        val type = ActivityType.fromWire(getString("type")) ?: return null
-        val params = get("params") as? Map<*, *> ?: emptyMap<String, Any>()
-        return ActivityEvent(
-            id = id,
-            type = type,
-            actorUid = getString("actorUid").orEmpty(),
-            actorName = getString("actorName").orEmpty(),
-            name = params["name"] as? String,
-            quantity = (params["quantity"] as? Number)?.toDouble(),
-            reason = DiscardReason.fromWire(params["reason"] as? String),
-            listName = params["listName"] as? String,
-            count = (params["count"] as? Number)?.toInt(),
-            createdAt = getTimestamp("createdAt", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)?.toInstant(),
-        )
+    internal companion object {
+        /** An event's name is a product, list item or recipe title (up to [ReadCaps.RECIPE_TITLE]). */
+        fun DocumentSnapshot.toEvent(): ActivityEvent? {
+            val type = ActivityType.fromWire(string("type")) ?: return null
+            val params = get("params") as? Map<*, *> ?: emptyMap<String, Any>()
+            return ActivityEvent(
+                id = id,
+                type = type,
+                actorUid = string("actorUid").orEmpty(),
+                actorName = string("actorName").orEmpty().capTo(ReadCaps.PERSON),
+                name = (params["name"] as? String)?.capTo(ReadCaps.RECIPE_TITLE),
+                quantity = (params["quantity"] as? Number)?.toDouble(),
+                reason = DiscardReason.fromWire(params["reason"] as? String),
+                listName = (params["listName"] as? String)?.capTo(ReadCaps.LIST_NAME),
+                count = (params["count"] as? Number)?.toInt(),
+                createdAt = instant("createdAt"),
+            )
+        }
     }
 }
 

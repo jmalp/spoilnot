@@ -65,6 +65,19 @@ export class FirebaseSdk {
     return this.db.asObservable();
   }
 
+  /** Waits a few seconds for pending writes to reach the server; false when some are still waiting. */
+  async flushPendingWrites(): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        waitForPendingWrites(this.db.value).then(() => true),
+        new Promise<boolean>((resolve) => (timer = setTimeout(() => resolve(false), 3_000))),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** Sends pending writes if possible, then wipes the phone's copy (DESIGN 12.2, control 6). */
   async clearLocalData(): Promise<void> {
     const old = this.db.value;

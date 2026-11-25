@@ -13,11 +13,11 @@ import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.pantry.domain.Category
 import com.parcha.spoilnot.feature.pantry.domain.DateType
 import com.parcha.spoilnot.feature.pantry.domain.DiscardReason
+import com.parcha.spoilnot.feature.pantry.domain.ItemEditBase
 import com.parcha.spoilnot.feature.pantry.domain.Location
 import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryEvent
 import com.parcha.spoilnot.feature.pantry.domain.PantryList
-import com.parcha.spoilnot.feature.pantry.domain.ProductEdit
 import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockDraft
 import java.time.LocalDate
@@ -115,7 +115,7 @@ class PantryFlowTest {
         val aliceData = alice.data { d -> d.batches.size == 100 && d.batches.none { it.pendingSync } }
         assertEquals(100, aliceData.products.size)
         val bobData = bob.data { it.batches.size == 100 }
-        assertEquals(100, PantryList.rows(bobData.products, bobData.batches, today).size)
+        assertEquals(100, PantryList.rows(bobData.products, bobData.batches).size)
     }
 
     @Test
@@ -198,22 +198,13 @@ class PantryFlowTest {
         alice.pantry.add(householdId, alice.actor, draft("chese", inDays = 9), alice.data { it.batches.size == 1 })
         val data = alice.data { it.batches.size == 2 }
         assertEquals("same name in another case reuses the product", 1, data.products.size)
-        val product = data.products.single()
-        val edit =
-            ProductEdit(
-                "Cheese",
-                product.category,
-                product.defaultLocation,
-                product.unit,
-                null,
-                false,
-                null,
-                product.typicalShelfLifeDays,
-            )
-        alice.pantry.updateProduct(householdId, alice.actor, product, edit, data)
+        // The Edit window on one of the two purchases: a rename reaches both (invariant 2).
+        val base = ItemEditBase(data.batches.first(), data.products.single())
+        alice.pantry.editItem(householdId, alice.actor, base, base.edit.copy(name = "Cheese"), data)
 
+        // Bob's first server snapshot may come before Alice's writes reach the server: wait, don't fail on it.
         val renamed = bob.data { d ->
-            d.products.single().name == "Cheese" &&
+            d.products.singleOrNull()?.name == "Cheese" &&
                 d.batches.all { it.productName == "Cheese" }
         }
         assertEquals(2, renamed.batches.size)

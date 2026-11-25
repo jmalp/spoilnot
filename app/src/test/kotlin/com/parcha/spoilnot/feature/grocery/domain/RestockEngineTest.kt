@@ -6,6 +6,7 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryData
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import com.parcha.spoilnot.feature.pantry.domain.Product
+import com.parcha.spoilnot.feature.pantry.domain.QuantityUnit
 import com.parcha.spoilnot.feature.pantry.domain.StockBatch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,8 +15,9 @@ import org.junit.Test
 
 /**
  * DESIGN 9.6 requires tests for: crossing down, recovery then dropping again, the user deleting the item, two
- * concurrent evaluations, a product without a minimum, a minimum raised while already low, and batches with
- * quantity 0. The engine is applied to a small simulated database so whole sequences can be checked.
+ * concurrent evaluations, a product without a minimum, a minimum raised while already low, batches with quantity 0
+ * and a tombstone brought back. The engine is applied to a small simulated database so whole sequences can be
+ * checked. The runner's timing (first sync, which phone writes) is in [RestockRunnerTest].
  */
 class RestockEngineTest {
     private val list = "g1"
@@ -23,6 +25,9 @@ class RestockEngineTest {
     /** A tiny model of the household: products, batches and the default list's items. */
     private class World(var products: List<Product>, var batches: List<StockBatch>) {
         val items = mutableMapOf<String, Map<String, Any?>>()
+
+        /** Deleted items keep their fields (DESIGN 9.8); the cache check leaves them out. */
+        val tombstones = mutableMapOf<String, Map<String, Any?>>()
         var writes = 0
 
         val data get() = PantryData(products, batches, fromCache = false)
@@ -37,8 +42,10 @@ class RestockEngineTest {
 
                     is GroceryChange.UpsertLowStock -> {
                         val id = GroceryRules.lowStockItemId(change.productId)
-                        val before = items[id].orEmpty()
-                        items[id] = before + mapOf("quantity" to change.quantity, "name" to change.name)
+                        // As the mapper merges: an item new to the cache (or a tombstone) also starts unchecked.
+                        val before = items[id] ?: tombstones.remove(id).orEmpty()
+                        val created = if (change.writeCreated) mapOf("checked" to false) else emptyMap()
+                        items[id] = before + mapOf("quantity" to change.quantity, "name" to change.name) + created
                     }
 
                     else -> error("unexpected $change")
@@ -64,7 +71,7 @@ class RestockEngineTest {
 
         world.stock("b1", 1.0)
         world.run()
-        assertEquals(mapOf("quantity" to 1.0, "name" to "Milk"), world.items["low_milk"])
+        assertEquals(mapOf("quantity" to 1.0, "name" to "Milk", "checked" to false), world.items["low_milk"])
         assertFalse(world.products.single().restockArmed)
 
         val writes = world.writes
@@ -72,6 +79,25 @@ class RestockEngineTest {
         world.stock("b1", 0.5)
         world.run()
         assertEquals("no nagging while disarmed", writes, world.writes)
+    }
+
+    /** After v1 (UX-08): the Edit sheet of an item the app added says why. */
+    @Test
+    fun `the reason gives what is left and Keep at least, and nothing for an item a person added`() {
+        fun item(source: ItemSource, productId: String? = "milk") = GroceryItem(
+            id = "low_milk", name = "Milk", nameKey = "milk", quantity = 1.0, unit = null, note = null,
+            category = null, checked = false, checkedBy = null, source = source, productId = productId,
+            recipeId = null, createdBy = null, createdAt = null,
+        )
+        val data = PantryData(listOf(milk(min = 2.0)), listOf(batch("b1", "milk", quantity = 0.5)), fromCache = false)
+        assertEquals(
+            RestockReason.Low(have = 0.5, keepAtLeast = 2.0, unit = QuantityUnit.Pieces),
+            RestockEngine.reason(item(ItemSource.LowStock), data),
+        )
+        assertEquals(null, RestockEngine.reason(item(ItemSource.Manual), data))
+        assertEquals(RestockReason.ProductGone, RestockEngine.reason(item(ItemSource.LowStock, "gone"), data))
+        val noMinimum = data.copy(products = listOf(milk(min = null)))
+        assertEquals(RestockReason.ProductGone, RestockEngine.reason(item(ItemSource.LowStock), noMinimum))
     }
 
     @Test
@@ -106,6 +132,48 @@ class RestockEngineTest {
         world.stock("b1", 0.5)
         world.run()
         assertTrue("still below, still disarmed", world.items.isEmpty())
+    }
+
+    @Test
+    fun `a staple bought and added to the pantry comes back unchecked on the next dip`() {
+        // LOGIC-01: Add to pantry leaves a tombstone that is still checked.
+        val world = World(listOf(milk()), listOf(batch("b1", "milk", quantity = 1.0)))
+        world.run()
+        world.items["low_milk"] = world.items.getValue("low_milk") + ("checked" to true) // in the cart
+        world.tombstones["low_milk"] = world.items.remove("low_milk")!! // Add to pantry
+        world.stock("b1", 3.0)
+        world.run() // re-armed
+        world.stock("b1", 1.0)
+        world.run()
+        assertEquals(false, world.items.getValue("low_milk")["checked"])
+        assertEquals(1.0, world.items.getValue("low_milk")["quantity"])
+        assertTrue(world.tombstones.isEmpty())
+    }
+
+    @Test
+    fun `a live item already in the cart stays checked when the engine updates it`() {
+        val world = World(listOf(milk()), listOf(batch("b1", "milk", quantity = 1.0)))
+        world.items["low_milk"] = mapOf("quantity" to 1.0, "name" to "Milk", "checked" to true)
+        world.run()
+        assertEquals(true, world.items.getValue("low_milk")["checked"])
+    }
+
+    @Test
+    fun `a plan from this phone counts as its own change only when it moves stock or products`() {
+        assertTrue(RestockEngine.movesStock(listOf(PantryChange.DeleteBatch("b1"))))
+        assertTrue(RestockEngine.movesStock(listOf(PantryChange.AddToBatch("b1", -1.0))))
+        // The engine's own writes and unrelated ones do not.
+        assertFalse(RestockEngine.movesStock(listOf(PantryChange.SetRestockArmed("milk", false))))
+        assertFalse(RestockEngine.movesStock(listOf(GroceryChange.DeleteList("g1"))))
+    }
+
+    @Test
+    fun `the phone that made the change writes at once, the others after a delay`() {
+        assertEquals(0L, RestockEngine.delayMillis(10_000, 10_300))
+        assertEquals(RestockEngine.OTHER_PHONE_DELAY_MS, RestockEngine.delayMillis(10_000, 16_000))
+        assertEquals(RestockEngine.OTHER_PHONE_DELAY_MS, RestockEngine.delayMillis(null, 10_000))
+        // A clock that moved back does not make a change look like this phone's.
+        assertEquals(RestockEngine.OTHER_PHONE_DELAY_MS, RestockEngine.delayMillis(10_000, 9_000))
     }
 
     @Test

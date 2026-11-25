@@ -11,12 +11,14 @@ import com.parcha.spoilnot.feature.auth.domain.Units
 import com.parcha.spoilnot.feature.auth.domain.UserProfile
 import com.parcha.spoilnot.feature.auth.domain.UserRepository
 import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,18 +64,25 @@ sealed interface JoinState {
 
     data class Declined(override val pending: PendingJoin) : JoinState
 
-    /** The request disappeared without an answer, for example pruned after 7 days. */
+    /**
+     * The request disappeared without an answer, for example pruned after 7 days. Only after the membership was
+     * checked: an approved request that disappeared before this phone finished the join is not expired (after v1,
+     * SYNC-06).
+     */
     data class Expired(override val pending: PendingJoin) : JoinState
 }
 
 /**
  * The session state machine and membership watcher (DESIGN 5.1, 9.1).
  *
- * - Creates the profile if it is missing (for example after an interrupted sign-up).
- * - Completes an approved join request.
+ * - Creates the profile if it is missing right after sign-up or sign-in on this phone (an interrupted sign-up).
+ *   A profile that disappears later is never recreated: it was deleted with its account, maybe on another phone,
+ *   so this phone signs out instead (after v1).
+ * - Completes an approved join request, also when the request itself is gone but the membership exists.
  * - When the membership disappears (removed, or the household was deleted) it clears the profile pointer, which
  *   returns the user to the gate; whenever a household is left for any reason the local cache is cleared.
- * - Sign-out and account deletion pause all listeners while local data is cleared.
+ * - Sign-out and account deletion pause all listeners while local data is cleared, and run in the application scope
+ *   so that closing a screen cannot stop them halfway.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -86,7 +95,14 @@ class SessionManager @Inject constructor(
     @param:ApplicationScope private val scope: CoroutineScope,
 ) {
     private val shuttingDown = MutableStateFlow(false)
+
     private val pendingDisplayName = AtomicReference<String?>(null)
+
+    /**
+     * Set when someone signs up or signs in on this phone, until their profile is seen: only then may a missing
+     * profile be created (after v1). Set before the call, since the profile listener can start before it returns.
+     */
+    private val mayCreateProfile = AtomicBoolean(false)
 
     /** The household this process last saw the user in; its cache is cleared once they are no longer in it. */
     private val lastHouseholdId = AtomicReference<String?>(null)
@@ -106,19 +122,37 @@ class SessionManager @Inject constructor(
 
     suspend fun signUp(displayName: String, email: String, password: String) {
         pendingDisplayName.set(displayName.trim())
+        mayCreateProfile.set(true)
         auth.signUp(displayName.trim(), email.trim(), password)
     }
 
-    suspend fun signIn(email: String, password: String) = auth.signIn(email.trim(), password)
+    suspend fun signIn(email: String, password: String) {
+        mayCreateProfile.set(true)
+        auth.signIn(email.trim(), password)
+    }
 
-    /** Clears this device's copy of the household before signing out (DESIGN 12.2, control 6). */
-    suspend fun signOut() {
+    /**
+     * Signs out, unless this phone has changes that haven't reached the server yet and [evenIfUnsynced] is false:
+     * signing out clears the phone's copy, queue included, so it returns false and the screen asks "Some changes
+     * haven't synced yet. Sign out anyway?" first (after v1, SYNC-09). True once signed out.
+     */
+    suspend fun signOut(evenIfUnsynced: Boolean = false): Boolean {
+        if (!evenIfUnsynced && !localData.flushPendingWrites()) return false
+        signOutNow()
+        return true
+    }
+
+    /**
+     * Clears this device's copy of the household before signing out (DESIGN 12.2, control 6). Runs to the end even
+     * when the screen that asked is closed (see [untilDone]).
+     */
+    private suspend fun signOutNow() = untilDone {
         val uid = auth.currentUser?.uid
         shuttingDown.value = true
         try {
             // This phone stops receiving the user's digests (DESIGN 10.2).
-            if (uid != null) runCatching { devices.unregister(uid) }
-            runCatching { localData.clear() }
+            if (uid != null) bestEffort { devices.unregister(uid) }
+            bestEffort { localData.clear() }
             auth.signOut()
         } finally {
             pendingDisplayName.set(null)
@@ -130,7 +164,8 @@ class SessionManager @Inject constructor(
     /**
      * Deletes the account (DESIGN 5.1): checks the password, leaves the household, deletes the profile and devices,
      * clears local data and deletes the sign-in. An owner must transfer ownership or delete the household first.
-     * The sign-in is refreshed only at the very end if Firebase requires it, after all Firestore writes.
+     * The sign-in is refreshed only at the very end if Firebase requires it, after all Firestore writes. Once the
+     * password is checked it runs to the end even when the screen that asked is closed (see [untilDone]).
      */
     suspend fun deleteAccount(password: String) {
         val uid = auth.currentUser?.uid ?: return
@@ -139,35 +174,68 @@ class SessionManager @Inject constructor(
             ?: throw AppError.Offline()
         if (current is Session.InHousehold && current.role == Role.Owner) throw AppError.OwnerMustTransferFirst()
         auth.verifyPassword(password)
-        shuttingDown.value = true
-        try {
-            when (current) {
-                is Session.InHousehold -> households.leave(current.householdId, uid)
-                is Session.NoHousehold -> current.join?.let { households.abandonJoin(uid, it.pending) }
-                else -> Unit
-            }
-            users.deleteProfile(uid)
-            runCatching { localData.clear() }
+        untilDone {
+            shuttingDown.value = true
             try {
-                auth.deleteAccount()
-            } catch (e: AppError.RecentLoginRequired) {
-                // Firestore work is finished, so refreshing the sign-in now cannot affect it.
-                auth.reauthenticate(password)
-                auth.deleteAccount()
+                when (current) {
+                    is Session.InHousehold -> households.leave(current.householdId, uid)
+                    is Session.NoHousehold -> current.join?.let { households.abandonJoin(uid, it.pending) }
+                    else -> Unit
+                }
+                users.deleteProfile(uid)
+                bestEffort { localData.clear() }
+                try {
+                    auth.deleteAccount()
+                } catch (e: AppError.RecentLoginRequired) {
+                    // Firestore work is finished, so refreshing the sign-in now cannot affect it.
+                    auth.reauthenticate(password)
+                    auth.deleteAccount()
+                }
+            } catch (e: Exception) {
+                // The sign-in still exists: its profile may be created again, so the gate can show the error.
+                mayCreateProfile.set(true)
+                throw e
+            } finally {
+                pendingDisplayName.set(null)
+                lastHouseholdId.set(null)
+                shuttingDown.value = false
             }
-        } finally {
-            pendingDisplayName.set(null)
-            lastHouseholdId.set(null)
-            shuttingDown.value = false
+        }
+    }
+
+    /**
+     * Runs [block] in the application scope and waits for it. Sign-out and account deletion start by turning the
+     * session to Loading, which removes the screen that asked and cancels its coroutines; the work belongs to the
+     * session, not to that screen, so it must finish anyway. The caller still gets the result or the error.
+     */
+    private suspend fun <T> untilDone(block: suspend () -> T): T = scope.async { block() }.await()
+
+    /** A cleanup step whose failure must not stop the next one. Cancellation is never swallowed. */
+    private suspend fun bestEffort(step: suspend () -> Unit) {
+        try {
+            step()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best effort: the next step runs anyway.
         }
     }
 
     private fun sessionFor(user: AuthUser): Flow<Session> = users.observeProfile(user.uid)
+        .onEach { profile -> if (profile != null) mayCreateProfile.set(false) }
         .flatMapLatest { profile ->
             when {
                 profile == null -> flow {
                     emit(Session.Loading)
-                    users.createProfileIfMissing(user.uid, displayNameFor(user))
+                    // Only right after sign-up or sign-in on this phone (an interrupted sign-up then needs a sign-in
+                    // again). A profile that disappears later was deleted with its account, maybe on another phone,
+                    // whose sign-in is deleted only after the profile: it must not come back (after v1). Sign out here
+                    // too; this runs on in the application scope after the session moves on.
+                    if (mayCreateProfile.get()) {
+                        users.createProfileIfMissing(user.uid, displayNameFor(user))
+                    } else {
+                        scope.launch { bestEffort { signOutNow() } }
+                    }
                 }
 
                 profile.householdId != null -> watchMembership(user, profile, profile.householdId)
@@ -179,7 +247,10 @@ class SessionManager @Inject constructor(
         }
         .retryWhen { cause, attempt ->
             if (cause is CancellationException) return@retryWhen false
-            emit(Session.Loading)
+            // Only a permission refusal changes the screen. Any other error (the quota running out, the network, a
+            // bad document) keeps the last session on screen, cached data included, while it listens again
+            // (DESIGN 6.7, 7.5; after v1, REL-02).
+            if (cause.isPermissionRefusal()) emit(Session.Loading)
             delay(backoffMillis(attempt))
             true
         }
@@ -208,17 +279,21 @@ class SessionManager @Inject constructor(
 
     private fun watchJoinRequest(user: AuthUser, profile: UserProfile, pending: PendingJoin): Flow<Session> =
         households.observeOwnJoinRequest(pending.householdId, user.uid).transformLatest { request ->
-            val join = when (request?.status) {
-                null -> JoinState.Expired(pending)
-                JoinRequestStatus.Pending, JoinRequestStatus.Approved -> JoinState.Waiting(pending)
-                JoinRequestStatus.Declined -> JoinState.Declined(pending)
+            // A missing request is Expired only when no membership was made from it: the owner may have approved it
+            // and the job pruned it before this phone opened (after v1, SYNC-06).
+            val approved = when (request?.status) {
+                JoinRequestStatus.Approved -> true
+                null -> households.observeMembership(pending.householdId, user.uid).first() is Membership.Active
+                else -> false
+            }
+            val join = when {
+                approved -> JoinState.Waiting(pending)
+                request == null -> JoinState.Expired(pending)
+                request.status == JoinRequestStatus.Declined -> JoinState.Declined(pending)
+                else -> JoinState.Waiting(pending)
             }
             emit(Session.NoHousehold(user, profile.displayName, join))
-            if (request?.status ==
-                JoinRequestStatus.Approved
-            ) {
-                households.completeJoin(user.uid, profile.displayName, pending)
-            }
+            if (approved) households.completeJoin(user.uid, profile.displayName, pending)
         }
 
     private fun onTransition(session: Session) {
@@ -226,7 +301,7 @@ class SessionManager @Inject constructor(
             is Session.InHousehold -> lastHouseholdId.set(session.householdId)
 
             is Session.NoHousehold -> {
-                if (lastHouseholdId.getAndSet(null) != null) scope.launch { runCatching { localData.clear() } }
+                if (lastHouseholdId.getAndSet(null) != null) scope.launch { bestEffort { localData.clear() } }
             }
 
             Session.SignedOut -> lastHouseholdId.set(null)
@@ -245,3 +320,9 @@ class SessionManager @Inject constructor(
         const val SETTLE_TIMEOUT_MS = 10_000L
     }
 }
+
+/**
+ * The server refused the read (`PERMISSION_DENIED` or `UNAUTHENTICATED`): the rules no longer let this user see the
+ * profile or membership, so the screen must not keep showing it.
+ */
+internal fun Throwable.isPermissionRefusal(): Boolean = this is AppError.PermissionDenied

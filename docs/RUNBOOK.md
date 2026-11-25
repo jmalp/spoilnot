@@ -4,16 +4,18 @@ Operational tasks for Spoil Not. The design is in `DESIGN.md`; deviations are in
 
 ## Reminder job (DESIGN 10)
 
-The hourly job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml` at minute 7 of every
-hour, once per Firebase project:
+The job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml`, once per Firebase project.
+An Apps Script trigger in the owner's Google account starts it every quarter hour, with the workflow's own schedule
+as the backup; DESIGN 10.4 says why, and how on time the runs are. Setting the trigger up is "On-time reminders"
+below. The job catches up and sends at most one digest a day per user, however many runs start:
 
-| Project | GitHub secret |
+| Project | Repository secret ("How the jobs get their keys") |
 | --- | --- |
 | `spoilnot-prod` (testers) | `FIREBASE_SERVICE_ACCOUNT_JSON` |
 | `spoilnot-dev` (development, optional) | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
 
 A project whose secret is missing logs "nothing to do" and succeeds. A key stored under the wrong secret fails the
-run with "This key is for project …", and every run logs the project it served.
+run with `expiry-reminders failed: wrong-project`, and every run logs the project it served.
 
 ### Create the service account (once per Firebase project)
 
@@ -23,7 +25,7 @@ run with "This key is for project …", and every run logs the project it served
    - **Cloud Datastore User** (read and write Firestore),
    - **Firebase Cloud Messaging API Admin** (send notifications).
 4. Open the account → **Keys → Add key → Create new key → JSON → Create**. A `.json` file downloads.
-5. Store it as the repository secret, then delete the downloaded file:
+5. Store it as a repository secret, then delete the downloaded file:
    ```bash
    # spoilnot-prod
    gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot < ~/Downloads/<file>.json
@@ -35,11 +37,98 @@ run with "This key is for project …", and every run logs the project it served
 
 Never commit the key or put it anywhere else. Do not link a billing account (DESIGN 3).
 
-### Rotate the key (yearly)
+### Rotate the key (yearly, or at once if it shows in a log)
 
 Create a new key (step 4), replace the secret (step 5), run the workflow once by hand (below), then delete the old
 key under **Keys** in the console. The nightly export and the restore workflow use the same prod secret, so they
 pick up the new key too.
+
+### If the key ever shows in a log
+
+Run logs are public for 90 days, and GitHub hides a multi-line secret only line by line. The jobs never print an
+error itself, only its code, but if a log ever shows any part of a key (`private_key`, `BEGIN PRIVATE KEY`, lines of
+base64, or the account's `@….iam.gserviceaccount.com` email), treat the key as leaked:
+
+1. Rotate it at once (above): new key, new secret, then delete the old key under **Keys**. Deleting it is what makes
+   the copy in the log useless.
+2. Delete each run whose log shows it: the run's **⋯ → Delete workflow run**, or `gh run delete <run-id>`.
+3. In Firestore → Usage, look for reads or writes you don't recognize since that run.
+
+### On-time reminders (Apps Script)
+
+GitHub runs a workflow started through its API (`workflow_dispatch`) at once, but starts scheduled runs hours late
+(DESIGN 10.4). So a Google Apps Script in the owner's Google account starts the job every quarter hour:
+`backend/reminder/apps-script/trigger.gs`, tested in `backend/reminder/test/trigger.test.ts`. It ticks every minute,
+starts the job once per quarter hour (:00, :15, :30 and :45 UTC) on `main` with **dry_run** off, and tries again
+every minute when GitHub refuses. The job and its keys stay on GitHub.
+
+**Set it up** (once):
+
+1. **Token.** github.com → your picture → **Settings → Developer settings → Personal access tokens → Fine-grained
+   tokens → Generate new token**. Name: `spoilnot-reminder-trigger`. Expiration: the longest offered (note the date).
+   **Repository access → Only select repositories →** `jmalp/spoilnot`. **Permissions → Repository permissions →
+   Actions: Read and write** (GitHub adds Metadata: read-only by itself), nothing else. **Generate token**, copy it.
+2. **Script.** https://script.google.com → **New project**, named `Spoil Not reminder trigger`. Replace everything in
+   `Code.gs` with `backend/reminder/apps-script/trigger.gs` and save.
+3. **Token in the script.** **Project Settings** (the gear) **→ Script properties → Add script property**: name
+   `GITHUB_TOKEN`, value the token. Save. The token is never in the code, so the file stays the repository's.
+4. **Start it.** In the editor, pick `install` in the function menu and **Run**. Google asks you to authorize the
+   script: it is your own, so it says Google hasn't verified it (**Advanced → Go to Spoil Not reminder trigger**),
+   and it asks to connect to an external service, manage its triggers and send email as you. `install` checks the
+   token with a read that starts nothing, then creates the every-minute trigger; the log says "Installed".
+5. **Check.** Within 15 minutes, a run started on the quarter hour shows up (`gh run list --repo jmalp/spoilnot
+   --workflow reminders.yml --event workflow_dispatch --limit 4`), and its log is a live run, not a dry run.
+
+**What the token can do.** In this repository only, and only Actions: start, re-run and cancel workflows, switch them
+on or off, and delete runs, logs and artifacts, the nightly exports among them. It cannot read secrets, change
+settings or environments, or approve a deployment. So the restore, which waits for the owner's approval in the
+`restore` environment ("How the jobs get their keys"), never writes on its own, and an export started with it only
+makes one more encrypted export. If it ever leaks: **Fine-grained tokens →** the token **→ Delete**, then make a new
+one (step 1) and replace the script property.
+
+**Renew the token** before its expiration date: **Regenerate token** (or make a new one as in step 1), replace the
+script property and run `install` again to check it. An expired token makes the script email you once a day
+("GitHub refused the token (401)"); the reminders then go out on GitHub's schedule, late, until it is replaced.
+
+**Its emails** (at most one of each kind a day; since 2026-11-25):
+
+| Subject | Says | Do |
+| --- | --- | --- |
+| "reminders are not starting on time" | "refused the token (401)" | Renew the token (above) |
+| "reminders are not starting on time" | "answered 403" or "404 … no longer has access" | Check the token's repository access and **Actions: Read and write** (step 1) |
+| "reminders are not starting on time" | "answered 422 …" (another 4xx) | Check that `reminders.yml` on `main` still starts by hand with its `dry_run` input |
+| "reminders are not starting on time" | "GITHUB_TOKEN is missing" | Add the script property (step 3) |
+| "GitHub is slow to start the reminders" | "has answered 500" (or 502, 503, 429), "could not be reached" | Nothing: a quarter hour's run hadn't started 10 minutes in because of GitHub. The script keeps trying; see https://www.githubstatus.com. Shorter hiccups send no email |
+
+**Update the script** after a change to `trigger.gs`: open the project on script.google.com, replace everything in
+`Code.gs` with the new file and save. The trigger runs the saved code from its next minute; no `install` needed.
+
+**Turn it off.** Run `uninstall` in the script (GitHub's schedule carries on), then delete the token. To start the
+job hourly instead of every quarter hour, set `SLOT_MINUTES = 60` in the script: time zones with a half-hour offset
+then get their digest up to half an hour late. Since 2026-11-23 (B25) a run with nobody due costs three reads, so this
+saves only about 200 reads a day ("Check quota usage").
+
+### Who each run reads (B25, since 2026-11-23)
+
+Each run reads only the users who may be due: those whose `nextDigestAt` (on their profile, written only by the job)
+has come, and those whose profile changed since the previous run (`updatedAt` after `usersCursor` in `jobs/state`).
+The first run of each UTC day reads everyone with reminders on instead (`fullRead: true` in the summary, recorded as
+`lastUsersReadDate`) and fills in anyone without a time. DESIGN 10.3 has the details; DECISIONS 2026-11-23 the reasons.
+
+**Deploy and release order: none.** The change is the job only. It goes live with the merge, since every run builds
+`main`; it needs no rules deploy (the apps never write `nextDigestAt`, and the rules already refuse it), no index
+deploy (two automatic single-field indexes: `nextDigestAt` and `updatedAt` on `users`) and no app release (both apps,
+the released Android 1.0.0 and web 744d251 included, stamp `updatedAt` on every profile write). The first run after
+the merge finds no cursor, reads everyone (as every run did before) and writes each user's `nextDigestAt` once, one
+write a user; from the next run on, `usersRead` is the due and the changed, usually 0 to a handful.
+
+- To check it: the summary's `usersRead` should be small except when `fullRead` is true, and digests should arrive
+  as before. If someone says a reminder came late after changing a setting, the next full read (the first run after
+  00:00 UTC) fixes it; look for what wrote that profile without `updatedAt` (both apps always set it, DESIGN 10.3).
+- To make the next run read everyone: in the Firebase console delete the `usersCursor` field of `jobs/state`.
+- To undo it: revert the PR. The job before it ignores `nextDigestAt`, and the field stays on profiles, harmless. If
+  the change comes back later, its first run reads everyone again only if the cursor is gone; delete `usersCursor`
+  first so the times are recomputed (a time the old job left behind is only ever too early, which costs a read).
 
 ### Run the job by hand
 
@@ -55,9 +144,60 @@ gh workflow run reminders.yml -f dry_run=true
 - **Actions → expiry-reminders**: look for failed runs. Make sure Actions failure emails are on
   (github.com/settings/notifications → Actions).
 - Scheduled runs can be late or skipped at busy times; the job catches up until 22:00 in each user's time zone and
-  never sends twice a day.
+  never sends twice a day. To see how GitHub is starting them, count start times by UTC hour:
+  ```bash
+  gh run list --repo jmalp/spoilnot --workflow reminders.yml --event schedule --limit 500 --json startedAt --jq '.[].startedAt[11:13]' | sort | uniq -c
+  ```
+  Every hour should show runs. If whole hours are missing for a week, see DESIGN 10.4 and 10.6.
+- Since 2026-11-22 most runs are started by the Apps Script trigger ("On-time reminders"). If digests come late
+  again, see whether it still starts them (`gh run list --repo jmalp/spoilnot --workflow reminders.yml --event
+  workflow_dispatch --limit 8`), then the script's **Executions** page on script.google.com and its email: usually
+  the token expired (the table under "On-time reminders" says what each email means).
+- Each run prints one summary line, `project <id>: {…}`, with counts only:
+
+  | Field | Meaning |
+  | --- | --- |
+  | `fullRead` | Whether this run read every user with reminders on (the first run of each UTC day, or no cursor yet) |
+  | `usersRead` | Profiles read: those whose `nextDigestAt` has come (everyone on a full read) and those changed since the last run |
+  | `due`, `sent`, `emptyDigests` | Users due this run, messages delivered, due users with nothing to report (done for the day) |
+  | `skippedNoDevices` | Due users with no registered phone; tried again next run |
+  | `skippedNotMember` | Due users whose household no longer lists them (below) |
+  | `skippedDeleted` | Due users whose profile was deleted during the run (an account deletion) |
+  | `gaveUp` | Users whose digest reached no device in 3 runs today; done for the day, tried again tomorrow |
+  | `deadTokens` | Device documents deleted because FCM said the token is unregistered or invalid |
+  | `rescheduled` | Users read but not sent to whose `nextDigestAt` the run set or removed (most on the first run after a change) |
+  | `failures` | Households or users whose step failed; the rest of the run went ahead, and the run fails at the end |
+  | `pruned`, `lastPruneDate` | Whether this run pruned, and the UTC date of the last prune without failures |
+  | `prunedActivity`, `prunedJoinRequests`, `prunedTombstones`, `prunedMeals`, `pruneFailures` | The prune's counts |
+
+- `failures` counts a household or user whose step failed this run. Each one also prints a line such as
+  `a digest failed: app/network-timeout` (the step and the code, never an ID). The run carries on, then fails so
+  GitHub emails you; the next run tries them again. Look the code up in the table below.
 - The log line `skippedNoDevices` counts users whose phones have not registered (they have not opened the app
   since installing, or notifications are blocked).
+- `skippedNotMember` counts due users whose household no longer lists them (removed, or the household was
+  deleted) and whose app has not run since. They get nothing, and the job clears their household pointer as their
+  app would, so they are not counted again.
+- The daily prune runs in the first run of each UTC day (it keeps `lastPruneDate` in the job's own document
+  `jobs/state`, which clients can't read). Since 2026-11-10 it deletes join requests older than 7 days only when
+  they are pending or declined, or approved and finished: an approved request whose sender's profile still waits on
+  that household stays until their app opens and finishes the join (each costs one read of that profile a day). The
+  apps people have (Android 1.0.0-beta.9, web 55edcc5) need the approved request to get in, so this takes effect
+  safely with the merge, before any release. `pruneFailures` counts old documents it could not delete. The run then
+  fails so GitHub emails you, the date is not recorded, and the next run prunes again. If `lastPruneDate` in the
+  summary is more than a day old, the prune is failing or no run has started today.
+- A failed run prints one line, `<job> failed: <code>.`, and never the error itself (logs are public):
+
+  | Code | Meaning |
+  | --- | --- |
+  | `wrong-project` | The secret holds the other project's key |
+  | `key-not-json`, `app/invalid-credential` | The secret is not a valid JSON key file; store it again (step 5) |
+  | `PERMISSION_DENIED`, `UNAUTHENTICATED` | The key was deleted or lost a role; check the service account (steps 3 and 4) |
+  | `RESOURCE_EXHAUSTED` | The day's free reads or writes ran out (Check quota usage) |
+  | `UNAVAILABLE`, `DEADLINE_EXCEEDED` | Google was briefly unreachable; the next run catches up |
+  | `usage`, `no-key`, `not-an-export`, `no-such-household` | A restore that could not start (Restore a household) |
+  | `different-owner` | The restore's target household has another owner than the export's; nothing was written (Restore a household) |
+  | Anything else, or `no code` | Run it again by hand. If it keeps failing, reproduce it on a computer with the dev key; never commit a change that prints the error |
 
 ## Firestore rules
 
@@ -70,6 +210,45 @@ cd firebase && npx firebase deploy --only firestore:rules --project prod
 ```
 
 Both projects run the same rules; deploy to dev first. `spoilnot-prod` was opened for the beta on 2026-10-18.
+
+A rules change that refuses something an older build writes goes out **after** the builds that no longer write it:
+Android first (then raise `minSupportedBuild`), the web app next (then raise `minWebBuild` if its build raised
+`WEB_BUILD`, below; web builds before that gate keep their version until they restart), the rules last. If the rules refuse something they should not, Firebase console >
+Firestore Database > Rules lists earlier versions; publish the previous one, then fix and test the rules here.
+
+### The 2026-11-08, 2026-11-09, 2026-11-10 and 2026-11-13 rules (DESIGN 8.1, 8.5 and 5.1): deployed 2026-11-21
+
+They went out together, in one deploy to each project, after the builds that no longer write what they refuse.
+2026-11-08's: allowed fields, authors, deletes and counts. 2026-11-09's (one phone wins, 8.5 invariant 10): a grocery
+item is tombstoned once, a meal is marked cooked once, and items are created only under a list that exists.
+2026-11-10's: a join request may carry `emailMasked`, the sender's sign-in email masked as the rules compute it
+(`ro***@example.com`), and a batch's quantity may be below 0 (8.5 invariant 1). 2026-11-13's: a join request no longer
+needs the code's `active` to be true (Pause joining was removed, DESIGN 5.1), and a planned meal may have up to 1,000
+servings (it was 100; B21, DESIGN 5.9).
+
+They refuse what builds before Android 1.0.0-beta.10 and web build 3 did when throwing several batches away at once,
+when I cooked this used up two or more whole batches (and both Undos), and the second phone's write when two phones
+race; the update gates below keep those builds out. How it went out on 2026-11-21, in the order set above (Android,
+then the web app, then the rules):
+
+1. Android 1.0.0 (versionCode 13, commit `744d251`) released with `release-beta.sh --name 1.0.0`. The rules had not
+   changed since beta.11, so the script did not ask about them.
+2. `minSupportedBuild` 13 in `config/app` (spoilnot-prod).
+3. The web app from `744d251` to spoilnot-dev, then spoilnot-prod (`deploy-web.sh`, both with the full browser tests,
+   answering no to the rules).
+4. `minWebBuild` 3 in `config/app` (prod and dev). The web build from 2026-10-31 predates that gate, so its iPhones
+   took the new build when the Home Screen app restarted.
+5. The rules to spoilnot-dev, checked there by the owner with both apps (throw two batches away and Undo, I cooked
+   this using up two batches, a member deleting a list with items, Clear household data, transfer and delete on a
+   spare household, QA flows 43 and 47), then to spoilnot-prod:
+
+   ```bash
+   cd firebase && npx firebase deploy --only firestore:rules --project dev
+   cd firebase && npx firebase deploy --only firestore:rules --project prod
+   ```
+
+6. Then a day's watch for refused writes (testers seeing "You don't have permission to do that."). If one shows,
+   publish the previous version in the console (above).
 
 ## Beta releases (Firebase App Distribution)
 
@@ -85,7 +264,8 @@ It:
 1. checks that you are on `main`, with no uncommitted changes (`gradle.properties` is allowed) and the same as
    GitHub;
 2. raises `versionCode` by one and the beta number in `versionName` (`1.0.0-beta.3` becomes `1.0.0-beta.4`; use
-   `--name 1.0.0` for a chosen name);
+   `--name 1.0.0` for a chosen name). Since 1.0.0 (2026-11-21) the name has no beta number, so every release passes
+   `--name` (`--name 1.0.1` for fixes, `--name 1.1.0` for new features); without it the script stops before building;
 3. builds the prod release and **refuses to upload** unless it is signed with the upload key;
 4. asks to deploy the Firestore rules (dev, then prod) if `firebase/firestore.rules` changed since the last release;
 5. uploads it to everyone in `.beta-testers` (one email per line; the file is git-ignored because the emails are
@@ -101,6 +281,27 @@ To make older builds stop working until updated, raise `minSupportedBuild` in Fi
 **Required for the release with changes-only listeners (DESIGN 9.8):** right after the release, raise
 `minSupportedBuild` to that release's `versionCode`. Older builds show deleted items again (tombstones) and delete
 without leaving one, so they must update.
+
+**The web app's counterpart is `minWebBuild`** in the same document (DESIGN 18.5). A change that older web builds
+must not keep running raises `WEB_BUILD` in `web/src/core/version.ts` by one (its PR says so). After that build is
+deployed to spoilnot-prod (`./scripts/deploy-web.sh prod`), set `minWebBuild` in `config/app` (spoilnot-prod) to that
+number, as a number (Firestore console > `config` > `app` > Add field, type number; the field may not exist yet).
+Do the same in spoilnot-dev after deploying there. Never set it before the deploy: phones would look for a version
+that is not there. Then check on an iPhone that still has the old build (QA flow 36): open Spoil Not from the Home
+Screen, signed in to a household, or bring it back to the front; within a few seconds "A new version of Spoil Not is
+ready" shows and stays past 10 seconds until Update; after Update, Settings > About shows the new build number. If
+the prompt never comes, check Hosting's release history for the deploy.
+
+**The release with the sync cursor from the server (2026-11-09, DESIGN 9.8)** raised `WEB_BUILD` to 2: set
+`minWebBuild` to 2 after its web deploy, and raise `minSupportedBuild` to its Android `versionCode` after the testers
+have it. Older builds still take the cursor from the cache and can miss another member's changes to a list for up to
+20 hours. Updated phones read each collection in full once at their next open (their sync log has no cursor yet),
+about one day's full read more per phone, once.
+
+**The first release after 2026-11-12 (privacy details):** release builds now drop the system log's verbose, debug and
+info lines (R8, DECISIONS 2026-11-12) and turn Firebase Sessions off. On that beta, run QA section 5 (Crash reports)
+and QA flow 53: a crash report still arrives with Send crash reports on. The app's own logs were always debug-only;
+to read them, run a dev debug build.
 
 **New tester:** add their email to `.beta-testers`. To invite them to the current release without a new build:
 
@@ -164,44 +365,151 @@ Then, from a clean checkout:
 - A bad release: Firebase console > Hosting > Release history > Roll back. Installed apps pick up the rolled-back
   version like any update.
 - `npm run e2e:preview` builds and tests the app under the hosting headers locally (with the emulators running), as
-  CI does. For a performance check: `npx vite preview --port 4173`, then
+  CI does; it also checks what the service worker precaches and caches on first use (`runtime-cache.spec.ts`). For a performance check: `npx vite preview --port 4173`, then
   `CHROME_PATH=<Playwright's Chromium> npx lighthouse http://localhost:4173/ --only-categories=performance,accessibility`
   (results in DESIGN 18.6).
 
+## Benchmark setup (DESIGN 13.1)
+
+Benchmarks and the baseline profile need an emulator that runs at full speed on the Mac's GPU, or the numbers mean
+nothing (review 08, PERF-01). `adb` in the commands of this section and the next is
+`~/Library/Android/sdk/platform-tools/adb`, which isn't on the PATH (the scripts call it by that path). Start Pixel_8
+headless:
+
+```bash
+~/Library/Android/sdk/emulator/emulator -avd Pixel_8 -gpu host -feature -Uwb -no-window -no-snapshot -no-boot-anim -no-audio
+```
+
+- `-gpu host` draws with the Mac's GPU. The default `-gpu auto` can choose SwiftShader (software rendering), which
+  draws frames several times slower than a phone.
+- `-no-window`: macOS throttles an emulator whose window isn't in front (App Nap), so a windowed one runs at background
+  priority (4 instead of 31) and its frames take 50 to 70 ms even in the system Settings list. Headless it runs at
+  full priority and gives the same numbers run after run.
+- `-feature -Uwb` stops the UWB service's crash loop on this image (a crash dump every few seconds takes a whole guest
+  core). The emulator gives this image 4 GB whatever `-memory` says.
+
+`./scripts/baseline-profile.sh` checks the device before it does anything (`--check` runs only the checks): it refuses
+a SwiftShader renderer (`adb shell dumpsys SurfaceFlinger | grep '^GLES:'` must name "Apple M1 Pro"), warns when the
+emulator's process runs under priority 31 (`ps -o pri -p <qemu pid>`), waits up to five minutes for the guest's
+one-minute load to fall under 2.5, and warns when the Mac has under 20% memory free or Low Power Mode is on. Also:
+
+- Keep the lid open and the Mac awake for the whole run: a sleeping Mac freezes the emulator mid-run, and the run is
+  worthless (`pmset -g log | grep Sleep` shows when).
+- Run one benchmark method per Gradle call with `-Pandroid.testInstrumentationRunnerArguments.class=<class>#<method>`;
+  a `tests_regex` with `|` or `(` runs no tests at all (AGP passes it through the device's shell unquoted).
+- Emulator numbers compare builds and screens on this Mac; they aren't phone timings. Phone timings come from the
+  owner's phone checks (QA.md 4).
+- The emulator drifts between sessions (on 2026-11-17 the keyboard made frames three to four times as janky as on
+  2026-11-02 for the same build). When a number moves, run the previous build the same day: a second worktree at
+  the older commit with `JankBenchmark.kt` and `AppDriver.kt` copied in, the same test, alternating with this one
+  (DESIGN 13.1 has the 2026-11-17 A/B).
+
 ## Baseline profile (DESIGN 13.1)
 
-Release builds ship `app/src/main/baselineProfiles/baseline-prof.txt`, a list of the code the app runs while
-starting and on its busiest screens, so Android can compile it ahead of time. Phones that install the APK from App
-Distribution get it through `androidx.profileinstaller` and compile it during their next idle maintenance (often
-overnight), so the first day may still feel like before.
+Release builds ship the rules in `app/src/main/baselineProfiles/`, a list of the code the app runs while starting and
+on its busiest screens, so Android can compile it ahead of time. AGP merges every file there:
 
-Regenerate it after large UI changes (new screens, a new list), with the Firebase emulators running
-(`./scripts/emulators.sh`) and one Android emulator or phone connected:
+- `baseline-prof.txt`, generated (below).
+- `crash-reports-prof.txt`, kept by hand: crash reports and Firebase Sessions, which run at every start of a build on
+  real Firebase but are off in the emulator builds the generator drives, so a fresh profile leaves them out. It holds
+  those packages' rules from the last profile generated with them on (`f737440`, 2026-10-28). After a Firebase update,
+  rules for classes that no longer exist are ignored; refresh the file only if crash reporting changes a lot.
+
+Phones that install the APK from App Distribution get the profile through `androidx.profileinstaller` and compile it
+during their next idle maintenance (often overnight), so the first day may still feel like before.
+
+Regenerate it after large UI changes (new screens, a new list) and after library updates (Compose, Firebase,
+DataStore: their code is in the profile too), on the benchmark setup above, with the Firebase emulators running
+(`./scripts/emulators.sh`):
 
 ```bash
 ./scripts/baseline-profile.sh
 ```
 
-It seeds the emulator-only 500-batch household (`PantryScrollPerfTest`), runs `BaselineProfileGenerator` in the
-`benchmark` module against the dev benchmark build (start, sign in, every tab, Insights, Pantry scrolls, Add item, Plan's add sheet), and
-copies the result into the app (the benchmarks tap Skip tour when the app tour shows). Review the diff and commit it. `--measure` also runs `StartupBenchmark` and
-`PantryScrollBenchmark` without and with the profile and prints the medians; `--measure-only` runs just the
-benchmarks with the profile already in the app. Emulator numbers compare builds; they
-are not phone timings, and a headless emulator with software rendering (`-gpu swiftshader_indirect`) draws scroll
-frames about twice as slowly as one on the Mac's GPU, so compare scroll numbers only between runs on the same setup.
+It checks the device, seeds the emulator-only perf household (`PantryScrollPerfTest`, with `-e perf true`: 500 batches,
+150 grocery items with 30 in the cart, 40 recipes without photos, three meals a day from a week ago to the end of next
+week, and six months of counts for Your kitchen; each part is added only where it is missing, so a run on an older
+household fills it in), runs `BaselineProfileGenerator` in the `benchmark` module against the dev benchmark build and
+copies the result into the app. The journey signs in, waits for Home's cards, opens Your kitchen from Home's card,
+scrolls Pantry, opens Add item, opens Plan's add sheet and visits every tab (it taps Skip tour when the app tour
+shows). Every step checks that it opened
+what it should and fails the run otherwise: the benchmark build shows the screens' test tags to UI Automator as
+resource ids (`screen_pantry`, `card_home_attention`), and the sheets are found by their text. When a run fails with
+"… didn't show", a button or screen changed: fix the selector in `AppDriver.kt` rather than dropping the step. Review
+the diff and commit it.
+
+`--measure` also runs `StartupBenchmark` and `PantryScrollBenchmark` without and with the profile and prints the
+medians; `--measure-only` runs just the benchmarks with the profile already in the app. `--jank` runs `JankBenchmark`
+(about 25 minutes), one test per Gradle call, with the profile already in the app: the first and steady scrolls of
+Pantry, Groceries, Recipes, Plan and Home, Your kitchen opened from Home while its charts grow, every tab twice, Add
+item and Plan's add sheet opened, dragged and closed, and typing "item 12" in Pantry's search and Groceries' quick add
+(which capitalizes words, so it shows "Item 12"). For each it prints frame CPU time (P50, P90, P99) and the share of
+janky frames, those whose `frameOverrunMs` is above 0, over all five iterations and per iteration. A test that fails
+doesn't stop the others; the script names the failed ones at the end, exits 1, and keeps each one's test report in
+`benchmark/build/jank-failures/<test>/` (the next test's run replaces the one in `build/outputs`). Only a run that
+generated the profile ends with the reminder to commit it. Compare them with the last run in DESIGN 13.1; run it after changes to
+a screen's lists, sheets or animations, and after Compose updates. `StartupBenchmark` reports
+two numbers per start: `timeToInitialDisplayMs`, the first frame (Home's loading skeleton), and
+`timeToFullDisplayMs`, when Home reports itself drawn with its cards (`ReportDrawnWhen`), which is what DESIGN 13.1's
+cold-start budget is measured on.
 
 If a benchmark says the app "must not be running prior to cold start", something restarted the app right after the
 benchmark closed it: look in `adb logcat` for `Start proc … com.parcha.spoilnot.dev … for bound-service`. Crash
 reports and Firebase Sessions caused it until 2026-10-31 (their uploads to the emulators' demo project failed and were
 retried); both are now off in the emulator builds.
 
+### What a late frame did
+
+Every iteration leaves a Perfetto trace of its measured part next to the results
+(`benchmark/build/outputs/connected_android_test_additional_output/…/*.perfetto-trace`). Macrobenchmark clears the
+app's shader cache before every iteration, so a "first" scenario sees what a phone sees after an install or update.
+The trace processor that reads them comes with the benchmark library and runs on the emulator:
+
+```bash
+adb push "$(find ~/.gradle/caches -name trace_processor_shell_aarch64 | head -1)" /data/local/tmp/tp
+adb shell chmod 755 /data/local/tmp/tp
+adb push <iteration>.perfetto-trace /data/local/tmp/t.trace
+adb shell "/data/local/tmp/tp -q /data/local/tmp/q.sql /data/local/tmp/t.trace"
+```
+
+with a query in `q.sql` (pushed the same way), for example the GPU programs compiled on the RenderThread and the Skia
+operation each one was compiled for:
+
+```sql
+select round(c.dur / 1e6, 1) as ms, p.name as op,
+  (select a.name from ancestor_slice(c.id) a where a.name in ('flush layers', 'flush commands')) as pass
+from slice c join slice p on p.id = c.parent_id where c.name = 'shader_compile';
+```
+
+`flush layers` is drawing into an offscreen layer and `flush commands` drawing onto the screen; the frame's
+`drawLayer [<name>] <size>` slices name the layers (`AndroidEdgeEffectOverscrollEffect` is a list stretched past its
+end). Frames that wait in `dequeueBuffer` / `waitForBufferRelease` are waiting for the emulator's compositor, not the
+app (DESIGN 13.1).
+
+## Opt-in instrumented tests
+
+Three instrumented tests run only when asked, and the default `connectedDevDebugAndroidTest` run leaves them out
+entirely (`HiltTestRunner` adds them to `notAnnotation`), so its report counts only tests that ran:
+
+- `LiveImportTest` (`@LiveTest`) reads the 10 real recipe sites; `-Pandroid.testInstrumentationRunnerArguments.live=true`
+  (the command is in docs/import-test-sites.md).
+- `PantryScrollPerfTest` (`@PerfTest`) seeds the perf household for the benchmarks (500 batches, a long grocery list,
+  recipes, a plan and six months of counts; "Baseline profile" above);
+  `-Pandroid.testInstrumentationRunnerArguments.perf=true` (`baseline-profile.sh` passes it).
+- `SharePreviewTimingTest` (`@TimingTest`) holds M5's share to preview, activity start included, to 5 s (the median of
+  three shares). Run it alone on a quiet emulator, with nothing else running on the Mac:
+  `./gradlew connectedDevDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.parcha.spoilnot.feature.recipes.SharePreviewTimingTest -Pandroid.testInstrumentationRunnerArguments.timing=true`.
+  Logcat's `SharePreviewTimingTest` line has the three times.
+
 ## Nightly export and restore (DESIGN 13.4)
 
 `nightly-export.yml` runs at 07:17 UTC (about 3 AM Eastern) and saves every spoilnot-prod household as
 `<householdId>.json`, encrypted together as `household-exports.tar.gz.enc` in an artifact called `household-exports`,
-kept 14 days. The format inside is the same as the app's Settings > Export file. The repository is public, and anyone
+kept 14 days. The format inside is the same as the app's Settings > Export file, without the two parts only the apps
+add: the person's own profile and the activity log. The repository is public, and anyone
 signed in to GitHub can download artifacts, so the job encrypts with the `EXPORT_ENCRYPTION_KEY` secret (AES-256,
-PBKDF2) and fails rather than upload anything unencrypted.
+PBKDF2) and fails rather than upload anything unencrypted. Its steps run with `shell: bash` (`pipefail`), so it also
+fails rather than upload an archive that `tar` didn't finish.
 
 **Set up the key once** (and again only to rotate it; older exports then need the old key):
 
@@ -218,29 +526,47 @@ To find an export: **Actions → nightly-export →** pick a run (its URL ends w
 ### Restore a household
 
 This is also the way back after an owner's **Clear household data** (Settings): pick the export from the night before
-the clear. It brings back products, stock, lists and their items, recipes and the monthly counts; the cleared
-activity does not come back.
+the clear. It brings back everything below; the cleared activity does not come back.
 
-Restoring writes back the export's products, stock, grocery lists and their items, and recipes, exactly as they
-were. It never changes the household document or its members (they control access), and it leaves documents created
-after the export alone. Anything deleted since the export comes back; anything changed since goes back to the
-exported version.
+Restoring writes back the export's products, stock, grocery lists and their items, recipes, monthly counts and
+planned meals, as they were, each stamped with the time of the restore (`updatedAt`, and `updatedBy: restore`), so
+every phone shows the restore within a minute. It never changes the household document or its members (they control
+access), never writes a profile or the activity log, and it leaves documents created after the export alone.
+Anything deleted since the export comes back; anything changed since goes back to the exported version. Only the
+timestamp fields come back as timestamps (`createdAt`, `updatedAt`, `checkedAt` and the like); everything else, such
+as a note that looks like a date and time, stays as it was typed.
+
+The target household must have the same owner as the exported one. Otherwise the restore stops with `restore failed:
+different-owner` before writing anything, also in the dry run. Tick **different owner** only when that is what you
+mean: ownership moved to another member since the export, or you are restoring into a household someone else
+owns.
 
 1. **Actions → restore-from-export → Run workflow.** Enter the export run's ID and leave the household empty: the
    log lists the first four characters of each household ID in that export with its document counts (nothing is
    written). Logs are public, so full IDs are never printed; the full ID is in the Firebase console under
    `households`.
 2. Run it again with the first characters of the household ID (four or more, enough to match one export) and
-   "apply" unticked. The log shows how many documents would be written, by kind.
-3. Run it again with **apply** ticked.
-4. To restore into a different household (for example after the original was deleted, recreate one in the app,
-   then find its ID in the Firebase console under `households`), fill in **target household**.
+   "apply" unticked. The log shows how many documents would be written, by kind, and `Target: same owner as the
+   export.` (it reads the target household, nothing else).
+3. Run it again with **apply** ticked. Since 2026-11-22 every restore run waits for your approval, the listing and
+   dry runs too: on the run's page, **Review deployments →** tick `restore` **→ Approve and deploy** (GitHub also
+   emails you). The log ends with `restored N document(s), M failed`. If M is not 0, the
+   run fails: those documents were not written (for example one too large for Firestore, which can take others in
+   its batch with it). A restore sets each document as exported, so running it again is safe. `restore failed: no-such-household` means
+   the target household does not exist (step 4).
+4. To restore into a different household (for example after the original was deleted, recreate one in the app with
+   the same owner's account, then find its ID in the Firebase console under `households`), fill in **target
+   household**. A household with another owner also needs **different owner** ticked; the log then says `Target: a
+   different owner, as asked`.
 
-From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<first characters> -f apply=false`.
+From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<first characters> -f apply=false`
+(add `-f different_owner=true` for step 4's other owner).
 
 A file saved from Settings > Export can be restored the same way from a computer that has the service account key
-in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci && npm run build && node dist/restore-main.js
-<file> <householdId>`), but the workflow is preferred because the key never leaves GitHub.
+in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci --ignore-scripts && npm run build && node
+dist/restore-main.js <file> <householdId> [--apply] [--different-owner]`), but the workflow is preferred because the
+key never leaves GitHub. Its `profile` and `activity` are not restored. Settings > Export needs a connection: it reads
+from the server and, offline, says "You're offline" and saves nothing.
 
 ## Regenerate an invite code by hand
 
@@ -249,45 +575,149 @@ the old one. If that is not possible, in the Firebase console → Firestore:
 
 1. Choose a new code: 10 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0 or 1).
 2. `inviteCodes` → **Add document** with that code as the document ID and fields `householdId` (string),
-   `householdName` (string), `active` (boolean, true), `createdBy` (the owner's uid), `createdAt` (timestamp).
+   `householdName` (string), `active` (boolean, true; builds before 2026-11-13 refuse a code without it),
+   `createdBy` (the owner's uid), `createdAt` (timestamp).
 3. `households/<id>`: set `inviteCode` to the new code.
 4. Delete the old `inviteCodes/<old code>` document.
 
+## A screen says "Couldn't load" or something is missing from a list (DESIGN 6.7, 8.6)
+
+"Couldn't load." with Retry means one of the screen's listeners failed; the app listens again by itself after up to
+32 s, so a short outage needs nothing. If it stays, the usual cause is the phone's access (it was removed from the
+household, or the rules changed): the session moves it to the gate once the server confirms. A document with a field
+of another type (a console edit, a restore, a buggy build) doesn't cause it any more: both apps read that field as
+missing (a text quantity counts as 0) and skip a document only if it still can't be read. To find one, run a dev
+debug build and filter logcat for `Skipped a document`, or in the web app on the emulators look for the same warning
+in the browser console; it names the document ID. Fix the field in the console with its right type and a new
+`updatedAt` (a server timestamp), so the changes-only listeners pick it up.
+
 ## Check quota usage (DESIGN 9.7)
+
+**Today's figure** (the one place for it; other docs link here): about **1,970 reads a household a day**, so about
+**17.8 households** fit under 70% of the free reads, with the default 120 reminder runs a day (quota-sim, 2026-11-23,
+the B25 table below). Reads run out first. DESIGN 9.7 gives the budget and the method, and DESIGN 17 how each change
+moved the figure.
 
 Firebase console → the project → **Usage and billing → Usage** (or Firestore → Usage) shows reads, writes and
 deletes per day against the free limits (50,000 reads, 20,000 writes, 20,000 deletes). Look at it after adding a
 household or a new feature.
 
-`cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Result on
-2026-10-28 with changes-only listeners, Use it up, changes-only Recent activity and the meal planner (30 products, 60 batches, 25 grocery items, 15 recipes, this
-month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 phones opening the app 8 times a
-day, the first open a full read, Home reading recipes and this week's meals on every open, the 40 daily writes spread between opens, each logging an activity event, 10 of
-them finishing a batch):
+When reads run out, both apps keep working from each phone's copy with the red quota banner above every screen and
+"Offline" on the tabs, until midnight Pacific (DESIGN 6.7, 7.5); nobody is signed out. Listeners retry at most every
+32 s, which costs nothing while refused. Nothing needs doing; if it happens often, see quota-sim below.
+
+`cd firebase && npm run quota-sim` replays a day of 10 typical households against the emulator. Knobs:
+`HOUSEHOLDS`, `RUNS` (reminder runs that start in a day, default 120 since 2026-11-22: the on-time trigger's 96 and
+about 24 of the 72 scheduled), `WEB` (how many of each
+household's 4 phones are the web app) and `WARM` (of each phone's 7 later opens, how many find the app's process
+still alive, or for web phones how many resume the suspended Home Screen app instead of reloading it; `HELD=1`
+replays the apps before 2026-11-09 (Android) and 2026-11-10 (web), which kept some listeners while the process or page
+lived). Result on 2026-11-09 (30 products, 60 batches, 25 grocery items, 15 recipes,
+this month's counts, 30 tombstones and 42 planned meals (12 this week) per household; 4 Android phones opening the
+app 8 times a day, the first open a full read, Home reading recipes and this week's meals on every open; the 40
+daily writes spread between opens, each logging an activity event, 10 of them finishing a batch and 10 creating a
+grocery item; a prune every day):
 
 | Reads | Per day | Share of 50,000 |
 | --- | --- | --- |
-| App listeners | 13,000 | |
-| Security-rule lookups | 3,040 | |
-| Scheduled jobs (reminders, housekeeping, export) | 3,480 | |
-| **Total for 10 households** | **19,520** | **39.0%** |
-| Per household | about 1,950 | 3.9% |
+| App listeners | 12,720 | |
+| Security-rule lookups | 3,540 | |
+| Scheduled jobs: runs 984, digests 200, housekeeping 680, export 2,100 | 3,964 | |
+| **Total for 10 households** | **20,224** | **40.4%** |
+| Per household | about 2,020 | 4.0% |
 
-Writes were 540 (2.7%). Before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and
-19,320 before Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner (week's
-grocery list, Cooked, Use it up while picking) left it at 19,440: those sheets listen to the pantry and lists only while
-open, which the cache already holds from Home and Pantry. Part 3 adds the digest's query for today's meals (about 2
-reads per user a day): 19,520. So the free plan holds about 18
-households of this size under the 70% warning line. The largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
+| Writes and deletes | Per day | Share of 20,000 |
+| --- | --- | --- |
+| Writes (actions, month counts, activity events, the job's) | 941 | 4.7% |
+| Deletes (the daily prune: tombstones, activity after 30 days, meals after 28) | 570 | 2.9% |
+
+So the free plan held **about 17 households** of this size under the 70% warning line (reads run out first).
+Since 2026-11-22 the on-time trigger starts the job 96 more times a day ("On-time reminders"), and each run read every
+user with reminders on: `RUNS=120`, the new default, gave 24,160 reads (48.3%), about 14.5 households; `RUNS=168`
+(every scheduled run starts as well) 26,128 reads, about 13.4.
+
+Since 2026-11-23 (B25, "Who each run reads") a run reads only the users who may be due, so the number of runs barely
+matters:
+
+| `RUNS` | Scheduled jobs' reads (runs, digests) | Total reads | Writes | Households under 70%, before → now |
+| --- | --- | --- | --- | --- |
+| 24 | 3,152 (132, 240) | 19,412 (38.8%) | 974 | 17.3 → 18.0 |
+| 120 (the default) | 3,440 (420, 240) | 19,700 (39.4%) | 1,070 | 14.5 → **17.8** |
+| 168 | 3,584 (564, 240) | 19,844 (39.7%) | 1,118 | 13.4 → 17.6 |
+
+A run costs three reads (the due query and the changed query, each at least one read even when empty, and the job's
+state), plus each due user's profile once a day, the daily full read (one read a user) and each profile change read
+by one or two runs (the simulation assumes one change a household a day). It writes the state once a run, so writes
+grow by one a run; reads still run out first. The tables above were measured with `RUNS=24` before B25; only the
+scheduled jobs' line and the writes change. Starting the job hourly (`SLOT_MINUTES = 60`, `RUNS=48`) now gives
+19,484 reads, 18.0 households: it no longer saves much.
+Other runs: `RUNS=72` (every scheduled run starts) 19,556 reads, about 17.9 households (22,192 and 15.8 before B25);
+`RUNS=15` 19,385, about 18.1; `WEB=2` (two web phones per household) the same reads, since
+the web app also reads `config/app` (DESIGN 18.5); `WARM=3` or `WARM=7` the same reads, since nothing holds a
+household listener once its screens are gone (DESIGN 9.1).
+
+| Later opens that find the process alive (of 7) | Before 2026-11-09 (`HELD=1`) | Now | Households under 70%, before → now |
+| --- | --- | --- | --- |
+| 0 | 20,224 | 20,224 | 17.3 → 17.3 |
+| 3 | 37,180 (16,236 from held listeners resumed after 30 minutes, 720 more rule lookups) | 20,224 | 9.4 → 17.3 |
+| 7 | 63,406 (41,502 held, 1,680 more rule lookups) | 20,224 | 5.5 → 17.3 |
+| 3, one web phone of four | 37,582 (16,728 held) | 20,224 | 9.3 → 17.3 |
+| 3, four web phones | 35,224 (14,640 held) | 20,224 | 9.9 → 17.3 |
+| 7, four web phones | 55,224 (34,160 held) | 20,224 | 6.3 → 17.3 |
+
+The web rows are from 2026-11-10, when `HELD=1` began to cover web phones: before, only Android phones held
+listeners in the simulation, and one web phone of four gave 33,832. A web phone's "before" counts only the restock
+engine's listeners (the screen on display kept its own too), so it is a lower bound. Repeated `HELD=1` runs differ by
+about 1,000 reads (the Android-only row of 3 gave 38,368 on 2026-11-10), since the held listeners read what changed
+since the day's first open, which depends on timing.
+
+How often a phone keeps the process varies with its memory and maker: the console's usage page after a normal day,
+divided by the households, says which row the beta is on (review 09's phone check 2).
+
+History: before changes-only listeners it was 47,570 reads (95.1%; about 4,760 per household), and 19,320 before
+Recent activity read only new events, 17,920 before the meal planner. Part 2 of the planner left it at 19,440; part 3
+added the digest's query for today's meals: 19,520. Checking that each due user is still a member (2026-11-01) added
+one read per user a day: 19,560 (about 18 households). On 2026-11-08 the simulation began counting what it had left
+out: each activity event as a write (+400) with its rule lookup (+400 reads), the documents the prune reads before
+deleting them (+420), the prune's deletes, and the job's state document (one read per run): 20,404 at 24 runs. On
+2026-11-09 the rules began looking up a grocery item's list on create (+100 rule lookups); the simulation now makes 10
+of the 40 daily writes item creates instead of batch edits, which the listeners deliver differently (−280): 20,224.
+On 2026-11-10 the prune began reading the sender's profile for each old approved join request (rare; the simulation
+has none, so 20,224 stays). On 2026-11-23 (B25) the job stopped reading every user each run: 19,412 at 24 runs
+(19,700 at the default 120). The
+largest remaining costs are each phone's daily full read and rule lookups. If usage nears 70%: check for a
 regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget alerts notify but do not cap).
+
+## How the jobs get their keys
+
+The reminder job, the nightly export and the restore use three repository secrets (**Settings → Secrets and
+variables → Actions → Repository secrets**): `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` and
+`EXPORT_ENCRYPTION_KEY`. Only the owner can push branches or start workflows, and workflows run for pull requests from
+forks get no secrets. CI, `secret-scan` and `keepalive` use no secrets besides GitHub's own token.
+
+The reminder job and the export declare `environment: production`, and the restore `environment: restore`. Neither
+holds secrets or has a branch rule (owner's choice, DECISIONS 2026-11-22); GitHub lists each run there as a
+deployment, which is expected. Keep `production`'s **Required reviewers** and **Wait timer** off: either would hold
+every scheduled run. `restore` has the owner as its required reviewer (since 2026-11-22), so a restore waits for the
+owner's approval however it was started, also by the on-time trigger's token ("On-time reminders"). A secret with one
+of the three names added to an environment would win over the repository's, so don't add one there.
+
+Inside each job, `npm ci --ignore-scripts && npm run build` runs in a step that has no secret, and no package's
+install script runs at all. Only the step that
+runs `node dist/…` gets the service account key; the export's Encrypt step and the restore's Decrypt step get
+`EXPORT_ENCRYPTION_KEY`. CI installs with `--ignore-scripts` too, and the job's tests pass that way, so a dependency
+that needs its install script fails CI before it reaches a job.
 
 ## Scheduled workflows
 
-`expiry-reminders` (hourly), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub disables
+`expiry-reminders` (three times an hour), `nightly-export` (daily) and `secret-scan` (weekly) run on schedules. GitHub disables
 scheduled workflows in a public repository after 60 days without activity, and shows a banner on the Actions tab.
 `keepalive.yml` re-enables them (and itself) through the API on the 3rd of every month, which resets that clock. If
 one is disabled anyway: **Actions →** the workflow **→ Enable workflow** (or
-`gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check.
+`gh workflow enable reminders.yml --repo jmalp/spoilnot`). Then run it once by hand to check. If a run of the reminder
+job or the export waits for approval, check the `production` environment ("How the jobs get their keys"): no
+reviewers, no wait timer. A restore always waits for the owner's approval ("Restore a household"). If any job fails in "Set up job" naming an action, check the Actions allow-list ("Dependency
+updates").
 
 **Logs are public.** Workflow logs show counts, dates and the first characters of household IDs only: the reminder
 job logs neither user IDs nor what is in a digest (a dry run shows how many items and meals, never names or titles), and
@@ -295,13 +725,62 @@ the export and restore print counts. Keep it that way when changing the jobs.
 
 ## Dependency updates
 
-Dependabot (`.github/dependabot.yml`) opens grouped pull requests on Mondays for Gradle, the two npm projects and
-GitHub Actions. Merge one when CI is green; for an app library update, also install a build on a phone before the
-next beta. Security updates arrive as soon as they are published.
+Dependabot (`.github/dependabot.yml`) opens grouped pull requests on Mondays for Gradle, the four npm projects
+(`firebase`, `backend/reminder`, `web`, `tools/themes`) and GitHub Actions. Merge one when CI is green; for an app
+library update, also install a build on a phone before the next beta, and regenerate the baseline profile after a
+Compose, Firebase or DataStore update (their code is in it; "Baseline profile"). With Dependabot security updates on
+(**Settings → Advanced Security**), security updates arrive as soon as they are published.
+
+- **Actions** are pinned to a full commit SHA with the version in a comment (`uses: actions/checkout@<sha> #
+  v7.0.1`), and Dependabot updates both. Pin a new action the same way: `gh api
+  repos/<owner>/<action>/commits/<tag> --jq .sha`, and check that the tag is the release you meant.
+- **Allowed actions** (since 2026-11-22, **Settings → Actions → General → Actions permissions**): GitHub's own actions
+  plus `gradle/actions/setup-gradle@*` and `gitleaks/gitleaks-action@*`; Marketplace "verified creators" are not
+  allowed, and **Require actions to be pinned to a full-length commit SHA** is on. A workflow that uses any other
+  action fails in "Set up job" with a message naming it. To add an outside action, pin it as above and add
+  `<owner>/<repo>[/<path>]@*` to that list in the same settings page (or `gh api -X PUT
+  repos/jmalp/spoilnot/actions/permissions/selected-actions` with the whole list). Check the settings with `gh api
+  repos/jmalp/spoilnot/actions/permissions` and `…/permissions/selected-actions`.
+- **npm** installs in CI and the jobs use `--ignore-scripts`. A dependency that needs its install script fails CI;
+  don't add one to `backend/reminder` (its jobs hold the keys).
+- **npm audit:** run `npm audit fix --ignore-scripts` (never `--force`) in a project and review the lockfile diff;
+  it may pick an older patch release that sits outside an advisory's range. When no parent release has the fix, add
+  an `overrides` entry in that project's `package.json` (scoped to the old line, like `"glob@^10"`, so other users
+  are untouched), check that the callers' APIs still exist in the new version, run the project's tests, and add a
+  DECISIONS entry saying when to remove it. All four projects pass `npm audit`: since 2026-11-14, and `web/` since
+  2026-11-25, when the audit stopped listing its build-time deepmerge (DECISIONS 2026-11-25). The overrides (DECISIONS 2026-11-14): `@grpc/grpc-js` in `web/` and
+  `firebase/` (the Firebase web SDK pins it to 1.9 for its Node build; drop it when a release lifts that pin, and
+  update `firebase` in both projects together), glob, minimatch, uuid and OpenTelemetry core in the Firebase CLI and
+  the web build tools, and `@babel/plugin-transform-runtime` in `web/`, which only lets `@vitejs/plugin-react`
+  install. Before removing one, `npm ls <package>` shows whether the parent brings the fixed version yet.
+- **Guava** comes only through Firestore's gRPC; the catalog's `guava` is the lowest version allowed (a constraint in
+  `app/build.gradle.kts`). Dependabot raises it. Remove both when Firebase brings that version or a newer one.
+  `errorprone` works the same way: Firestore 27.2 dropped the annotations from gRPC, and without the constraint
+  the instrumented tests' classpath fails to resolve. Remove it when Firebase asks for 2.30.0 or later.
+- **Compose** 1.13 (BOM 2026.11.01) and later need `compileSdk` 37.1 or later: the app compiles against 37.2 with
+  `compileSdk { version = release(37) { minorApiLevel = 2 } }` in `app` and `benchmark` (`targetSdk` stays 37), and
+  Gradle downloads the SDK platform the first time. A Compose update can also remove APIs the app uses: read the
+  compile errors first, then rerun `verifyRoborazziDevDebug` and the instrumented tests, which CI does not run.
+- **AGP** 9.5.2 since 2026-11-24. 9.5.0 and 9.5.1 could not configure the release variants ("Compose Preview requires
+  unit tests"), so the app stayed on 9.4.1 until then. Before taking a new AGP, check that `./gradlew :app:tasks`
+  lists the `ProdRelease` tasks: CI builds only debug variants.
+- Gradle dependency verification is not used (DECISIONS 2026-11-10); the Gradle wrapper is checked by its
+  `distributionSha256Sum` and by `setup-gradle` in CI.
+- **Playwright's image** (CI's web job, DESIGN 13.2): Dependabot updates `@playwright/test` in `web/` but not the
+  job's `container.image`. When it does, the web job warns ("update the web job's image") and installs WebKit itself,
+  so the update still passes. Then raise the image in `.github/workflows/ci.yml` to the same version, the `resolute`
+  tag (Ubuntu 26.04, like the runner), with its digest from
+  `curl -sI -H "Accept: application/vnd.oci.image.index.v1+json" https://mcr.microsoft.com/v2/playwright/manifests/v<version>-resolute`
+  (`docker-content-digest`), and the `image=` version in the browser step.
+- **Fonts** (DESIGN 6.4): the app bundles subsets of the full fonts in `tools/fonts`. For a new font version, replace
+  the file there and run `./scripts/subset-fonts.sh` (`brew install harfbuzz` once), then
+  `./gradlew testDevDebugUnitTest --tests '*FontSubsetTest'` and `verifyRoborazziDevDebug`. A new string with a
+  character outside the subset fails `FontSubsetTest`: add its range to the script.
 
 ## Secret scanning
 
-`secret-scan.yml` runs gitleaks on every push and pull request and over the whole history weekly. If it finds
-something: treat the secret as leaked even after deleting it from the repository. Rotate it first (for the
+GitHub's secret scanning with push protection (**Settings → Advanced Security**) refuses a push that holds a known
+kind of key, before it is public. `secret-scan.yml` also runs gitleaks on every push and pull request and over the
+whole history weekly. If either finds something: treat the secret as leaked even after deleting it from the repository. Rotate it first (for the
 service account, see "Rotate the key"), then remove it from the code. The Firebase configuration files are allowed
 on purpose (`.gitleaks.toml`).

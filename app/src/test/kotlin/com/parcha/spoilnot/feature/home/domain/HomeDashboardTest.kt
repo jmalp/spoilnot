@@ -7,6 +7,8 @@ import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.TODAY
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.batch
 import com.parcha.spoilnot.feature.pantry.domain.PantryFixtures.product
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeDashboardTest {
@@ -35,10 +37,32 @@ class HomeDashboardTest {
     )
 
     @Test
-    fun `needs attention is expired and expiring within 3 days, soonest first`() {
+    fun `needs attention lists what can still be used first and counts the expired apart (UX-01)`() {
         val s = HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY)
-        assertEquals(listOf("Yogurt", "Milk", "Cheese"), s.attention.map { it.name })
-        assertEquals(1, s.expiredCount)
+        assertEquals(listOf("Milk", "Cheese"), s.attention.usable.map { it.name })
+        assertEquals(listOf("Yogurt"), s.attention.expired.map { it.name })
+        assertEquals(3, s.attention.size)
+    }
+
+    @Test
+    fun `a backlog of expired food does not push out what can still be used`() {
+        val backlog = pantry.copy(
+            products = pantry.products + (1..8).map { product("old$it") },
+            batches = pantry.batches + (1..8).map { batch("o$it", "old$it", inDays = -it.toLong()) },
+        )
+        val s = HomeDashboard.summary(backlog, emptyList(), emptyList(), TODAY)
+        assertEquals(listOf("Milk", "Cheese"), s.attention.usable.map { it.name })
+        assertEquals(9, s.attention.expired.size)
+    }
+
+    @Test
+    fun `a new household is told how to start, not that all is done (UX-07)`() {
+        val empty = HomeDashboard.summary(PantryData(emptyList(), emptyList(), false), emptyList(), emptyList(), TODAY)
+        assertTrue(empty.pantryEmpty)
+        assertTrue(empty.noStaples)
+        val s = HomeDashboard.summary(pantry, emptyList(), emptyList(), TODAY)
+        assertFalse(s.pantryEmpty)
+        assertFalse(s.noStaples)
     }
 
     @Test

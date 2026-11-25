@@ -4,13 +4,16 @@ import type { PantryFilter } from '../domain/pantry/items';
 export type DeepLink = { tab: 'pantry'; filter: PantryFilter } | { tab: 'plan' };
 
 export const DeepLinks = {
-  /** A digest about food: the Pantry tab filtered to Expiring soon. */
+  /**
+   * A digest about food: the Pantry tab filtered to Needs attention. The path keeps its old name, so the released web
+   * app, which opens Expiring soon, still understands it (after v1, R8).
+   */
   PANTRY_EXPIRING: '/pantry?filter=expiring',
   /** A digest with only today's meals: the Plan tab. */
   PLAN: '/plan',
 
   parse(route: string | null | undefined): DeepLink | null {
-    if (route === DeepLinks.PANTRY_EXPIRING) return { tab: 'pantry', filter: 'expiringSoon' };
+    if (route === DeepLinks.PANTRY_EXPIRING) return { tab: 'pantry', filter: 'needsAttention' };
     if (route === DeepLinks.PLAN) return { tab: 'plan' };
     return null;
   },

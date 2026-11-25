@@ -5,7 +5,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.parcha.spoilnot.core.cache.DeviceCaches
 import com.parcha.spoilnot.core.firebase.ACCESS_LOCAL_NETWORK
+import com.parcha.spoilnot.core.firebase.DeltaSync
 import com.parcha.spoilnot.core.firebase.FirebaseEmulators
 import com.parcha.spoilnot.core.firebase.FirestoreHouseholdWriter
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
@@ -36,6 +38,7 @@ import com.parcha.spoilnot.feature.recipes.data.FirestoreRecipeRepository
 import com.parcha.spoilnot.feature.recipes.data.RecipeChangeMapper
 import com.parcha.spoilnot.feature.recipes.domain.RecipeService
 import java.time.Clock
+import java.time.Duration
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -77,8 +80,9 @@ object EmulatorSupport {
 /**
  * One simulated phone: its own FirebaseApp (so its own Auth user and Firestore cache) wired to the production
  * repositories and session manager, exactly as the app wires them. [close] releases its Firestore after each test.
+ * [cursorMargin] is the changes-only listeners' margin (DESIGN 9.8); tests shorten it instead of waiting 5 minutes.
  */
-class TestPhone(private val name: String) : AutoCloseable {
+class TestPhone(private val name: String, cursorMargin: Duration = DeltaSync.CURSOR_MARGIN) : AutoCloseable {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val app: FirebaseApp =
         FirebaseApp.initializeApp(context, FirebaseApp.getInstance().options, "$name-${UUID.randomUUID()}")
@@ -91,16 +95,32 @@ class TestPhone(private val name: String) : AutoCloseable {
 
     val authRepository = FirebaseAuthRepository(auth)
     val households = FirestoreHouseholdRepository(firestore)
+
+    /** Each phone has its own record of full reads, as separate phones would (DESIGN 9.8). */
+    val syncLog = SyncLog(
+        context.getSharedPreferences(syncLogPrefs, android.content.Context.MODE_PRIVATE),
+        Clock.systemUTC(),
+        cursorMargin,
+    )
     val sessionManager = SessionManager(
         authRepository,
         FirestoreUserRepository(firestore),
         households,
-        FirestoreLocalData(firestore),
+        // The browser and photo caches belong to the app under test, which these phones share.
+        FirestoreLocalData(
+            firestore,
+            syncLog,
+            object : DeviceCaches {
+                override suspend fun clear() = Unit
+            },
+        ),
         // Emulator builds cannot register for push; device sync is covered by the live test (DESIGN 14 M4).
         object : DeviceRegistry {
             override suspend fun sync(uid: String) = Unit
 
             override suspend fun unregister(uid: String) = Unit
+
+            override suspend fun deleteToken() = Unit
         },
         scope,
     )
@@ -117,14 +137,9 @@ class TestPhone(private val name: String) : AutoCloseable {
         ),
     )
 
-    /** Each phone has its own record of full reads, as separate phones would (DESIGN 9.8). */
-    val syncLog = SyncLog(
-        context.getSharedPreferences(syncLogPrefs, android.content.Context.MODE_PRIVATE),
-        Clock.systemUTC(),
-    )
-    val pantryRepository = FirestorePantryRepository(firestore, syncLog)
+    val pantryRepository = FirestorePantryRepository(firestore, syncLog, scope, LISTENER_LINGER_MS)
     val pantry = PantryService(writer, Clock.systemDefaultZone())
-    val groceryRepository = FirestoreGroceryRepository(firestore, syncLog)
+    val groceryRepository = FirestoreGroceryRepository(firestore, syncLog, scope, LISTENER_LINGER_MS)
     val grocery = GroceryService(writer, groceryRepository, pantry)
     val recipeRepository = FirestoreRecipeRepository(firestore, syncLog)
     val recipes = RecipeService(writer)
@@ -137,7 +152,14 @@ class TestPhone(private val name: String) : AutoCloseable {
     private val restock =
         RestockRunner(sessionManager, pantryRepository, groceryRepository, writer, scope, Clock.systemDefaultZone())
 
-    fun startRestock() = restock.start()
+    /**
+     * Starts the restock engine with the pantry on screen, as a real phone has it while open: the engine reads the
+     * cache only (after v1, DESIGN 9.6), so it sees another phone's change only through a screen's listeners.
+     */
+    fun startRestock(householdId: String) {
+        scope.launch { pantryRepository.observe(householdId).collect { } }
+        restock.start()
+    }
 
     val uid: String get() = checkNotNull(authRepository.currentUser).uid
 
@@ -190,5 +212,11 @@ class TestPhone(private val name: String) : AutoCloseable {
 
     private companion object {
         const val CLOSE_TIMEOUT_MS = 10_000L
+
+        /**
+         * The shared pantry and item listeners stop as soon as nothing collects them, instead of 5 s later as in the
+         * app (DESIGN 9.1): a test that stops collecting means "the app is closed".
+         */
+        const val LISTENER_LINGER_MS = 0L
     }
 }

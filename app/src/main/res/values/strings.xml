@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- app_name is defined per flavor in app/build.gradle.kts -->
     <string name="tab_home">Home</string>
     <string name="tab_pantry">Pantry</string>
@@ -21,6 +21,9 @@
     <string name="action_ok">OK</string>
     <string name="action_continue">Continue</string>
     <string name="action_sign_out">Sign out</string>
+    <string name="action_sign_out_anyway">Sign out anyway</string>
+    <string name="sign_out_unsynced_title">Sign out anyway?</string>
+    <string name="sign_out_unsynced_body">Some changes haven\'t synced yet. They\'re only on this phone, and signing out deletes them.</string>
     <string name="more_options">More options</string>
 
     <!-- Errors (DESIGN 6.9: what happened and what to do) -->
@@ -36,9 +39,18 @@
     <string name="error_not_found">That no longer exists.</string>
     <string name="error_name_taken">Another item already has this name. Choose a different one.</string>
     <string name="error_conflict">Something changed at the same time. Try again.</string>
-    <string name="error_code_inactive">That code isn\'t active. Ask the household owner for a new one.</string>
+    <string name="error_code_inactive">That code doesn\'t work. It may have been replaced: ask someone in the household for the current one.</string>
     <string name="error_owner_must_transfer">Make someone else the owner or delete the household first.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
+    <!-- Another phone finished the same thing first; the rules refused this phone's whole write (DESIGN 8.5).
+         %1$s is that member's name. -->
+    <string name="race_pantry_by">%1$s already took these off the list. Nothing was added to the pantry.</string>
+    <string name="race_pantry">These were already taken off the list. Nothing was added to the pantry.</string>
+    <string name="race_removed_by">%1$s already took that off the list.</string>
+    <string name="race_removed">That was already taken off the list.</string>
+    <string name="race_cooked_by">%1$s already marked this meal cooked. Nothing was taken from the pantry.</string>
+    <string name="race_cooked">This meal was already marked cooked. Nothing was taken from the pantry.</string>
+    <string name="race_list_deleted">That list was deleted, so the change wasn\'t saved.</string>
     <string name="error_name_blank">Enter your name.</string>
     <string name="error_name_too_long">Use 40 characters or fewer.</string>
     <string name="error_password_short">Use at least 8 characters.</string>
@@ -71,21 +83,20 @@
     <string name="field_household_name">Household name</string>
     <string name="action_create">Create</string>
     <string name="gate_join_title">Join with a code</string>
-    <string name="gate_join_body">Ask the household owner for the 10-character code.</string>
+    <string name="gate_join_body">Ask someone in the household for its 10-character code.</string>
     <string name="field_invite_code">Invite code</string>
     <string name="join_confirm_title">Join %1$s?</string>
-    <string name="join_confirm_body">Send a request to join %1$s? The owner needs to approve it.</string>
+    <string name="join_confirm_body">The owner needs to approve your request before you can see the household.</string>
     <string name="action_send_request">Send request</string>
     <string name="waiting_title">Waiting for the owner to approve</string>
-    <string name="waiting_body">Your request to join %1$s was sent. This screen updates by itself when the owner decides.</string>
+    <string name="waiting_body">Your request to join %1$s was sent. The owner doesn\'t get a notification, so let them know you asked. This screen updates by itself when they decide.</string>
     <string name="action_cancel_request">Cancel request</string>
     <string name="declined_title">Request declined</string>
     <string name="declined_body">The owner declined your request to join %1$s.</string>
     <string name="expired_title">Request expired</string>
-    <string name="expired_body">Your request to join %1$s expired before the owner answered. Ask for a new code and try again.</string>
+    <string name="expired_body">Your request to join %1$s expired before the owner answered. You can send a new request with the same code.</string>
 
     <!-- Settings -->
-    <string name="settings_account">Account</string>
     <string name="settings_household">Household</string>
     <plurals name="settings_household_summary">
         <item quantity="one">%1$s · %2$d member</item>
@@ -108,18 +119,19 @@
     <string name="member_options">Options for %1$s</string>
     <string name="invite_title">Invite people</string>
     <string name="invite_body">Share this code. The owner approves each person before they join.</string>
-    <string name="invite_paused">Joining is paused. Nobody can use this code until it is resumed.</string>
     <string name="invite_code_description">Invite code %1$s</string>
     <string name="action_copy">Copy</string>
     <string name="action_share">Share</string>
     <string name="action_regenerate">New code</string>
-    <string name="action_pause_joining">Pause joining</string>
-    <string name="action_resume_joining">Resume joining</string>
     <string name="code_copied">Code copied</string>
+    <!-- The clipboard label of a copied invite code (the code itself is marked sensitive). -->
+    <string name="invite_code_clip_label">Invite code</string>
     <string name="share_message">Join our household \"%1$s\" on Spoil Not with the code %2$s</string>
     <string name="regenerate_title">Create a new code?</string>
     <string name="regenerate_body">The current code stops working right away. Requests already sent are not affected.</string>
     <string name="join_requests_title">Join requests</string>
+    <string name="join_requests_hint">Only approve people you invited.</string>
+    <string name="join_request_sent">Sent: %1$s</string>
     <string name="action_approve">Approve</string>
     <string name="action_decline">Decline</string>
     <string name="action_rename">Rename</string>
@@ -134,12 +146,12 @@
     <string name="transfer_body">%1$s will manage the code, members and requests. You stay in the household as a member.</string>
     <string name="action_leave">Leave household</string>
     <string name="leave_title">Leave %1$s?</string>
-    <string name="leave_body">You lose access to its pantry, lists and recipes, and this phone\'s copy is cleared. You can join again with a new request.</string>
+    <string name="leave_body">You lose access to everything in the household, and this phone\'s copy is cleared. You can join again with a new request.</string>
     <string name="action_leave_confirm">Leave</string>
     <string name="owner_cannot_leave">As the owner, make someone else the owner before you leave, or delete the household.</string>
     <string name="action_delete_household">Delete household</string>
     <string name="delete_household_title">Delete %1$s?</string>
-    <string name="delete_household_body">This permanently deletes the pantry, grocery lists and recipes for everyone in the household. This can\'t be undone.</string>
+    <string name="delete_household_body">This permanently deletes everything in the household for every member: the pantry, grocery lists, recipes, meal plan, recent activity and Your kitchen. This can\'t be undone.</string>
 
     <!-- Home -->
     <plurals name="home_join_requests">
@@ -218,7 +230,7 @@
     <!-- Pantry list -->
     <string name="pantry_search">Search pantry</string>
     <string name="filter_all">All</string>
-    <string name="filter_expiring_soon">Expiring soon</string>
+    <string name="filter_needs_attention">Needs attention</string>
     <string name="filter_expired">Expired</string>
     <string name="filter_low_stock">Low stock</string>
     <string name="sort_and_group">Sort and group</string>
@@ -234,14 +246,17 @@
     <string name="badge_low">Low</string>
     <string name="pending_sync">Waiting to sync</string>
     <string name="offline_banner">Offline. Changes will sync later</string>
+    <!-- A list failed to load (DESIGN 6.7, after v1); the app also listens again by itself. -->
+    <string name="load_error">Couldn\'t load.</string>
+    <string name="action_retry">Retry</string>
     <string name="pantry_empty_body">Add what you have at home and Spoil Not will tell you before it expires.</string>
     <string name="action_add_first_item">Add your first item</string>
     <string name="pantry_no_matches">Nothing matches. Try another filter or search.</string>
     <string name="action_add_item">Add item</string>
     <string name="row_description">%1$s, %2$s, %3$s, %4$s</string>
     <string name="row_description_out">%1$s, out of stock</string>
-    <string name="action_minus_one">Remove one</string>
-    <string name="action_plus_one">Add one</string>
+    <string name="action_minus_one">Remove 1</string>
+    <string name="action_plus_one">Add 1</string>
     <string name="action_used_up">Used up</string>
     <string name="action_throw_away">Throw away</string>
     <string name="action_edit">Edit</string>
@@ -287,8 +302,9 @@
     <string name="field_category">Category</string>
     <string name="field_notes">Notes</string>
     <string name="field_keep_at_least">Keep at least</string>
-    <string name="keep_at_least_help">Add to the grocery list when fewer than this remain</string>
-    <string name="field_auto_add">Add to grocery list automatically</string>
+    <string name="keep_at_least_help">Adds it to the grocery list when you have fewer than this</string>
+    <string name="field_auto_add">Keep some in stock</string>
+    <string name="field_auto_add_help">Puts it on the grocery list when it runs low</string>
     <string name="field_buy_quantity">Buy quantity</string>
     <string name="error_name_required">Enter a name.</string>
     <string name="error_name_80">Use 80 characters or fewer.</string>
@@ -314,22 +330,37 @@
         <item quantity="one">In cart (%d)</item>
         <item quantity="other">In cart (%d)</item>
     </plurals>
-    <string name="grocery_clear_checked">Clear checked</string>
+    <!-- The line above the list's name (DESIGN 19.7): items not in the cart yet. -->
+    <plurals name="grocery_eyebrow_to_buy">
+        <item quantity="one">%d to buy</item>
+        <item quantity="other">%d to buy</item>
+    </plurals>
+    <string name="grocery_clear_checked">Clear cart</string>
     <plurals name="grocery_add_to_pantry">
         <item quantity="one">Add %d to pantry</item>
         <item quantity="other">Add %d to pantry</item>
     </plurals>
-    <string name="grocery_source_low_stock">Low stock</string>
+    <string name="grocery_source_low_stock">Added automatically</string>
     <string name="grocery_source_recipe">Recipe</string>
     <string name="grocery_source_meal_plan">Meal plan</string>
     <string name="grocery_added_by">added by %1$s</string>
     <string name="grocery_back_in_stock">Back in stock</string>
+    <!-- One line for a restocked item (after v1, UX-08): "Back in stock · Remove". -->
+    <string name="grocery_back_in_stock_remove">Remove %1$s from the list, it\'s back in stock</string>
+    <string name="grocery_auto_reason">Added automatically: you have %1$s and keep at least %2$s.</string>
+    <string name="grocery_auto_reason_gone">Added automatically when it ran low.</string>
+    <string name="grocery_aisle_hint">Aisles follow the order you shop in. They move as you check things off in the store.</string>
+    <string name="grocery_aisle_hint_ok">Got it</string>
+    <string name="grocery_swipe_check">Check off</string>
+    <string name="grocery_swipe_uncheck">Back to list</string>
     <string name="grocery_remove">Remove</string>
     <string name="grocery_item_options">Options for %1$s</string>
     <string name="grocery_already_title">Already on the list</string>
-    <string name="grocery_already_body">%1$s is already on the list.</string>
-    <string name="grocery_increase">Increase quantity</string>
-    <string name="grocery_add_anyway">Add anyway</string>
+    <!-- After v1 (UX-18): says how much. -->
+    <string name="grocery_already_more">Add %1$s more to the %2$s on the list, or add it as a separate item?</string>
+    <string name="grocery_already_other_unit">%1$s is already on the list as %2$s. Amounts in different units aren\'t added together.</string>
+    <string name="grocery_increase">Add more</string>
+    <string name="grocery_add_anyway">Add separately</string>
     <string name="grocery_deleted">%1$s removed</string>
     <string name="grocery_cleared">Cart cleared</string>
     <string name="grocery_someone_added">%1$s added %2$s</string>
@@ -347,22 +378,25 @@
         <item quantity="other">Add all %d to pantry</item>
     </plurals>
     <string name="grocery_added_to_pantry">Added to the pantry</string>
+    <string name="grocery_skipped_removed">Removed from the list</string>
     <string name="grocery_add_to_list">Add</string>
 
     <!-- Notifications (DESIGN 5.4, 10.2) -->
     <string name="channel_expiry">Expiry reminders</string>
-    <string name="channel_expiry_description">A daily summary of food that expires soon.</string>
+    <string name="channel_expiry_description">A daily summary of food that expires soon and the meals you\'re cooking.</string>
     <string name="test_notification_title">Test notification</string>
     <string name="test_notification_body">Notifications from Spoil Not are working. Tap to see what expires soon.</string>
     <string name="settings_notifications">Notifications</string>
-    <string name="settings_notifications_on">Daily, shortly after %1$s</string>
+    <!-- After v1 (2026-11-24): an Apps Script trigger starts the reminder job every quarter hour, so a digest arrives
+         about a minute after its time (DESIGN 10.4); from 2026-11-22 the copy had said "often a few hours later". -->
+    <string name="settings_notifications_on">Daily at %1$s</string>
     <string name="settings_notifications_off">Off</string>
     <string name="notif_enabled">Daily reminder</string>
     <string name="notif_enabled_help">One notification a day, only when something needs attention.</string>
     <string name="notif_cooking">Meals I\'m cooking</string>
     <string name="notif_cooking_help">On days you\'re down to cook in the plan, the reminder says what.</string>
     <string name="notif_time">Time</string>
-    <string name="notif_time_help">It arrives shortly after this time.</string>
+    <string name="notif_time_help">It arrives within a few minutes of this time.</string>
     <string name="notif_stages">Remind me about food that expires</string>
     <string name="stage_3">In 3 days</string>
     <string name="stage_2">In 2 days</string>
@@ -370,7 +404,7 @@
     <string name="stage_0">Today</string>
     <string name="notif_expired">Expired food</string>
     <string name="expired_once">Remind me once</string>
-    <string name="expired_daily">Every day until it is removed</string>
+    <string name="expired_daily">Every day for two weeks</string>
     <string name="expired_never">Never</string>
     <string name="notif_test">Send test notification</string>
     <string name="notif_test_sent">Test notification sent</string>
@@ -380,8 +414,21 @@
     <string name="notif_battery">If reminders arrive late, let Spoil Not run without battery restrictions.</string>
     <string name="notif_battery_action">Battery settings</string>
     <string name="notif_explainer_title">Get a heads-up before food expires</string>
-    <string name="notif_explainer_body">Spoil Not sends one notification a day when something is about to expire. You can change the time or turn it off in Settings.</string>
     <string name="notif_explainer_later">Not now</string>
+    <!-- After v1 (2026-11-12, review UX-02, UX-03): the explanation names the time; "You're set" after Turn on;
+         Home and Settings say when this phone blocks reminders. -->
+    <string name="notif_explainer_body_time">Spoil Not sends one notification a day, at %1$s, when something is about to expire. You can change the time or turn it off in Settings.</string>
+    <string name="notif_youre_set_title">You\'re set</string>
+    <string name="notif_youre_set_time">Spoil Not reminds you once a day, at %1$s, when food is about to expire.</string>
+    <string name="notif_youre_set_tomorrow">Tomorrow\'s reminder: %1$s.</string>
+    <plurals name="notif_youre_set_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
+    <string name="notif_youre_set_nothing">Nothing is due tomorrow.</string>
+    <string name="settings_notifications_blocked">Off on this phone</string>
+    <string name="home_reminders_off">Reminders are off on this phone</string>
+    <string name="home_reminders_turn_on">Turn on</string>
 
     <!-- Recipes (DESIGN 5.5, 11) -->
     <string name="action_open">Open</string>
@@ -392,6 +439,11 @@
     <string name="recipe_sort_selected">Selected</string>
     <string name="share_target_label">Save recipe</string>
     <string name="recipe_add">Add recipe</string>
+    <!-- The line above the Recipes title (2026-11 look, DESIGN 19.7): every recipe in the box. -->
+    <plurals name="recipe_eyebrow_count">
+        <item quantity="one">%d recipe</item>
+        <item quantity="other">%d recipes</item>
+    </plurals>
     <string name="recipe_add_paste">Paste a link</string>
     <string name="recipe_add_paste_hint">Import a recipe from a web page</string>
     <string name="recipe_add_browse">Browse the web</string>
@@ -401,14 +453,11 @@
     <string name="recipe_link_invalid">Enter a web link that starts with https://.</string>
     <string name="recipe_import">Import</string>
     <string name="recipe_search">Search by title, ingredient or tag</string>
-    <string name="recipe_filter_all">All</string>
     <string name="recipe_filter_favorites">Favorites</string>
     <string name="recipe_no_matches">No recipes match. Try another search or chip.</string>
     <string name="recipe_sort">Sort</string>
     <string name="recipe_sort_recent">Recently added</string>
     <string name="recipe_sort_az">A to Z</string>
-    <string name="recipe_favorite">Add to favorites</string>
-    <string name="recipe_unfavorite">Remove from favorites</string>
     <string name="recipe_minutes">%1$d min</string>
     <string name="recipe_hours">%1$d hr</string>
     <string name="recipe_hours_minutes">%1$d hr %2$d min</string>
@@ -419,18 +468,18 @@
     </plurals>
     <string name="recipe_fewer_servings">Fewer servings</string>
     <string name="recipe_more_servings">More servings</string>
+    <!-- A scaled ingredient amount too small to measure, before the ingredient: "a pinch of salt". -->
+    <string name="recipe_scaled_pinch">a pinch of</string>
     <string name="recipe_by">By %1$s</string>
     <string name="recipe_ingredients">Ingredients</string>
     <string name="recipe_steps">Steps</string>
     <string name="recipe_notes">Notes</string>
     <string name="recipe_open_original">Open original</string>
-    <string name="recipe_cook">Cook</string>
+    <string name="recipe_cook">Start cooking</string>
     <string name="recipe_edit">Edit recipe</string>
     <string name="recipe_new">New recipe</string>
     <string name="recipe_share">Share</string>
     <string name="recipe_gone">This recipe was deleted.</string>
-    <string name="recipe_delete_title">Delete recipe?</string>
-    <string name="recipe_delete_body">%1$s will be removed from the recipe box for everyone in the household.</string>
     <string name="recipe_deleted">Deleted %1$s</string>
     <string name="recipe_add_to_list">Add to grocery list</string>
     <string name="recipe_pantry_hint">Items that look like they\'re in your pantry start unchecked.</string>
@@ -458,6 +507,7 @@
         <item quantity="one">Add %d item</item>
         <item quantity="other">Add %d items</item>
     </plurals>
+    <string name="recipe_add_none">Select items to add</string>
     <string name="recipe_added_to_list">Added to %1$s</string>
     <string name="recipe_step_of">Step %1$d of %2$d</string>
     <string name="recipe_step_previous">Back</string>
@@ -481,7 +531,7 @@
     <string name="recipe_looking">Looking for the recipe…</string>
     <string name="recipe_no_link">That doesn\'t look like a web link. Share or paste a link to a recipe page.</string>
     <string name="recipe_check_this">Check this recipe. It was read from the page layout, so some parts may be missing.</string>
-    <string name="recipe_check_this_short">Check it after saving</string>
+    <string name="recipe_check_this_short">Some parts may be missing: check after saving</string>
     <string name="recipe_already_saved">Already saved</string>
     <string name="recipe_already_saved_body">%1$s from this page is already in your recipe box.</string>
     <string name="recipe_save_copy">Save a copy</string>
@@ -495,8 +545,11 @@
     <!-- Home and activity (DESIGN 5.6) -->
     <string name="home_attention">Needs attention</string>
     <string name="home_attention_none">Nothing expires in the next 3 days.</string>
-    <string name="home_low_stock">Low stock</string>
-    <string name="home_low_stock_none">Your staples are stocked.</string>
+    <string name="home_attention_start">Add food with its date, and what to use first shows here.</string>
+    <plurals name="home_attention_expired">
+        <item quantity="one">%d expired item to throw away or check</item>
+        <item quantity="other">%d expired items to throw away or check</item>
+    </plurals>
     <string name="home_grocery_list">Grocery list</string>
     <string name="home_grocery_empty">Nothing to buy right now.</string>
     <plurals name="home_grocery_count">
@@ -504,15 +557,30 @@
         <item quantity="other">%d items to buy</item>
     </plurals>
     <string name="home_open_list">Open list</string>
+    <string name="home_running_low">Running low</string>
+    <plurals name="home_running_low_more">
+        <item quantity="one">and %d more</item>
+        <item quantity="other">and %d more</item>
+    </plurals>
+    <string name="home_grocery_start">Turn on Keep some in stock for food you always want at home, and it goes on the list when it runs low.</string>
     <plurals name="home_see_all">
         <item quantity="one">See %d in Pantry</item>
         <item quantity="other">See all %d in Pantry</item>
     </plurals>
+    <string name="home_open_pantry">Open in Pantry</string>
     <string name="home_use_it_up">Use it up</string>
     <plurals name="pantry_expired_count">
         <item quantity="one">%d expired item</item>
         <item quantity="other">%d expired items</item>
     </plurals>
+    <!-- The line above Pantry's title (DESIGN 19.7): every row of the unfiltered list. -->
+    <plurals name="pantry_eyebrow_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <!-- The default view's two groups (DESIGN 19.12). -->
+    <string name="pantry_use_first">Use first</string>
+    <string name="pantry_everything_else">Everything else</string>
     <string name="pantry_expired_show">Show</string>
     <string name="pantry_expired_hide">Hide</string>
     <string name="home_use_it_up_uses">Uses %1$s</string>
@@ -523,39 +591,37 @@
     <!-- Insights (DESIGN 5.7) -->
     <string name="insights_title">Your kitchen</string>
     <string name="insights_card_title">Your kitchen this month</string>
-    <string name="insights_see">See insights</string>
+    <string name="insights_see">See your kitchen</string>
     <string name="insights_percent">%1$d%%</string>
-    <string name="insights_counts">%1$d used · %2$d thrown away</string>
     <string name="insights_mood_nothing">Use up or throw away items, and this shows how your kitchen is doing.</string>
     <string name="insights_mood_great">Amazing! Almost nothing went to waste.</string>
     <string name="insights_mood_good">Nice work! Most of what you bought got used.</string>
     <string name="insights_mood_okay">Good start. Needs attention on Home shows what to use first.</string>
     <string name="insights_mood_low">Every item you use counts. Needs attention on Home shows what to use first.</string>
-    <string name="insights_ring_description">This month: %1$d used, %2$d thrown away, %3$d%% used.</string>
+    <string name="insights_ring_description" tools:ignore="PluralsCandidate">This month: %1$d used, %2$d thrown away, %3$d%% used.</string>
     <string name="insights_ring_empty">Nothing used up or thrown away this month yet.</string>
     <string name="insights_legend_used">Used</string>
     <string name="insights_legend_thrown">Thrown away</string>
     <string name="insights_section_months">Last 6 months</string>
     <string name="insights_months_none">Each month\'s bars show up here as items are used up or thrown away.</string>
-    <string name="insights_month_details">%1$d used · %2$d thrown away · %3$d%% used</string>
+    <string name="insights_month_details" tools:ignore="PluralsCandidate">%1$d used · %2$d thrown away · %3$d%% used</string>
     <string name="insights_month_nothing">Nothing used up or thrown away.</string>
     <string name="insights_month_reasons">Thrown away: %1$s</string>
-    <string name="insights_month_entry">%1$s: %2$d used, %3$d thrown away</string>
+    <string name="insights_month_entry" tools:ignore="PluralsCandidate">%1$s: %2$d used, %3$d thrown away</string>
     <string name="insights_section_reasons">Why things were thrown away</string>
     <string name="insights_reasons_none">Nothing thrown away in the last 6 months.</string>
     <string name="insights_section_streak">Streak</string>
-    <plurals name="insights_streak_days">
-        <item quantity="one">%d day with nothing thrown away</item>
-        <item quantity="other">%d days with nothing thrown away</item>
+    <!-- The streak card of the 2026-11 look (DESIGN 19.8): the days large, then what they mean. -->
+    <plurals name="insights_streak_count">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
     </plurals>
-    <plurals name="insights_streak_never">
-        <item quantity="one">Nothing thrown away in %d day of counting</item>
-        <item quantity="other">Nothing thrown away in %d days of counting</item>
-    </plurals>
+    <string name="insights_streak_rest">with nothing thrown away</string>
+    <string name="insights_streak_never_rest">of counting, with nothing thrown away</string>
     <string name="insights_streak_today">Something was thrown away today. Tomorrow starts a new streak.</string>
     <string name="insights_streak_none">Your streak starts when you use up or throw away an item.</string>
     <string name="insights_best_month">Best month: %1$s, %2$d%% used</string>
-    <string name="insights_counting_note">Counts items when they are used up or thrown away, since this version of the app. Using part of an item counts once it is finished.</string>
+    <string name="insights_counting_note">Counts items when they are used up or thrown away, since October 2026. Using part of an item counts once it is finished.</string>
     <string name="activity_you">You</string>
     <string name="activity_the_list">the grocery list</string>
     <string name="activity_just_now">Just now</string>
@@ -588,13 +654,12 @@
     <string name="colors_enchanted_forest">Enchanted Forest</string>
     <string name="colors_watermelon_sorbet">Watermelon Sorbet</string>
     <string name="colors_contrast_pop">Contrast Pop</string>
-    <string name="settings_units">Units for new items</string>
+    <string name="settings_units">Units shown first</string>
     <string name="units_metric">Metric</string>
     <string name="units_imperial">Imperial</string>
     <string name="settings_data">Data</string>
     <string name="settings_export">Export household data</string>
-    <string name="settings_export_summary">Save your pantry, grocery lists and recipes as a JSON file.</string>
-    <string name="action_export">Export</string>
+    <string name="settings_export_summary">Save a copy of all your household\'s data as a file.</string>
     <string name="settings_exported">Export saved</string>
     <string name="settings_crash_reports">Send crash reports</string>
     <string name="settings_crash_reports_summary">Helps fix crashes. Reports contain no names, emails or household data.</string>
@@ -615,23 +680,28 @@
 
     <!-- Pantry edit window (beta feedback) -->
     <string name="edit_item_title">Edit item</string>
+    <!-- After v1 (DESIGN 9.2): the Edit window while someone else changes or removes its item. -->
+    <string name="edit_changed_by">%1$s changed this item.</string>
+    <string name="edit_changed">Someone else changed this item.</string>
+    <string name="edit_removed_by">%1$s removed this item</string>
+    <string name="edit_removed">This item was removed</string>
     <string name="action_use_one">Use 1</string>
     <string name="action_add_one">Add 1</string>
     <string name="action_add_stock">Add stock</string>
-    <string name="unit_locked_short">Set while in stock</string>
+    <string name="unit_locked_short">Can\'t change while you have some</string>
     <string name="error_keep_at_least">Enter how many to keep, above 0.</string>
     <!-- App tour (after v1, DESIGN 5.8) -->
     <string name="tour_welcome_title">Welcome to Spoil Not</string>
     <string name="tour_welcome">A one-minute tour of the app. Follow along by tapping what is highlighted, or tap Next.</string>
-    <string name="tour_home">Home starts with what needs you: food expiring soon. Below are staples running low, your grocery list and what your household did.</string>
+    <string name="tour_home">Home starts with what needs you: food to use soon, today\'s meals and recipes that use it up. Below are your grocery list, how your kitchen did this month and what your household did.</string>
     <string name="tour_open_pantry">Tap Pantry to see everything you have.</string>
     <string name="tour_add_item">Tap Add item to add food. Pick a date with one tap, and Spoil Not reminds you before it expires.</string>
     <string name="tour_pantry_rows">Swipe a row right when it\'s used up and left to throw it away. Undo is always there. Tap a row to edit it, and ⋮ has Mark opened and more.</string>
     <string name="tour_open_plan">Tap Plan to plan the week: recipes for breakfast, lunch and dinner, and who\'s cooking.</string>
-    <string name="tour_open_recipes">Tap Recipes.</string>
+    <string name="tour_open_recipes">Tap Recipes for your recipe box.</string>
     <string name="tour_add_recipe">Save recipes from any website: share a page to Spoil Not or open the built-in browser. A recipe can put what you\'re missing on the grocery list.</string>
     <string name="tour_open_groceries">Tap Groceries for your shopping list.</string>
-    <string name="tour_quick_add">Type what you need here. In the store, check things off, then Add to pantry puts them all away at once.</string>
+    <string name="tour_quick_add">Type what you need here. In the store, tap an item or swipe it right to check it off, and swipe left to delete it. Add to pantry then puts them all away at once.</string>
     <string name="tour_invite">Invite your household from here: Household, then Invite people. You can take this tour again from Settings.</string>
     <string name="tour_progress">%1$d of %2$d</string>
     <string name="tour_start">Start the tour</string>
@@ -643,18 +713,24 @@
     <!-- Clear household data (owner, after v1, DESIGN 5.1) -->
     <string name="action_clear_household">Clear household data</string>
     <string name="clear_household_title">Clear all household data?</string>
-    <string name="clear_household_body">Everything in %1$s is deleted for every member: the pantry, grocery lists, recipes, recent activity and Insights. The household, its members and its invite code stay. This can\'t be undone. To keep a copy, use Export first.</string>
+    <string name="clear_household_body">Everything in %1$s is deleted for every member: the pantry, grocery lists, recipes, recent activity and Your kitchen. The household, its members and its invite code stay. This can\'t be undone. To keep a copy, use Export first.</string>
     <string name="clear_household_yes">Yes, clear everything</string>
     <string name="clear_household_password_title">Confirm with your password</string>
     <string name="clear_household_password_body">Enter your password to clear the household\'s data.</string>
     <string name="clear_household_confirm">Clear data</string>
     <string name="clear_household_done">Household data cleared</string>
+    <string name="clear_household_when_online">Clearing will finish when you\'re online</string>
     <!-- Meal planner (after v1, DESIGN 5.9) -->
     <string name="tab_plan">Plan</string>
     <string name="plan_week_range">%1$s – %2$s</string>
     <string name="plan_previous_week">Previous week</string>
     <string name="plan_next_week">Next week</string>
     <string name="plan_this_week">Go to this week</string>
+    <!-- The line above the title while this week shows (2026-11 look, DESIGN 19.7). -->
+    <string name="plan_eyebrow_this_week">This week</string>
+    <!-- A day button's full name when it is today: "Saturday, Nov 14, today" (DESIGN 19.12). -->
+    <string name="plan_day_today">%1$s, today</string>
+    <string name="plan_show_day">Show this day</string>
     <string name="plan_today">Today</string>
     <string name="plan_slot_breakfast">Breakfast</string>
     <string name="plan_slot_lunch">Lunch</string>
@@ -696,16 +772,14 @@
     <string name="plan_shop_from">the meal plan</string>
     <string name="plan_more_actions">More plan actions</string>
     <string name="plan_copy_last_week">Copy last week</string>
-    <string name="plan_copied">Copied last week\'s meals (%1$s)</string>
+    <string name="plan_week_empty">Nothing planned this week. Tap + on a meal, or copy last week\'s meals.</string>
+    <plurals name="plan_copied_meals">
+        <item quantity="one">Copied %d meal from last week</item>
+        <item quantity="other">Copied %d meals from last week</item>
+    </plurals>
     <string name="plan_copy_none">Last week has no meals to copy</string>
     <string name="plan_copy_already">Last week\'s meals are already in this week</string>
     <string name="plan_clear_week">Clear this week</string>
-    <string name="plan_clear_title">Clear this week?</string>
-    <plurals name="plan_clear_text">
-        <item quantity="one">Removes the %1$d meal planned for %2$s. You can undo it right after.</item>
-        <item quantity="other">Removes all %1$d meals planned for %2$s. You can undo it right after.</item>
-    </plurals>
-    <string name="plan_clear_confirm">Clear</string>
     <string name="plan_cleared">Cleared this week</string>
     <string name="plan_move">Move</string>
     <string name="plan_move_title">Move %1$s</string>
@@ -714,4 +788,17 @@
     <string name="plan_moved">Moved %1$s</string>
     <string name="home_today">Today</string>
     <string name="home_today_open">Open plan</string>
+    <!-- Screen readers and large text (after v1, review A11Y-04 to A11Y-11). -->
+    <string name="home_today_meal_description">%1$s: %2$s</string>
+    <string name="home_today_cooking">cooking: %1$s</string>
+    <string name="grocery_source_recipe_description">from a recipe</string>
+    <string name="grocery_source_meal_plan_description">from the meal plan</string>
+    <string name="grocery_entry_expires">expires %1$s</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
+    <string name="recipe_favorite_toggle">Favorite</string>
+    <string name="recipe_step_previous_description">Back to the previous step</string>
+    <string name="recipe_cooked_amount_description">Amount of %1$s to use, in %2$s</string>
+    <string name="join_request_approve_description">Approve %1$s</string>
+    <string name="join_request_decline_description">Decline %1$s</string>
 </resources>

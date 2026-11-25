@@ -29,8 +29,14 @@ data class NotificationPrefs(
         const val DEFAULT_MINUTES = 9 * 60
         val ALL_STAGES = setOf(3, 2, 1, 0)
 
-        /** The job does not send after 22:00 (DESIGN 10.3), so the last offered hour is 21. */
-        val HOURS = 5..21
+        /**
+         * The job sends nothing at or after this local hour (`LATEST_MINUTES` in backend/reminder/src/digest.ts, DESIGN
+         * 10.3).
+         */
+        const val LATEST_HOUR = 22
+
+        /** The hours Settings offers: the last one is the hour before [LATEST_HOUR]. */
+        val HOURS = 5 until LATEST_HOUR
     }
 }
 
@@ -49,4 +55,10 @@ interface DeviceRegistry {
 
     /** On sign-out, so the signed-out phone stops receiving this user's digests. */
     suspend fun unregister(uid: String)
+
+    /**
+     * While nobody is signed in: invalidates this phone's push token, so a device document left on the server (for
+     * example by a sign-out without a connection) gets no more digests and the reminder job removes it.
+     */
+    suspend fun deleteToken()
 }

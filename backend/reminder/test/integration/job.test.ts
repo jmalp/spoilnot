@@ -3,8 +3,10 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
-import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { PLAN_ROUTE, runJob, ROUTE, WEB_ICON, type Message, type Sender } from '../../src/job.ts';
+import { FieldValue, getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import {
+  MAX_DEVICES, MAX_SEND_ATTEMPTS, MAX_STOCK, PLAN_ROUTE, runJob, ROUTE, STATE_DOC, WEB_ICON, type Message, type Sender,
+} from '../../src/job.ts';
 
 const PROJECT = 'demo-reminder-test';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -52,6 +54,9 @@ beforeEach(async () => {
   batch.set(db.doc('users/frank/devices/phone'), { token: 'frank-token-1234567890', platform: 'android' });
   batch.set(db.doc('users/erin/devices/phone'), { token: 'erin-token-1234567890', platform: 'android' });
   batch.set(db.doc('households/h1'), { name: 'Test', ownerUid: 'alice' });
+  for (const uid of ['alice', 'bob', 'carol', 'erin', 'frank']) {
+    batch.set(db.doc(`households/h1/members/${uid}`), { role: uid === 'alice' ? 'owner' : 'member', displayName: uid });
+  }
   const stock = (id: string, productName: string, expiryDate: string | null, dateType = 'use_by') =>
     batch.set(db.doc(`households/h1/stock/${id}`), { productName, expiryDate, dateType, quantity: 1, location: 'fridge' });
   stock('s1', 'Milk', '2026-10-11');
@@ -80,8 +85,26 @@ beforeEach(async () => {
   batch.set(db.doc('households/h1/activity/new'), { type: 'stock_added', createdAt: recent });
   batch.set(db.doc('households/h1/joinRequests/stale'), { status: 'pending', requestedAt: old });
   batch.set(db.doc('households/h1/joinRequests/fresh'), { status: 'pending', requestedAt: recent });
+  // After v1 (SYNC-06): an approved request stays until the sender's app finishes the join.
+  batch.set(db.doc('households/h1/joinRequests/declined'), { status: 'declined', requestedAt: old });
+  batch.set(db.doc('households/h1/joinRequests/gina'), { status: 'approved', requestedAt: old });
+  batch.set(db.doc('users/gina'), {
+    displayName: 'Gina', householdId: null, pendingJoin: { householdId: 'h1', householdName: 'Home', code: 'ABCDE23456' },
+  });
+  batch.set(db.doc('households/h1/joinRequests/gone'), { status: 'approved', requestedAt: old });
   await batch.commit();
 });
+
+/** A profile that still points at a household that no longer lists them, with a registered phone. */
+async function seedFormerMember(uid: string, householdId: string) {
+  const batch = db.batch();
+  batch.set(db.doc(`users/${uid}`), {
+    displayName: uid, householdId, timezone: 'America/New_York', locale: 'en', notificationPrefs: prefs,
+    lastDigestDate: null, lastExpiredThrough: null,
+  });
+  batch.set(db.doc(`users/${uid}/devices/phone`), { token: `${uid}-token-1234567890`, platform: 'android' });
+  await batch.commit();
+}
 
 describe('reminder job against the emulator', () => {
   it('sends the right digest to every device, deletes dead tokens and records the day', async () => {
@@ -115,7 +138,9 @@ describe('reminder job against the emulator', () => {
     assert.equal(summary.deadTokens, 1);
 
     assert.equal(summary.prunedActivity, 1);
-    assert.equal(summary.prunedJoinRequests, 1);
+    assert.equal(summary.prunedJoinRequests, 3, 'stale, declined, and approved for an account that is gone');
+    assert.equal((await db.doc('households/h1/joinRequests/gina').get()).exists, true, 'approved, not joined yet');
+    assert.equal((await db.doc('households/h1/joinRequests/gone').get()).exists, false);
     assert.equal(summary.prunedTombstones, 4);
     assert.equal(summary.prunedMeals, 1);
     assert.equal((await db.doc('households/h1/meals/m-past').get()).exists, false, 'more than 28 days past');
@@ -126,6 +151,10 @@ describe('reminder job against the emulator', () => {
     assert.equal((await db.doc('households/h1/stock/old-gone').get()).exists, false);
     assert.equal((await db.doc('households/h1/activity/new').get()).exists, true);
     assert.equal((await db.doc('households/h1/joinRequests/fresh').get()).exists, true);
+    assert.equal(summary.pruned, true);
+    assert.equal(summary.lastPruneDate, '2026-10-12');
+    assert.equal(summary.failures, 0);
+    assert.equal((await db.doc(STATE_DOC).get()).get('lastPruneDate'), '2026-10-12');
   });
 
   it('a second run on the same day sends nothing', async () => {
@@ -193,6 +222,58 @@ describe('reminder job against the emulator', () => {
     assert.equal(summary.emptyDigests, 0);
   });
 
+  it('a removed member gets nothing, and their pointer is cleared as their app would', async () => {
+    // The owner removed gus, who cooks tonight; his app has not run since. Hana's household was deleted.
+    await db.doc('households/h1/meals/m-today').set({
+      date: '2026-10-12', slot: 'dinner', position: 0, title: 'Tacos', cooks: ['gus', 'frank'], cookedAt: null,
+    });
+    await seedFormerMember('gus', 'h1');
+    await seedFormerMember('hana', 'h-deleted');
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: NOW, prune: false });
+
+    assert.equal(sender.sent.some((m) => m.token.startsWith('gus') || m.token.startsWith('hana')), false);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('frank')), 'the members still get theirs');
+    assert.equal(summary.skippedNotMember, 2);
+    const gus = (await db.doc('users/gus').get()).data()!;
+    assert.equal(gus.householdId, null);
+    assert.ok(gus.updatedAt instanceof Timestamp);
+    assert.equal(gus.lastDigestDate, null);
+    assert.equal(gus.nextDigestAt, undefined, 'nothing is due without a household');
+    assert.equal((await db.doc('users/hana').get()).get('householdId'), null);
+
+    // No longer due anywhere, so later runs read nothing for them.
+    const later = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T14:07:00Z'), prune: false });
+    assert.equal(later.skippedNotMember, 0);
+  });
+
+  it('a dry run skips a removed member and leaves the pointer', async () => {
+    await seedFormerMember('gus', 'h1');
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: NOW, dryRun: true });
+    assert.equal(summary.skippedNotMember, 1);
+    assert.equal((await db.doc('users/gus').get()).get('householdId'), 'h1');
+  });
+
+  it('a removed member who joined a household while the run was going keeps the new pointer', async () => {
+    await seedFormerMember('gus', 'h1');
+    // Gus's app writes his new household between the job's reads and its clearing.
+    const racing = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'getAll') return typeof value === 'function' ? value.bind(target) : value;
+        return async (...refs: Parameters<Firestore['getAll']>) => {
+          const snapshots = await target.getAll(...refs);
+          await target.doc('users/gus').update({ householdId: 'h2' });
+          return snapshots;
+        };
+      },
+    });
+    const summary = await runJob(racing, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(summary.skippedNotMember, 1);
+    assert.equal((await db.doc('users/gus').get()).get('householdId'), 'h2');
+  });
+
   it('the cooking line can be switched off', async () => {
     await db.doc('users/frank').update({ 'notificationPrefs.cooking': false });
     await db.doc('households/h1/meals/m-today').set({
@@ -201,5 +282,300 @@ describe('reminder job against the emulator', () => {
     const sender = new RecordingSender();
     await runJob(db, sender, { now: NOW, prune: false });
     assert.equal(sender.sent.some((m) => m.token.startsWith('frank')), false);
+  });
+
+  it('three runs an hour: one digest per user a day, and one prune, in the day\'s first run', async () => {
+    await db.doc(STATE_DOC).set({ lastPruneDate: '2026-10-11' });
+    const sender = new RecordingSender();
+    const pruned: string[] = [];
+    // Every scheduled start from 00:07 to 23:47 UTC on 2026-10-12 (9:00 in New York is 13:00 UTC).
+    for (let h = 0; h < 24; h++) {
+      for (const m of [7, 27, 47]) {
+        const now = new Date(Date.UTC(2026, 9, 12, h, m));
+        const summary = await runJob(db, sender, { now });
+        assert.equal(summary.failures, 0);
+        if (summary.pruned) pruned.push(now.toISOString());
+      }
+    }
+    assert.deepEqual(pruned, ['2026-10-12T00:07:00.000Z']);
+    // Per device and local date: 00:07 UTC is still 11 October in New York, so alice also gets that day's digest.
+    const perDay = new Map<string, number>();
+    for (const m of sender.sent) perDay.set(`${m.token} ${m.data.date}`, (perDay.get(`${m.token} ${m.data.date}`) ?? 0) + 1);
+    assert.deepEqual(Object.fromEntries(perDay), {
+      'alice-token-1234567890 2026-10-11': 1,
+      'alice-web-token-1234567890 2026-10-11': 1,
+      'dead-token 2026-10-11': 1,
+      'erin-token-1234567890 2026-10-12': 1,
+      'alice-token-1234567890 2026-10-12': 1,
+      'alice-web-token-1234567890 2026-10-12': 1,
+    });
+  });
+
+  it('a send that throws costs only that user this run; the other households still get theirs', async () => {
+    // Appendix E of the reliability review: three households due, the first send throws.
+    const batch = db.batch();
+    for (const [uid, hid] of [['a-first', 'hh-a'], ['b-second', 'hh-b'], ['c-third', 'hh-c']] as const) {
+      batch.set(db.doc(`users/${uid}`), { householdId: hid, timezone: 'America/New_York', notificationPrefs: prefs });
+      batch.set(db.doc(`users/${uid}/devices/d1`), { token: `tok-${uid}-1234567890`, platform: 'android' });
+      batch.set(db.doc(`households/${hid}/members/${uid}`), { role: 'owner', displayName: uid });
+      batch.set(db.doc(`households/${hid}/stock/s1`), { productName: 'Milk', expiryDate: '2026-10-13', dateType: 'use_by', quantity: 1 });
+    }
+    await batch.commit();
+    let calls = 0;
+    const sent: Message[] = [];
+    const lines: string[] = [];
+    const throwing: Sender = {
+      async sendEach(messages) {
+        if (++calls === 1) throw Object.assign(new Error('fcm timeout for tok-a-first'), { code: 'app/network-timeout' });
+        sent.push(...messages);
+        return messages.map(() => ({ success: true, deadToken: false }));
+      },
+    };
+    const summary = await runJob(db, throwing, { now: NOW, prune: false, log: (l) => lines.push(l) });
+
+    assert.equal(summary.failures, 1);
+    assert.ok(sent.some((m) => m.token.startsWith('tok-b-second')) && sent.some((m) => m.token.startsWith('tok-c-third')));
+    assert.equal((await db.doc('users/a-first').get()).get('lastDigestDate'), undefined, 'retried next run');
+    assert.deepEqual((await db.doc('users/a-first').get()).get('digestAttempts'), { date: '2026-10-12', count: 1 });
+    assert.equal((await db.doc('users/b-second').get()).get('lastDigestDate'), '2026-10-12');
+    // The failure line has the code only: no ID, no message.
+    assert.deepEqual(lines.filter((l) => l.includes('failed')), ['a digest failed: app/network-timeout']);
+    assert.ok(lines.every((l) => !l.includes('a-first') && !l.includes('fcm timeout')));
+  });
+
+  it(`after ${MAX_SEND_ATTEMPTS} runs without a delivery the user is done for the day`, async () => {
+    let calls = 0;
+    const refusing: Sender = {
+      async sendEach(messages) {
+        calls++;
+        return messages.map(() => ({ success: false, deadToken: false }));
+      },
+    };
+    const runs = Array.from({ length: MAX_SEND_ATTEMPTS + 1 }, (_, i) => new Date(NOW.getTime() + i * 20 * 60_000));
+    const gaveUp = [];
+    for (const now of runs) gaveUp.push((await runJob(db, refusing, { now, prune: false })).gaveUp);
+    // Alice's digest reaches none of her devices; the last run no longer reads or sends for her.
+    assert.deepEqual(gaveUp, [0, 0, 1, 0]);
+    assert.equal(calls, MAX_SEND_ATTEMPTS);
+    const alice = (await db.doc('users/alice').get()).data()!;
+    assert.equal(alice.lastDigestDate, '2026-10-12');
+    assert.equal(alice.lastExpiredThrough, null, 'nothing was reported');
+    assert.equal(alice.digestAttempts, undefined);
+  });
+
+  it('a device a send refuses for another reason keeps its token', async () => {
+    const sender: Sender = { sendEach: async (messages) => messages.map(() => ({ success: false, deadToken: false })) };
+    const summary = await runJob(db, sender, { now: NOW, prune: false });
+    assert.equal(summary.deadTokens, 0);
+    assert.equal((await db.doc('users/alice/devices/old').get()).exists, true);
+  });
+
+  it(`a digest goes to at most the ${MAX_DEVICES} newest devices`, async () => {
+    const batch = db.batch();
+    for (let i = 0; i < MAX_DEVICES + 5; i++) {
+      batch.set(db.doc(`users/frank/devices/d${i}`), {
+        token: `frank-many-${String(i).padStart(2, '0')}-1234567890`, platform: 'android',
+        updatedAt: Timestamp.fromMillis(NOW.getTime() - (100 - i) * 60_000),
+      });
+    }
+    batch.set(db.doc('households/h1/meals/m-today'), {
+      date: '2026-10-12', slot: 'dinner', position: 0, title: 'Tacos', cooks: ['frank'], cookedAt: null,
+    });
+    await batch.commit();
+    const sender = new RecordingSender();
+    await runJob(db, sender, { now: NOW, prune: false });
+    const frank = sender.sent.filter((m) => m.token.startsWith('frank')).map((m) => m.token).sort();
+    assert.equal(frank.length, MAX_DEVICES);
+    assert.equal(frank[0], 'frank-many-05-1234567890', 'the oldest five are left out');
+  });
+
+  it('users without a device are skipped before the household\'s stock is read', async () => {
+    const queried: string[] = [];
+    const watching = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'collection') return typeof value === 'function' ? value.bind(target) : value;
+        return (path: string) => { queried.push(path); return target.collection(path); };
+      },
+    });
+    // Only bob (no devices) is due.
+    for (const uid of ['alice', 'frank']) await db.doc(`users/${uid}`).update({ lastDigestDate: '2026-10-12' });
+    const summary = await runJob(watching, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(summary.skippedNoDevices, 1);
+    assert.deepEqual(queried.filter((p) => p.startsWith('households/')), []);
+  });
+
+  it(`one household's stock query reads at most ${MAX_STOCK} batches, soonest first`, async () => {
+    for (let start = 0; start < MAX_STOCK + 20; start += 400) {
+      const batch = db.batch();
+      for (let i = start; i < Math.min(start + 400, MAX_STOCK + 20); i++) {
+        batch.set(db.doc(`households/h1/stock/many-${i}`), {
+          productName: `P${i}`, expiryDate: i < 10 ? '2026-10-12' : '2026-10-14', dateType: 'use_by', quantity: 1,
+        });
+      }
+      await batch.commit();
+    }
+    const sender = new RecordingSender();
+    await runJob(db, sender, { now: NOW, prune: false });
+    const alice = sender.sent.find((m) => m.token.startsWith('alice'))!;
+    // The cap keeps the soonest: Milk (expired), today's ten and the rest of the 500.
+    assert.equal(alice.notification.title, `${MAX_STOCK - 1} items need attention`);
+    assert.match(alice.notification.body, /^Throw away: Milk\. Today: P\d, P\d, P\d \+7 more\./);
+  });
+
+  it('a profile deleted during the run is skipped as a deleted account, not a failure', async () => {
+    const deleting = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'getAll') return typeof value === 'function' ? value.bind(target) : value;
+        return async (...refs: Parameters<Firestore['getAll']>) => {
+          const snapshots = await target.getAll(...refs);
+          await target.doc('users/frank').delete();
+          return snapshots;
+        };
+      },
+    });
+    const sender = new RecordingSender();
+    const summary = await runJob(deleting, sender, { now: NOW, prune: false });
+    assert.equal(summary.skippedDeleted, 1);
+    assert.equal(summary.failures, 0);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('alice')));
+  });
+
+  it('stores when each user is next due, and later runs read only those due and those changed (B25)', async () => {
+    const first = await runJob(db, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(first.fullRead, true, 'no cursor yet: every user with reminders on');
+    assert.equal(first.usersRead, 4, 'alice, bob, erin and frank; not carol (off) or gina');
+    const next = async (uid: string) => ((await db.doc(`users/${uid}`).get()).get('nextDigestAt') as Timestamp | undefined)
+      ?.toDate().toISOString();
+    // Sent, or nothing to report: tomorrow's 9:00 in New York. No devices: still due. Too late in Tokyo: tomorrow 9:00.
+    assert.equal(await next('alice'), '2026-10-13T13:00:00.000Z');
+    assert.equal(await next('frank'), '2026-10-13T13:00:00.000Z');
+    assert.equal(await next('bob'), NOW.toISOString());
+    assert.equal(await next('erin'), '2026-10-13T00:00:00.000Z');
+    assert.equal(await next('carol'), undefined);
+    const state = (await db.doc(STATE_DOC).get()).data()!;
+    assert.equal(state.lastUsersReadDate, '2026-10-12');
+    assert.ok(state.usersCursor instanceof Timestamp);
+
+    // Later the same day: only bob is due; nobody changed.
+    const second = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T13:22:00Z'), prune: false });
+    assert.equal(second.fullRead, false);
+    assert.equal(second.usersRead, 1);
+    assert.equal(second.skippedNoDevices, 1);
+    assert.equal(second.rescheduled, 0, 'bob keeps his time');
+
+    // The first run of the next UTC day reads everyone again, and finds nothing to change.
+    const nextDay = await runJob(db, new RecordingSender(), { now: new Date('2026-10-13T00:07:00Z'), prune: false });
+    assert.equal(nextDay.fullRead, true);
+    assert.equal(nextDay.usersRead, 4);
+    assert.equal(nextDay.rescheduled, 0);
+  });
+
+  it('a user whose app changes the time, the time zone or reminders between runs is read the next run', async () => {
+    // Ivy chose 21:00 in New York; the first run stores tomorrow 01:00 UTC.
+    await db.doc('users/ivy').set({
+      displayName: 'ivy', householdId: 'h1', timezone: 'America/New_York', locale: 'en',
+      notificationPrefs: { ...prefs, digestMinutes: 21 * 60 }, lastDigestDate: null, lastExpiredThrough: null,
+    });
+    await db.doc('users/ivy/devices/phone').set({ token: 'ivy-token-1234567890', platform: 'web' });
+    await db.doc('households/h1/members/ivy').set({ role: 'member', displayName: 'ivy' });
+    await runJob(db, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(((await db.doc('users/ivy').get()).get('nextDigestAt') as Timestamp).toDate().toISOString(), '2026-10-13T01:00:00.000Z');
+
+    // Her app moves it to 9:00, as both apps write it: the whole prefs map and updatedAt from the server.
+    await db.doc('users/ivy').update({ notificationPrefs: prefs, updatedAt: FieldValue.serverTimestamp() });
+    const sender = new RecordingSender();
+    const summary = await runJob(db, sender, { now: new Date('2026-10-12T13:22:00Z'), prune: false });
+    assert.equal(summary.fullRead, false);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('ivy')), 'sent at the next run, as before');
+    assert.equal((await db.doc('users/ivy').get()).get('lastDigestDate'), '2026-10-12');
+
+    // Frank moves to Tokyo, where it is 22:22 (done for today there): his next read is 9:00 Tokyo tomorrow.
+    await db.doc('users/frank').update({ timezone: 'Asia/Tokyo', updatedAt: FieldValue.serverTimestamp() });
+    // Alice turns reminders off: she is no longer read at all.
+    await db.doc('users/alice').update({ notificationPrefs: { ...prefs, enabled: false }, updatedAt: FieldValue.serverTimestamp() });
+    const third = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T13:37:00Z'), prune: false });
+    // Bob (due, no devices), and the changed ones: frank, alice and ivy (her digest, within the cursor's margin).
+    assert.equal(third.usersRead, 4);
+    assert.equal(third.sent, 0);
+    assert.equal(((await db.doc('users/frank').get()).get('nextDigestAt') as Timestamp).toDate().toISOString(), '2026-10-13T00:00:00.000Z');
+    assert.equal((await db.doc('users/alice').get()).get('nextDigestAt'), undefined);
+
+    // Carol turns reminders on (still no phone registered): due straight away, so read and tried at the next run.
+    await db.doc('users/carol').update({ notificationPrefs: prefs, updatedAt: FieldValue.serverTimestamp() });
+    const fourth = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T13:52:00Z'), prune: false });
+    assert.equal(fourth.fullRead, false);
+    assert.equal(fourth.skippedNoDevices, 2, 'bob and carol');
+    assert.equal(((await db.doc('users/carol').get()).get('nextDigestAt') as Timestamp).toDate().toISOString(), '2026-10-12T13:52:00.000Z');
+  });
+
+  it('a profile deleted before its next time is stored is not brought back', async () => {
+    // Erin is read (too late in Tokyo) and deleted before the job stores her next time.
+    const deleting = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'getAll') return typeof value === 'function' ? value.bind(target) : value;
+        return async (...refs: Parameters<Firestore['getAll']>) => {
+          const snapshots = await target.getAll(...refs);
+          await target.doc('users/erin').delete();
+          return snapshots;
+        };
+      },
+    });
+    const summary = await runJob(deleting, new RecordingSender(), { now: NOW, prune: false });
+    assert.equal(summary.failures, 0);
+    assert.equal((await db.doc('users/erin').get()).exists, false);
+    assert.ok((await db.doc(STATE_DOC).get()).get('usersCursor') instanceof Timestamp, 'the run still moves on');
+  });
+
+  it('a dry run stores no times and no cursor', async () => {
+    const summary = await runJob(db, new RecordingSender(), { now: NOW, dryRun: true });
+    assert.equal(summary.fullRead, true);
+    assert.ok(summary.rescheduled > 0, 'counted');
+    assert.equal((await db.doc('users/erin').get()).get('nextDigestAt'), undefined);
+    assert.equal((await db.doc(STATE_DOC).get()).exists, false);
+  });
+
+  it('without the job\'s state it reads every user, sends, and leaves the state and the prune alone', async () => {
+    const lines: string[] = [];
+    const broken = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target);
+        if (prop !== 'doc') return typeof value === 'function' ? value.bind(target) : value;
+        return (path: string) => {
+          if (path !== STATE_DOC) return target.doc(path);
+          return { get: async () => { throw Object.assign(new Error('unavailable'), { code: 14 }); } };
+        };
+      },
+    });
+    const sender = new RecordingSender();
+    const summary = await runJob(broken, sender, { now: NOW, log: (l) => lines.push(l) });
+    assert.equal(summary.fullRead, true);
+    assert.ok(sender.sent.some((m) => m.token.startsWith('alice')));
+    assert.equal(summary.failures, 1);
+    assert.equal(summary.pruned, false);
+    assert.deepEqual(lines.filter((l) => l.includes('failed')), ['the job state failed: UNAVAILABLE']);
+    assert.equal((await db.doc(STATE_DOC).get()).exists, false);
+  });
+
+  it('prunes once per UTC day, keyed on the job\'s own document', async () => {
+    const first = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T00:07:00Z') });
+    assert.equal(first.pruned, true);
+    assert.equal(first.lastPruneDate, '2026-10-12');
+    // Something old enough appears later that day: not pruned until the next UTC day.
+    await db.doc('households/h1/activity/later').set({ type: 'stock_added', createdAt: Timestamp.fromDate(new Date('2026-09-01T00:00:00Z')) });
+    const second = await runJob(db, new RecordingSender(), { now: new Date('2026-10-12T23:47:00Z') });
+    assert.equal(second.pruned, false);
+    assert.equal(second.lastPruneDate, '2026-10-12');
+    assert.equal((await db.doc('households/h1/activity/later').get()).exists, true);
+    const next = await runJob(db, new RecordingSender(), { now: new Date('2026-10-13T00:27:00Z') });
+    assert.equal(next.pruned, true);
+    assert.equal(next.lastPruneDate, '2026-10-13');
+    assert.equal((await db.doc('households/h1/activity/later').get()).exists, false);
+    // A dry run reports the date and changes nothing.
+    const dry = await runJob(db, new RecordingSender(), { now: new Date('2026-10-14T00:07:00Z'), dryRun: true });
+    assert.equal(dry.pruned, false);
+    assert.equal(dry.lastPruneDate, '2026-10-13');
   });
 });

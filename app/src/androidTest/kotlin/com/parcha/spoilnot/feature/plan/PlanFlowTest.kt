@@ -1,6 +1,7 @@
 package com.parcha.spoilnot.feature.plan
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.firebase.firestore.Source
 import com.parcha.spoilnot.EmulatorSupport
 import com.parcha.spoilnot.EmulatorSupport.PASSWORD
 import com.parcha.spoilnot.EmulatorSupport.uniqueEmail
@@ -18,16 +19,21 @@ import com.parcha.spoilnot.feature.plan.domain.MealPlanData
 import com.parcha.spoilnot.feature.plan.domain.MealPlanGrocery
 import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import com.parcha.spoilnot.feature.plan.domain.MealWeek
+import com.parcha.spoilnot.feature.plan.domain.PlannedMeal
 import com.parcha.spoilnot.feature.recipes.domain.Cooking
 import com.parcha.spoilnot.feature.recipes.domain.RecipeContent
 import com.parcha.spoilnot.feature.recipes.domain.RecipeLines
+import com.parcha.spoilnot.recipeWords
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -66,12 +72,26 @@ class PlanFlowTest {
 
     @After
     fun tearDown() {
-        if (::alice.isInitialized) alice.close()
+        if (::alice.isInitialized) {
+            runBlocking { runCatching { alice.firestore.current.enableNetwork().await() } }
+            alice.close()
+        }
         if (::bob.isInitialized) bob.close()
     }
 
     private suspend fun TestPhone.week(predicate: (MealPlanData) -> Boolean): MealPlanData =
         withTimeout(20_000) { mealPlanRepository.observe(householdId, weekStart, weekEnd).first(predicate) }
+
+    private suspend fun TestPhone.flush() = withTimeout(30_000) { firestore.current.waitForPendingWrites().await() }
+
+    /** Leftovers for today's dinner, planned by Alice and on the server. */
+    private suspend fun plannedLeftovers(): PlannedMeal {
+        alice.mealPlan.addOther(householdId, alice.actor, today, MealSlot.Dinner, "Leftovers", emptyList(), emptyList())
+        alice.flush()
+        return alice.week { w -> !w.fromCache && w.meals.singleOrNull()?.pendingSync == false }.meals.single()
+    }
+
+    private val noPantry = PantryData(emptyList(), emptyList(), fromCache = true)
 
     @Test
     fun aPlannedMealWithTwoCooksReachesTheOtherPhone_changesAndRemovalFollow() = runBlocking {
@@ -118,6 +138,66 @@ class PlanFlowTest {
         assertEquals(8, back.servings)
     }
 
+    // A Cooked made offline is a pending server timestamp; read with the estimate, it shows at once (DESIGN 5.9).
+    @Test
+    fun cookedOffline_showsAtOnce_andReachesTheOtherPhoneOnceBack() = runBlocking {
+        val meal = plannedLeftovers()
+
+        alice.firestore.current.disableNetwork().await()
+        alice.mealPlan.cooked(householdId, alice.actor, meal, null, emptyMap(), noPantry)
+        val offline = alice.week { w -> w.meals.single().cookedAt != null }.meals.single()
+        assertTrue("waiting to sync", offline.pendingSync)
+        assertEquals(alice.uid, offline.cookedBy)
+
+        alice.firestore.current.enableNetwork().await()
+        alice.flush()
+        val seen = bob.week { w -> !w.fromCache && w.meals.singleOrNull()?.cookedAt != null }.meals.single()
+        assertEquals(alice.uid, seen.cookedBy)
+        assertNotNull(alice.week { w -> !w.meals.single().pendingSync }.meals.single().cookedAt)
+    }
+
+    // Undo of Remove brings a cooked meal back still cooked, online and when Cooked, Remove and Undo were all offline:
+    // the rules keep `cookedAt` as it is stored, so Undo must not write it back (DESIGN 5.9, 8.5 invariant 10).
+    @Test
+    fun removingACookedMealAndUndo_keepsItCooked_onlineAndOffline() = runBlocking {
+        val path = "households/$householdId/meals"
+        suspend fun onServer(id: String) = alice.firestore.current.document("$path/$id").get(Source.SERVER).await()
+
+        val online = plannedLeftovers()
+        alice.mealPlan.cooked(householdId, alice.actor, online, null, emptyMap(), noPantry)
+        alice.flush()
+        val cooked = alice.week { w -> !w.fromCache && w.meals.single().let { !it.pendingSync && it.cookedAt != null } }
+            .meals.single()
+        val undo = alice.mealPlan.remove(householdId, alice.actor, cooked)
+        alice.week { it.meals.isEmpty() }
+        alice.mealPlan.undo(householdId, alice.actor, undo)
+        alice.flush()
+        val back = onServer(online.id)
+        assertFalse("deleted: ${back.data}", back.contains("deletedAt"))
+        assertEquals(alice.uid, back.getString("cookedBy"))
+        assertEquals(cooked.cookedAt, back.getTimestamp("cookedAt")?.toInstant())
+
+        alice.mealPlan.notCooked(householdId, alice.actor, cooked)
+        alice.flush()
+        val meal = alice.week { w -> !w.fromCache && w.meals.single().let { !it.pendingSync && it.cookedAt == null } }
+            .meals.single()
+        alice.firestore.current.disableNetwork().await()
+        alice.mealPlan.cooked(householdId, alice.actor, meal, null, emptyMap(), noPantry)
+        val offline = alice.week { w -> w.meals.singleOrNull()?.cookedAt != null }.meals.single()
+        val offlineUndo = alice.mealPlan.remove(householdId, alice.actor, offline)
+        alice.week { it.meals.isEmpty() }
+        alice.mealPlan.undo(householdId, alice.actor, offlineUndo)
+        assertNotNull(alice.week { it.meals.size == 1 }.meals.single().cookedAt)
+        alice.firestore.current.enableNetwork().await()
+        alice.flush()
+        val synced = onServer(meal.id)
+        assertFalse("deleted: ${synced.data}", synced.contains("deletedAt"))
+        assertEquals(alice.uid, synced.getString("cookedBy"))
+        assertNotNull(synced.getTimestamp("cookedAt"))
+        val seen = bob.week { w -> !w.fromCache && w.meals.singleOrNull()?.cookedAt != null }.meals.single()
+        assertEquals(alice.uid, seen.cookedBy)
+    }
+
     @Test
     fun anotherWeekShowsOnlyItsOwnMeals() = runBlocking {
         alice.mealPlan.addOther(householdId, alice.actor, today, MealSlot.Dinner, "Tacos", emptyList(), emptyList())
@@ -159,7 +239,7 @@ class PlanFlowTest {
         val pantry = withTimeout(20_000) {
             bob.pantryRepository.observe(householdId).first { d -> d.batches.singleOrNull()?.quantity == 6.0 }
         }
-        val line = Cooking.lines(recipe, pantry, MealPlanGrocery.factor(planned, recipe)).single()
+        val line = Cooking.lines(recipe, pantry, recipeWords(), MealPlanGrocery.factor(planned, recipe)).single()
         assertEquals(4.0, line.defaultAmount, 0.0)
 
         val undo = bob.mealPlan.cooked(householdId, bob.actor, planned, recipe, mapOf(line.product.id to 4.0), pantry)
@@ -191,7 +271,12 @@ class PlanFlowTest {
         alice.mealPlan.addRecipe(householdId, alice.actor, today, MealSlot.Dinner, recipe, emptyList(), emptyList())
         val days = MealWeek.build(weekStart, alice.week { d -> d.meals.isNotEmpty() }.meals, today)
         val pantry = PantryData(emptyList(), emptyList(), fromCache = false)
-        val sections = MealPlanGrocery.sections(MealPlanGrocery.toShop(days, listOf(recipe)), pantry, emptyList())
+        val sections = MealPlanGrocery.sections(
+            MealPlanGrocery.toShop(days, listOf(recipe)),
+            pantry,
+            emptyList(),
+            recipeWords(),
+        )
         val list = withTimeout(10_000) { alice.groceryRepository.observeLists(householdId).first { it.isNotEmpty() } }
             .single { it.isDefault }
         val count = alice.recipes.addItems(

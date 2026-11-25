@@ -1,7 +1,9 @@
 // The session state machine and membership watcher (DESIGN 5.1, 9.1), ported from SessionManager.
 //
-// - Creates the profile if it is missing (for example after an interrupted sign-up).
-// - Completes an approved join request.
+// - Creates the profile if it is missing right after sign-up or sign-in on this phone (an interrupted sign-up). A
+//   profile that disappears later is never recreated: it was deleted with its account, maybe on another phone, so
+//   this phone signs out instead (after v1).
+// - Completes an approved join request, also when the request itself is gone but the membership exists.
 // - When the membership disappears (removed, or the household was deleted) it clears the profile pointer, which
 //   returns the user to the gate; whenever a household is left for any reason the local cache is cleared.
 // - Sign-out and account deletion pause all listeners while local data is cleared.
@@ -14,10 +16,13 @@ import {
   concat,
   defer,
   distinctUntilChanged,
+  EMPTY,
   filter,
+  first,
   firstValueFrom,
   from,
   ignoreElements,
+  map,
   of,
   shareReplay,
   switchMap,
@@ -39,7 +44,10 @@ import {
 } from './account';
 import type { DeviceRegistry, HouseholdRepository, LocalData, Role } from './household';
 
-/** The user's one join request; an approved request completes on its own. Expired: it disappeared unanswered. */
+/**
+ * The user's one join request; an approved request completes on its own. Expired: it disappeared unanswered, checked
+ * against the membership, since the job may prune an approved request before this phone finished the join (SYNC-06).
+ */
 export type JoinState = { kind: 'waiting' | 'declined' | 'expired'; pending: PendingJoin };
 
 /** Where the signed-in user stands; drives the top-level screen (sign-in, household gate or the app). */
@@ -68,10 +76,17 @@ const backoffMs = (attempt: number) => 1_000 * 2 ** Math.min(attempt, 5);
 export class SessionManager {
   private readonly shuttingDown = new BehaviorSubject(false);
   private pendingDisplayName: string | null = null;
+  /**
+   * Set when someone signs up or signs in on this phone, until their profile is seen: only then may a missing profile
+   * be created (after v1). Set before the call, since the profile listener can start before it returns.
+   */
+  private mayCreateProfile = false;
   /** The household this page last saw the user in; its cache is cleared once they are no longer in it. */
   private lastHouseholdId: string | null = null;
   private current: Session = LOADING;
   private readonly subscription: Subscription;
+  /** See [deleteFailure]. */
+  private failedDeletion: unknown = null;
 
   readonly session$: Observable<Session>;
 
@@ -104,21 +119,48 @@ export class SessionManager {
     return this.current;
   }
 
+  /**
+   * Why the last Delete account failed after it had started deleting, or null. By then Loading has replaced the
+   * screen that asked, so the household gate shows this when the failed deletion leaves the user there (it had
+   * already left the household, or never had one). Cleared by the next attempt, [dismissDeleteFailure], or a session
+   * in a household or signed out, where no screen would show it.
+   */
+  get deleteFailure(): unknown {
+    return this.failedDeletion;
+  }
+
+  dismissDeleteFailure(): void {
+    this.failedDeletion = null;
+  }
+
   dispose(): void {
     this.subscription.unsubscribe();
   }
 
   async signUp(displayName: string, email: string, password: string): Promise<void> {
     this.pendingDisplayName = displayName.trim();
+    this.mayCreateProfile = true;
     await this.auth.signUp(displayName.trim(), email.trim(), password);
   }
 
   signIn(email: string, password: string): Promise<void> {
+    this.mayCreateProfile = true;
     return this.auth.signIn(email.trim(), password);
   }
 
+  /**
+   * Signs out, unless this phone has changes that haven't reached the server yet and [evenIfUnsynced] is false:
+   * signing out clears the phone's copy, queue included, so it returns false and the screen asks "Some changes
+   * haven't synced yet. Sign out anyway?" first (after v1, SYNC-09). True once signed out.
+   */
+  async signOut(evenIfUnsynced = false): Promise<boolean> {
+    if (!evenIfUnsynced && !(await this.localData.flushPendingWrites())) return false;
+    await this.signOutNow();
+    return true;
+  }
+
   /** Clears this device's copy of the household before signing out (DESIGN 12.2, control 6). */
-  async signOut(): Promise<void> {
+  private async signOutNow(): Promise<void> {
     const uid = this.auth.currentUser()?.uid;
     this.shuttingDown.next(true);
     try {
@@ -139,6 +181,7 @@ export class SessionManager {
    * The sign-in is refreshed only at the very end if Firebase requires it, after all Firestore writes.
    */
   async deleteAccount(password: string): Promise<void> {
+    this.failedDeletion = null;
     const uid = this.auth.currentUser()?.uid;
     if (!uid) return;
     const current = await firstValueFrom(
@@ -165,6 +208,11 @@ export class SessionManager {
         await this.auth.reauthenticate(password);
         await this.auth.deleteAccount();
       }
+    } catch (error) {
+      // The sign-in still exists: its profile may be created again, so the gate can show this.
+      this.mayCreateProfile = true;
+      this.failedDeletion = error ?? new AppError('unknown');
+      throw error;
     } finally {
       this.pendingDisplayName = null;
       this.lastHouseholdId = null;
@@ -176,6 +224,7 @@ export class SessionManager {
     let hadHousehold = false;
     const source = this.users.observeProfile(user.uid).pipe(
       switchMap((profile): Observable<Session> => {
+        if (profile !== null) this.mayCreateProfile = false;
         const lostHousehold = hadHousehold && profile?.householdId == null;
         hadHousehold = profile?.householdId != null;
         if (lostHousehold) {
@@ -192,7 +241,16 @@ export class SessionManager {
     if (profile === null) {
       return concat(
         of(LOADING),
-        defer(() => this.users.createProfileIfMissing(user.uid, this.displayNameFor(user))).pipe(ignoreElements()),
+        defer(async () => {
+          // Only right after sign-up or sign-in on this phone (an interrupted sign-up then needs a sign-in again). A
+          // profile that disappears later was deleted with its account, maybe on another phone, whose sign-in is
+          // deleted only after the profile: it must not come back (after v1). Sign out here too.
+          if (this.mayCreateProfile) {
+            await this.users.createProfileIfMissing(user.uid, this.displayNameFor(user));
+          } else {
+            void this.signOutNow().catch(() => undefined);
+          }
+        }).pipe(ignoreElements()),
       );
     }
     if (profile.householdId !== null) return this.watchMembership(user, profile, profile.householdId);
@@ -227,12 +285,31 @@ export class SessionManager {
   private watchJoinRequest(user: AuthUser, profile: UserProfile, pending: PendingJoin): Observable<Session> {
     return this.households.observeOwnJoinRequest(pending.householdId, user.uid).pipe(
       switchMap((request) => {
-        const kind = request === null ? 'expired' : request.status === 'declined' ? 'declined' : 'waiting';
-        const session = noHousehold(user, profile.displayName, { kind, pending });
-        if (request?.status !== 'approved') return of(session);
-        return concat(
-          of(session),
-          defer(() => this.households.completeJoin(user.uid, profile.displayName, pending)).pipe(ignoreElements()),
+        // A missing request is expired only when no membership was made from it: the owner may have approved it
+        // and the job pruned it before this phone opened (after v1, SYNC-06).
+        const approved$: Observable<boolean> =
+          request === null
+            ? this.households.observeMembership(pending.householdId, user.uid).pipe(
+                first(),
+                map((m) => m.kind === 'active'),
+              )
+            : of(request.status === 'approved');
+        return approved$.pipe(
+          switchMap((approved) => {
+            const kind = approved
+              ? 'waiting'
+              : request === null
+                ? 'expired'
+                : request.status === 'declined'
+                  ? 'declined'
+                  : 'waiting';
+            const session = noHousehold(user, profile.displayName, { kind, pending });
+            if (!approved) return of(session);
+            return concat(
+              of(session),
+              defer(() => this.households.completeJoin(user.uid, profile.displayName, pending)).pipe(ignoreElements()),
+            );
+          }),
         );
       }),
     );
@@ -242,6 +319,7 @@ export class SessionManager {
     switch (session.kind) {
       case 'inHousehold':
         this.lastHouseholdId = session.householdId;
+        this.failedDeletion = null;
         break;
       case 'noHousehold':
         if (this.lastHouseholdId !== null) {
@@ -251,6 +329,7 @@ export class SessionManager {
         break;
       case 'signedOut':
         this.lastHouseholdId = null;
+        this.failedDeletion = null;
         break;
       case 'loading':
         break;
@@ -262,12 +341,22 @@ export class SessionManager {
   }
 }
 
-/** On an error: Loading, a growing pause, then listening again (retryWhen with backoff in the app). */
+/**
+ * The server refused the read (`permission-denied` or `unauthenticated`): the rules no longer let this user see the
+ * profile or membership, so the screen must not keep showing it.
+ */
+export const isPermissionRefusal = (error: unknown): boolean => isAppError(error, 'permissionDenied');
+
+/**
+ * On an error: a growing pause, then listening again (retryWhen with backoff in the app). Only a permission refusal
+ * shows Loading meanwhile; any other error (the quota running out, the network, a bad document) keeps the last
+ * session on screen, cached data included (DESIGN 6.7, 7.5; after v1, WEB-04).
+ */
 function withRetry(source: Observable<Session>, attempt = 0): Observable<Session> {
   return source.pipe(
-    catchError(() =>
+    catchError((error: unknown) =>
       concat(
-        of(LOADING),
+        isPermissionRefusal(error) ? of(LOADING) : EMPTY,
         timer(backoffMs(attempt)).pipe(ignoreElements()),
         defer(() => withRetry(source, attempt + 1)),
       ),

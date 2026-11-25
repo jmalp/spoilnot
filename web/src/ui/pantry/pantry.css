@@ -1,36 +1,21 @@
-/* The Pantry tab (DESIGN 5.2), measured like the app's PantryScreen and PantryComponents. */
+/* The Pantry tab in the 2026-11 look (DESIGN 5.2, 19.5, 19.6, 19.12), measured like the app's PantryScreen and
+   PantryComponents. Rows are segments of a group (look.css). */
 
-/* Status tones (StatusColors): fixed colors, always with an icon and words. */
-.sn-tone--fresh,
-.sn-status-chip--fresh {
+/* Status tones (StatusColors): fixed colors, always with words. */
+.sn-tone--fresh {
   --sn-tone: var(--sn-status-fresh);
 }
-.sn-tone--soon,
-.sn-status-chip--soon {
+.sn-tone--soon {
   --sn-tone: var(--sn-status-soon);
 }
-.sn-tone--urgent,
-.sn-status-chip--urgent {
+.sn-tone--urgent {
   --sn-tone: var(--sn-status-urgent);
 }
-.sn-tone--expired,
-.sn-status-chip--expired {
+.sn-tone--expired {
   --sn-tone: var(--sn-status-expired);
 }
-.sn-tone--no-date,
-.sn-status-chip--no-date {
+.sn-tone--no-date {
   --sn-tone: var(--sn-status-no-date);
-}
-
-.sn-status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  color: var(--sn-tone);
-  background: color-mix(in srgb, var(--sn-tone) 12%, transparent);
-  white-space: nowrap;
 }
 .sn-badge {
   padding: 2px 8px;
@@ -40,6 +25,7 @@
   white-space: nowrap;
 }
 
+/* The search row and filter row as Recipes still uses them until its step, and the list's base. */
 .sn-pantry-search {
   padding: 4px 16px;
 }
@@ -54,7 +40,6 @@
   padding-left: 16px;
   color: var(--md-sys-color-on-surface-variant);
 }
-
 .sn-filter-row {
   display: flex;
   gap: 8px;
@@ -71,36 +56,59 @@
   flex: none;
   margin: 4px 0;
 }
-
 .sn-pantry-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 96px;
+  /* Room for the floating button under the last row (TabScaffold measures it). */
+  padding-bottom: max(96px, var(--sn-fab-space, 0px));
 }
-.sn-group-header {
+
+/* Pantry in the 2026-11 look (step 3): the round search field and the chips on the page, the list as groups 12 px
+   apart, 16 px from the sides. */
+.sn-pantry-search.sn-pantry-search--look {
+  padding: 8px 16px 0;
+  flex: none;
+}
+.sn-filter-row.sn-filter-row--look {
+  padding: 12px 16px 0;
+  border-bottom: none;
+}
+.sn-pantry-list.sn-pantry-list--look {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.sn-pantry-block {
+  display: flex;
+  flex-direction: column;
+}
+/* A group's heading stays at the top while its rows scroll under it, on the page's color (DECISIONS 2026-11-16). */
+.sn-pantry-heading {
   position: sticky;
   top: 0;
+  /* Below the screen header (2), so a menu opened from it (the list switcher, Sort) stays on top. */
   z-index: 1;
   margin: 0;
-  padding: 8px 16px;
-  background: var(--md-sys-color-surface);
+  padding: 4px 8px 6px;
+  background: var(--sn-surface-page);
   color: var(--md-sys-color-primary);
-  text-transform: uppercase;
 }
 
 .sn-pantry-row {
   position: relative;
   overflow: hidden;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   touch-action: pan-y;
 }
 .sn-pantry-row__front {
   position: relative;
   display: flex;
   align-items: center;
-  background: var(--md-sys-color-surface);
+  background: var(--sn-surface-row);
   transition: transform 200ms var(--sn-motion-standard);
 }
 .sn-pantry-row__main {
@@ -109,8 +117,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 64px;
-  padding: 8px 4px 8px 16px;
+  min-height: 68px;
+  padding: 10px 0 10px 12px;
   border: none;
   background: transparent;
   color: var(--md-sys-color-on-surface);
@@ -119,18 +127,27 @@
 .sn-pantry-row__main--out {
   padding-right: 16px;
 }
+.sn-pantry-row__menu {
+  color: var(--md-sys-color-on-surface-variant);
+}
 .sn-pantry-row__text {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 .sn-pantry-row__name {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+/* From 1.5x text the Low badge goes under the name (after v1, review A11Y-04). */
+:root[data-large-text] .sn-pantry-row__name {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 .sn-pantry-row__name-text {
   min-width: 0;
@@ -139,27 +156,28 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.sn-pantry-row__details {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-}
-.sn-pantry-row__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.sn-pantry-row__second {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--sp-14);
-  line-height: var(--sp-20);
-  letter-spacing: 0.015625rem;
-  white-space: nowrap;
+}
+.sn-pantry-row__second .t-row-status {
+  color: var(--sn-tone);
 }
 .sn-pantry-row__amount {
-  font-weight: 600;
+  font-weight: 800;
   white-space: nowrap;
 }
+/* From 1.5x text the amount joins the second line instead (review A11Y-04). */
+.sn-pantry-row__amount-inline {
+  display: none;
+}
+:root[data-large-text] .sn-pantry-row__amount-inline {
+  display: inline;
+}
+:root[data-large-text] .sn-pantry-row__amount {
+  display: none;
+}
 
+/* The swipe's background fills the row's rounded shape, which clips it. */
 .sn-swipe {
   position: absolute;
   inset: 0;
@@ -168,35 +186,69 @@
   gap: 8px;
   padding: 0 20px;
   --sn-tone: var(--sn-status-fresh);
-  background: color-mix(in srgb, var(--sn-tone) 16%, transparent);
+  background: color-mix(in srgb, var(--sn-tone) 12%, var(--sn-surface-row));
   color: var(--sn-tone);
+}
+.sn-swipe .t-button-medium {
+  font-weight: 800;
 }
 .sn-swipe--throwAway {
   --sn-tone: var(--sn-status-expired);
   justify-content: flex-end;
 }
 
-.sn-expired-header {
+/* "65 expired items" with Show, a row of its group. From 1.5x text Show goes under the words. */
+.sn-pantry-fold {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 68px;
+  padding: 8px 4px 8px 12px;
+}
+.sn-pantry-fold__text {
+  flex: 1;
+  min-width: 0;
+}
+:root[data-large-text] .sn-pantry-fold__text {
+  flex-basis: calc(100% - 56px);
+}
+:root[data-large-text] .sn-pantry-fold > .m3-button {
+  margin-left: auto;
+}
+
+/* The empty pantry: the kitchen in a leaf (DESIGN 19.3), one sentence and the main button. */
+.sn-pantry-empty {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 8px 16px;
-  padding: 12px 16px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--sn-status-expired) 8%, transparent);
-}
-.sn-expired-header__title {
-  display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 24px;
+  padding: 32px 40px;
+  text-align: center;
 }
-.sn-expired-header__icon {
-  color: var(--sn-status-expired);
-  display: flex;
+.sn-pantry-empty p {
+  margin: 0;
+  font-size: var(--sp-18);
+  line-height: var(--sp-26);
+  font-weight: 600;
 }
-.sn-expired-header__actions {
-  display: flex;
-  justify-content: flex-end;
+.sn-pantry-empty__leaf {
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+  border-radius: 50% 15% 50% 15%;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+.sn-pantry-empty__leaf .m3-icon {
+  width: 60px;
+  height: 60px;
+}
+.sn-pantry-empty > .m3-button {
+  align-self: stretch;
 }
 
 .sn-menu-header {
@@ -209,35 +261,42 @@
   display: inline-flex;
 }
 
-.sn-choices {
-  display: flex;
-  flex-direction: column;
-  margin: 0 -12px;
+/* A dialog's choices as a group of rows (DESIGN 19.11): 56 px, 18 px outside corners, on the dialog row color. */
+.sn-group--dialog > .sn-segment {
+  background: var(--sn-surface-dialog-row);
+}
+.sn-group--dialog > .sn-segment:first-child {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+.sn-group--dialog > .sn-segment:last-child {
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
 }
 .sn-choice {
   display: flex;
   align-items: center;
-  gap: 0;
-  min-height: 48px;
+  gap: 4px;
+  min-height: 56px;
+  padding-right: 16px;
   color: var(--md-sys-color-on-surface);
+  font-weight: 600;
+  cursor: pointer;
 }
 
+/* Mark opened (DESIGN 5.2). */
 .sn-opened {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 8px 24px 16px;
+  gap: 18px;
+  padding: 4px 20px 16px;
 }
 .sn-opened p,
 .sn-opened h2 {
   margin: 0;
 }
-.sn-opened__count {
-  display: flex;
-  align-items: center;
-}
 .sn-opened__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 8px;
+  gap: 8px;
 }

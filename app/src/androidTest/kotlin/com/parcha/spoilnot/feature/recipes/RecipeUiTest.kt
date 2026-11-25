@@ -8,8 +8,9 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isSelectable
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,12 +25,16 @@ import com.parcha.spoilnot.EmulatorSupport.PASSWORD
 import com.parcha.spoilnot.EmulatorSupport.uniqueEmail
 import com.parcha.spoilnot.MainActivity
 import com.parcha.spoilnot.R
+import com.parcha.spoilnot.core.write.Actor
 import com.parcha.spoilnot.feature.household.domain.HouseholdRepository
 import com.parcha.spoilnot.feature.household.domain.InviteCodes
 import com.parcha.spoilnot.feature.household.domain.Session
 import com.parcha.spoilnot.feature.household.domain.SessionManager
+import com.parcha.spoilnot.feature.plan.domain.MealPlanService
+import com.parcha.spoilnot.feature.plan.domain.MealSlot
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -56,7 +61,11 @@ class RecipeUiTest {
 
     @Inject lateinit var households: HouseholdRepository
 
+    @Inject lateinit var mealPlan: MealPlanService
+
     private var scenario: ActivityScenario<MainActivity>? = null
+
+    private var householdId = ""
 
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -71,7 +80,9 @@ class RecipeUiTest {
         withTimeout(15_000) { session.session.first { it is Session.NoHousehold } }
         val uid = checkNotNull(FirebaseAuth.getInstance().currentUser).uid
         households.createHousehold(uid, "Robin", "Recipe UI", InviteCodes.generate())
-        withTimeout(15_000) { session.session.first { it is Session.InHousehold } }
+        householdId =
+            (withTimeout(15_000) { session.session.first { it is Session.InHousehold } } as Session.InHousehold)
+                .householdId
         Unit
     }
 
@@ -101,7 +112,7 @@ class RecipeUiTest {
         Log.i("RecipeUiTest", "share to preview: launch $launched ms, preview $elapsed ms")
         // The app's own work (resumed to preview) has the 5 s budget; the activity start depends on the device
         // and the host (an emulator on a busy computer took up to 31 s to start it), so the whole share only has to
-        // show the preview within a minute.
+        // show the preview within a minute here. SharePreviewTimingTest holds the whole share to M5's 5 s when asked.
         assertTrue("preview ${elapsed - launched} ms after launch", elapsed - launched < 5_000)
         assertTrue("share to preview $elapsed ms", elapsed < 60_000)
 
@@ -149,5 +160,56 @@ class RecipeUiTest {
         compose.onNodeWithText(str(R.string.recipe_step_of, 1, 3)).assertExists()
         awaitTag("cook_next").performClick()
         compose.waitUntilAtLeastOneExists(hasText(str(R.string.recipe_step_of, 2, 3)), 5_000)
+    }
+
+    /** One rule for confirmations (after v1, R13, DESIGN 6.1): Delete recipe deletes at once and offers Undo. */
+    @Test
+    fun deleteRecipeHasUndoAndNoDialog() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitTag("screen_home")
+        compose.onNode(hasText(str(R.string.tab_recipes)) and isSelectable()).performClick()
+        awaitTag("fab_add_recipe").performClick()
+        awaitTag("add_recipe_manual").performClick()
+        awaitTag("recipe_field_title").performTextInput("Test soup")
+        compose.onNodeWithTag("recipe_field_steps").performScrollTo().performTextInput("Heat.")
+        compose.onNodeWithTag("recipe_save").performScrollTo().performClick()
+        compose.waitUntilAtLeastOneExists(hasTestTag("recipe_title") and hasText("Test soup"), 10_000)
+
+        awaitTag("recipe_more").performClick()
+        awaitTag("recipe_delete").performClick()
+        // No dialog: the box opens with the snackbar.
+        awaitTag("screen_recipes")
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.waitUntilAtLeastOneExists(hasText(str(R.string.recipe_deleted, "Test soup")), 10_000)
+        compose.onNodeWithText(str(R.string.action_undo)).performClick()
+        compose.waitUntilAtLeastOneExists(hasText("Test soup"), 10_000)
+    }
+
+    /** Clear this week clears at once and offers Undo (after v1, R13); it asked first before. */
+    @Test
+    fun clearThisWeekHasUndoAndNoDialog() {
+        val uid = checkNotNull(FirebaseAuth.getInstance().currentUser).uid
+        runBlocking {
+            mealPlan.addOther(
+                householdId,
+                Actor(uid, "Robin"),
+                LocalDate.now(),
+                MealSlot.Dinner,
+                "Leftovers",
+                emptyList(),
+                emptyList(),
+            )
+        }
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitTag("screen_home")
+        compose.onNode(hasText(str(R.string.tab_plan)) and isSelectable()).performClick()
+        compose.waitUntilAtLeastOneExists(hasText("Leftovers"), 20_000)
+        awaitTag("plan_menu").performClick()
+        awaitTag("plan_clear_week").performClick()
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.waitUntilAtLeastOneExists(hasText(str(R.string.plan_cleared)), 10_000)
+        compose.waitUntilDoesNotExist(hasText("Leftovers"), 10_000)
+        compose.onNodeWithText(str(R.string.action_undo)).performClick()
+        compose.waitUntilAtLeastOneExists(hasText("Leftovers"), 10_000)
     }
 }

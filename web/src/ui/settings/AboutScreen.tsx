@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { str } from '../../core/i18n';
-import { APP_BUILD } from '../../core/version';
-import { Button, Dialog, ListItem, Progress } from '../kit';
+import { APP_BUILD, WEB_BUILD } from '../../core/version';
+import { Button, Dialog, GroupHeading, IconTile, ListGroup, ListItem, PlainCard, Progress } from '../kit';
 import { DetailScaffold } from '../Scaffold';
 import './settings.css';
 
@@ -10,8 +10,9 @@ type Library = { name: string; version: string; license: string; url: string | n
 type Licenses = { texts: string[]; libraries: Library[] };
 
 /**
- * Settings > About: version, privacy summary and open source licenses (DESIGN 5.6). The licenses are fetched when
- * the screen opens; the service worker keeps them for offline use. The app's seven taps for a test crash have no web
+ * Settings > About: version (the build number that config/app.minWebBuild is compared with, and the commit), privacy
+ * summary and open source licenses (DESIGN 5.6). The licenses are fetched when the screen opens; the service worker
+ * keeps them for offline use. The app's seven taps for a test crash have no web
  * counterpart: the web app sends no crash reports.
  */
 export function AboutScreen({ onBack }: { onBack: () => void }) {
@@ -30,14 +31,22 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
     };
   }, []);
   return (
-    <DetailScaffold title={str('settings_about')} onBack={onBack} testId="screen_about">
+    <DetailScaffold title={str('settings_about')} onBack={onBack} header="pushed" testId="screen_about">
+      {/* The 2026-11 look (DESIGN 19): the version as a row, privacy on a plain card, the licenses' heading. */}
       <div className="sn-about">
-        <p className="t-body-large" data-testid="about_version">
-          {str('web_about_version', APP_BUILD)}
-        </p>
-        <h2 className="t-title-medium">{str('about_privacy_title')}</h2>
-        <p className="t-body-large">{str('web_about_privacy_body')}</p>
-        <h2 className="t-title-medium sn-about__licenses-title">{str('about_licenses')}</h2>
+        <ListGroup>
+          <div className="sn-segment sn-about__version">
+            <IconTile icon="round/info" />
+            <span className="t-row-title" data-testid="about_version">
+              {str('web_about_version', `${WEB_BUILD} (${APP_BUILD})`)}
+            </span>
+          </div>
+        </ListGroup>
+        <PlainCard className="sn-about__privacy">
+          <h2 className="t-section-title">{str('about_privacy_title')}</h2>
+          <p className="t-body-large">{str('web_about_privacy_body')}</p>
+        </PlainCard>
+        <GroupHeading text={str('about_licenses')} />
       </div>
       {licenses ? (
         <div className="sn-licenses" data-testid="licenses">
@@ -56,6 +65,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       {open && licenses && (
         <Dialog
           title={open.name}
+          titleClassName="t-dialog-title"
           onDismiss={() => setOpen(null)}
           actions={
             <>

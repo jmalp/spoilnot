@@ -9,11 +9,14 @@ export function Dialog({
   children,
   actions,
   onDismiss,
+  titleClassName = 't-headline-small',
 }: {
   title?: string;
   children?: ReactNode;
   actions: ReactNode;
   onDismiss: () => void;
+  /** The title's text style; the 2026-11 look's choice dialogs use t-dialog-title (DESIGN 19.11). */
+  titleClassName?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -34,7 +37,7 @@ export function Dialog({
         if (event.target === ref.current) onDismiss();
       }}
     >
-      {title && <h2 className="m3-dialog__title t-headline-small">{title}</h2>}
+      {title && <h2 className={`m3-dialog__title ${titleClassName}`}>{title}</h2>}
       {children && <div className="m3-dialog__body t-body-medium">{children}</div>}
       <div className="m3-dialog__actions">{actions}</div>
     </dialog>

@@ -1,16 +1,17 @@
 // Products and batches (feature/pantry/data in the app): changes-only listeners and the writes of PantryChange.
 import {
   collection,
+  deleteField,
   doc,
+  getDocFromCache,
   increment,
   arrayUnion,
   serverTimestamp,
-  Timestamp,
   type DocumentSnapshot,
   type Firestore,
   type WriteBatch,
 } from 'firebase/firestore';
-import { combineLatest, distinctUntilChanged, map, switchMap, type Observable } from 'rxjs';
+import { combineLatest, defer, distinctUntilChanged, map, NEVER, switchMap, type Observable } from 'rxjs';
 import {
   categoryOf,
   dateTypeOf,
@@ -22,29 +23,34 @@ import {
   type StockBatch,
 } from '../domain/pantry/models';
 import type { PantryRepository } from '../domain/pantry/repository';
-import { isLocalDate } from '../domain/time';
 import type { Actor, HouseholdChange } from '../domain/write';
-import { liveDocuments, Stamps, Tombstones, type SyncLog } from './delta-sync';
+import {
+  cachedLiveDocuments,
+  changedFields,
+  liveDocuments,
+  Stamps,
+  Tombstones,
+  type LiveDocuments,
+  type SyncLog,
+} from './delta-sync';
 import type { FirebaseSdk } from './firebase';
 import type { ChangeMapper } from './writer';
+import { capTo, ReadCaps } from '../domain/caps';
+import { NameKey } from '../domain/pantry/rules';
+import { SharedByKey, STOP_TIMEOUT_MS } from '../domain/shared';
+import { date, mapEach, millis, num, numbers, str, strings } from './fields';
 
 export const products = (hid: string) => `households/${hid}/products`;
 export const stock = (hid: string) => `households/${hid}/stock`;
 export const activity = (hid: string) => `households/${hid}/activity`;
 
-const num = (value: unknown): number | null => (typeof value === 'number' ? value : null);
-const str = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-const date = (value: unknown) => (isLocalDate(value) ? value : null);
-/** A server timestamp, estimated while it is pending (ServerTimestampBehavior.ESTIMATE). */
-const millis = (s: DocumentSnapshot, field: string): number | null =>
-  (s.get(field, { serverTimestamps: 'estimate' }) as Timestamp | null)?.toMillis?.() ?? null;
-
 // New fields are optional on read with defaults, because phones run different versions (DESIGN 8.1).
 export function toProduct(s: DocumentSnapshot): Product {
   return {
     id: s.id,
-    name: str(s.get('name')) ?? '',
-    nameKey: str(s.get('nameKey')) ?? '',
+    name: capTo(str(s.get('name')) ?? '', ReadCaps.NAME),
+    // Keys written before one whitespace definition (after v1, WEB-06) are normalised here, not migrated.
+    nameKey: NameKey.of(str(s.get('nameKey')) ?? ''),
     category: categoryOf(s.get('category')),
     defaultLocation: locationOf(s.get('defaultLocation')),
     unit: unitOf(s.get('unit')),
@@ -53,13 +59,12 @@ export function toProduct(s: DocumentSnapshot): Product {
     buyQuantity: num(s.get('buyQuantity')),
     restockArmed: s.get('restockArmed') !== false,
     typicalShelfLifeDays: num(s.get('typicalShelfLifeDays')),
-    recentShelfLifeDays: ((s.get('recentShelfLifeDays') as unknown[] | null) ?? []).filter(
-      (v): v is number => typeof v === 'number',
-    ),
+    recentShelfLifeDays: numbers(s.get('recentShelfLifeDays')),
     createdAt: millis(s, 'createdAt'),
     lastAddedQuantity: num(s.get('lastAddedQuantity')),
-    aliases: ((s.get('aliases') as unknown[] | null) ?? []).filter((v): v is string => typeof v === 'string'),
+    aliases: strings(s.get('aliases')).map(NameKey.of),
     openedShelfLifeDays: num(s.get('openedShelfLifeDays')),
+    updatedBy: str(s.get('updatedBy')),
   };
 }
 
@@ -67,7 +72,7 @@ export function toBatch(s: DocumentSnapshot): StockBatch {
   return {
     id: s.id,
     productId: str(s.get('productId')) ?? '',
-    productName: str(s.get('productName')) ?? '',
+    productName: capTo(str(s.get('productName')) ?? '', ReadCaps.NAME),
     unit: unitOf(s.get('unit')),
     category: categoryOf(s.get('category')),
     quantity: num(s.get('quantity')) ?? 0,
@@ -78,30 +83,100 @@ export function toBatch(s: DocumentSnapshot): StockBatch {
     createdAt: millis(s, 'createdAt'),
     pendingSync: s.metadata.hasPendingWrites,
     openedOn: date(s.get('openedOn')),
+    updatedBy: str(s.get('updatedBy')),
   };
 }
 
 export class FirestorePantryRepository implements PantryRepository {
+  /** One pair of listeners per household and phone, shared by every screen (after v1, DESIGN 9.1). */
+  private readonly shared: SharedByKey<string, PantryData>;
+
   constructor(
     private readonly sdk: FirebaseSdk,
     private readonly log: SyncLog,
-  ) {}
+    stopTimeoutMs: number = STOP_TIMEOUT_MS,
+    /** Emits while the page is off screen: the listeners then stop without waiting (domain/shared). */
+    stopAtOnce$: Observable<unknown> = NEVER,
+  ) {
+    this.shared = new SharedByKey(stopTimeoutMs, stopAtOnce$);
+  }
 
   observe(householdId: string): Observable<PantryData> {
+    return this.shared.get(householdId, () => this.listen(householdId));
+  }
+
+  /**
+   * Who deleted `batchId`, from the tombstone in the local cache (no read is billed); null when it isn't there (after
+   * v1, DESIGN 9.2: the Edit window says who removed its item).
+   */
+  async removedBy(householdId: string, batchId: string): Promise<string | null> {
+    try {
+      const snapshot = await getDocFromCache(doc(this.sdk.current, stock(householdId), batchId));
+      return str(snapshot.get('updatedBy'));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The local cache only, for the restock engine (after v1, DESIGN 9.6): free, and it holds no server listener, so it
+   * costs nothing when the app comes back after a long time. "Read from the server" here means a full read of each
+   * collection is on record on this phone.
+   */
+  observeCached(householdId: string): Observable<PantryData> {
     return this.sdk.instance$.pipe(
       switchMap((db) =>
         combineLatest([
-          liveDocuments(db, collection(db, products(householdId)), this.log),
-          liveDocuments(db, collection(db, stock(householdId)), this.log),
+          cachedLiveDocuments(collection(db, products(householdId))),
+          cachedLiveDocuments(collection(db, stock(householdId))),
+          this.log.fullSyncs$(products(householdId)),
+          this.log.fullSyncs$(stock(householdId)),
         ]),
       ),
-      map(([p, s]) => ({
-        products: p.documents.map(toProduct),
-        batches: s.documents.map(toBatch),
-        fromCache: p.fromCache || s.fromCache,
+      map(([p, s, pRead, sRead]) => ({
+        products: mapEach(p, toProduct),
+        batches: mapEach(s, toBatch),
+        fromCache: true,
+        serverRead: pRead !== null && sRead !== null,
       })),
       distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     );
+  }
+
+  // Changes-only listeners (DESIGN 9.8); each batch keeps its pending-sync flag from the cache. The mapping runs once
+  // per snapshot for every screen (after v1).
+  private listen(householdId: string): Observable<PantryData> {
+    return this.sdk.instance$.pipe(
+      switchMap((db) =>
+        combineLatest([
+          this.serverRead(liveDocuments(db, collection(db, products(householdId)), this.log), products(householdId)),
+          this.serverRead(liveDocuments(db, collection(db, stock(householdId)), this.log), stock(householdId)),
+        ]),
+      ),
+      map(([[p, pRead], [s, sRead]]) => ({
+        products: mapEach(p.documents, toProduct),
+        batches: mapEach(s.documents, toBatch),
+        fromCache: p.fromCache || s.fromCache,
+        serverRead: pRead && sRead,
+      })),
+      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    );
+  }
+
+  /**
+   * Pairs each snapshot with whether this collection has been read from the server: a full read on record (a warm
+   * cache, so offline still counts) or a server snapshot since this listener started (DESIGN 9.6).
+   */
+  private serverRead(live: Observable<LiveDocuments>, path: string): Observable<[LiveDocuments, boolean]> {
+    return defer(() => {
+      let read = this.log.lastFullSync(path) !== null;
+      return live.pipe(
+        map((l): [LiveDocuments, boolean] => {
+          read = read || !l.fromCache;
+          return [l, read];
+        }),
+      );
+    });
   }
 }
 
@@ -158,33 +233,33 @@ export const pantryMapper: ChangeMapper = {
       case 'pantry.addAlias':
         batch.update(product(change.productId), { aliases: arrayUnion(change.alias), ...stamp });
         break;
-      case 'pantry.updateProduct':
-        batch.set(product(change.product.id), { ...productFields(change.product), ...stamp }, { merge: true });
+      // Only what changed, so an edit never puts back what another member changed meanwhile (DESIGN 9.4).
+      case 'pantry.updateProduct': {
+        const changed = changedFields(productFields(change.before), productFields(change.product));
+        if (Object.keys(changed).length > 0)
+          batch.set(product(change.product.id), { ...changed, ...stamp }, { merge: true });
         break;
+      }
       case 'pantry.createBatch':
         batch.set(batchDoc(change.batch.id), { ...batchFields(change.batch), ...Stamps.created(actor), ...stamp });
         break;
+      // Undo removes the tombstone and nothing else: the document keeps every field, another member's change and
+      // fields a newer app added included, and its creator (DESIGN 8.6).
       case 'pantry.restoreBatch':
-        batch.set(batchDoc(change.batch.id), {
-          ...batchFields(change.batch),
-          ...stamp,
-          createdAt: change.batch.createdAt !== null ? Timestamp.fromMillis(change.batch.createdAt) : serverTimestamp(),
-          createdBy: actor.uid,
-        });
+        batch.set(batchDoc(change.batch.id), Tombstones.restore(actor), { merge: true });
         break;
       case 'pantry.addToBatch':
-        batch.update(batchDoc(change.batchId), { quantity: increment(change.delta), ...stamp });
-        break;
-      case 'pantry.updateBatch':
         batch.update(batchDoc(change.batchId), {
-          quantity: change.edit.quantity,
-          expiryDate: change.edit.expiryDate,
-          dateType: change.edit.dateType,
-          location: change.edit.location,
-          note: change.edit.note,
+          quantity: increment(change.delta),
           ...stamp,
+          ...(change.revive ? { deletedAt: deleteField() } : {}),
         });
         break;
+      case 'pantry.updateBatch': {
+        const changed = changedFields(change.before, change.after);
+        if (Object.keys(changed).length > 0) batch.update(batchDoc(change.batchId), { ...changed, ...stamp });
+        break;
+      }
       case 'pantry.markOpened':
         batch.update(batchDoc(change.batchId), { openedOn: change.openedOn, expiryDate: change.expiryDate, ...stamp });
         break;
@@ -202,6 +277,9 @@ export const pantryMapper: ChangeMapper = {
       // A tombstone, so other phones' change listeners see the deletion (DESIGN 9.8).
       case 'pantry.deleteBatch':
         batch.set(batchDoc(change.batchId), Tombstones.fields(actor), { merge: true });
+        break;
+      case 'pantry.deleteProduct':
+        batch.set(product(change.productId), Tombstones.fields(actor), { merge: true });
         break;
       case 'pantry.logEvent':
         batch.set(doc(db, activity(hid), change.eventId), {

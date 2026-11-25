@@ -34,9 +34,25 @@ export type GroceryItem = {
   aliasOf: string | null;
 };
 
-export type GroceryEventType = 'grocery_added' | 'grocery_checked';
+/** Check-offs (grocery_checked) are no longer logged after v1 (R15). */
+export type GroceryEventType = 'grocery_added';
 
 /** One write in a grocery plan, applied by the HouseholdWriter together with any pantry changes. */
+/** What the grocery Edit sheet sets on an item (besides its name). */
+export type GroceryItemFields = {
+  quantity: number | null;
+  unit: QuantityUnit | null;
+  note: string | null;
+  category: Category | null;
+};
+
+export const groceryItemFieldsOf = (item: GroceryItem): GroceryItemFields => ({
+  quantity: item.quantity,
+  unit: item.unit,
+  note: item.note,
+  category: item.category,
+});
+
 export type GroceryChange =
   | { type: 'grocery.createList'; list: GroceryList }
   | { type: 'grocery.renameList'; listId: string; name: string }
@@ -44,17 +60,10 @@ export type GroceryChange =
   | { type: 'grocery.setAisleOrder'; listId: string; order: Category[] }
   | { type: 'grocery.deleteList'; listId: string }
   | { type: 'grocery.createItem'; listId: string; item: GroceryItem }
-  /** Puts a deleted item back under its old id (Undo). */
+  /** Puts a deleted item back (Undo): removes the tombstone and nothing else (after v1, DESIGN 8.6). */
   | { type: 'grocery.restoreItem'; listId: string; item: GroceryItem }
-  | {
-      type: 'grocery.updateItem';
-      listId: string;
-      itemId: string;
-      quantity: number | null;
-      unit: QuantityUnit | null;
-      note: string | null;
-      category: Category | null;
-    }
+  /** Writes the fields of `after` that differ from `before`, and only those (after v1, DESIGN 9.4). */
+  | { type: 'grocery.updateItem'; listId: string; itemId: string; before: GroceryItemFields; after: GroceryItemFields }
   /** A new name (after v1), relinked to the household's product of that name, if any. */
   | {
       type: 'grocery.renameItem';
@@ -68,7 +77,7 @@ export type GroceryChange =
   | { type: 'grocery.setChecked'; listId: string; itemId: string; checked: boolean }
   /** [tombstone] false only when the whole list goes, since nothing listens to a deleted list's items. */
   | { type: 'grocery.deleteItem'; listId: string; itemId: string; tombstone: boolean }
-  /** grocery_added or grocery_checked in Recent activity; [count] when several came at once from recipe [name]. */
+  /** grocery_added in Recent activity; [count] when several came at once from recipe [name]. */
   | {
       type: 'grocery.logEvent';
       eventId: string;
@@ -78,8 +87,9 @@ export type GroceryChange =
       count: number | null;
     }
   /**
-   * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). Never writes `checked`, so an item already in
-   * the cart stays there; [writeCreated] is false when the item is already in the local cache.
+   * The restock engine's merge-write of `low_{productId}` (DESIGN 9.6). [writeCreated] is true when the item is not
+   * live in the local cache (new, or a tombstone coming back): then it also writes `createdAt` (never `createdBy`) and
+   * starts unchecked. Otherwise `checked` is left alone, so a live item already in the cart stays there.
    */
   | {
       type: 'grocery.upsertLowStock';
@@ -107,7 +117,9 @@ export const GroceryRules = {
 export interface GroceryRepository {
   /** List names, always listened to (DESIGN 9.1). */
   observeLists(householdId: string): Observable<GroceryList[]>;
-  /** Items of one list, while it is visible (DESIGN 9.1). */
+  /** List names from the local cache only, with no server listener (the restock engine, DESIGN 9.6). */
+  observeCachedLists(householdId: string): Observable<GroceryList[]>;
+  /** Items of one list, while it is visible; one pair of listeners per list shared by every screen (DESIGN 9.1). */
   observeItems(householdId: string, listId: string): Observable<GroceryItem[]>;
   /** Whether an item is in the local cache, so the restock engine knows whether to write createdAt. */
   isCached(householdId: string, listId: string, itemId: string): Promise<boolean>;

@@ -2,11 +2,10 @@ package com.parcha.spoilnot.feature.notifications.data
 
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.SetOptions
-import com.google.firebase.installations.FirebaseInstallations
-import com.google.firebase.messaging.FirebaseMessaging
 import com.parcha.spoilnot.BuildConfig
 import com.parcha.spoilnot.core.firebase.FirestoreProvider
 import com.parcha.spoilnot.core.firebase.awaitMapped
+import com.parcha.spoilnot.core.firebase.string
 import com.parcha.spoilnot.feature.notifications.domain.DeviceRegistry
 import java.time.ZoneId
 import javax.inject.Inject
@@ -17,20 +16,23 @@ import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
 @Singleton
-class FirebaseDeviceRegistry @Inject constructor(private val firestore: FirestoreProvider) : DeviceRegistry {
+class FirebaseDeviceRegistry @Inject constructor(
+    private val firestore: FirestoreProvider,
+    private val push: PushIdentity,
+) : DeviceRegistry {
     override suspend fun sync(uid: String) {
         val db = firestore.current
         val user = db.document("users/$uid")
         try {
             // Time zone at app start, when it changed (DESIGN 10.2).
             val zone = ZoneId.systemDefault().id
-            if (user.get().awaitMapped().getString("timezone") != zone) {
+            if (user.get().awaitMapped().string("timezone") != zone) {
                 user.update(mapOf("timezone" to zone, "updatedAt" to FieldValue.serverTimestamp()))
             }
-            val token = FirebaseMessaging.getInstance().token.await()
-            val device = db.document("users/$uid/devices/${installId()}")
+            val token = push.token()
+            val device = db.document("users/$uid/devices/${push.installId()}")
             val current = device.get().awaitMapped()
-            if (current.getString("token") != token || current.getString("appVersion") != BuildConfig.VERSION_NAME) {
+            if (current.string("token") != token || current.string("appVersion") != BuildConfig.VERSION_NAME) {
                 device.set(
                     mapOf(
                         "token" to token,
@@ -51,8 +53,8 @@ class FirebaseDeviceRegistry @Inject constructor(private val firestore: Firestor
 
     override suspend fun unregister(uid: String) {
         try {
-            withTimeoutOrNull(UNREGISTER_TIMEOUT_MS) {
-                firestore.current.document("users/$uid/devices/${installId()}").delete().await()
+            withTimeoutOrNull(TIMEOUT_MS) {
+                firestore.current.document("users/$uid/devices/${push.installId()}").delete().await()
             }
         } catch (e: CancellationException) {
             throw e
@@ -61,9 +63,18 @@ class FirebaseDeviceRegistry @Inject constructor(private val firestore: Firestor
         }
     }
 
-    private suspend fun installId(): String = FirebaseInstallations.getInstance().id.await()
+    override suspend fun deleteToken() {
+        try {
+            withTimeoutOrNull(TIMEOUT_MS) { push.deleteToken() } ?: Timber.w("Push token not deleted in time")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Offline: the next start without a signed-in user tries again.
+            Timber.w(e, "Push token delete failed")
+        }
+    }
 
     private companion object {
-        const val UNREGISTER_TIMEOUT_MS = 3_000L
+        const val TIMEOUT_MS = 3_000L
     }
 }

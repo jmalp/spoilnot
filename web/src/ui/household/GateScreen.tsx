@@ -5,14 +5,28 @@ import { str } from '../../core/i18n';
 import { useServices } from '../../core/services';
 import { HouseholdRules, InviteCodes, type InviteCode } from '../../domain/household';
 import type { JoinState, Session } from '../../domain/session';
-import { Button, Card, Dialog, ErrorText, IconButton, Menu, MenuItem, Progress, TextField, TopAppBar } from '../kit';
+import { useDeleteAccount } from '../settings/DeleteAccount';
+import {
+  Button,
+  Dialog,
+  ErrorText,
+  HighlightCard,
+  Menu,
+  MenuItem,
+  PlainCard,
+  Progress,
+  RoundIconButton,
+  TextField,
+} from '../kit';
+import { UnsyncedSignOutDialog } from './UnsyncedSignOut';
 import './household.css';
 
 type NoHousehold = Extract<Session, { kind: 'noHousehold' }>;
 
 /**
  * Shown to a signed-in user without a household (HouseholdGateScreen, DESIGN 5.1): create one, or join one with a
- * code and the owner's approval. Nothing else is reachable until they have one.
+ * code and the owner's approval. Nothing else is reachable until they have one. In the 2026-11 look (step 8): the
+ * page's header, Create and Join on plain cards, and a request in flight as the highlight card.
  */
 export function GateScreen({ session }: { session: NoHousehold }) {
   const { session: manager, households } = useServices();
@@ -20,7 +34,14 @@ export function GateScreen({ session }: { session: NoHousehold }) {
   const join = useAction();
   const request = useAction();
   const [menuOpen, setMenuOpen] = useState(false);
+  const deleteAccount = useDeleteAccount();
   const [confirm, setConfirm] = useState<InviteCode | null>(null);
+  const [askUnsynced, setAskUnsynced] = useState(false);
+  const signOut = (evenIfUnsynced = false) =>
+    void create.run(async () => {
+      setAskUnsynced(false);
+      if (!(await manager.signOut(evenIfUnsynced))) setAskUnsynced(true);
+    });
   const busy = create.busy || join.busy || request.busy;
   const uid = session.user.uid;
 
@@ -29,29 +50,40 @@ export function GateScreen({ session }: { session: NoHousehold }) {
       const code = InviteCodes.normalize(input);
       if (!InviteCodes.isWellFormed(code)) throw new AppError('inviteCodeInactive');
       const invite = await households.findInviteCode(code);
-      if (!invite?.active) throw new AppError('inviteCodeInactive');
+      // A code's `active` is not read (after v1, R12): approval guards joining, and New code replaces a leaked one.
+      if (!invite) throw new AppError('inviteCodeInactive');
       setConfirm(invite);
     });
 
   return (
-    <div className="sn-gate" data-testid="screen_gate">
-      <TopAppBar
-        title={str('gate_title', session.displayName)}
-        actions={
+    <div className="sn-screen sn-screen--page sn-gate" data-testid="screen_gate">
+      {/* The page's header (DESIGN 19.7, step 8): "Welcome, Sam" with a round ⋮ for Sign out and Delete account. */}
+      <header className="sn-screen-header">
+        <div className="sn-screen-header__titles">
+          <h1 className="t-screen-title sn-screen-header__title">{str('gate_title', session.displayName)}</h1>
+        </div>
+        <div className="sn-screen-header__actions">
           <span className="sn-anchor">
-            <IconButton icon="round/more_vert" label={str('more_options')} onClick={() => setMenuOpen(true)} />
+            <RoundIconButton icon="round/more_vert" label={str('more_options')} onClick={() => setMenuOpen(true)} />
             <Menu open={menuOpen} onDismiss={() => setMenuOpen(false)}>
               <MenuItem
                 label={str('action_sign_out')}
                 onClick={() => {
                   setMenuOpen(false);
-                  void create.run(() => manager.signOut());
+                  signOut();
+                }}
+              />
+              <MenuItem
+                label={str('action_delete_account')}
+                onClick={() => {
+                  setMenuOpen(false);
+                  deleteAccount.open();
                 }}
               />
             </Menu>
           </span>
-        }
-      />
+        </div>
+      </header>
       <main className="sn-gate__content">
         {session.join === null ? (
           <>
@@ -79,6 +111,7 @@ export function GateScreen({ session }: { session: NoHousehold }) {
       {confirm && (
         <Dialog
           title={str('join_confirm_title', confirm.householdName)}
+          titleClassName="t-dialog-title"
           onDismiss={() => setConfirm(null)}
           actions={
             <>
@@ -92,7 +125,7 @@ export function GateScreen({ session }: { session: NoHousehold }) {
                 onClick={() =>
                   void join.run(async () => {
                     try {
-                      await households.requestToJoin(uid, session.displayName, confirm);
+                      await households.requestToJoin(uid, session.displayName, confirm, session.user.email);
                     } finally {
                       setConfirm(null);
                     }
@@ -104,13 +137,16 @@ export function GateScreen({ session }: { session: NoHousehold }) {
             </>
           }
         >
-          {str('join_confirm_body', confirm.householdName)}
+          {str('join_confirm_body')}
         </Dialog>
       )}
+      {askUnsynced && <UnsyncedSignOutDialog onSignOut={() => signOut(true)} onDismiss={() => setAskUnsynced(false)} />}
+      {deleteAccount.dialog}
     </div>
   );
 }
 
+/** A gate card: a plain card (DESIGN 19.8) with its title, what it is for, then its field and button. */
 function GateCard({
   title,
   body,
@@ -123,13 +159,13 @@ function GateCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card variant="filled" data-testid={testId}>
-      <div className="sn-gate-card">
-        <h2 className="t-title-large">{title}</h2>
+    <PlainCard className="sn-gate-card" data-testid={testId}>
+      <div className="sn-gate-card__head">
+        <h2 className="t-section-title">{title}</h2>
         <p className="t-body-medium c-on-surface-variant">{body}</p>
-        {children}
       </div>
-    </Card>
+      {children}
+    </PlainCard>
   );
 }
 
@@ -167,7 +203,7 @@ function CreateCard({
           error={submitted && !valid ? str('error_household_name') : undefined}
         />
         <ErrorText text={error} />
-        <Button type="submit" full large busy={busy}>
+        <Button type="submit" primary busy={busy}>
           {str('action_create')}
         </Button>
       </form>
@@ -206,7 +242,14 @@ function JoinCard({
           className="sn-code-field"
         />
         <ErrorText text={error} />
-        <Button type="submit" variant="outlined" full large disabled={busy || code.length !== InviteCodes.LENGTH}>
+        <Button
+          type="submit"
+          variant="tonal"
+          full
+          large
+          className="t-button-medium"
+          disabled={busy || code.length !== InviteCodes.LENGTH}
+        >
           {str('action_continue')}
         </Button>
       </form>
@@ -230,17 +273,22 @@ function JoinStatusCard({
     declined: ['declined_title', 'declined_body', 'action_ok'],
     expired: ['expired_title', 'expired_body', 'action_ok'],
   }[join.kind] as ['waiting_title', 'waiting_body', 'action_cancel_request'];
+  // The request in flight is the one thing on the screen: the highlight card (DESIGN 19.8).
   return (
-    <GateCard title={str(title)} body={str(body, join.pending.householdName)} testId="card_join_status">
+    <HighlightCard className="sn-join-status" data-testid="card_join_status">
+      <div className="sn-join-status__head">
+        <h2 className="t-card-title">{str(title)}</h2>
+        <p className="t-body-large">{str(body, join.pending.householdName)}</p>
+      </div>
       {join.kind === 'waiting' && (
         <div className="sn-gate-card__progress">
           <Progress size={32} />
         </div>
       )}
       <ErrorText text={error} />
-      <Button variant="outlined" full large disabled={busy} onClick={onAbandon}>
+      <Button variant="tonal" full large className="t-button-medium" disabled={busy} onClick={onAbandon}>
         {str(action)}
       </Button>
-    </GateCard>
+    </HighlightCard>
   );
 }

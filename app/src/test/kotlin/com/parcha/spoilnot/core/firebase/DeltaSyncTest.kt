@@ -13,13 +13,17 @@ class DeltaSyncTest {
     private val newest = Instant.parse("2026-10-18T19:00:00Z")
 
     @Test
-    fun `a recent full read means only changes since the newest cached one, minus a margin`() {
+    fun `a recent full read means only changes since the newest one received, minus a margin`() {
         val lastFull = now.minus(Duration.ofHours(3))
         assertEquals(newest.minus(DeltaSync.CURSOR_MARGIN), DeltaSync.cursor(newest, lastFull, now))
+        assertEquals(
+            newest.minus(Duration.ofSeconds(2)),
+            DeltaSync.cursor(newest, lastFull, now, margin = Duration.ofSeconds(2)),
+        )
     }
 
     @Test
-    fun `an empty cache or no full read on record reads everything`() {
+    fun `nothing received yet or no full read on record reads everything`() {
         assertNull(DeltaSync.cursor(null, now.minus(Duration.ofHours(1)), now))
         assertNull(DeltaSync.cursor(newest, null, now))
     }

@@ -1,13 +1,26 @@
 import { str, type StringId } from '../../core/i18n';
+import { usePreferences } from '../../core/services';
 import type { Member } from '../../domain/household';
 import type { MealSlot } from '../../domain/plan/models';
-import { firstDayOfWeek } from '../../domain/plan/week';
+import { firstDayOfWeek, weekFirstDay, type DayOfWeek } from '../../domain/plan/week';
 import type { LocalDate } from '../../domain/time';
 import { Icon } from '../kit';
 import './plan.css';
 
+const phoneLocale = () => (typeof navigator === 'undefined' ? 'en-US' : navigator.language);
+
 /** The phone's region decides the first day of the week (Sunday in the US, Monday in most places). */
-export const phoneFirstDay = () => firstDayOfWeek(typeof navigator === 'undefined' ? 'en-US' : navigator.language);
+export const phoneFirstDay = () => firstDayOfWeek(phoneLocale());
+
+/** The first day of Plan's week: Settings > Appearance > Week starts on, or the region with Automatic (WEB-08). */
+export function useFirstDay(): DayOfWeek {
+  const { weekStart } = usePreferences();
+  return weekFirstDay(weekStart, phoneLocale());
+}
+
+/** "Monday", in the phone's language; 2026-11-02 was a Monday. */
+export const weekdayName = (day: DayOfWeek): string =>
+  new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: 'UTC' }).format(Date.UTC(2026, 10, 1 + day, 12));
 
 const utc = (date: LocalDate) => Date.parse(`${date}T12:00:00Z`);
 
@@ -21,6 +34,10 @@ export function dayTitle(date: LocalDate): string {
 export const shortDate = (date: LocalDate): string =>
   new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(utc(date));
 
+/** "Thu", in the phone's language, for the row of days. */
+export const shortWeekday = (date: LocalDate): string =>
+  new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(utc(date));
+
 /** "Thu 29", for the Move chips. */
 export function shortDay(date: LocalDate): string {
   const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(utc(date));
@@ -32,16 +49,6 @@ export const slotLabel = (slot: MealSlot): string => str(`plan_slot_${slot}` as 
 /** Cooks' names in household order; members who left are not shown, and the user is "You". */
 export const cookNames = (cooks: string[], members: Member[], myUid: string): string[] =>
   members.filter((m) => cooks.includes(m.uid)).map((m) => (m.uid === myUid ? str('plan_you') : m.displayName));
-
-/** A cook's name with a person icon, so who cooks never depends on color. */
-export function CookChip({ name }: { name: string }) {
-  return (
-    <span className="sn-cook-chip t-label-medium">
-      <Icon name="round/person" size={14} />
-      {name}
-    </span>
-  );
-}
 
 /** "Cooked" with a check: an icon and a word, never color alone. */
 export function CookedLabel() {
