@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="524" viewBox="0 0 820 524" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<title>Janky frames per scenario, Pixel_8 emulator, headless</title>
+<rect width="820" height="524" fill="#fcfcfb"/>
+<text x="16" y="26" font-size="16" font-weight="600" fill="#0b0b0b">Janky frames per scenario (share of frames late for their deadline)</text>
+<text x="16" y="46" font-size="12" fill="#52514e">Pixel_8 emulator, headless, host GPU; dev benchmark build with the baseline profile; 5 iterations each. Relative, not phone numbers.</text>
+<line x1="330.0" y1="58" x2="330.0" y2="484" stroke="#e4e3df" stroke-width="1"/>
+<text x="330.0" y="502" font-size="11" fill="#52514e" text-anchor="middle">0%</text>
+<line x1="400.0" y1="58" x2="400.0" y2="484" stroke="#e4e3df" stroke-width="1"/>
+<text x="400.0" y="502" font-size="11" fill="#52514e" text-anchor="middle">10%</text>
+<line x1="470.0" y1="58" x2="470.0" y2="484" stroke="#e4e3df" stroke-width="1"/>
+<text x="470.0" y="502" font-size="11" fill="#52514e" text-anchor="middle">20%</text>
+<line x1="540.0" y1="58" x2="540.0" y2="484" stroke="#e4e3df" stroke-width="1"/>
+<text x="540.0" y="502" font-size="11" fill="#52514e" text-anchor="middle">30%</text>
+<line x1="610.0" y1="58" x2="610.0" y2="484" stroke="#e4e3df" stroke-width="1"/>
+<text x="610.0" y="502" font-size="11" fill="#52514e" text-anchor="middle">40%</text>
+<line x1="680.0" y1="58" x2="680.0" y2="484" stroke="#e4e3df" stroke-width="1"/>
+<text x="680.0" y="502" font-size="11" fill="#52514e" text-anchor="middle">50%</text>
+<line x1="750.0" y1="58" x2="750.0" y2="484" stroke="#e4e3df" stroke-width="1"/>
+<text x="750.0" y="502" font-size="11" fill="#52514e" text-anchor="middle">60%</text>
+<text x="320" y="82.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Insights: open, charts grow, fling</text>
+<path d="M330,71.0 h341.8 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-341.8 z" fill="#2a78d6"><title>Insights: open, charts grow, fling: 49.4%</title></path>
+<text x="681.8" y="82.0" font-size="12" fill="#52514e">49.4%</text>
+<text x="320" y="110.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Typing in Groceries' quick add</text>
+<path d="M330,99.0 h184.3 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-184.3 z" fill="#2a78d6"><title>Typing in Groceries' quick add: 26.9%</title></path>
+<text x="524.3" y="110.0" font-size="12" fill="#52514e">26.9%</text>
+<text x="320" y="138.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Typing in Pantry's search</text>
+<path d="M330,127.0 h120.6 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-120.6 z" fill="#2a78d6"><title>Typing in Pantry's search: 17.8%</title></path>
+<text x="460.6" y="138.0" font-size="12" fill="#52514e">17.8%</text>
+<text x="320" y="166.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Tab switches, every tab twice</text>
+<path d="M330,155.0 h83.5 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-83.5 z" fill="#2a78d6"><title>Tab switches, every tab twice: 12.5%</title></path>
+<text x="423.5" y="166.0" font-size="12" fill="#52514e">12.5%</text>
+<text x="320" y="194.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Plan's add sheet: open, drag, close</text>
+<path d="M330,183.0 h83.5 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-83.5 z" fill="#2a78d6"><title>Plan's add sheet: open, drag, close: 12.5%</title></path>
+<text x="423.5" y="194.0" font-size="12" fill="#52514e">12.5%</text>
+<text x="320" y="222.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Add item: open, keyboard, drag, close</text>
+<path d="M330,211.0 h37.3 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-37.3 z" fill="#2a78d6"><title>Add item: open, keyboard, drag, close: 5.9%</title></path>
+<text x="377.3" y="222.0" font-size="12" fill="#52514e">5.9%</text>
+<text x="320" y="250.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Pantry scroll, remote change every 1 s</text>
+<path d="M330,239.0 h24.7 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-24.7 z" fill="#2a78d6"><title>Pantry scroll, remote change every 1 s: 4.1%</title></path>
+<text x="364.7" y="250.0" font-size="12" fill="#52514e">4.1%</text>
+<text x="320" y="278.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Home with every card, first scroll</text>
+<path d="M330,267.0 h19.8 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-19.8 z" fill="#2a78d6"><title>Home with every card, first scroll: 3.4%</title></path>
+<text x="359.8" y="278.0" font-size="12" fill="#52514e">3.4%</text>
+<text x="320" y="306.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Recipes grid with photos, first scroll</text>
+<path d="M330,295.0 h2.8 a2.8000000000000114,2.8000000000000114 0 0 1 2.8000000000000114,2.8000000000000114 v8.399999999999977 a2.8000000000000114,2.8000000000000114 0 0 1 -2.8000000000000114,2.8000000000000114 h-2.8 z" fill="#2a78d6"><title>Recipes grid with photos, first scroll: 0.8%</title></path>
+<text x="341.6" y="306.0" font-size="12" fill="#52514e">0.8%</text>
+<text x="320" y="334.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Groceries scroll, remote check-off every 1 s</text>
+<path d="M330,323.0 h2.4 a2.4499999999999886,2.4499999999999886 0 0 1 2.4499999999999886,2.4499999999999886 v9.100000000000023 a2.4499999999999886,2.4499999999999886 0 0 1 -2.4499999999999886,2.4499999999999886 h-2.4 z" fill="#2a78d6"><title>Groceries scroll, remote check-off every 1 s: 0.7%</title></path>
+<text x="340.9" y="334.0" font-size="12" fill="#52514e">0.7%</text>
+<text x="320" y="362.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Recipes grid, steady</text>
+<path d="M330,351.0 h1.1 a1.0500000000000114,1.0500000000000114 0 0 1 1.0500000000000114,1.0500000000000114 v11.899999999999977 a1.0500000000000114,1.0500000000000114 0 0 1 -1.0500000000000114,1.0500000000000114 h-1.1 z" fill="#2a78d6"><title>Recipes grid, steady: 0.3%</title></path>
+<text x="338.1" y="362.0" font-size="12" fill="#52514e">0.3%</text>
+<text x="320" y="390.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Pantry, first scroll after start</text>
+<path d="M330,379.0 h0.3 a0.3499999999999943,0.3499999999999943 0 0 1 0.3499999999999943,0.3499999999999943 v13.300000000000011 a0.3499999999999943,0.3499999999999943 0 0 1 -0.3499999999999943,0.3499999999999943 h-0.3 z" fill="#2a78d6"><title>Pantry, first scroll after start: 0.1%</title></path>
+<text x="336.7" y="390.0" font-size="12" fill="#52514e">0.1%</text>
+<text x="320" y="418.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Pantry, steady</text>
+<text x="336.0" y="418.0" font-size="12" fill="#52514e">0.0%</text>
+<text x="320" y="446.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Groceries, 150 items, first scroll</text>
+<text x="336.0" y="446.0" font-size="12" fill="#52514e">0.0%</text>
+<text x="320" y="474.0" font-size="12.5" fill="#0b0b0b" text-anchor="end">Plan week, first scroll</text>
+<text x="336.0" y="474.0" font-size="12" fill="#52514e">0.0%</text>
+<line x1="330" y1="58" x2="330" y2="484" stroke="#52514e" stroke-width="1"/>
+</svg>
