@@ -722,6 +722,19 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 - **DESIGN:** 10.4, 12.2; SECURITY_REVIEW controls 8 and 9; RUNBOOK; DECISIONS.
 - **Tests:** a dry run of each job after the change; gitleaks against a planted test key in a throwaway branch.
 - **Ships via:** CI, the owner's settings and the Google Cloud console.
+- **Status (2026-11-25):**
+  - **Workload identity works with the jobs' Admin SDK** (`firebase-admin` 14.5.1; Firestore and FCM), checked
+    against a local stand-in for GitHub and Google. Google doesn't say whether a project without billing may use it,
+    so the owner's first console step finds out. The owner chose it, with keys as the fallback (DECISIONS
+    2026-11-25). No outside action is needed.
+  - **Repository side:** jmalp/spoilnot#PRNUM: the three workflows (workload identity when the repository variables
+    are set, else one key per job on one line, else today's key), the narrower gitleaks allowlist (planted-key check
+    on a throwaway branch), `--ignore-scripts` in the repository's scripts, and the docs. It is safe to merge before
+    the owner's steps.
+  - **The owner's steps,** in order (RUNBOOK, How the jobs get their keys): the APIs, the pool and provider, the two
+    new service accounts and the Workload Identity User grants, the repository variables, a dry run of each job, then
+    deleting the old keys and secrets (or one key per job, if Google asks for billing); `ignore-scripts` on the Mac;
+    the sign-up limit per IP in both projects. Open.
 
 ## After the fixes
 

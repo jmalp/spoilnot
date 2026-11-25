@@ -1,11 +1,36 @@
-# Secret scanning (DESIGN 12.2 control 8). The default rules, except the Firebase configuration files: their API
-# keys are public identifiers by design (docs/DECISIONS.md, 2026-10-15) and are restricted in the Google Cloud
-# console to the app's package names and signing certificates (docs/RUNBOOK.md).
+# Secret scanning (DESIGN 12.2 control 8). The default rules, and one exception: the Google API key in the Firebase
+# configuration files. Those keys are public identifiers by design (docs/DECISIONS.md, 2026-10-15) and are restricted
+# in the Google Cloud console to the app's package names and signing certificates (docs/RUNBOOK.md). Every other
+# secret in those files is still caught, such as a private key or token pasted into one (DECISIONS 2026-11-25, S6).
+# Checked with gitleaks 8.30.1, the version secret-scan.yml pins.
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Firebase Android configuration (public identifiers)"
+# Each [[rules]] below extends the default rule of that id: its regex, entropy and allowlists stay, and the
+# allowlist here is added.
+
+# The Google API key rule matches only Google API keys, so the path is enough.
+[[rules]]
+id = "gcp-api-key"
+
+[[rules.allowlists]]
+description = "Google API key in a Firebase Android configuration file (public identifier)"
 paths = [
   '''(^|/)google-services\.json$''',
+]
+
+# The generic rule also matches the file's "current_key": allowed only in those files and only when the secret it
+# found is a Google API key.
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Google API key in a Firebase Android configuration file (public identifier)"
+condition = "AND"
+paths = [
+  '''(^|/)google-services\.json$''',
+]
+regexTarget = "secret"
+regexes = [
+  '''^AIza[\w-]{35}$''',
 ]

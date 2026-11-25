@@ -19,25 +19,32 @@ on:
 
 permissions:
   contents: read
+  # Workload identity (DESIGN 12.2 control 8): lets the job ask GitHub for an OIDC token for this run, which Google
+  # exchanges for the job's service account. Unused until the repository variables are set.
+  id-token: write
 
 jobs:
   send:
-    # One run per Firebase project. A project whose secret is missing logs "nothing to do".
+    # One run per Firebase project, each signing in as its project's reminder-job service account: with workload
+    # identity when the repository variables are set, otherwise with the key in the secret (docs/RUNBOOK.md, "How the
+    # jobs get their keys"). A project with neither logs "nothing to do".
     strategy:
       fail-fast: false
       matrix:
         include:
           - project: spoilnot-prod
             secret: FIREBASE_SERVICE_ACCOUNT_JSON
+            service_account: GCP_SA_REMINDERS_PROD
           - project: spoilnot-dev
             secret: FIREBASE_SERVICE_ACCOUNT_JSON_DEV
+            service_account: GCP_SA_REMINDERS_DEV
     name: send (${{ matrix.project }})
     concurrency:
       group: expiry-reminders-${{ matrix.project }}
       cancel-in-progress: false
 
-    # The keys are repository secrets; this environment holds none and lists the runs as deployments (DESIGN 12.2
-    # control 8, DECISIONS 2026-11-22).
+    # The keys are repository secrets and the workload identity settings repository variables; this environment holds
+    # none and lists the runs as deployments (DESIGN 12.2 control 8, DECISIONS 2026-11-22).
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -48,15 +55,19 @@ jobs:
           node-version: lts/*
           cache: npm
           cache-dependency-path: backend/reminder/package-lock.json
-      # Install and build without the key, and without packages' install scripts (none is needed): only the step
-      # that runs the job gets the secret (docs/RUNBOOK.md, "How the jobs get their keys").
+      # Install and build without the key, without packages' install scripts (none is needed) and without the means to
+      # ask for an OIDC token: only the step that runs the job can sign in (docs/RUNBOOK.md, "How the jobs get their
+      # keys").
       - name: Install and build
         working-directory: backend/reminder
-        run: npm ci --ignore-scripts && npm run build
+        run: unset ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN && npm ci --ignore-scripts && npm run build
       - name: Run the reminder job
         working-directory: backend/reminder
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets[matrix.secret] }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars[matrix.service_account] }}
+          # The key only while workload identity isn't set up for this project.
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ (!vars.GCP_WORKLOAD_IDENTITY_PROVIDER || !vars[matrix.service_account]) && secrets[matrix.secret] || '' }}
           EXPECTED_PROJECT: ${{ matrix.project }}
           # Scheduled runs are live; manual runs default to a dry run.
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
