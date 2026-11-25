@@ -32,7 +32,7 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 | PR | What | Still to do |
 | --- | --- | --- |
 | jmalp/spoilnot#72 | Reminder job: digests go only to current members; job errors print codes only (SECD-01, P0; SECD-02, P1) | Nothing: the job runs from `main`. All 72 workflow logs were clean, so no key was rotated |
-| jmalp/spoilnot#74 | Sign-out and account deletion finish even when Settings closes (SECC-01, P0; SECC-02, P1; the Android half of SECC-03) | **Release an Android beta** so testers get it; the web side is batch S1. *Done: in Android 1.0.0, 2026-11-21* |
+| jmalp/spoilnot#74 | Sign-out and account deletion finish even when Settings closes (SECC-01, P0; SECC-02, P1; the Android half of SECC-03) | **Release an Android beta** so testers get it; the web side is batch S1. *Done: in Android 1.0.0-beta.10, 2026-11-14* |
 
 ## Owner's decisions (2026-11-08)
 
@@ -196,8 +196,8 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 - **Tests:** a web session test with a fake push identity, like Android's `DeviceSyncTest`; a `safeRoute` unit
   test; an instrumented check that the sync log is cleared.
 - **Web port:** same PR.
-- **Status (2026-11-24):** merged in jmalp/spoilnot#77 (2026-11-08). Live in Android 1.0.0 and on the web from
-  2026-11-21.
+- **Status (2026-11-24):** merged in jmalp/spoilnot#77 (2026-11-08). Live in Android 1.0.0-beta.10 (2026-11-14)
+  and on the web from 2026-11-21.
 
 ### S2 · Rules hardening
 
@@ -220,8 +220,8 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
   new rules refuse.
 - **Ships via:** rules deploy, plus an Android beta and a web deploy for the app side. Before B08, which also changes
   `firestore.rules`.
-- **Status (2026-11-24):** merged in jmalp/spoilnot#78 (2026-11-08). The apps went out in Android 1.0.0 and on the
-  web on 2026-11-21, and the rules were deployed to prod the same day, after the releases (DECISIONS 2026-11-21).
+- **Status (2026-11-24):** merged in jmalp/spoilnot#78 (2026-11-08). The app side went out in Android 1.0.0-beta.10
+  (2026-11-14) and on the web on 2026-11-21, and the rules were deployed to prod the same day, after the releases (DECISIONS 2026-11-21).
 
 ### B02 · Deleted things disappear offline
 
@@ -553,7 +553,7 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 - **DESIGN:** 11.6, 12.2; PRIVACY.md; SECURITY_REVIEW.
 - **Ships via:** Android beta; PRIVACY.md.
 - **Status (2026-11-24):** merged in jmalp/spoilnot#106 (2026-11-12), with npm overrides following in
-  jmalp/spoilnot#119 (2026-11-14). Live in Android 1.0.0 (2026-11-21).
+  jmalp/spoilnot#119 (2026-11-14). Live in Android 1.0.0-beta.10 (2026-11-14).
 
 ### B21 · Recipes, plan and names
 
@@ -691,6 +691,6 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
   - 10's iPhone checks (B20);
   - 08's cold starts and first sync (B22).
 - **Hallway test:** in `06-ux.md`.
-- **Console and GitHub checks:** the owner's checklist from reports 01 and 02 (S3). The GitHub settings were
-  confirmed on 2026-11-24.
+- **Console and GitHub checks:** the owner's checklist from reports 01 and 02 (S3). All checked; the GitHub
+  settings were also confirmed through the API on 2026-11-24.
 - **B01's follow-up:** a week after it ships, look at the job's start times with me.

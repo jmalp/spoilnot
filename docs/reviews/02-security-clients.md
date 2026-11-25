@@ -41,25 +41,26 @@ had a few smaller gaps. 13 findings: 1 P0, 1 P1, 2 P2, 9 P3. Three items from ot
 
 | Finding | Severity | Fixed in | Live |
 | --- | --- | --- | --- |
-| SECC-01 Settings sign-out leaves data and the digest | P0 | jmalp/spoilnot#74 | Android 1.0.0, 2026-11-21 |
-| SECC-02 Delete account removes only the membership | P1 | jmalp/spoilnot#74; S1, jmalp/spoilnot#77 (both gates) | Android and web, 2026-11-21 |
-| SECC-03 Offline sign-out leaves the phone registered | P2 | jmalp/spoilnot#74 (Android); S1, jmalp/spoilnot#77 (web) | Android and web, 2026-11-21 |
+| SECC-01 Settings sign-out leaves data and the digest | P0 | jmalp/spoilnot#74 | Android 1.0.0-beta.10, 2026-11-14 |
+| SECC-02 Delete account removes only the membership | P1 | jmalp/spoilnot#74; S1, jmalp/spoilnot#77 (both gates) | Android 1.0.0-beta.10, 2026-11-14; web, 2026-11-21 |
+| SECC-03 Offline sign-out leaves the phone registered | P2 | jmalp/spoilnot#74 (Android); S1, jmalp/spoilnot#77 (web) | Android 1.0.0-beta.10, 2026-11-14; web, 2026-11-21 |
 | SECC-04 Retention depends on a prune that didn't run | P2 | B01, jmalp/spoilnot#75 | Job, 2026-11-08 |
-| SECC-05 Android trusted stored recipe links and photos | P3 | S2, jmalp/spoilnot#78 | Rules and Android, 2026-11-21 |
-| SECC-06 Very long names froze Home and Pantry | P3 | S2, jmalp/spoilnot#78 | Rules and both apps, 2026-11-21 |
+| SECC-05 Android trusted stored recipe links and photos | P3 | S2, jmalp/spoilnot#78 | Android 1.0.0-beta.10, 2026-11-14; rules, 2026-11-21 |
+| SECC-06 Very long names froze Home and Pantry | P3 | S2, jmalp/spoilnot#78 | Android 1.0.0-beta.10, 2026-11-14; rules and web, 2026-11-21 |
 | SECC-07 A notification tap could leave the site | P3 | S1, jmalp/spoilnot#77 | Web, 2026-11-21 |
-| SECC-08 Other things stayed on the phone after sign-out | P3 | S1, jmalp/spoilnot#77 | Android and web, 2026-11-21 |
-| SECC-09 Invite code copied without the sensitive flag | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0, 2026-11-21 |
-| SECC-10 Release builds logged the email and user ID | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0, 2026-11-21 |
-| SECC-11 Crash reports and session events | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0, 2026-11-21 |
-| SECC-12 PRIVACY.md and Export | P3 | B13, jmalp/spoilnot#101; S4, jmalp/spoilnot#106 | PRIVACY.md 2026-11-12; Export 2026-11-21 |
-| SECC-13 Unbounded JSON-LD on the main thread | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0, 2026-11-21 |
-| 04-S1 Deleted account's profile recreated | P3 | B12, jmalp/spoilnot#99 | Android and web, 2026-11-21 |
-| 05-S1 One wrong-typed field blanks every phone's tabs | P2 | B10, jmalp/spoilnot#103; S2, jmalp/spoilnot#78 | Apps and rules, 2026-11-21 |
+| SECC-08 Other things stayed on the phone after sign-out | P3 | S1, jmalp/spoilnot#77 | Android 1.0.0-beta.10, 2026-11-14; web, 2026-11-21 |
+| SECC-09 Invite code copied without the sensitive flag | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0-beta.10, 2026-11-14 |
+| SECC-10 Release builds logged the email and user ID | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0-beta.10, 2026-11-14 |
+| SECC-11 Crash reports and session events | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0-beta.10, 2026-11-14 |
+| SECC-12 PRIVACY.md and Export | P3 | B13, jmalp/spoilnot#101; S4, jmalp/spoilnot#106 | PRIVACY.md 2026-11-12; Export on Android 2026-11-14, web 2026-11-21 |
+| SECC-13 Unbounded JSON-LD on the main thread | P3 | S4, jmalp/spoilnot#106 | Android 1.0.0-beta.10, 2026-11-14 |
+| 04-S1 Deleted account's profile recreated | P3 | B12, jmalp/spoilnot#99 | Android 1.0.0-beta.10, 2026-11-14; web, 2026-11-21 |
+| 05-S1 One wrong-typed field blanks every phone's tabs | P2 | B10, jmalp/spoilnot#103; S2, jmalp/spoilnot#78 | Android 1.0.0-beta.10, 2026-11-14; rules and web, 2026-11-21 |
 | 06-S1 A join request showed only a typed name | P3 | B12, jmalp/spoilnot#99 | Apps and rules, 2026-11-21 |
 
-Android 1.0.0 (build 13, `744d251`) and the web app from the same commit went to prod on 2026-11-21, with
-`minSupportedBuild` 13 and `minWebBuild` 3, so older builds must update. The rules followed the same day (DECISIONS
+The Android fixes first reached testers in 1.0.0-beta.10 (2026-11-14). Android 1.0.0 (build 13, `744d251`) and the
+web app from the same commit went to prod on 2026-11-21, with `minSupportedBuild` 13 and `minWebBuild` 3, so older
+builds must update. The rules parts and the masked email (06-S1) take effect from the rules deploy on 2026-11-21. The rules followed the same day (DECISIONS
 2026-11-21).
 
 ## Metrics
@@ -138,8 +139,8 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
   rethrow cancellation instead of swallowing it. While nobody is signed in, the phone keeps no FCM token: it deletes
   it after a sign-out or account deletion, and at a start with no user. That also cleans up phones that signed out
   with the bug, once they update. Tests: `SessionManagerTest` cancels the caller as Settings does, and
-  `SettingsAccountUiTest` signs out through Settings and checks the phone's cache and the server. Live: Android 1.0.0,
-  2026-11-21.
+  `SettingsAccountUiTest` signs out through Settings and checks the phone's cache and the server. Live: Android
+  1.0.0-beta.10, 2026-11-14.
 
 ### SECC-02 · P1 · Confirmed · Android — Delete account in Settings removed only the membership
 
@@ -156,7 +157,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
 - **Fix:** jmalp/spoilnot#74 (the cause, 2026-11-02) and S1, jmalp/spoilnot#77 (2026-11-08). Both apps' household
   gates offer Delete account with Settings' password dialog, and a deletion that fails shows its error. Test:
   `SettingsAccountUiTest` deletes an account through Settings and checks that the profile, devices, membership and
-  sign-in are gone. Live: Android and web, 2026-11-21.
+  sign-in are gone. Live: Android 1.0.0-beta.10 (2026-11-14), web 2026-11-21.
 
 ### SECC-03 · P2 · Confirmed (web) · Likely (Android) — Signing out offline left the phone registered, and neither app deleted its push token
 
@@ -173,7 +174,8 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
   behind gets a token FCM rejects, and the job removes it. Web: S1, jmalp/spoilnot#77 (2026-11-08). The web app
   deletes its push token when a user leaves the phone. Until FCM confirms the delete it keeps a "token to delete"
   flag, and every start tries again before registering anyone. Tests: `DeviceSyncTest`, the web's `session.test.ts`
-  with a fake push identity, `notifications.test.ts`. DECISIONS 2026-11-08. Live: Android and web, 2026-11-21.
+  with a fake push identity, `notifications.test.ts`. DECISIONS 2026-11-08. Live: Android 1.0.0-beta.10
+  (2026-11-14), web 2026-11-21.
 
 ### SECC-04 · P2 · Confirmed · Backend · Privacy — The retention PRIVACY.md promised depended on a prune that hadn't run since at least 21 October
 
@@ -199,8 +201,8 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
 - **Why it mattered:** members of a household with a member who would do this; low.
 - **Evidence:** reproduced on the Android emulator; details withheld.
 - **Fix:** S2, jmalp/spoilnot#78, merged 2026-11-08. The rules accept recipe links and photos only as http or https,
-  and Android drops any other stored value when it reads a recipe. Test: `RecipeReadTest`. Live: rules and Android,
-  2026-11-21.
+  and Android drops any other stored value when it reads a recipe. Test: `RecipeReadTest`. Live: Android
+  1.0.0-beta.10 (2026-11-14), rules 2026-11-21.
 
 ### SECC-06 · P3 · Confirmed · Android — Very long names from another client froze Home and Pantry
 
@@ -211,7 +213,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
 - **Evidence:** reproduced on the Android emulator; details withheld.
 - **Fix:** S2, jmalp/spoilnot#78. The rules limit names to DESIGN 8.1's lengths, and both apps cut names to those
   lengths when they read them. Tests: `PantryReadTest`, `GroceryReadTest`, `HouseholdReadTest`, `ActivityReadTest`,
-  the web's `reads.test.ts`. Live: 2026-11-21.
+  the web's `reads.test.ts`. Live: Android 1.0.0-beta.10 (2026-11-14); rules and web 2026-11-21.
 
 ### SECC-07 · P3 · Confirmed · Web — `safeRoute` let certain characters send a notification tap to another site
 
@@ -238,7 +240,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
 - **Fix:** S1, jmalp/spoilnot#77, merged 2026-11-08. Clearing local data (sign-out, account deletion, leaving or
   losing a household) also clears the sync log on both apps. On Android it also clears the built-in browser's
   cookies, site storage, saved sign-ins and cache, and the photo caches. Test: `SettingsAccountUiTest`. PRIVACY.md
-  updated. Live: 2026-11-21.
+  updated. Live: Android 1.0.0-beta.10 (2026-11-14), web 2026-11-21.
 
 ### SECC-09 · P3 · Confirmed · Android — The invite code was copied without the sensitive flag
 
@@ -247,7 +249,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
   keyboards kept it in clipboard history. The clip's label was the code itself. A code only lets someone ask to join,
   so this was low.
 - **Fix:** S4, jmalp/spoilnot#106, merged 2026-11-12. The code is copied marked sensitive, with the label "Invite
-  code". Test: `SensitiveClipTest`. DECISIONS 2026-11-12. Live: Android 1.0.0, 2026-11-21.
+  code". Test: `SensitiveClipTest`. DECISIONS 2026-11-12. Live: Android 1.0.0-beta.10, 2026-11-14.
 
 ### SECC-10 · P3 · Confirmed · Android — Release builds wrote the email and user ID to the system log at sign-in
 
@@ -257,7 +259,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
   own logging was already debug-only.
 - **Fix:** S4, jmalp/spoilnot#106. Release builds drop `Log.v`, `Log.d` and `Log.i` calls, the libraries' included.
   `Log.w` and `Log.e` stay. Checked in R8's merged configuration and the benchmark APK's code, and crash reports
-  still work. DECISIONS 2026-11-12. Live: Android 1.0.0, 2026-11-21.
+  still work. DECISIONS 2026-11-12. Live: Android 1.0.0-beta.10, 2026-11-14.
 
 ### SECC-11 · P3 · Likely · Android · Question — Crash reports were on by default and brought Firebase Sessions events
 
@@ -269,7 +271,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
   real-Firebase build was run to watch the traffic.
 - **Fix (owner's decision, 2026-11-08):** S4, jmalp/spoilnot#106. Firebase Sessions is off in prod builds, which
   loses only the crash-free figures. Crash reports stay on by default, with the opt-out in Settings, and PRIVACY.md
-  names what they contain, the installation ID included. DECISIONS 2026-11-12. Live: Android 1.0.0, 2026-11-21.
+  names what they contain, the installation ID included. DECISIONS 2026-11-12. Live: Android 1.0.0-beta.10, 2026-11-14.
 
 ### SECC-12 · P3 · Confirmed · Docs — PRIVACY.md missed data points and overstated Export
 
@@ -289,7 +291,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
 - **Fix (owner's decision, 2026-11-08):** B13, jmalp/spoilnot#101 (2026-11-12). Export also holds the person's own
   profile and the household's activity log; devices and the email stay out. Then S4, jmalp/spoilnot#106
   (2026-11-12) rewrote PRIVACY.md from the inventory. DECISIONS 2026-11-11 and 2026-11-12. Live: PRIVACY.md on
-  merge; Export in both apps, 2026-11-21.
+  merge; Export on Android 2026-11-14 (beta.10), on the web 2026-11-21.
 
 ### SECC-13 · P3 · Likely · Android — A page opened in the built-in browser could hand the app JSON-LD of any size, parsed on the main thread
 
@@ -301,7 +303,7 @@ The full inventory is now [PRIVACY.md](../PRIVACY.md) itself: where each kind of
 - **Fix:** S4, jmalp/spoilnot#106. JSON-LD is read only up to 32 blocks, 1 Mi characters each and 3 Mi in all, in
   the browser's script and again in the app. A result over 16 Mi characters is left unread, and parsing runs off the
   main thread. Fetched pages get the same limits. Test: `JsonLdLimitsTest`, plus `LiveImportTest` against the 10 test
-  sites. DECISIONS 2026-11-12. Live: Android 1.0.0, 2026-11-21.
+  sites. DECISIONS 2026-11-12. Live: Android 1.0.0-beta.10, 2026-11-14.
 
 ## From other sections
 
@@ -322,7 +324,7 @@ the public reports pointed here.
 - **Evidence:** reproduced on two test phones against the emulators (section 04's probe `p15`); details withheld.
 - **Fix:** B12, jmalp/spoilnot#99, merged 2026-11-11. A missing profile is created only right after a sign-up or
   sign-in on this phone. At any other time a missing profile means the account was deleted, and the phone signs out
-  and clears its data. DECISIONS 2026-11-10. Live: Android and web, 2026-11-21.
+  and clears its data. DECISIONS 2026-11-10. Live: Android 1.0.0-beta.10 (2026-11-14), web 2026-11-21.
 
 ### 05-S1 · P2 · Confirmed · Android (and the rules) — One wrong-typed field, written by any member, blanked tabs on every Android phone in the household
 
@@ -336,7 +338,7 @@ the public reports pointed here.
   withheld.
 - **Fix:** B10, jmalp/spoilnot#103 (2026-11-12): both apps read every field on its own and skip a document that
   doesn't map, never the whole list, and a load error offers Retry. S2, jmalp/spoilnot#78: the rules check the field
-  types the apps write. DECISIONS 2026-11-11. Live: apps and rules, 2026-11-21.
+  types the apps write. DECISIONS 2026-11-11. Live: Android 1.0.0-beta.10 (2026-11-14); rules and web 2026-11-21.
 
 ### 06-S1 · P3 · Confirmed · Android (web by reading) — A join request showed only the name the requester typed
 
@@ -355,7 +357,8 @@ the public reports pointed here.
 ## Not covered
 
 - **Real FCM, real phones and the lock screen:** emulator builds can't get FCM tokens, so digests after sign-out
-  weren't seen arriving. The owner had a phone checklist for these, which isn't reproduced here.
+  weren't seen arriving. The owner went through a phone checklist for these, every item checked; the checklist isn't
+  reproduced here.
 - **Prod builds:** not built. The merged prod manifest and an earlier prod beta APK were read instead, and Crashlytics
   traffic wasn't observed (SECC-11 is Likely).
 - **The built-in browser against a hostile page:** no way to serve https to the emulator without publishing a page

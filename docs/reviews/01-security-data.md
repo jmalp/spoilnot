@@ -31,8 +31,10 @@ removed members were denied on every path, collection-group queries included. Th
   repository, and `main` was unprotected.
 
 Rules matrix coverage was 47 of the 68 allowed path and operation pairs. 17 findings: 1 P0, 4 P1, 3 P2, 9 P3. Four
-items from other sections are added at the end. **All are fixed and live**, except for what is noted as the owner's
-choice (SECD-05's App Check, SECD-08's environment, SECD-16's Gradle verification).
+items from other sections are added at the end. **All are fixed and live.** The owner chose to leave three parts as
+they are: SECD-05's App Check, SECD-08's environment and SECD-16's Gradle verification. Three small parts weren't
+done, and each finding says so: SECD-04's export guard, SECD-15's integrity check, and cleaning up 04-S2's older
+items.
 
 ## Fixes at a glance
 
@@ -46,21 +48,22 @@ choice (SECD-05's App Check, SECD-08's environment, SECD-16's Gradle verificatio
 | SECD-06 Long names unregister other members' phones | P2 | B01, jmalp/spoilnot#75; S2, jmalp/spoilnot#78 | Job 2026-11-08; rules 2026-11-21 |
 | SECD-07 Key present while npm installs | P2 | S3, jmalp/spoilnot#94 | Workflows, 2026-11-10 |
 | SECD-08 GitHub protections off | P2 | S3, owner's settings, jmalp/spoilnot#94, jmalp/spoilnot#150 | Settings on; keys stay repository secrets (owner's choice) |
-| SECD-09 Forged names and authors | P3 | S2, jmalp/spoilnot#78 | Rules and apps, 2026-11-21 |
+| SECD-09 Forged names and authors | P3 | S2, jmalp/spoilnot#78 | Android 1.0.0-beta.10, 2026-11-14; rules and web, 2026-11-21 |
 | SECD-10 Members delete outright, rewrite counts | P3 | S2, jmalp/spoilnot#78 | Rules, 2026-11-21 |
 | SECD-11 Two owners after a transfer | P3 | S2, jmalp/spoilnot#78 | Rules, 2026-11-21 |
 | SECD-12 IDs in error logs | P3 | jmalp/spoilnot#72, B01 jmalp/spoilnot#75 | Job, 2026-11-08 |
 | SECD-13 Rules matrix gaps | P3 | S2, jmalp/spoilnot#78 | CI, 2026-11-08 |
 | SECD-14 Actions pinned to tags | P3 | S3, jmalp/spoilnot#94, jmalp/spoilnot#150 | Workflows 2026-11-10; settings 2026-11-22 |
 | SECD-15 Backups and restore | P3 | B13, jmalp/spoilnot#101 | Workflows, 2026-11-12 |
-| SECD-16 Supply chain | P3 | S3, jmalp/spoilnot#94; S4, jmalp/spoilnot#106 | Android 1.0.0, 2026-11-21 |
+| SECD-16 Supply chain | P3 | S3, jmalp/spoilnot#94; S4, jmalp/spoilnot#106 | Android 1.0.0-beta.10, 2026-11-14 |
 | SECD-17 Security docs out of date | P3 | Each fix PR | Docs on `main` |
 | 04-S2 Items left under a deleted list | P3 | B08, jmalp/spoilnot#90 | Rules, 2026-11-21 |
 | 00-S1, 00-S2, 05-S2, 05-S3 | Notes | See below | — |
 
 "Job" means the reminder, export and restore jobs. They run from `main`, so a job fix takes effect at the next run
-after merging. Rules changes were held back until Android 1.0.0 (build 13, `744d251`) and the web app from the same
-commit had gone out on 2026-11-21, and were deployed to prod the same day (DECISIONS 2026-11-21).
+after merging. The Android fixes first reached testers in 1.0.0-beta.10 (2026-11-14). Rules changes were held back
+until Android 1.0.0 (build 13, `744d251`) and the web app from the same commit had gone out on 2026-11-21, and were
+deployed to prod the same day (DECISIONS 2026-11-21).
 
 ## Metrics
 
@@ -212,6 +215,8 @@ commit had gone out on 2026-11-21, and were deployed to prod the same day (DECIS
   bounded and numbers finite. A new account's own household gets the same limits. Before deploying, every released
   build's writes were checked against the new rules. Tests: "allowed fields and sizes" in `rules.test.js`. Live in
   prod: 2026-11-21.
+- **Not done:** the export itself still has no per-household guard or size cap. With the size limits, a household
+  would need far more documents than a day's free writes to reach the export's limit.
 
 ### SECD-05 · P1 · Likely · Backend — One account could use up the day's reads for everyone, and the reminder job made it daily
 
@@ -296,7 +301,7 @@ commit had gone out on 2026-11-21, and were deployed to prod the same day (DECIS
 - **Fix:** S2, jmalp/spoilnot#78, merged 2026-11-08. `createdBy` is the writer on create and doesn't change after.
   `checkedBy` is the writer, nobody, or unchanged. Events have a known type, the writer as author and a name of 1 to
   40 characters. Both apps show an event's author from the member list. Tests: "who wrote it" in `rules.test.js`,
-  `ActivityFeedTest`, the web's `models.test.ts`. Live: rules 2026-11-21, apps 2026-11-21.
+  `ActivityFeedTest`, the web's `models.test.ts`. Live: Android 1.0.0-beta.10 (2026-11-14); rules and web 2026-11-21.
 
 ### SECD-10 · P3 · Confirmed · Rules — Any member could delete shared data outright and rewrite the Insights counts
 
@@ -375,6 +380,8 @@ commit had gone out on 2026-11-21, and were deployed to prod the same day (DECIS
   restore refuses a target whose owner differs from the export's unless a "different owner" input is ticked, also in
   the dry run. Since 2026-11-22 every restore also waits for the owner's approval (`restore` environment). DECISIONS
   2026-11-11 and 2026-11-22. Live from the next run.
+- **Not done:** the archives have no integrity check (MAC), which the review suggested only as an option. Only the
+  owner can write artifacts, and a wrong key or a damaged file still fails to decrypt or unpack.
 
 ### SECD-16 · P3 · Confirmed · Supply chain — One high advisory in the app (not reachable), one npm project without Dependabot, no Gradle dependency verification
 
@@ -389,8 +396,8 @@ commit had gone out on 2026-11-21, and were deployed to prod the same day (DECIS
 - **Why it mattered:** advisories that nothing reported, and one project nothing updated.
 - **Fix:** S3, jmalp/spoilnot#94 (2026-11-10): a Gradle constraint holds Guava at 33.8.0-android or later, and
   `tools/themes` is in Dependabot. S4, jmalp/spoilnot#106 (2026-11-12): `npm audit fix` in `firebase/` and
-  `backend/reminder/`, then npm overrides in jmalp/spoilnot#119 (2026-11-14). Live on phones with Android 1.0.0
-  (2026-11-21).
+  `backend/reminder/`, then npm overrides in jmalp/spoilnot#119 (2026-11-14). Live on phones with Android
+  1.0.0-beta.10 (2026-11-14).
 - **Owner's choice:** Gradle dependency verification is not used. Dependabot doesn't update the verification file,
   so every weekly Gradle pull request would fail CI until someone regenerated it (DECISIONS 2026-11-10).
 
@@ -447,6 +454,7 @@ anyway. No action.
 - **Fix:** B08, jmalp/spoilnot#90, merged 2026-11-09. An item can be created only where its list exists, so the late
   add is refused and the app says "That list was deleted". It costs one read per batch that creates items, under 1%
   of the free reads (DECISIONS 2026-11-09). Live: rules 2026-11-21.
+- **Not done:** items orphaned this way before 2026-11-21 weren't looked for or removed.
 
 ### 05-S2 · Note — SECD-05's quota drain was worse than "the quota banner"
 
@@ -468,8 +476,8 @@ it was started.
 ## Not covered
 
 - **Consoles:** Firebase Auth settings, API key restrictions, IAM and service account keys, and the GitHub account
-  weren't visible to the review. The owner had a checklist for them, which isn't reproduced here. The GitHub settings
-  in it were checked through the API on 2026-11-24 (table above).
+  weren't visible to the review. The owner went through a checklist for them, every item checked; the checklist isn't
+  reproduced here. The GitHub settings in it were also confirmed through the API on 2026-11-24 (table above).
 - **Quotas:** the emulator has none, so the quota effects in SECD-04 and SECD-05 were reasoned, not reproduced.
 - **Real FCM** (SECD-06) and **GitHub's log masking** (SECD-02): no real project and no workflow run.
 - **The large export end to end:** too much memory for this Mac; the string limit was shown directly instead.
