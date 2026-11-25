@@ -37,7 +37,8 @@ quota runs out the app can become a full-screen spinner**, cached data and the q
 **The reminder job runs about five times a day, not 24**: digests arrive about three hours late, the 20:00 and 21:00
 choices miss most days (REL-03, P1), the daily prune has never run (REL-05, the cause of SECC-04), and one failed send
 ends a run for everyone (REL-06). And **one listener error, or one wrong-typed document, silently blanks a screen
-until the app restarts** (REL-04), which the restore can trigger (REL-14). One item moved to the private notes.
+until the app restarts** (REL-04), which the restore can trigger (REL-14). Three items went to the security
+reports: 05-S1 in `02-security-clients.md`, and 05-S2 and 05-S3 in `01-security-data.md`.
 
 ## Metrics
 
@@ -226,7 +227,7 @@ lose it on process death (checked), 1 on a remote change (checked). The share-wh
 - **Suggested fix:** (1) The repository is public, so Actions minutes are free: add schedule entries (for example
   `7,27,47 * * * *`) so dropped runs matter less, and check the start times after a week (section 09 weighs the
   extra job reads; the job reads every enabled user per run). (2) If that's not enough, an external free cron
-  service calling `workflow_dispatch` (DESIGN 10.6 mentions it; one item for it is in the private notes).
+  service calling `workflow_dispatch` (DESIGN 10.6 mentions it; 05-S3 in `01-security-data.md` says how to keep its token safe).
   (3) Meanwhile, make the copy honest ("usually within a few hours") or stop offering 20:00 and 21:00. Effort S. Also
   needs: DESIGN 10.4's reliability paragraph, RUNBOOK, the web's hour list.
 
@@ -249,8 +250,8 @@ lose it on process death (checked), 1 on a remote change (checked). The share-wh
   `assets/05/bad-data-pantry-blank.png`, `bad-data-home-skeleton.png`, `bad-data-plan-spinner.png`,
   `bad-data-recipes-stale-offline.png`. Logcat had no error: the failure isn't even logged.
 - **Who it affects:** every Android phone in a household that has one such document, until someone fixes it in the
-  console. Rare today (both apps write the same types, section 04), but the effect is wide and invisible. One item
-  moved to the private notes.
+  console. Rare today (both apps write the same types, section 04), but the effect is wide and invisible. A member
+  doing it on purpose is 05-S1 in `02-security-clients.md`.
 - **Suggested fix:** map field by field with safe casts (`get(field) as? String`, `(get(field) as? Number)?.toDouble()`),
   as the recipe and Insights mappers already do; map each document in its own `runCatching` and skip (and log) one
   that still fails; replace `.catch { }` with a retry and an error state that shows "Couldn't load. Retry" (6.7).

@@ -23,8 +23,8 @@ passing run (BASE-02), CLAUDE.md's checklist misses checks CI runs and names a m
 BASE-04), the web bundle passed its own size warning (BASE-05), deletes aren't simulated (BASE-06), and some RUNBOOK
 lines drifted (BASE-07). The one real gap: the startup and scroll benchmarks gave numbers that swing tenfold
 between identical runs on this Mac (software rendering by default, then too little memory), so there is no
-performance baseline yet and section 08 has to settle whether Pantry's first scroll got slower (BASE-08). One item
-moved to the private notes.
+performance baseline yet and section 08 has to settle whether Pantry's first scroll got slower (BASE-08). The `npm
+audit` details are in `01-security-data.md` (00-S1), as is a note on source maps (00-S2).
 
 ## Metrics
 
@@ -109,7 +109,7 @@ spread.
 | `npm audit`, `web/` | 24: 0 critical, **4 high**, 18 moderate, 2 low; production tree: 4 high | `npm audit --json`, and `--omit=dev` | — |
 | `npm audit`, `firebase/` | 23: 0 critical, **6 high**, 17 moderate; production tree: 0 (all dev tools) | Same | — |
 | `npm audit`, `backend/reminder/` | 6: 0 critical, 0 high, 6 moderate; production tree: 6 moderate | Same | — |
-| Audit details | One item moved to the private notes | — | — |
+| Audit details | In `01-security-data.md`, 00-S1 | — | — |
 
 ### Docs and commands
 
@@ -294,7 +294,7 @@ spread.
 - **06 UX:** lint flags four Insights strings as plural candidates (`insights_counts`, `insights_ring_description`,
   `insights_month_details`, `insights_month_entry`). "1 used · 1 thrown away" reads fine in English; worth a glance
   during the copy review.
-- **01 Security:** the `npm audit` details are in `private/incidental.md` (00-S1).
+- **01 Security:** the `npm audit` details are in `01-security-data.md` (00-S1).
 
 ## Not covered
 

@@ -23,8 +23,8 @@ Two lenses apply to every section, not just UX:
 | # | Section | Report | Needs | Alongside another? |
 | --- | --- | --- | --- | --- |
 | 00 | Baseline and health check | `00-baseline.md` | Gradle, Firebase emulators, Pixel_8, WebKit | No |
-| 01 | Security: data access, backend and supply chain | `private/01-security-data.md` | Firestore emulator | No |
-| 02 | Security and privacy: Android and web clients | `private/02-security-clients.md` | Pixel_8, Firebase emulators, WebKit | No |
+| 01 | Security: data access, backend and supply chain | `01-security-data.md` (published 2026-11-24) | Firestore emulator | No |
+| 02 | Security and privacy: Android and web clients | `02-security-clients.md` (published 2026-11-24) | Pixel_8, Firebase emulators, WebKit | No |
 | 03 | Bugs in business logic | `03-logic.md` | Gradle (unit tests), network for live import | Yes, in its own worktree |
 | 04 | Bugs in sync, sessions and multi-phone behavior | `04-sync.md` | Firebase emulators, Pixel_8 | No |
 | 05 | Reliability, offline and failure handling | `05-reliability.md` | Firebase emulators, Pixel_8 | No |
@@ -34,7 +34,7 @@ Two lenses apply to every section, not just UX:
 | 09 | Efficiency: quota, battery, size, network and CI | `09-efficiency.md` | Firestore emulator, Pixel_8 | No |
 | 10 | Web app: parity with Android and iPhone issues | `10-web.md` | Firebase emulators, WebKit, Pixel_8 | No |
 | 11 | Code quality, redundancy, tests and docs | `11-code.md` | Gradle | Yes, in its own worktree |
-| 12 | Triage and fix roadmap (with the owner) | `ROADMAP.md`, `private/SECURITY-ROADMAP.md` | Nothing | No |
+| 12 | Triage and fix roadmap (with the owner) | `ROADMAP.md` (its security batches published 2026-11-24) | Nothing | No |
 
 Report paths are under `docs/reviews/`. Run 00 first and 12 last. The order in between is a recommendation (risk
 first: security, then bugs, then experience, then cost and code).
@@ -72,7 +72,8 @@ commits its report on its own branch, and Claude merges it into `review/2026-11`
 9. **Security stays private.** Anything security-relevant, found in any section, goes in
    `docs/reviews/private/` (ignored by git through `.git/info/exclude`; sections other than 01 and 02 append to
    `private/incidental.md`). Never put it in a public report, a commit message or a GitHub issue. The public report
-   says only "one item moved to the private notes".
+   says only "one item moved to the private notes". *Lifted on 2026-11-24, once the fixes had shipped: reports 01
+   and 02 were published cleaned up, with the other sections' items in them, and the public reports point there.*
 10. **Out of scope.** Something that belongs to another section gets one line under "For other sections". Don't
     chase it.
 11. **Finish.** Fill in every part of the report template, including what you didn't cover. Commit only your report

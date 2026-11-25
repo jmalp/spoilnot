@@ -1,16 +1,20 @@
 # 12 Triage and fix roadmap
 
 Triage of the in-depth review on branch `review/2026-11`, done with the owner on 2026-11-08. The inputs are reports
-00 and 03 to 11, plus the private security reports and notes in `docs/reviews/private/`, which are uncommitted until
-fixed. The owner hasn't run the phone checks yet; the batches they affect say so.
+00 to 11. The two security reports, 01 and 02, and the security items from other sections were kept out of the
+repository until their fixes had shipped; they were published, cleaned up, on 2026-11-24, and the security batches
+below now name their findings. The owner hadn't run the phone checks at triage; the batches they affect say so.
 
 ## Summary
 
 - **Findings:** the public reports hold 127 findings: 12 P1, 26 P2 and 89 P3, with no P0.
   - Ten of section 10's web findings confirm an earlier Android finding. Each pair goes in the same batch.
-  - The private reports add 30 findings and 8 notes. Their two P0s are already fixed and merged (#72, #74).
-- **Batches:** everything is grouped into **32 batches, one pull request each**: 28 public (B01 to B28) and 4 private
-  (S1 to S4, described only in `private/SECURITY-ROADMAP.md`). Every finding is in exactly one batch.
+  - The security reports (01 and 02) add 30 findings: SECD-01 to SECD-17 and SECC-01 to SECC-13. Other sections add
+    4 security findings and 4 notes (00-S1, 00-S2, 04-S1, 04-S2, 05-S1 to 05-S3, 06-S1), published in 01 and 02. The
+    two P0s were already fixed and merged (#72, #74).
+- **Batches:** everything is grouped into **32 batches, one pull request each**: 28 general ones (B01 to B28) and 4
+  security ones (S1 to S4, below). Every finding is in exactly one batch or in "Already done". SECD-17 (the security
+  docs) goes with each fix PR. The notes 00-S2, 05-S2 and 05-S3 need no change of their own.
 - **Order:** P1 bugs and data loss first, then reliability, UX and accessibility, the remaining logic bugs,
   smoothness and efficiency, and code and docs last.
 - **Biggest risks to users:**
@@ -27,8 +31,8 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 
 | PR | What | Still to do |
 | --- | --- | --- |
-| jmalp/spoilnot#72 | Reminder job: digests go only to current members; job errors print codes only | Nothing: the job runs from `main` |
-| jmalp/spoilnot#74 | Sign-out and account deletion finish even when Settings closes | **Release an Android beta** so testers get it; the web side is batch S1 |
+| jmalp/spoilnot#72 | Reminder job: digests go only to current members; job errors print codes only (SECD-01, P0; SECD-02, P1) | Nothing: the job runs from `main`. All 72 workflow logs were clean, so no key was rotated |
+| jmalp/spoilnot#74 | Sign-out and account deletion finish even when Settings closes (SECC-01, P0; SECC-02, P1; the Android half of SECC-03) | **Release an Android beta** so testers get it; the web side is batch S1. *Done: in Android 1.0.0, 2026-11-21* |
 
 ## Owner's decisions (2026-11-08)
 
@@ -42,10 +46,13 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 | 6 | Add to pantry has no Undo (LOGIC-10) | **Add an Undo** that removes the new batches and puts the items back. Delete list keeps its confirmation, recorded in DECISIONS | B14 |
 | 7 | Android screenshots never compared (CODE-07) | **Commit Roborazzi references** and run `verifyRoborazziDevDebug` in CLAUDE.md's finishing checks (not in CI) | B19 |
 | 8 | Daily mode stops after 14 days (LOGIC-07) | **Reword it** to "Every day for two weeks" | B17 |
-| 9 | Three security and privacy questions | Settled; see `private/SECURITY-ROADMAP.md` | S2, S4, B13 |
+| 9 | Three security and privacy questions | **May members wipe shared data outright (SECD-10)?** No: members only tombstone; outright deletes are the owner's, or a list's items with the list; Insights counts move by at most one per field per write. **Crash reports on by default (SECC-11)?** Yes, with the opt-out in Settings; Firebase Sessions off in prod; PRIVACY.md names the installation ID. **Export (SECC-12)?** It adds the person's own profile and the activity log, and PRIVACY.md is rewritten from 02's inventory | S2, S4, B13 |
 
 **Defaults I chose (say if you disagree):**
 
+- **App Check (SECD-05) stays deferred.** Spoil Not ships through App Distribution with no Play Console, so Play
+  Integrity isn't available, and App Check on the web alone wouldn't help. B01's job caps and S2's size limits bound
+  the damage, and the prod usage page is the monitor.
 - **Kept:** review 06's other "keep" verdicts (R3 to R7, R11, R14).
 - **One expiring set (R8):** Needs attention, the Expiring soon filter and the digest use one set under one name (B15).
 - **Recipes:**
@@ -82,28 +89,28 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 
 | # | Batch | Findings | Worst | Web port | Ships via | Effort |
 | --- | --- | --- | --- | --- | --- | --- |
-| B01 | Reminder job: three runs an hour, daily prune, one failure doesn't stop the run | REL-03, REL-05, REL-06, EFF-02, BASE-06, LOGIC-06 + private | P1 | — (backend) | Job on merge | M |
-| S1 | Private | — | — | — | Android beta, web | S |
-| S2 | Private | — | — | — | Rules deploy | M |
+| B01 | Reminder job: three runs an hour, daily prune, one failure doesn't stop the run | REL-03, REL-05, REL-06, EFF-02, BASE-06, LOGIC-06, SECD-03, SECD-05, SECD-06, SECD-12, SECC-04 | P1 | — (backend) | Job on merge | M |
+| S1 | The web's sign-out, and what stays on a phone afterwards | SECC-03 (web), SECC-08, SECC-07, SECC-02 (gates) | P2 | Same PR | Android beta, web | S |
+| S2 | Rules hardening | SECD-04, SECD-09, SECD-10, SECD-11, SECD-13, SECC-05, SECC-06 | P1 | Same PR | Rules deploy, Android beta, web | M |
 | B02 | Deleted things disappear offline | REL-01, WEB-02 | P1 | Same PR | Android beta, web | S |
 | B03 | Name the floating buttons | A11Y-01, A11Y-05, CODE-12 | P1 | — (Android only) | Android beta | S |
 | B04 | Restock engine: no staples in the cart, none on first sync | LOGIC-01, LOGIC-02, SYNC-10, EFF-09, LOGIC-05, LOGIC-09 | P1 | Same PR | Android beta, web | M |
 | B05 | Stay usable when the quota runs out | REL-02, WEB-04, WEB-09, REL-10 | P1 | Same PR | Android beta, web | M |
 | B06 | Web update check and `minWebBuild` | REL-15 | P3 | — (web only) | Web | S |
 | B07 | Sync cursor from what the server sent | SYNC-01, WEB-16 | P1 | Same PR | Android beta, web | M |
-| B08 | One phone wins when two finish the same thing | SYNC-02, WEB-01, SYNC-05, SYNC-07 + private | P1 | Same PR | Android beta, web, then rules deploy and minimum-build raise | M |
+| B08 | One phone wins when two finish the same thing | SYNC-02, WEB-01, SYNC-05, SYNC-07, 04-S2 | P1 | Same PR | Android beta, web, then rules deploy and minimum-build raise | M |
 | B09 | Listeners that let go | EFF-01, PERF-02, EFF-03, EFF-05 | P1 | Next PR | Android beta, then web | L |
 
 **Phase 2: reliability**
 
 | # | Batch | Findings | Worst | Web port | Ships via | Effort |
 | --- | --- | --- | --- | --- | --- | --- |
-| B10 | Bad data skips one document, not the screen | REL-04, WEB-10, REL-14, REL-13, REL-11 + private | P2 | Same PR | Android beta, web, restore code | M |
+| B10 | Bad data skips one document, not the screen | REL-04, WEB-10, REL-14, REL-13, REL-11, 05-S1 | P2 | Same PR | Android beta, web, restore code | M |
 | B11 | Edits don't undo someone else's change | SYNC-03, WEB-03, SYNC-04, WEB-07 | P2 | Same PR | Android beta, web | M |
-| B12 | Joining and sign-out edges | SYNC-06, WEB-05, SYNC-09, SYNC-08, UX-13 + private | P2 | Same PR | Android beta, web, job | M |
-| B13 | Restore and Export tell the truth | REL-07, REL-12, WEB-12 + private | P2 | Same PR | Android beta, web, job | S–M |
+| B12 | Joining and sign-out edges | SYNC-06, WEB-05, SYNC-09, SYNC-08, UX-13, 04-S1, 06-S1 | P2 | Same PR | Android beta, web, job | M |
+| B13 | Restore and Export tell the truth | REL-07, REL-12, WEB-12, SECD-15, SECC-12 (Export) | P2 | Same PR | Android beta, web, job | S–M |
 | B14 | Forms keep what you typed; Undo for Add to pantry | REL-08, REL-09, LOGIC-03, LOGIC-04, LOGIC-08, LOGIC-10 | P2 | Same PR (writes), Next PR (form state) | Android beta, web | M |
-| S3 | Private | — | — | — | CI and owner settings | S |
+| S3 | Workflows and GitHub | SECD-07, SECD-08, SECD-14, SECD-16 | P2 | — | CI and owner settings | S |
 
 **Phase 3: UX and accessibility**
 
@@ -115,7 +122,7 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 | B18 | Contrast and time to act | A11Y-02, A11Y-03, UX-17, CODE-11 | P2 | Same PR (generated colors), Next PR (web timer) | Android beta, web | S |
 | B19 | Large text, screen readers and keyboard | A11Y-04, UX-14, A11Y-06, A11Y-07, A11Y-08, A11Y-09, A11Y-10, A11Y-11, A11Y-12, CODE-07 | P2 | Next PR | Android beta, then web | M |
 | B20 | iPhone polish | WEB-14, WEB-15, WEB-08 | P3 | — (web only) | Web | S |
-| S4 | Private | — | — | — | Android beta, web | S |
+| S4 | Privacy details | SECC-09, SECC-10, SECC-11, SECC-12 (PRIVACY), SECC-13, 00-S1 | P3 | — (Android only) | Android beta, PRIVACY.md | S |
 
 **Phase 4: the remaining logic bugs**
 
@@ -144,7 +151,8 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 
 ### B01 · Reminder job: three runs an hour, a daily prune, and one failure doesn't stop the run
 
-- **Findings:** REL-03 (P1), REL-05, REL-06, EFF-02, BASE-06, LOGIC-06, plus five private items (SECURITY-ROADMAP).
+- **Findings:** REL-03 (P1), REL-05, REL-06, EFF-02, BASE-06, LOGIC-06, and from the security reports SECD-03 (P1),
+  SECD-05's job part (P1), SECD-06, SECD-12 and SECC-04.
 - **Change:**
   - `reminders.yml` gets three schedule entries an hour, such as minutes 7, 27 and 47. A test keeps the job at one
     digest a day per user.
@@ -153,6 +161,15 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
   - Each household and user is wrapped in try/catch. The summary counts failures with no IDs, the run carries on, and
     it exits non-zero at the end so GitHub still emails.
   - The digest title is decided by distinct names.
+  - **Security items:**
+    - sends go in chunks of 500, to at most the 10 newest devices per user (SECD-03);
+    - devices are read first, users without one skipped, the stock query capped per household, and a user marked
+      done for the day after a few failed runs (SECD-05);
+    - tokens are deleted only when FCM says they're gone, names are cut to 80 characters and the body to about 1 KB
+      (SECD-06);
+    - errors print fixed lines with their code, and a profile gone during the run counts as a deleted account
+      (SECD-12);
+    - the daily prune restores PRIVACY.md's retention (SECC-04).
   - quota-sim counts deletes, activity events and housekeeping reads, and gets `RUNS` and `WEB` knobs.
 - **DESIGN:** 9.7, 9.8 (re-state how many households fit, about 17), 10.1, 10.3, 10.4, 10.6 (Plan B closed: no Cloud
   Functions), 13.4; RUNBOOK; PRIVACY's retention line.
@@ -164,6 +181,47 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 - **Ships via:** the next scheduled run after merging. No app release, no rules deploy.
 - **After a week:** compare start times by hour (`gh run list --workflow reminders.yml`). If whole hours are still
   missing, revisit the scheduler (a free external cron, or DESIGN 10.6's Plan C for Android).
+
+### S1 · The web's sign-out, and what stays on a phone afterwards
+
+- **Findings:** the web half of SECC-03 (P2), SECC-08, SECC-07, and SECC-02's check of the web's gate (report 02).
+- **Change:**
+  - **Web sign-out:** deletes the push token when online. When it can't confirm the delete, it keeps a "token to
+    delete" flag in `localStorage` and deletes the token at the next start.
+  - **Clearing at sign-out:** the sync log on both apps; on Android, the built-in browser's cookies, storage and
+    cache, and Coil's caches.
+  - **`safeRoute`:** resolves against the origin and keeps only same-origin paths.
+  - **Both gates:** offer Delete account, and show an error if it fails.
+- **DESIGN:** 10.2, 12.2; PRIVACY.md; SECURITY_REVIEW.
+- **Tests:** a web session test with a fake push identity, like Android's `DeviceSyncTest`; a `safeRoute` unit
+  test; an instrumented check that the sync log is cleared.
+- **Web port:** same PR.
+- **Status (2026-11-24):** merged in jmalp/spoilnot#77 (2026-11-08). Live in Android 1.0.0 and on the web from
+  2026-11-21.
+
+### S2 · Rules hardening
+
+- **Findings:** SECD-04 (P1), SECD-09, SECD-10 (tightened, the owner's decision), SECD-11, SECD-13 (report 01), and
+  SECC-05 and SECC-06 (report 02).
+- **Change:**
+  - **Allowed fields and sizes (SECD-04):** per collection, only the fields any released Android or web build
+    writes, with DESIGN 8.1's sizes: names 80, notes 500, other strings about 100, URLs about 2,000, arrays 100.
+    Activity `type` must be a known one, and `actorName` 1 to 40 characters.
+  - **Who wrote it (SECD-09):** `createdBy` is the writer on create and unchanged after; `checkedBy` is null or the
+    writer; both apps name authors from the member list by `actorUid`.
+  - **Deletes and counts (SECD-10):** members only tombstone; counts move by at most one per field per write.
+  - **Ownership transfer (SECD-11):** must demote the old owner in the same batch.
+  - **Rules tests (SECD-13):** the missing allowed and deny-only pairs, and each gap inverted.
+  - **App side:** Android drops non-web recipe links and photos on read (SECC-05); both apps cap names on read
+    (SECC-06).
+- **DESIGN:** 4, 8.1, 8.5; SECURITY_REVIEW.
+- **Before deploying:** every instrumented test and the web's e2e against the new rules, on the beta's and the web's
+  builds; every client delete path walked; the fixed builds released first if a released build writes something the
+  new rules refuse.
+- **Ships via:** rules deploy, plus an Android beta and a web deploy for the app side. Before B08, which also changes
+  `firestore.rules`.
+- **Status (2026-11-24):** merged in jmalp/spoilnot#78 (2026-11-08). The apps went out in Android 1.0.0 and on the
+  web on 2026-11-21, and the rules were deployed to prod the same day, after the releases (DECISIONS 2026-11-21).
 
 ### B02 · Deleted things disappear offline
 
@@ -248,7 +306,7 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 
 ### B08 · One phone wins when two finish the same thing
 
-- **Findings:** SYNC-02 and WEB-01 (both P1), SYNC-05 and SYNC-07, plus one private item.
+- **Findings:** SYNC-02 and WEB-01 (both P1), SYNC-05 and SYNC-07, and 04-S2 (items left under a deleted list).
 - **Change:**
   - **Rules:**
     - refuse a second tombstone on a grocery item, so the later Add to pantry batch fails whole;
@@ -285,7 +343,8 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 
 ### B10 · Bad data skips one document, not the screen
 
-- **Findings:** REL-04, WEB-10, REL-14, REL-13 and REL-11, plus one private item.
+- **Findings:** REL-04, WEB-10, REL-14, REL-13 and REL-11, and 05-S1 (one member's wrong-typed field blanks the
+  others' tabs; S2's type checks cover the write side).
 - **Change:**
   - Mappers read field by field with safe casts. Each document maps on its own, and one that fails is skipped and
     logged.
@@ -313,7 +372,7 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 
 ### B12 · Joining and sign-out edges
 
-- **Findings:** SYNC-06, WEB-05, SYNC-09, SYNC-08 and UX-13, plus two private items.
+- **Findings:** SYNC-06, WEB-05, SYNC-09, SYNC-08 and UX-13, and 04-S1 and 06-S1.
 - **Change:**
   - **Joining:**
     - Check the membership before saying Expired.
@@ -321,18 +380,23 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
     - The waiting screen says the owner gets no notification.
   - **Sign-out:** "Some changes haven't synced yet. Sign out anyway?"
   - **Clear household data:** refuses to start offline, and keeps going after a timeout.
+  - **Deleted accounts (04-S1):** a missing profile is recreated only right after sign-up on this phone, so another
+    signed-in phone can't bring a deleted account back.
+  - **Join requests (06-S1):** show the requester's masked email and when it was sent.
 - **DESIGN:** 4, 10.1, 16.
 - **Tests:** session tests on both apps, the job's prune test, and an instrumented test of the waiting screen.
 
 ### B13 · Restore and Export tell the truth
 
-- **Findings:** REL-07, REL-12 and WEB-12, plus two private items.
+- **Findings:** REL-07, REL-12 and WEB-12, and SECD-15 and SECC-12's Export part.
 - **Change:**
   - **Restore:** stamps every document with a server `updatedAt` (and `updatedBy: 'restore'`), so phones show it
     within a minute.
   - **Export:**
     - reads from the server, or says "You're offline";
-    - also includes the person's own profile and the household's activity log (the owner's decision).
+    - also includes the person's own profile and the household's activity log (the owner's decision, SECC-12).
+  - **Backup workflows (SECD-15):** `shell: bash` (with `pipefail`) on the export and restore steps; the restore
+    refuses a target whose owner differs from the export's, unless a "different owner" input is ticked.
 - **DESIGN:** 13.4; RUNBOOK; PRIVACY.
 - **Tests:** the restore integration test (checks `updatedAt`), and export tests on both apps.
 
@@ -353,6 +417,30 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 - **Web port:**
   - The write changes (LOGIC-03, 04, 08, 10) go in the same PR.
   - The form-state fixes for the web's own forms go in the next PR.
+
+### S3 · Workflows and GitHub
+
+- **Findings:** SECD-07, SECD-08, SECD-14 and SECD-16 (report 01).
+- **Change:**
+  1. **Install step (SECD-07):** each job runs `npm ci --ignore-scripts` and the build in a step without secrets.
+     Only the step that runs the job gets the key. CI uses `--ignore-scripts` too.
+  2. **Pinned actions (SECD-14):** every action pinned to a full SHA, with the version in a comment.
+  3. **Supply chain (SECD-16):** a Guava constraint (33.7.2 or later), `tools/themes` in `dependabot.yml`, and
+     Gradle dependency verification weighed.
+  4. **Owner's settings (SECD-08):** Dependabot alerts and security updates, secret scanning with push protection, a
+     `main` ruleset, approval for outside contributors, and the account's 2FA and tokens.
+  5. **Production environment (SECD-08):** the prod key and `EXPORT_ENCRYPTION_KEY` in a `production` environment
+     limited to `main`, with no reviewers, so schedules keep running.
+  6. **Allowed actions (SECD-14):** an allow-list, and full-length SHA pins required.
+- **DESIGN:** 12.2; SECURITY_REVIEW controls 8 and 9; RUNBOOK. DECISIONS supersedes the 2026-10-18 entries.
+- **Ships via:** CI and the owner's settings.
+- **Status (2026-11-24):**
+  - Steps 1 to 3 were merged in jmalp/spoilnot#94 (2026-11-10). Guava is held at 33.8.0-android, and Gradle
+    dependency verification is not used (DECISIONS 2026-11-10).
+  - Step 4: the repository settings are on (checked 2026-11-24).
+  - Step 5 **will not be done (owner's choice, 2026-11-22):** the keys stay repository secrets, and the `production`
+    environment holds none (jmalp/spoilnot#150, DECISIONS 2026-11-22).
+  - Step 6 was applied on 2026-11-22 (jmalp/spoilnot#150).
 
 ### B15 · Home tells the truth
 
@@ -449,6 +537,23 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 - **DESIGN:** 5.9, 18.1.
 - **Tests:** Playwright WebKit.
 - **Phone check:** 10's iPhone checks settle WEB-14.
+
+### S4 · Privacy details
+
+- **Findings:** SECC-09, SECC-10, SECC-11, SECC-12's PRIVACY rewrite and SECC-13 (report 02), and 00-S1 (report 01).
+- **Change:**
+  - **Clipboard (SECC-09):** the invite code is copied marked sensitive, with the label "Invite code".
+  - **Release logs (SECC-10):** `-assumenosideeffects` for `Log.v`, `Log.d` and `Log.i`, after checking that crash
+    reports still work.
+  - **Crash data (SECC-11, the owner's decision):** crash reports stay on by default; Firebase Sessions is off in
+    prod.
+  - **PRIVACY.md (SECC-12):** rewritten from 02's inventory.
+  - **Imported pages (SECC-13):** JSON-LD capped per entry and in total, and parsed off the main thread.
+  - **Dependencies (00-S1):** `npm audit fix` without `--force` in `firebase/` and `backend/reminder/`.
+- **DESIGN:** 11.6, 12.2; PRIVACY.md; SECURITY_REVIEW.
+- **Ships via:** Android beta; PRIVACY.md.
+- **Status (2026-11-24):** merged in jmalp/spoilnot#106 (2026-11-12), with npm overrides following in
+  jmalp/spoilnot#119 (2026-11-14). Live in Android 1.0.0 (2026-11-21).
 
 ### B21 · Recipes, plan and names
 
@@ -572,7 +677,7 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
 
 - **Remeasure:** rerun section 00 and compare it with `00-baseline.md`.
 - **Security report:** once the security fixes have shipped (rules deployed, the release out), publish a sanitized
-  security report.
+  security report. *Done:* `01-security-data.md` and `02-security-clients.md`, 2026-11-24.
 - **The review branch's PR:** when `review/2026-11` becomes a PR, it adds a DESIGN 17 row and a DECISIONS entry
   (security findings were kept private until fixed). It's pushed only with the owner's OK.
 
@@ -586,5 +691,6 @@ fixed. The owner hasn't run the phone checks yet; the batches they affect say so
   - 10's iPhone checks (B20);
   - 08's cold starts and first sync (B22).
 - **Hallway test:** in `06-ux.md`.
-- **Private items:** the console and GitHub checks in the private reports (S3).
+- **Console and GitHub checks:** the owner's checklist from reports 01 and 02 (S3). The GitHub settings were
+  confirmed on 2026-11-24.
 - **B01's follow-up:** a week after it ships, look at the job's start times with me.

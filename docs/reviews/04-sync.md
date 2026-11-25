@@ -26,14 +26,14 @@ pantry pressed on two phones, or on one offline phone and one online, adds every
 products** (SYNC-02, P1). Several write plans are built from the phone's own copy and overwrite or undo another
 member's change: the Edit window writes every field (SYNC-03), −1 on a stale copy throws away another member's
 addition (SYNC-04), and finishing the same thing on two phones counts it twice and takes a recipe's ingredients twice
-(SYNC-05). An approved member whose request was pruned is stuck at the gate (SYNC-06). Two items moved to the private
-notes.
+(SYNC-05). An approved member whose request was pruned is stuck at the gate (SYNC-06). Two items with a privacy side
+are in the security reports: 04-S1 in `02-security-clients.md` and 04-S2 in `01-security-data.md`.
 
 ## Metrics
 
 | Metric | Value | How measured | Target or budget |
 | --- | --- | --- | --- |
-| Scenario matrix | **27 scenarios: 12 converge as DESIGN says, 5 converge on wrong data (duplicates, double counts, a checked item), 4 diverge between phones, 4 lose a member's change, 1 gets a person stuck, 1 moved to the private notes** (table below) | 18 probes on Pixel_8 (Appendix A), existing two-phone tests, reading | All converge as DESIGN says |
+| Scenario matrix | **27 scenarios: 12 converge as DESIGN says, 5 converge on wrong data (duplicates, double counts, a checked item), 4 diverge between phones, 4 lose a member's change, 1 gets a person stuck, 1 in the security reports (04-S1)** (table below) | 18 probes on Pixel_8 (Appendix A), existing two-phone tests, reading | All converge as DESIGN says |
 | Time for a change to show on the other phone: stock +1 | **median 108 ms, p95 156 ms** (n = 30; min 56, max 196) | `p10`: phone A presses +1, phone B's `PantryRepository.observe` emits the new quantity; both test phones in one app on Pixel_8, Firestore emulator on the Mac | DESIGN 9.2: median under 1 s, p95 under 3 s |
 | Time for a change to show on the other phone: check-off | **median 105 ms, p95 235 ms** (n = 30; min 79, max 241) | `p10`: A checks or unchecks, B's `observeItems` emits it | Same |
 | Caveat for both times | Emulator network to the Mac, no real radio, both phones in one process: these are the client's own overhead, a floor. The owner's phone checks give real numbers | — | — |
@@ -43,7 +43,7 @@ notes.
 | Large write: Add to pantry of 180 checked items | 720 changes in 2 batches; applied locally **0.68 s**, confirmed by the server **4.6 s**, all 180 on the other phone **5.8 s**; 180 products, 180 batches, nothing lost | `p11` | 500 operations per batch (DESIGN 8.5 chunks at 400) |
 | Large write: Clear household data right after | about 550 operations in 2 batches, **5.6 s**; the other phone's pantry empty after **7.7 s** | `p11` | — |
 | Retained Firestore references | **0.** Android: 12 repositories and the writer read `FirestoreProvider.current` per call or follow `instance` with `flatMapLatest`; no class keeps a `FirebaseFirestore` field (the four `db` parameters are per-call). Web: 0 (`sdk.current` per call, `instance$` for listeners) | `grep` for `FirebaseFirestore`, `firestore.current`, `firestore.instance`, `sdk.current` | 0 (CLAUDE.md) |
-| Probes written and failed | **18 written, 11 failed** (each failure is a finding below or a private note). Two probe bugs were fixed and rerun: `p03` first waited for a server read while offline; `p16` first read the server through the phone under test, which refilled its cache and hid the bug | Appendix A, JUnit XML | — |
+| Probes written and failed | **18 written, 11 failed** (each failure is a finding below, or 04-S1 or 04-S2 in the security reports). Two probe bugs were fixed and rerun: `p03` first waited for a server read while offline; `p16` first read the server through the phone under test, which refilled its cache and hid the bug | Appendix A, JUnit XML | — |
 | Field-set parity, Android and web writers | **Identical**: products 13 fields, batches 10, items 13, recipe content 15 + favorite and rating, meals 10; same merge and update choices | Reading the 10 mappers side by side | Same fields (8.1) |
 
 ### Scenario matrix
@@ -77,7 +77,7 @@ a test already in `app/src/androidTest`.
 | 22 | Removed while offline with unsent writes | `p12` | Converges: writes rejected, gate in 1.2 s |
 | 23 | Ownership transfer | `p14` | Converges in 160 ms |
 | 24 | Join approved while the joiner's app is closed, request pruned before they open it | `p13` | **Stuck**: a member who can't get in or ask again (SYNC-06) |
-| 25 | The same account deleted on one phone, still open on another | `p15` | Moved to the private notes |
+| 25 | The same account deleted on one phone, still open on another | `p15` | The deleted account's profile comes back: 04-S1 in `02-security-clients.md` |
 | 26 | Add to pantry of 180 items, then Clear household data | `p11` | Converges (2 batches each) |
 | 27 | Android and the web writing the same documents | reading the mappers | Converges; Undo's full restore drops fields a newer client added (Ideas) |
 
@@ -274,11 +274,11 @@ a test already in `app/src/androidTest`.
   and the list, for real); `firebase/firestore.rules:206-208` (items can be created under a list that doesn't exist).
 - **What happens:** Bob adds "Chips" to Party (offline, or in the second before the delete arrives) while Alice deletes
   Party. Bob's write succeeds, under a list that no longer exists, so no screen shows it and no message says it was
-  lost; Bob's list switches to Groceries. The rest is in the private notes.
+  lost; Bob's list switches to Groceries. The item also outlives the household: 04-S2 in `01-security-data.md`.
 - **Evidence:** `p09`: "list exists=false orphan items=[…:Chips] bob lists=[Groceries] (bob had Party)".
 - **Who it affects:** rare; a lost item on a shared list.
 - **Suggested fix:** a rule that creates items only under an existing list, so the late add is rejected and the app
-  says "That list was deleted" (one extra read per item write; see the private notes for the trade-off). Effort S.
+  says "That list was deleted" (one extra read per item write; 04-S2 weighs the trade-off). Effort S.
   Also needs: rules tests and deploy, a message string, web port.
 
 ### SYNC-08 · P3 · Likely · Android — A large write that fails half-way leaves half of it, and Clear household data can report a failure that later half-succeeds
