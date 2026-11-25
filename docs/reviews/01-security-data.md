@@ -95,7 +95,7 @@ deployed to prod the same day (DECISIONS 2026-11-21).
 
 | Metric | At review | Now |
 | --- | --- | --- |
-| npm advisories | `web/` 24 (4 high, in the Firebase SDK's Node build only, not the browser bundle); `firebase/` 23 (dev tools); `backend/reminder/` 6 moderate; `tools/themes/` 0 (details: 00-S1) | Clean in all four, apart from one low advisory without a fix in the web app's service-worker build (DECISIONS 2026-11-14) |
+| npm advisories | `web/` 24 (4 high, in the Firebase SDK's Node build only, not the browser bundle); `firebase/` 23 (dev tools); `backend/reminder/` 6 moderate; `tools/themes/` 0 (details: 00-S1) | Clean in all four (the last, a low advisory in the web's service-worker build, closed 2026-11-25; DECISIONS) |
 | Android advisories, prod release runtime classpath (277 artifacts) | 1 high, in Guava (not reachable, SECD-16) | Guava held at 33.8.0-android or later |
 | Dependabot alerts and security updates | **Off** | On |
 | Dependabot version updates | 3 of 4 npm projects (`tools/themes` missing) | All four |
@@ -433,7 +433,7 @@ Section 00 published only the counts. At review time:
 
 **Fixed:** `npm audit fix` in S4 (jmalp/spoilnot#106, 2026-11-12). npm overrides for the advisories no parent
 release fixes, including the gRPC pin, followed in jmalp/spoilnot#119 (2026-11-14). `npm audit` is clean in all four
-projects except one low advisory without a fix, in the web app's service-worker build (DECISIONS 2026-11-14).
+projects since 2026-11-25, when the last low advisory, in the web app's service-worker build, closed (DECISIONS).
 
 ### 00-S2 · Note — Source maps are built but not deployed
 
