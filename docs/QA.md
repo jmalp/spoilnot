@@ -156,7 +156,7 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     to add Spoil Not to the Home Screen. Add it and open it from there. Add three items with dates: the third explains
     reminders; Turn on shows the iPhone's question, Allow. Settings > Notifications has no banner; Send test
     notification shows one, and tapping it opens Pantry on Needs attention. Set the time to the next hour: the digest
-    arrives after it, often a few hours later (GitHub starts the job late, DESIGN 10.4), on the iPhone and the Android
+    arrives within a few minutes of it (DESIGN 10.4), on the iPhone and the Android
     phone, with the same words; tapping it opens Pantry on Needs attention (or Plan when only meals are listed). Turn
     notifications off for Spoil Not in the iPhone's Settings: the banner says where to turn them on. Sign out: the next digest does not reach this iPhone.
 36. Web app W7 (an iPhone and `https://spoilnot-dev.web.app`, then prod): in Safari the welcome screen says how to add
@@ -348,10 +348,10 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
 57. Reminders people can count on (Android, after v1, 2026-11-13, DESIGN 1, 5.4, 5.6, 10.2): on a phone that never
     ran the app (or after clearing its storage), sign in as a **member** of a household that has dated food, and
     finish or skip the tour. Without opening Pantry, Home asks "Get a heads-up before food expires" and names the time
-    ("It comes after 9:00 AM, often a few hours later."). Tap Not now: Needs attention ends with "Reminders are off on this phone · Turn on", and Settings
+    ("…one notification a day, at 9:00 AM, …"). Tap Not now: Needs attention ends with "Reminders are off on this phone · Turn on", and Settings
     says Notifications "Off on this phone". Tap Turn on and Allow: within seconds a "You're set" notification says
-    "Spoil Not reminds you once a day, some time after 9:00 AM…" and names tomorrow's items (or "Nothing is due
-    tomorrow"); the Home line goes away and Settings says "Daily, after 9:00 AM". Tapping it opens Pantry on Needs attention.
+    "Spoil Not reminds you once a day, at 9:00 AM…" and names tomorrow's items (or "Nothing is due
+    tomorrow"); the Home line goes away and Settings says "Daily at 9:00 AM". Tapping it opens Pantry on Needs attention.
     Turn notifications off for Spoil Not in the system settings and come back: the line is back; Turn on now opens the
     system settings, and turning them on there and coming back shows "You're set". Turn the daily reminder off in
     Settings > Notifications: Home has no line and Settings says Off. On a new household as **owner**: no question
@@ -377,7 +377,7 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     install), sign in as a **member** of a household that has dated food. Without opening Pantry, Home asks "Get a
     heads-up before food expires", naming the time. Tap Not now: Needs attention ends with "Reminders are off on this
     phone · Turn on", and Settings says Notifications "Off on this phone". Tap Turn on and Allow: a "You're set"
-    notification says "Spoil Not reminds you once a day, some time after 9:00 AM…" and names tomorrow's items (or
+    notification says "Spoil Not reminds you once a day, at 9:00 AM…" and names tomorrow's items (or
     "Nothing is due tomorrow"); tapping it opens Pantry on Needs attention. Turn notifications off for Spoil Not in the iPhone's
     Settings and come back: the line is back, and Turn on opens Settings > Notifications, which says where to turn
     them on. In Safari (not the Home Screen app) nothing asks, and Settings says Off on this phone. On Groceries,
@@ -614,12 +614,11 @@ Before starting: Phone A and Phone B have the App Tester app and the beta instal
     shows "Cooked by <your name>" with *Not cooked yet*, no Cooked button. Still offline, remove it and press Undo: it
     comes back cooked. Turn Airplane Mode off: within a minute the other phone shows it cooked, and it stays there.
     Online, remove it again and Undo: still cooked on both phones. Repeat on the iPhone, then delete the test dinner.
-83. Honest reminder times (both apps, after v1, 2026-11-22, DESIGN 10.2, 10.4): Settings says Notifications "Daily,
-    after 9:00 AM". In Settings > Notifications the time's helper says "It comes after this time, often a few hours
-    later. Nothing is sent after 10:00 PM, so an evening time can be skipped on some days." (the hour in the phone's
-    format; with a 24-hour clock, 22:00). Pick 9:00 PM: the row says "Daily, after 9:00 PM" and the helper stays. With
-    Larger Text at the largest size the helper wraps without cutting words. Repeat on the iPhone, then set the time
-    back.
+83. Reminder times (both apps, after v1, 2026-11-22 and 2026-11-24, DESIGN 10.2, 10.4): Settings says Notifications
+    "Daily at 9:00 AM" (the hour in the phone's format). In Settings > Notifications the time's helper says "It arrives
+    within a few minutes of this time." Pick the next whole hour and keep some food expiring within 3 days: the digest
+    arrives within a few minutes after that hour on both phones. Pick 9:00 PM: the row says "Daily at 9:00 PM". Then
+    set the time back.
 
 ## 3. Conditions
 

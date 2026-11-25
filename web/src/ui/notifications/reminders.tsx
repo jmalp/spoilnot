@@ -56,7 +56,7 @@ export function useNotificationPrefs(): NotificationPrefs | null {
   );
 }
 
-/** "Spoil Not reminds you once a day, some time after 9:00 AM, … Tomorrow's reminder: Spinach, Chicken and 2 more." */
+/** "Spoil Not reminds you once a day, at 9:00 AM, … Tomorrow's reminder: Spinach, Chicken and 2 more." */
 export function youreSetBody(content: YoureSet): string {
   const time = str('notif_youre_set_time', formatHour(content.hour));
   const names = content.tomorrow.join(', ');
