@@ -141,6 +141,7 @@ class HouseholdFlowTest {
 
         val household = alice.households.observeHousehold(householdId).first { it?.inviteCode == code }!!
         val newCode = InviteCodes.generate()
+        val bobsFirestore = bob.firestore.current
         val elapsed = measureTime {
             alice.households.removeMember(household, bob.uid, alice.uid, newCode)
             bob.awaitSession(timeoutMs = 5_000) { it is Session.NoHousehold && it.join == null }
@@ -148,14 +149,14 @@ class HouseholdFlowTest {
         assertTrue("Back at the gate after $elapsed", elapsed.inWholeMilliseconds < 5_000)
 
         // After v1 (S5): the code Bob knows stops working in the same batch, and the household shows the new one.
-        assertNull(bob.households.findInviteCode(code))
-        assertEquals(
-            newCode,
-            alice.households.observeHousehold(householdId).first {
-                it?.inviteCode != code
-            }?.inviteCode,
-        )
-        assertNotNull(bob.households.findInviteCode(newCode))
+        // Bob's reads wait for his local data to be cleared, which terminates the Firestore instance they'd use.
+        bob.awaitLocalDataCleared(bobsFirestore)
+        withTimeout(10_000) {
+            assertNull(bob.households.findInviteCode(code))
+            val shown = alice.households.observeHousehold(householdId).first { it?.inviteCode != code }
+            assertEquals(newCode, shown?.inviteCode)
+            assertNotNull(bob.households.findInviteCode(newCode))
+        }
     }
 
     @Test
