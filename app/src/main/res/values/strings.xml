@@ -139,7 +139,7 @@
     <string name="action_save">Save</string>
     <string name="action_remove_member">Remove from household</string>
     <string name="remove_member_title">Remove %1$s?</string>
-    <string name="remove_member_body">%1$s loses access to the household right away.</string>
+    <string name="remove_member_body">%1$s loses access to the household right away, and the invite code changes. Share the new code with anyone who still needs to join.</string>
     <string name="action_remove">Remove</string>
     <string name="action_make_owner">Make owner</string>
     <string name="transfer_title">Make %1$s the owner?</string>

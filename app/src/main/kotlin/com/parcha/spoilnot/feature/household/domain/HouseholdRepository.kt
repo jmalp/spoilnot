@@ -44,7 +44,11 @@ interface HouseholdRepository {
     /** A new code for the household; the old one stops working (after v1 there is no Pause joining, R12). */
     suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String)
 
-    suspend fun removeMember(householdId: String, memberUid: String)
+    /**
+     * Owner only. Removes the member and, in the same batch, replaces the invite code with [newCode] (after v1, S5):
+     * the removed person knows the old one. Requests already sent stay.
+     */
+    suspend fun removeMember(household: Household, memberUid: String, ownerUid: String, newCode: String)
 
     suspend fun transferOwnership(householdId: String, fromUid: String, toUid: String)
 

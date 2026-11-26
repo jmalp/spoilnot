@@ -153,7 +153,7 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 
 | # | Batch | Findings | Worst | Web port | Ships via | Effort |
 | --- | --- | --- | --- | --- | --- | --- |
-| S5 | Less on the lock screen, fewer ways in | Ideas in 01 and 02 | — | Same PR | Job, Android release, web | M |
+| S5 | Less on the lock screen, fewer ways in (*done*, 2026-11-25) | Ideas in 01 and 02 | — | Same PR | Job, Android release, web | M |
 | S6 | Keys, workflows and the owner's machine | Ideas in 01 | — | — | CI, owner settings, Google Cloud | M |
 
 ## Batches
@@ -683,6 +683,9 @@ below now name their findings. The owner hadn't run the phone checks at triage; 
 - **Tests:** the above.
 
 ### S5 · Less on the lock screen, fewer ways in
+
+*Done* (2026-11-25): one PR on `main`; the owner chose Android's own public version ("Contents hidden") and an
+automatic new code on Remove member (DECISIONS 2026-11-25, DESIGN 17).
 
 - **Findings:** the Ideas in reports 01 and 02, added by the owner on 2026-11-25. They have no severity: none was a
   finding.

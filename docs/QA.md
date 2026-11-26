@@ -631,6 +631,20 @@ its Home Screen, and three accounts are ready.
     open source licences. On Android each opens the SIL Open Font License 1.1, starting with the font's copyright
     line ("Copyright 2016 The Fredoka Project Authors …", "Copyright 2019 The Manrope Project Authors …"); the
     iPhone web app lists both too, from their font packages.
+85. Less on the lock screen, fewer ways in (both apps, after v1, 2026-11-25, review S5; DESIGN 5.1, 10.3, 18.4,
+    18.6). **Lock screen, Android:** in Settings > Notifications (the phone's) > Notifications on lock screen, turn on
+    *Hide sensitive content* (wording varies by phone). Lock the phone and wait for a digest (or pick the next hour):
+    the lock screen shows "Spoil Not" with "Contents hidden", no food or meal names; unlocked, the shade shows the
+    full digest and tapping it opens the expiring list. Set the lock screen option back. **Lock screen, iPhone:**
+    with Settings > Notifications > Spoil Not > Show Previews at "When Unlocked" (the default), a digest on the locked
+    iPhone shows "Spoil Not" and "Notification"; unlocked, the full text. **The web under the new CSP** (after the web
+    deploy, on the iPhone's Home Screen app): sign out, sign in, add a grocery item and see it on the Android phone
+    within seconds and the other way round; Settings > Notifications: turn reminders off and on again (the device is
+    registered again), and the next digest arrives. Nothing says "Couldn't load" or stays offline. **Remove member:**
+    as owner, remove a test member: the dialog says the invite code changes; after it, the invite card shows a new
+    code, and on the removed phone the old code says "That code doesn't work."; the new one finds the household.
+    **Android sign-in** (after the release): sign out, sign in with the wrong and the right password, reset password:
+    each works as before.
 
 ## 3. Conditions
 

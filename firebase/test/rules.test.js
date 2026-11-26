@@ -496,6 +496,26 @@ describe('owner', () => {
     await assertSucceeds(b.commit());
   });
 
+  // After v1 (S5): Remove member replaces the code the removed person knows, in the same batch.
+  it('can remove a member and rotate the code in one batch; a member cannot', async () => {
+    const batchFor = (uid) => {
+      const db = as(uid);
+      const next = uid === 'alice' ? 'RMVCD23456' : 'BXBCD23456';
+      const b = writeBatch(db);
+      b.delete(doc(db, `households/${HID}/members/${uid === 'alice' ? 'bob' : 'alice'}`));
+      b.set(doc(db, `inviteCodes/${next}`), {
+        householdId: HID, householdName: 'The Smiths', active: true, createdBy: uid, createdAt: serverTimestamp(),
+      });
+      b.update(doc(db, `households/${HID}`), { inviteCode: next, updatedAt: serverTimestamp() });
+      b.delete(doc(db, `inviteCodes/${CODE}`));
+      return b;
+    };
+    await assertFails(batchFor('bob').commit());
+    await assertSucceeds(batchFor('alice').commit());
+    await assertSucceeds(getDoc(doc(as('bob'), 'inviteCodes/RMVCD23456')));
+    await assertFails(getDoc(doc(as('bob'), `households/${HID}`)));
+  });
+
   it('cannot create a code that is not the household code, or a code for another household', async () => {
     const db = as('alice');
     await assertFails(setDoc(doc(db, 'inviteCodes/EXTRA23456'), {

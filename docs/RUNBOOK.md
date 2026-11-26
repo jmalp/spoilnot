@@ -551,6 +551,14 @@ Anything deleted since the export comes back; anything changed since goes back t
 timestamp fields come back as timestamps (`createdAt`, `updatedAt`, `checkedAt` and the like); everything else, such
 as a note that looks like a date and time, stays as it was typed.
 
+Since 2026-11-25 (S5) every document is first checked against the shape the Firestore rules accept for it, because
+the restore writes with the Admin SDK, which skips the rules (DESIGN 13.4). One that doesn't fit is skipped and the
+rest are written; the items of a skipped list are skipped with it. The dry run's count line then ends with
+`N skipped, a shape the rules refuse {"stock (location)":1}`: the kind of document and the field that didn't fit
+(`unknown field` for a field no app writes, `id` for an ID that isn't one path segment), never a value. To bring those
+back, fix the field in a copy of the file (a Settings > Export file, or the decrypted nightly export) and restore it
+from a computer, below; documents already restored are simply written again.
+
 The target household must have the same owner as the exported one. Otherwise the restore stops with `restore failed:
 different-owner` before writing anything, also in the dry run. Tick **different owner** only when that is what you
 mean: ownership moved to another member since the export, or you are restoring into a household someone else
@@ -565,9 +573,9 @@ owns.
    export.` (it reads the target household, nothing else).
 3. Run it again with **apply** ticked. Since 2026-11-22 every restore run waits for your approval, the listing and
    dry runs too: on the run's page, **Review deployments →** tick `restore` **→ Approve and deploy** (GitHub also
-   emails you). The log ends with `restored N document(s), M failed`. If M is not 0, the
+   emails you). The log ends with `restored N document(s), M failed, K skipped`. If M is not 0, the
    run fails: those documents were not written (for example one too large for Firestore, which can take others in
-   its batch with it). A restore sets each document as exported, so running it again is safe. `restore failed: no-such-household` means
+   its batch with it). If K is not 0 it fails too: the dry run named what didn't fit (above). A restore sets each document as exported, so running it again is safe. `restore failed: no-such-household` means
    the target household does not exist (step 4).
 4. To restore into a different household (for example after the original was deleted, recreate one in the app with
    the same owner's account, then find its ID in the Firebase console under `households`), fill in **target
@@ -586,8 +594,8 @@ from the server and, offline, says "You're offline" and saves nothing.
 
 ## Regenerate an invite code by hand
 
-Normally the owner rotates the code in the app (Settings > Household > invite card > Rotate), which also cancels
-the old one. If that is not possible, in the Firebase console → Firestore:
+Normally the owner rotates the code in the app (Settings > Household > invite card > New code), which also cancels
+the old one; since 2026-11-25 (S5) Remove member rotates it too. If that is not possible, in the Firebase console → Firestore:
 
 1. Choose a new code: 10 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0 or 1).
 2. `inviteCodes` → **Add document** with that code as the document ID and fields `householdId` (string),

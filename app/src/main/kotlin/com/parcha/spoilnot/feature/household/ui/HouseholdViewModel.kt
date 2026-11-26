@@ -84,7 +84,10 @@ class HouseholdViewModel @Inject constructor(
         households.regenerateInviteCode(household(), c.myUid, InviteCodes.generate())
     }
 
-    fun remove(member: Member) = run { households.removeMember(hid(), member.uid) }
+    /** Also replaces the invite code, which the removed person knows (after v1, S5). */
+    fun remove(member: Member) = run {
+        households.removeMember(household(), member.uid, myUid(), InviteCodes.generate())
+    }
 
     fun makeOwner(member: Member) = run { households.transferOwnership(hid(), myUid(), member.uid) }
 

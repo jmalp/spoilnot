@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { FORMAT, fromJsonDoc, planRestore, shortId, toJson, type HouseholdExport } from '../src/backup.ts';
+import { FORMAT, fromJsonDoc, planRestore, shortId, summarize, toJson, type HouseholdExport } from '../src/backup.ts';
 
 describe('export values', () => {
   it('timestamps become ISO strings and the known timestamp fields come back as timestamps', () => {
@@ -47,7 +47,7 @@ describe('restore plan', () => {
     household: { id: 'h1', name: 'Home', ownerUid: 'u1' },
     members: [{ id: 'u1', role: 'owner', displayName: 'Sam' }],
     products: [{ id: 'p1', name: 'Milk' }],
-    stock: [{ id: 's1', productId: 'p1', quantity: 2, expiryDate: '2026-10-20' }],
+    stock: [{ id: 's1', productId: 'p1', quantity: 2, expiryDate: '2026-10-20', location: 'fridge', dateType: 'use_by' }],
     groceryLists: [{ id: 'g1', name: 'Groceries', isDefault: true, items: [{ id: 'i1', name: 'Eggs' }] }],
     recipes: [{ id: 'r1', title: 'Pie', createdAt: '2026-10-01T08:00:00.000Z' }],
     stats: [{ id: '2026-10', used: 4, spoiled: 1, thrownByDay: { '3': 1 } }],
@@ -95,6 +95,103 @@ describe('restore plan', () => {
   it('refuses other files and newer formats', () => {
     assert.throws(() => planRestore({ ...file, format: 'other' } as unknown as HouseholdExport, 'h1'));
     assert.throws(() => planRestore({ ...file, formatVersion: 2 }, 'h1'));
+  });
+
+  it('refuses a file whose collections are not lists', () => {
+    assert.throws(() => planRestore({ ...file, products: { id: 'p1' } } as unknown as HouseholdExport, 'h1'), {
+      code: 'not-an-export',
+    });
+  });
+});
+
+describe('restore checks each document against the rules (after v1, S5)', () => {
+  const file: HouseholdExport = {
+    format: FORMAT,
+    formatVersion: 1,
+    appVersion: 'test',
+    exportedAt: '2026-11-25T12:00:00.000Z',
+    household: { id: 'h1', name: 'Home', ownerUid: 'u1' },
+    members: [],
+    products: [],
+    stock: [],
+    groceryLists: [],
+    recipes: [],
+  };
+  const why = (f: Partial<HouseholdExport>) => planRestore({ ...file, ...f }, 'h1').skipped;
+
+  it('writes documents of the right shape, and skips one of the wrong shape with its collection and field', () => {
+    const plan = planRestore({
+      ...file,
+      products: [{ id: 'p1', name: 'Milk' }, { id: 'p2', name: 'x'.repeat(81) }],
+      stock: [{ id: 's1', quantity: 1, location: 'fridge', dateType: 'use_by', expiryDate: 'tomorrow' }],
+    }, 'h1');
+    assert.deepEqual(plan.writes.map((w) => w.path), ['households/h1/products/p1']);
+    assert.deepEqual(plan.skipped, [{ collection: 'products', why: 'name' }, { collection: 'stock', why: 'expiryDate' }]);
+  });
+
+  it('refuses fields no app writes, and names none of them', () => {
+    assert.deepEqual(why({ products: [{ id: 'p1', name: 'Milk', role: 'owner' }] }), [{ collection: 'products', why: 'unknown field' }]);
+  });
+
+  it('refuses IDs that would leave their collection', () => {
+    for (const id of ['a/b', '..', '.', '__x__', '', 'x'.repeat(1501)]) {
+      assert.deepEqual(why({ products: [{ id, name: 'Milk' }] }), [{ collection: 'products', why: 'id' }], id);
+    }
+    assert.deepEqual(why({ products: [{ name: 'Milk' } as never, 'Milk' as never] }), [
+      { collection: 'products', why: 'id' },
+      { collection: 'products', why: 'id' },
+    ]);
+    assert.deepEqual(why({ stats: [{ id: '2026-13', used: 1 }] }), [{ collection: 'stats', why: 'id' }]);
+  });
+
+  it('refuses a tombstone, a text where a time belongs and links that are not http', () => {
+    assert.deepEqual(why({ products: [{ id: 'p1', name: 'Milk', deletedAt: '2026-11-25T12:00:00.000Z' }] }), [
+      { collection: 'products', why: 'deletedAt' },
+    ]);
+    assert.deepEqual(why({ products: [{ id: 'p1', name: 'Milk', createdAt: 'yesterday' }] }), [
+      { collection: 'products', why: 'createdAt' },
+    ]);
+    assert.deepEqual(why({ recipes: [{ id: 'r1', title: 'Pie', imageUrl: 'data:image/png;base64,AAAA' }] }), [
+      { collection: 'recipes', why: 'imageUrl' },
+    ]);
+    assert.deepEqual(why({ recipes: [{ id: 'r1', title: 'Pie', sourceUrl: 'HTTPS://example.com/pie' }] }), []);
+  });
+
+  it('checks lists, items, counts and meals as the rules do', () => {
+    assert.deepEqual(why({
+      groceryLists: [
+        { id: 'g1', name: 'Groceries', isDefault: true, items: [{ id: 'i1', name: 'Eggs', checkedAt: 'now' }] },
+        { id: 'g2', name: '', isDefault: false, items: [{ id: 'i2', name: 'Bread' }] },
+      ],
+      stats: [{ id: '2026-11', used: 1.5 }, { id: '2026-10', thrownByDay: { '32': 1 } }, { id: '2026-09', thrownByDay: { '3': 2 } }],
+      meals: [
+        { id: 'm1', date: '2026-11-25', slot: 'dinner', position: 0, title: 'Tacos', cooks: ['u1'], cookedBy: 'u1' },
+        { id: 'm2', date: '2026-11-25', slot: 'brunch', position: 1, title: 'Eggs', cooks: [] },
+        { id: 'm3', date: '2026-11-25', slot: 'lunch', position: 2, title: 'Soup', cooks: [], recipeId: null },
+      ],
+    }), [
+      { collection: 'items', why: 'checkedAt' },
+      { collection: 'groceryLists', why: 'name' },
+      // Items under a list that isn't written: the rules refuse items under a list that doesn't exist.
+      { collection: 'items', why: 'list' },
+      { collection: 'stats', why: 'used' },
+      { collection: 'stats', why: 'thrownByDay' },
+      { collection: 'meals', why: 'cookedAt' },
+      { collection: 'meals', why: 'slot' },
+    ]);
+  });
+
+  it('a list whose items are not a list is skipped with them', () => {
+    assert.deepEqual(why({ groceryLists: [{ id: 'g1', name: 'Groceries', isDefault: true, items: 'Eggs' } as never] }), [
+      { collection: 'groceryLists', why: 'items' },
+    ]);
+  });
+
+  it('the summary counts what is skipped and why, never a value', () => {
+    const plan = planRestore({ ...file, products: [{ id: 'p1', name: 'Milk' }, { id: 'p2', name: 'Secret', role: 'x' }] }, 'h1');
+    const line = summarize(plan);
+    assert.equal(line, '1 document(s) {"products":1}; 1 skipped, a shape the rules refuse {"products (unknown field)":1}');
+    assert.equal(line.includes('Secret'), false);
   });
 });
 

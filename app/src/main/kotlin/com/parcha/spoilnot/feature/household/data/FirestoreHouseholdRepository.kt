@@ -240,20 +240,25 @@ class FirestoreHouseholdRepository @Inject constructor(private val firestore: Fi
 
     override suspend fun regenerateInviteCode(household: Household, uid: String, newCode: String) {
         val db = firestore.current
+        db.batch().replaceCode(db, household, uid, newCode).commitQueued()
+    }
+
+    override suspend fun removeMember(household: Household, memberUid: String, ownerUid: String, newCode: String) {
+        val db = firestore.current
         db.batch()
-            .set(db.document(codePath(newCode)), codeDoc(household.id, household.name, uid))
+            .delete(db.document(memberPath(household.id, memberUid)))
+            .replaceCode(db, household, ownerUid, newCode)
+            .commitQueued()
+    }
+
+    /** Writes [newCode] for the household and deletes its current code (New code, and Remove member after S5). */
+    private fun WriteBatch.replaceCode(db: FirebaseFirestore, household: Household, uid: String, newCode: String) =
+        set(db.document(codePath(newCode)), codeDoc(household.id, household.name, uid))
             .update(
                 db.document(householdPath(household.id)),
                 mapOf("inviteCode" to newCode, "updatedAt" to FieldValue.serverTimestamp()),
             )
             .delete(db.document(codePath(household.inviteCode)))
-            .commitQueued()
-    }
-
-    override suspend fun removeMember(householdId: String, memberUid: String) {
-        val db = firestore.current
-        db.batch().delete(db.document(memberPath(householdId, memberUid))).commitQueued()
-    }
 
     override suspend fun transferOwnership(householdId: String, fromUid: String, toUid: String) {
         val db = firestore.current

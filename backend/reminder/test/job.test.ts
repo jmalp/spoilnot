@@ -6,7 +6,7 @@ import { describe, it } from 'node:test';
 import { Timestamp } from 'firebase-admin/firestore';
 import { afterSend, DEFAULT_PREFS, dueAt, nextDigestAt, type UserDoc } from '../src/digest.ts';
 import {
-  chunks, CURSOR_MARGIN_MS, DEAD_TOKEN_CODES, isDeadToken, joinRequestPrunable, pruneDue, scheduleChanged, SEND_CHUNK,
+  chunks, CURSOR_MARGIN_MS, DEAD_TOKEN_CODES, digestMessage, isDeadToken, PLAN_ROUTE, ROUTE, joinRequestPrunable, pruneDue, scheduleChanged, SEND_CHUNK,
   utcDate, waitingOn,
 } from '../src/job.ts';
 
@@ -254,6 +254,26 @@ describe('sending', () => {
     assert.equal(isDeadToken('messaging/internal-error'), false);
     assert.equal(isDeadToken(undefined), false);
     assert.equal(DEAD_TOKEN_CODES.size, 2);
+  });
+
+  it('marks the Android digest private, so a locked phone hiding sensitive content shows no food or meal names', () => {
+    const digest = { title: 'Milk expires tomorrow', body: "Tomorrow: Milk. You're cooking: Tacos (dinner).", mealsOnly: false };
+    const m = digestMessage('token-1234567890', digest, '2026-11-25');
+    assert.deepEqual(m.android, {
+      priority: 'high',
+      notification: { channelId: 'expiry', tag: 'expiry_digest', visibility: 'private' },
+    });
+    // FCM has no public version of its own: Android shows the app's name and "Contents hidden" (DESIGN 10.3).
+    assert.equal(JSON.stringify(m.android).includes('Milk'), false);
+    assert.equal(JSON.stringify(m.android).includes('Tacos'), false);
+    assert.deepEqual(m.notification, { title: digest.title, body: digest.body });
+    assert.deepEqual(m.data, { type: 'expiry_digest', route: ROUTE, date: '2026-11-25' });
+  });
+
+  it('a meals-only digest is private too and opens Plan', () => {
+    const m = digestMessage('token-1234567890', { title: "You're cooking Tacos for dinner", body: 'x', mealsOnly: true }, '2026-11-25');
+    assert.equal(m.android.notification.visibility, 'private');
+    assert.equal(m.data.route, PLAN_ROUTE);
   });
 
   it('sends in chunks of 500', () => {

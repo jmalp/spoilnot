@@ -121,6 +121,13 @@ const codeDoc = (householdId: string, householdName: string, uid: string) => ({
   createdAt: serverTimestamp(),
 });
 
+/** Writes [newCode] for the household and deletes its current code (New code, and Remove member after S5). */
+function replaceCode(db: Firestore, batch: WriteBatch, household: Household, uid: string, newCode: string): void {
+  batch.set(doc(db, codePath(newCode)), codeDoc(household.id, household.name, uid));
+  batch.update(doc(db, householdPath(household.id)), { inviteCode: newCode, updatedAt: serverTimestamp() });
+  batch.delete(doc(db, codePath(household.inviteCode)));
+}
+
 export class FirestoreHouseholdRepository implements HouseholdRepository {
   constructor(private readonly sdk: FirebaseSdk) {}
 
@@ -308,16 +315,15 @@ export class FirestoreHouseholdRepository implements HouseholdRepository {
   async regenerateInviteCode(household: Household, uid: string, newCode: string): Promise<void> {
     const db = this.sdk.current;
     const batch = writeBatch(db);
-    batch.set(doc(db, codePath(newCode)), codeDoc(household.id, household.name, uid));
-    batch.update(doc(db, householdPath(household.id)), { inviteCode: newCode, updatedAt: serverTimestamp() });
-    batch.delete(doc(db, codePath(household.inviteCode)));
+    replaceCode(db, batch, household, uid, newCode);
     await commitQueued(batch);
   }
 
-  async removeMember(householdId: string, memberUid: string): Promise<void> {
+  async removeMember(household: Household, memberUid: string, ownerUid: string, newCode: string): Promise<void> {
     const db = this.sdk.current;
     const batch = writeBatch(db);
-    batch.delete(doc(db, memberPath(householdId, memberUid)));
+    batch.delete(doc(db, memberPath(household.id, memberUid)));
+    replaceCode(db, batch, household, ownerUid, newCode);
     await commitQueued(batch);
   }
 

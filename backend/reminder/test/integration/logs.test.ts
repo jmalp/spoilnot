@@ -149,13 +149,18 @@ async function restore(file: HouseholdExport, target: string, ...flags: string[]
   }
 }
 
-const exported = (products: HouseholdExport['products']): HouseholdExport => ({
+const exported = (
+  products: HouseholdExport['products'],
+  recipes: HouseholdExport['recipes'] = [],
+): HouseholdExport => ({
   format: FORMAT, formatVersion: FORMAT_VERSION, appVersion: 'test', exportedAt: '2026-10-12T07:17:00.000Z',
-  household: { id: HOUSEHOLD, name: 'Home', ownerUid: 'u1' }, members: [], products, stock: [], groceryLists: [], recipes: [],
+  household: { id: HOUSEHOLD, name: 'Home', ownerUid: 'u1' }, members: [], products, stock: [], groceryLists: [], recipes,
 });
 
 it('a restore whose writes fail counts them, exits 1 and prints only counts', async () => {
-  const result = await restore(exported([{ id: 'p1', name: 'Milk' }, { id: 'p2', name: TOO_BIG }]), HOUSEHOLD);
+  // A recipe step's text isn't limited by the rules (or the shape check, after S5), only by Firestore's 1 MiB.
+  const big = { id: 'r2', title: 'Big', steps: [{ text: TOO_BIG }] };
+  const result = await restore(exported([{ id: 'p1', name: 'Milk' }], [big]), HOUSEHOLD);
   assert.equal(result.status, 1);
   assert.match(result.stdout, new RegExp(`^Household ${shortId(HOUSEHOLD)}: 2 document\\(s\\)`));
   // The way it signed in and the account's name, never its e-mail address (S6).
@@ -164,6 +169,17 @@ it('a restore whose writes fail counts them, exits 1 and prints only counts', as
   const [, written, failed] = /restored (\d) document\(s\), (\d) failed/.exec(result.stdout) ?? [];
   assert.ok(Number(failed) >= 1 && Number(written) + Number(failed) === 2, 'counted');
   assert.match(result.stderr, new RegExp(`^${failed} document\\(s\\) were not written\\.`));
+  assertClean(result.stdout + result.stderr);
+});
+
+it('a restore that skips a document of the wrong shape names its kind and field only, and exits 1 (S5)', async () => {
+  const result = await restore(exported([{ id: 'p1', name: 'Milk' }, { id: 'p2', name: 'Secret recipe', role: 'owner' }]), HOUSEHOLD);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /: 1 document\(s\) \{"products":1\}; 1 skipped, a shape the rules refuse \{"products \(unknown field\)":1\}/);
+  assert.match(result.stdout, /restored 1 document\(s\), 0 failed, 1 skipped/);
+  assert.match(result.stderr, /^1 document\(s\) were skipped: their shape is one the rules refuse\./);
+  assert.equal((await db.doc(`households/${HOUSEHOLD}/products/p2`).get()).exists, false, 'not written');
+  assert.equal((result.stdout + result.stderr).includes('Secret'), false, 'no value from the file');
   assertClean(result.stdout + result.stderr);
 });
 

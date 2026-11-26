@@ -116,7 +116,7 @@ export const STRINGS = {
   "action_save": "Save",
   "action_remove_member": "Remove from household",
   "remove_member_title": "Remove %1$s?",
-  "remove_member_body": "%1$s loses access to the household right away.",
+  "remove_member_body": "%1$s loses access to the household right away, and the invite code changes. Share the new code with anyone who still needs to join.",
   "action_remove": "Remove",
   "action_make_owner": "Make owner",
   "transfer_title": "Make %1$s the owner?",

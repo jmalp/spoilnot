@@ -144,7 +144,10 @@ export function HouseholdSettingsScreen({ onBack }: { onBack: () => void }) {
               case 'regenerate':
                 return void action.run(() => households.regenerateInviteCode(household, uid, InviteCodes.generate()));
               case 'remove':
-                return void action.run(() => households.removeMember(hid, confirm.member.uid));
+                // The removed person knows the code, so it is replaced too (after v1, S5).
+                return void action.run(() =>
+                  households.removeMember(household, confirm.member.uid, uid, InviteCodes.generate()),
+                );
               case 'transfer':
                 return void action.run(() => households.transferOwnership(hid, uid, confirm.member.uid));
               case 'leave':

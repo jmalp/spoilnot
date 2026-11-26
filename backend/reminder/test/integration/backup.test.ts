@@ -28,14 +28,14 @@ beforeEach(async () => {
   b.set(db.doc('households/h1'), { name: 'Home', ownerUid: 'u1', createdAt: created });
   b.set(db.doc('households/h1/members/u1'), { role: 'owner', displayName: 'Sam', joinedAt: created });
   b.set(db.doc('households/h1/products/p1'), { name: 'Milk', nameKey: 'milk', minQuantity: null, createdAt: created });
-  b.set(db.doc('households/h1/stock/s1'), { productId: 'p1', quantity: 2, expiryDate: '2026-10-20', createdAt: created, updatedAt: created, updatedBy: 'u1' });
+  b.set(db.doc('households/h1/stock/s1'), { productId: 'p1', quantity: 2, expiryDate: '2026-10-20', location: 'fridge', dateType: 'use_by', createdAt: created, updatedAt: created, updatedBy: 'u1' });
   // A note that looks like a date-time: text, which a restore must keep as text.
-  b.set(db.doc('households/h1/stock/s-iso'), { productId: 'p1', quantity: 1, expiryDate: '2026-12-24', note: '2026-12-24T18:00:00Z', createdAt: created });
+  b.set(db.doc('households/h1/stock/s-iso'), { productId: 'p1', quantity: 1, expiryDate: '2026-12-24', location: 'pantry', dateType: 'best_before', note: '2026-12-24T18:00:00Z', createdAt: created });
   b.set(db.doc('households/h1/groceryLists/g1'), { name: 'Groceries', isDefault: true, updatedAt: created });
   b.set(db.doc('households/h1/groceryLists/g1/items/i1'), { name: 'Eggs', checked: false, createdAt: created });
   b.set(db.doc('households/h1/recipes/r1'), { title: 'Pie', ingredients: [{ raw: '1 cup flour', qty: 1 }], createdAt: created });
   b.set(db.doc('households/h1/activity/a1'), { type: 'stock_added', createdAt: created });
-  b.set(db.doc('households/h1/meals/m1'), { date: '2026-10-29', slot: 'dinner', title: 'Pie', cooks: ['u1'], createdAt: created });
+  b.set(db.doc('households/h1/meals/m1'), { date: '2026-10-29', slot: 'dinner', position: 0, title: 'Pie', cooks: ['u1'], createdAt: created });
   b.set(db.doc('households/h1/stock/s-gone'), { productId: 'p1', quantity: 1, expiryDate: '2026-10-21', deletedAt: created });
   b.set(db.doc('households/h2'), { name: 'Other', ownerUid: 'u2' });
   b.set(db.doc('households/h3'), { name: 'Home again', ownerUid: 'u1' });
@@ -110,4 +110,26 @@ it('refuses a household with a different owner unless asked, before writing anyt
 it('refuses to restore into a household that does not exist', async () => {
   const data = await exportHousehold(db, 'h1', new Date(), 'test');
   await assert.rejects(applyRestore(db, planRestore(data, 'gone')), { code: 'no-such-household' });
+});
+
+it('skips a document of the wrong shape, since the Admin SDK skips the rules, and writes the others (S5)', async () => {
+  const data = JSON.parse(JSON.stringify(await exportHousehold(db, 'h1', new Date(), 'test')));
+  // An export edited on a computer: a batch with a script for a location, and a product with a field no app writes.
+  data.stock.find((s: { id: string }) => s.id === 's1').location = '<script>';
+  data.products[0].isAdmin = true;
+  data.recipes.push({ id: 'r-bad', title: 'Link', sourceUrl: 'javascript:alert(1)' });
+  await db.doc('households/h1/products/p1').delete();
+  await db.doc('households/h1/stock/s1').update({ quantity: 0 });
+
+  const plan = planRestore(data, 'h1');
+  assert.deepEqual(plan.skipped, [
+    { collection: 'products', why: 'unknown field' },
+    { collection: 'stock', why: 'location' },
+    { collection: 'recipes', why: 'sourceUrl' },
+  ]);
+  assert.deepEqual(await applyRestore(db, plan), { written: 5, failed: 0 });
+  assert.equal((await db.doc('households/h1/products/p1').get()).exists, false, 'the product is not written');
+  assert.equal((await db.doc('households/h1/stock/s1').get()).get('quantity'), 0, 'the batch is left as it is');
+  assert.equal((await db.doc('households/h1/recipes/r-bad').get()).exists, false);
+  assert.equal((await db.doc('households/h1/stock/s-iso').get()).get('updatedBy'), 'restore', 'the others are');
 });
