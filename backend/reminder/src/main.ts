@@ -1,18 +1,19 @@
-// Entry point for the GitHub Actions workflow (DESIGN 10.4). Needs FIREBASE_SERVICE_ACCOUNT_JSON; DRY_RUN=true
-// logs what would be sent and changes nothing. See credentials.ts for EXPECTED_PROJECT.
+// Entry point for the GitHub Actions workflow (DESIGN 10.4). Signs in with workload identity or a key (credentials.ts);
+// DRY_RUN=true logs what would be sent and changes nothing.
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
-import { fromEnv } from './credentials.ts';
+import { fromEnv, NO_CREDENTIAL, signedIn } from './credentials.ts';
 import { runMain } from './errors.ts';
 import { isDeadToken, runJob, type Sender } from './job.ts';
 
 async function main(): Promise<void> {
   const credentials = fromEnv();
   if (!credentials) {
-    console.log('FIREBASE_SERVICE_ACCOUNT_JSON is not set; nothing to do.');
+    console.log(`${NO_CREDENTIAL}; nothing to do.`);
     return;
   }
   const { app, projectId } = credentials;
+  console.log(signedIn(credentials));
   const db = getFirestore(app);
   const messaging = getMessaging(app);
   const dryRun = process.env.DRY_RUN === 'true';

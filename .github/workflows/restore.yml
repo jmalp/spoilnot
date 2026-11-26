@@ -37,12 +37,15 @@ concurrency:
 permissions:
   contents: read
   actions: read
+  # Workload identity (DESIGN 12.2 control 8): lets the job ask GitHub for an OIDC token for this run, which Google
+  # exchanges for the restore-job service account. Unused until the repository variables are set.
+  id-token: write
 
 jobs:
   restore:
     # Waits for the owner's approval: the `restore` environment has the owner as its required reviewer, so a run that
-    # the on-time trigger's token could start (DESIGN 10.4) never writes on its own. The keys are repository secrets
-    # (DESIGN 12.2 control 8, DECISIONS 2026-11-22).
+    # the on-time trigger's token could start (DESIGN 10.4) never writes on its own, and no OIDC token is issued
+    # before the approval. The keys are repository secrets (DESIGN 12.2 control 8, DECISIONS 2026-11-22).
     environment: restore
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -58,10 +61,11 @@ jobs:
           node-version: lts/*
           cache: npm
           cache-dependency-path: backend/reminder/package-lock.json
-      # Install and build before any secret is in the job's steps, without packages' install scripts.
+      # Install and build before any secret is in the job's steps, without packages' install scripts and without the
+      # means to ask for an OIDC token.
       - name: Install and build
         working-directory: backend/reminder
-        run: npm ci --ignore-scripts && npm run build
+        run: unset ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN && npm ci --ignore-scripts && npm run build
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: household-exports
@@ -80,7 +84,11 @@ jobs:
       - name: Restore
         working-directory: backend/reminder
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SA_RESTORE }}
+          # A key only while workload identity isn't set up: the restore's own when stored, else the reminder job's
+          # (docs/RUNBOOK.md, "How the jobs get their keys").
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ (!vars.GCP_WORKLOAD_IDENTITY_PROVIDER || !vars.GCP_SA_RESTORE) && (secrets.FIREBASE_SERVICE_ACCOUNT_JSON_RESTORE || secrets.FIREBASE_SERVICE_ACCOUNT_JSON) || '' }}
           EXPECTED_PROJECT: spoilnot-prod
           SOURCE: ${{ inputs.household_id }}
           TARGET: ${{ inputs.target_household_id }}

@@ -158,6 +158,8 @@ it('a restore whose writes fail counts them, exits 1 and prints only counts', as
   const result = await restore(exported([{ id: 'p1', name: 'Milk' }, { id: 'p2', name: TOO_BIG }]), HOUSEHOLD);
   assert.equal(result.status, 1);
   assert.match(result.stdout, new RegExp(`^Household ${shortId(HOUSEHOLD)}: 2 document\\(s\\)`));
+  // The way it signed in and the account's name, never its e-mail address (S6).
+  assert.match(result.stdout, /^Signed in with key as throwaway\.$/m);
   // The emulator refuses the whole batch the large document is in; Firestore may refuse that document only.
   const [, written, failed] = /restored (\d) document\(s\), (\d) failed/.exec(result.stdout) ?? [];
   assert.ok(Number(failed) >= 1 && Number(written) + Number(failed) === 2, 'counted');

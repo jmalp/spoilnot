@@ -9,7 +9,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getFirestore } from 'firebase-admin/firestore';
 import { applyRestore, checkTarget, planRestore, shortId, type HouseholdExport } from './backup.ts';
-import { fromEnv } from './credentials.ts';
+import { fromEnv, NO_CREDENTIAL, signedIn } from './credentials.ts';
 import { JobError, runMain } from './errors.ts';
 
 /** Documents a restore would write, by collection: counts only, never contents. */
@@ -50,11 +50,12 @@ async function main(): Promise<void> {
   const credentials = fromEnv('restore');
   if (!credentials) {
     if (!apply) {
-      console.log('[dry run] Nothing written; the target was not checked (no key). Run again with --apply to restore.');
+      console.log('[dry run] Nothing written; the target was not checked (no credential). Run again with --apply to restore.');
       return;
     }
-    throw new JobError('no-key', 'FIREBASE_SERVICE_ACCOUNT_JSON is not set');
+    throw new JobError('no-key', NO_CREDENTIAL);
   }
+  console.log(signedIn(credentials));
   const db = getFirestore(credentials.app);
   // Refuses a missing household, or one with another owner unless --different-owner (DESIGN 13.4).
   const sameOwner = await checkTarget(db, plan, options);

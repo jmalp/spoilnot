@@ -3,5 +3,6 @@
 # emulator-only project demo-spoilnot. Data persists in firebase/.emulator-data between runs.
 set -euo pipefail
 cd "$(dirname "$0")/../firebase"
-if [ ! -d node_modules ]; then npm ci; fi
+# No package's install script runs (none is needed; DESIGN 12.2 control 9).
+if [ ! -d node_modules ]; then npm ci --ignore-scripts; fi
 exec npm run emulators

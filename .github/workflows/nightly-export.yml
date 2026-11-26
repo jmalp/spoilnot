@@ -15,11 +15,14 @@ concurrency:
 
 permissions:
   contents: read
+  # Workload identity (DESIGN 12.2 control 8): lets the job ask GitHub for an OIDC token for this run, which Google
+  # exchanges for the read-only export-job service account. Unused until the repository variables are set.
+  id-token: write
 
 jobs:
   export:
-    # The keys are repository secrets; this environment holds none and lists the runs as deployments (DESIGN 12.2
-    # control 8, DECISIONS 2026-11-22).
+    # The keys are repository secrets and the workload identity settings repository variables; this environment holds
+    # none and lists the runs as deployments (DESIGN 12.2 control 8, DECISIONS 2026-11-22).
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -35,14 +38,19 @@ jobs:
           node-version: lts/*
           cache: npm
           cache-dependency-path: backend/reminder/package-lock.json
-      # Install and build without secrets and without packages' install scripts; only the next step gets the key.
+      # Install and build without secrets, without packages' install scripts and without the means to ask for an OIDC
+      # token; only the next step can sign in.
       - name: Install and build
         working-directory: backend/reminder
-        run: npm ci --ignore-scripts && npm run build
+        run: unset ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN && npm ci --ignore-scripts && npm run build
       - name: Export every household
         working-directory: backend/reminder
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SA_EXPORT }}
+          # A key only while workload identity isn't set up: the export's own (read-only) when stored, else the
+          # reminder job's (docs/RUNBOOK.md, "How the jobs get their keys").
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ (!vars.GCP_WORKLOAD_IDENTITY_PROVIDER || !vars.GCP_SA_EXPORT) && (secrets.FIREBASE_SERVICE_ACCOUNT_JSON_EXPORT || secrets.FIREBASE_SERVICE_ACCOUNT_JSON) || '' }}
           EXPECTED_PROJECT: spoilnot-prod
           EXPORT_DIR: ${{ runner.temp }}/exports
         run: node dist/export-main.js

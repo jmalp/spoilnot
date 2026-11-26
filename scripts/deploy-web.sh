@@ -47,8 +47,9 @@ if [ "$TARGET" = prod ]; then
   git fetch -q origin main
   [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || die "main is not the same as GitHub (git pull)"
 fi
-[ -d web/node_modules ] || (cd web && npm ci)
-[ -d firebase/node_modules ] || (cd firebase && npm ci)
+# No package's install script runs (none is needed; DESIGN 12.2 control 9).
+[ -d web/node_modules ] || (cd web && npm ci --ignore-scripts)
+[ -d firebase/node_modules ] || (cd firebase && npm ci --ignore-scripts)
 
 # --- The project's Web app config (public: it ships in every page) ---
 step "Reading the Web app config of $PROJECT"

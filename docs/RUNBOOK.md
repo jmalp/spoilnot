@@ -7,30 +7,40 @@ Operational tasks for Spoil Not. The design is in `DESIGN.md`; deviations are in
 The job lives in `backend/reminder` and runs from `.github/workflows/reminders.yml`, once per Firebase project.
 An Apps Script trigger in the owner's Google account starts it every quarter hour, with the workflow's own schedule
 as the backup; DESIGN 10.4 says why, and how on time the runs are. Setting the trigger up is "On-time reminders"
-below. The job catches up and sends at most one digest a day per user, however many runs start:
+below. The job catches up and sends at most one digest a day per user, however many runs start. Each project's run
+signs in as that project's `reminder-job` service account, with workload identity when its repository variables are
+set, otherwise with a key ("How the jobs get their keys"):
 
-| Project | Repository secret ("How the jobs get their keys") |
-| --- | --- |
-| `spoilnot-prod` (testers) | `FIREBASE_SERVICE_ACCOUNT_JSON` |
-| `spoilnot-dev` (development, optional) | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
+| Project | Workload identity (repository variable) | Key until then (repository secret) |
+| --- | --- | --- |
+| `spoilnot-prod` (testers) | `GCP_SA_REMINDERS_PROD` | `FIREBASE_SERVICE_ACCOUNT_JSON` |
+| `spoilnot-dev` (development, optional) | `GCP_SA_REMINDERS_DEV` | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
 
-A project whose secret is missing logs "nothing to do" and succeeds. A key stored under the wrong secret fails the
-run with `expiry-reminders failed: wrong-project`, and every run logs the project it served.
+A project with neither logs "nothing to do" and succeeds. A key or service account for the wrong project fails the
+run with `expiry-reminders failed: wrong-project`, and every run logs the project it served and how it signed in
+("Signed in with workload identity as reminder-job.").
 
 ### Create the service account (once per Firebase project)
+
+The nightly export and the restore have service accounts of their own in `spoilnot-prod` ("How the jobs get their
+keys"). The reminder job's, in each project:
 
 1. Open https://console.cloud.google.com and pick the project (`spoilnot-dev` or `spoilnot-prod`) at the top.
 2. **IAM & Admin → Service Accounts → + Create service account**. Name: `reminder-job`. **Create and continue**.
 3. Grant two roles, then **Done**:
    - **Cloud Datastore User** (read and write Firestore),
    - **Firebase Cloud Messaging API Admin** (send notifications).
-4. Open the account → **Keys → Add key → Create new key → JSON → Create**. A `.json` file downloads.
-5. Store it as a repository secret, then delete the downloaded file:
+4. With workload identity, the account needs no key: allow the workflow to act as it instead ("Set up workload
+   identity", step 4) and skip steps 5 and 6. Otherwise: open the account → **Keys → Add key → Create new key → JSON
+   → Create**. A `.json` file downloads.
+5. Store it minified, on one line, as a repository secret (GitHub masks a multi-line secret line by line, a one-line
+   one as a whole), then delete the downloaded file. `jq` comes with macOS 15 and later (`brew install jq` before):
    ```bash
    # spoilnot-prod
-   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   jq -c . ~/Downloads/<file>.json | gh secret set FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot
    # spoilnot-dev
-   gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --repo jmalp/spoilnot < ~/Downloads/<file>.json
+   jq -c . ~/Downloads/<file>.json | gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_DEV --repo jmalp/spoilnot
+   rm ~/Downloads/<file>.json
    ```
 6. In the Firebase console → Project settings → Cloud Messaging, check that **Firebase Cloud Messaging API (V1)**
    is enabled.
@@ -39,9 +49,12 @@ Never commit the key or put it anywhere else. Do not link a billing account (DES
 
 ### Rotate the key (yearly, or at once if it shows in a log)
 
-Create a new key (step 4), replace the secret (step 5), run the workflow once by hand (below), then delete the old
-key under **Keys** in the console. The nightly export and the restore workflow use the same prod secret, so they
-pick up the new key too.
+With workload identity there is no key to rotate: each run gets a token that lasts an hour at most.
+
+For each key still in use: create a new key (step 4), replace its secret (step 5), run the workflow once by hand
+(below), then delete the old key under **Keys** in the console. The nightly export and the restore use
+`FIREBASE_SERVICE_ACCOUNT_JSON_EXPORT` and `…_RESTORE` when those are set, and the reminder job's prod key otherwise
+("How the jobs get their keys"), so rotating the prod key also changes theirs.
 
 ### If the key ever shows in a log
 
@@ -190,9 +203,11 @@ gh workflow run reminders.yml -f dry_run=true
 
   | Code | Meaning |
   | --- | --- |
-  | `wrong-project` | The secret holds the other project's key |
+  | `wrong-project` | The secret holds the other project's key, or the variable names the other project's account |
   | `key-not-json`, `app/invalid-credential` | The secret is not a valid JSON key file; store it again (step 5) |
-  | `PERMISSION_DENIED`, `UNAUTHENTICATED` | The key was deleted or lost a role; check the service account (steps 3 and 4) |
+  | `bad-workload-identity` | A workload identity variable is mistyped: the provider must be `projects/<NUMBER>/…/providers/spoilnot`, with the project number, not its ID ("Set up workload identity", step 5) |
+  | `no-id-token` | The workflow lost `permissions: id-token: write` |
+  | `PERMISSION_DENIED`, `UNAUTHENTICATED`, or an HTTP status such as `400` or `403` | The key was deleted or lost a role; check the service account (steps 3 and 4). With workload identity, Google refused the run's token: check "Set up workload identity" steps 1 to 4 (the APIs, the pool's condition and mapping, the Workload Identity User grant with the workflow's name, the account's roles). To keep the job running meanwhile, delete its variable: it goes back to its key |
   | `RESOURCE_EXHAUSTED` | The day's free reads or writes ran out (Check quota usage) |
   | `UNAVAILABLE`, `DEADLINE_EXCEEDED` | Google was briefly unreachable; the next run catches up |
   | `usage`, `no-key`, `not-an-export`, `no-such-household` | A restore that could not start (Restore a household) |
@@ -562,8 +577,9 @@ owns.
 From a terminal: `gh workflow run restore.yml -f export_run_id=<id> -f household_id=<first characters> -f apply=false`
 (add `-f different_owner=true` for step 4's other owner).
 
-A file saved from Settings > Export can be restored the same way from a computer that has the service account key
-in `FIREBASE_SERVICE_ACCOUNT_JSON` (`cd backend/reminder && npm ci --ignore-scripts && npm run build && node
+A file saved from Settings > Export can be restored the same way from a computer that has a service account key
+in `FIREBASE_SERVICE_ACCOUNT_JSON`; with workload identity there is none, so create one for `restore-job`, use it
+and delete it under **Keys** right after (`cd backend/reminder && npm ci --ignore-scripts && npm run build && node
 dist/restore-main.js <file> <householdId> [--apply] [--different-owner]`), but the workflow is preferred because the
 key never leaves GitHub. Its `profile` and `activity` are not restored. Settings > Export needs a connection: it reads
 from the server and, offline, says "You're offline" and saves nothing.
@@ -690,23 +706,165 @@ regression with the simulation, then consider the Blaze plan (DESIGN 9.7; budget
 
 ## How the jobs get their keys
 
-The reminder job, the nightly export and the restore use three repository secrets (**Settings → Secrets and
-variables → Actions → Repository secrets**): `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` and
-`EXPORT_ENCRYPTION_KEY`. Only the owner can push branches or start workflows, and workflows run for pull requests from
-forks get no secrets. CI, `secret-scan` and `keepalive` use no secrets besides GitHub's own token.
+The reminder job, the nightly export and the restore sign in to Firebase in one of two ways, chosen per job by the
+code (`backend/reminder/src/credentials.ts`) and logged at the start of each run ("Signed in with workload identity
+as export-job."):
+
+- **Workload identity** (no key; DESIGN 12.2 control 8): when the repository variable `GCP_WORKLOAD_IDENTITY_PROVIDER`
+  and the job's own service account variable are both set. The run asks GitHub for its OIDC token, Google's Security
+  Token Service checks it against the pool's provider (this repository, `main`), and the job gets a token of its own
+  service account that lasts an hour at most. Nothing is stored that could leak.
+- **A key**, while workload identity isn't set up for that job: the JSON key in a repository secret. A job never gets
+  the key when its workload identity variables are set.
+
+| Job (workflow name) | Service account | Roles | Variable | Key until then |
+| --- | --- | --- | --- | --- |
+| `expiry-reminders`, prod | `reminder-job@spoilnot-prod` | Cloud Datastore User, Firebase Cloud Messaging API Admin | `GCP_SA_REMINDERS_PROD` | `FIREBASE_SERVICE_ACCOUNT_JSON` |
+| `expiry-reminders`, dev | `reminder-job@spoilnot-dev` | the same | `GCP_SA_REMINDERS_DEV` | `FIREBASE_SERVICE_ACCOUNT_JSON_DEV` |
+| `nightly-export` | `export-job@spoilnot-prod` | Cloud Datastore Viewer (reads only) | `GCP_SA_EXPORT` | `FIREBASE_SERVICE_ACCOUNT_JSON_EXPORT`, else the reminder job's prod key |
+| `restore-from-export` | `restore-job@spoilnot-prod` | Cloud Datastore User | `GCP_SA_RESTORE` | `FIREBASE_SERVICE_ACCOUNT_JSON_RESTORE`, else the reminder job's prod key |
+
+(Each account's full address ends in `.iam.gserviceaccount.com`.) `EXPORT_ENCRYPTION_KEY` is a repository secret in
+every case: it is the export's passphrase, not a Google key. Variables and secrets are under **Settings → Secrets and
+variables → Actions**, on the **Variables** and **Secrets** tabs. Only the owner can push branches or start
+workflows, and workflows run for pull requests from forks get no secrets. CI, `secret-scan` and `keepalive` use no
+secrets besides GitHub's own token and never ask for an OIDC token.
 
 The reminder job and the export declare `environment: production`, and the restore `environment: restore`. Neither
 holds secrets or has a branch rule (owner's choice, DECISIONS 2026-11-22); GitHub lists each run there as a
 deployment, which is expected. Keep `production`'s **Required reviewers** and **Wait timer** off: either would hold
 every scheduled run. `restore` has the owner as its required reviewer (since 2026-11-22), so a restore waits for the
-owner's approval however it was started, also by the on-time trigger's token ("On-time reminders"). A secret with one
-of the three names added to an environment would win over the repository's, so don't add one there.
+owner's approval however it was started, also by the on-time trigger's token ("On-time reminders"); a job that waits
+gets no OIDC token until it is approved. A secret with one of the names above added to an environment would win over
+the repository's, so don't add one there.
 
-Inside each job, `npm ci --ignore-scripts && npm run build` runs in a step that has no secret, and no package's
-install script runs at all. Only the step that
-runs `node dist/…` gets the service account key; the export's Encrypt step and the restore's Decrypt step get
-`EXPORT_ENCRYPTION_KEY`. CI installs with `--ignore-scripts` too, and the job's tests pass that way, so a dependency
-that needs its install script fails CI before it reaches a job.
+Inside each job, `npm ci --ignore-scripts && npm run build` runs in a step that has no secret and can't ask for an
+OIDC token (it unsets GitHub's two `ACTIONS_ID_TOKEN_REQUEST_*` variables first), and no package's install script
+runs at all. Only the step that runs `node dist/…` can sign in; the export's Encrypt step and the restore's Decrypt
+step get `EXPORT_ENCRYPTION_KEY`. CI installs with `--ignore-scripts` too, and the job's tests pass that way, so a
+dependency that needs its install script fails CI before it reaches a job.
+
+### Set up workload identity (once)
+
+Google's guide is "Configure Workload Identity Federation with deployment pipelines" (cloud.google.com, IAM docs,
+GitHub Actions). IAM, workload identity included, costs nothing, but Google doesn't say whether a project without a
+billing account may use it (its guide lists "Verify that billing is enabled" as a step). So if any page below asks
+you to enable billing or link a billing account, **stop there** (link nothing) and use one key per job instead (next
+section). The workflows keep using the
+keys until step 5, so the jobs run normally at every step.
+
+1. **APIs.** https://console.cloud.google.com → pick **spoilnot-prod** at the top → **APIs & Services → Library**.
+   Search for each and **Enable** it: **Identity and Access Management (IAM) API**, **IAM Service Account
+   Credentials API**, **Security Token Service API**. Then pick **spoilnot-dev** and enable **IAM Service Account
+   Credentials API** there too.
+2. **Pool and provider** (in spoilnot-prod only; dev's account trusts the same pool). **IAM & Admin → Workload
+   Identity Federation → Create pool** (or **Get started**):
+   - Name `GitHub`, Pool ID `github`. **Continue**.
+   - Provider: **OpenID Connect (OIDC)**. Name `spoilnot`, Provider ID `spoilnot`. Issuer (URL):
+     `https://token.actions.githubusercontent.com/`. Audiences: **Default audience**. **Continue**.
+   - Attribute mapping, one row each (**Add mapping**):
+
+     | Google | OIDC |
+     | --- | --- |
+     | `google.subject` | `assertion.sub` |
+     | `attribute.repository_id` | `assertion.repository_id` |
+     | `attribute.repository_owner_id` | `assertion.repository_owner_id` |
+     | `attribute.ref` | `assertion.ref` |
+     | `attribute.workflow` | `assertion.workflow` |
+
+   - **Attribute conditions → Add condition**, exactly:
+     `assertion.repository_id == '1416247646' && assertion.repository_owner_id == '75514361' && assertion.ref ==
+     'refs/heads/main'` (on one line). These are `jmalp/spoilnot`'s and its owner's numeric IDs (`gh api
+     repos/jmalp/spoilnot --jq '.id, .owner.id'`), which stay the same if a name changes, as Google advises: GitHub
+     signs every repository's tokens with one issuer, so without the condition any repository could use the pool.
+     `ref` rather than `sub`, because a job with an environment has `sub` =
+     `repo:jmalp/spoilnot:environment:production`. **Save**.
+   - Note the project number: **IAM & Admin → Settings → Project number** (or the Dashboard). Below it is `<NUMBER>`.
+3. **Two new accounts** (spoilnot-prod, **IAM & Admin → Service Accounts → + Create service account**; no keys):
+   - `export-job`, role **Cloud Datastore Viewer**;
+   - `restore-job`, role **Cloud Datastore User**.
+   `reminder-job` already exists in both projects.
+4. **Let each workflow act as its account.** For each row below: the project at the top → **IAM & Admin → Service
+   Accounts →** the account **→ Principals with access → Grant access**. New principal (one line, with `<NUMBER>`
+   from step 2):
+   `principalSet://iam.googleapis.com/projects/<NUMBER>/locations/global/workloadIdentityPools/github/attribute.workflow/<workflow>`.
+   Role: **Workload Identity User**. **Save**.
+
+   | Project | Account | `<workflow>` |
+   | --- | --- | --- |
+   | spoilnot-prod | `reminder-job` | `expiry-reminders` |
+   | spoilnot-prod | `export-job` | `nightly-export` |
+   | spoilnot-prod | `restore-job` | `restore-from-export` |
+   | spoilnot-dev | `reminder-job` | `expiry-reminders` |
+
+   The workflow name is the `name:` at the top of each file. With the pool's condition, only that workflow's runs on
+   `main` of this repository can act as the account.
+5. **Turn it on** (the repository variables; values are not secret):
+   ```bash
+   gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --repo jmalp/spoilnot --body "projects/<NUMBER>/locations/global/workloadIdentityPools/github/providers/spoilnot"
+   gh variable set GCP_SA_REMINDERS_PROD --repo jmalp/spoilnot --body "reminder-job@spoilnot-prod.iam.gserviceaccount.com"
+   gh variable set GCP_SA_REMINDERS_DEV --repo jmalp/spoilnot --body "reminder-job@spoilnot-dev.iam.gserviceaccount.com"
+   gh variable set GCP_SA_EXPORT --repo jmalp/spoilnot --body "export-job@spoilnot-prod.iam.gserviceaccount.com"
+   gh variable set GCP_SA_RESTORE --repo jmalp/spoilnot --body "restore-job@spoilnot-prod.iam.gserviceaccount.com"
+   ```
+   Check each address against the account's page. A job whose variable isn't set yet keeps using its key, so they can
+   be set one at a time. To go back to the key for a job, delete its variable (`gh variable delete GCP_SA_EXPORT
+   --repo jmalp/spoilnot`).
+6. **A dry run of each job** ("Dry runs" below). Each log says "Signed in with workload identity as …".
+7. **Remove the keys** once all four runs signed in with workload identity, and a scheduled reminder run after them
+   did too:
+   - Google Cloud console, each project → **IAM & Admin → Service Accounts → reminder-job → Keys** → delete every key
+     (the trash icon). Deleting it is what makes any copy useless.
+   - The secrets:
+     ```bash
+     gh secret delete FIREBASE_SERVICE_ACCOUNT_JSON --repo jmalp/spoilnot
+     gh secret delete FIREBASE_SERVICE_ACCOUNT_JSON_DEV --repo jmalp/spoilnot
+     ```
+   - Keep `EXPORT_ENCRYPTION_KEY`.
+
+**If a run fails after step 5**, its log says `<job> failed: <code>`; the codes are in the table under "Reminder
+job".
+
+### If Google asks for billing: one key per job
+
+The same split without workload identity: a leaked export key can then only read.
+
+1. In spoilnot-prod create `export-job` (**Cloud Datastore Viewer**) and `restore-job` (**Cloud Datastore User**),
+   as in "Set up workload identity" step 3.
+2. A key for each (the account → **Keys → Add key → Create new key → JSON**), stored minified on one line, then
+   delete the files:
+   ```bash
+   jq -c . ~/Downloads/<export-job file>.json | gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_EXPORT --repo jmalp/spoilnot
+   jq -c . ~/Downloads/<restore-job file>.json | gh secret set FIREBASE_SERVICE_ACCOUNT_JSON_RESTORE --repo jmalp/spoilnot
+   rm ~/Downloads/<export-job file>.json ~/Downloads/<restore-job file>.json
+   ```
+3. Store the reminder job's keys on one line too: rotate both ("Rotate the key"; step 5 there stores them minified).
+4. A dry run of each job ("Dry runs"): the export's log says "Signed in with key as export-job", the restore's "as
+   restore-job".
+
+### Dry runs
+
+Start each by hand after a change to how the jobs sign in, then read the log (`gh run list --repo jmalp/spoilnot
+--workflow <file> --limit 1`, then `gh run view <run-id> --repo jmalp/spoilnot --log | grep -E "Signed in|project
+|failed"`):
+
+```bash
+gh workflow run reminders.yml --repo jmalp/spoilnot -f dry_run=true
+```
+Both projects' runs log "[dry run] project …" and change nothing.
+
+```bash
+gh workflow run nightly-export.yml --repo jmalp/spoilnot
+```
+The export has no dry run: it only reads, so a run by hand is the nightly run once more (one more encrypted artifact,
+kept 14 days).
+
+```bash
+gh workflow run restore.yml --repo jmalp/spoilnot -f export_run_id=<run ID of a nightly-export run> -f household_id=<first 4 or more characters of a household ID> -f apply=false
+```
+It waits for your approval: the run's page → **Review deployments → restore → Approve and deploy**. Without "apply"
+it writes nothing; it signs in and checks the target household ("Target: same owner as the export."). Leaving
+`household_id` empty only lists the exports and doesn't sign in.
 
 ## Scheduled workflows
 
@@ -782,5 +940,37 @@ Compose, Firebase or DataStore update (their code is in it; "Baseline profile").
 GitHub's secret scanning with push protection (**Settings → Advanced Security**) refuses a push that holds a known
 kind of key, before it is public. `secret-scan.yml` also runs gitleaks on every push and pull request and over the
 whole history weekly. If either finds something: treat the secret as leaked even after deleting it from the repository. Rotate it first (for the
-service account, see "Rotate the key"), then remove it from the code. The Firebase configuration files are allowed
-on purpose (`.gitleaks.toml`).
+service account, see "Rotate the key"), then remove it from the code. Only the Google API key in the Firebase configuration files
+(`google-services.json`) is allowed, on purpose (`.gitleaks.toml`): any other secret in those files is caught like
+anywhere else. `secret-scan.yml` pins the gitleaks version that `.gitleaks.toml` was checked with; when raising it,
+run `gitleaks git --config .gitleaks.toml .` locally with the new version first (`brew install gitleaks`), which
+must find nothing.
+
+## npm on the owner's Mac (DESIGN 12.2 control 9)
+
+The deploy and release scripts run on the owner's Mac, with the Firebase CLI's sign-in and the upload keystore
+there. So npm on that Mac runs no package's install script (once):
+
+```bash
+npm config set ignore-scripts true
+```
+```bash
+npm config get ignore-scripts
+```
+
+The second prints `true`. It applies to every project and to `npm install -g`. No package in this repository needs
+its script (checked 2026-11-25): `@firebase/util` and `protobufjs` only print or write optional files, `re2` is an
+optional speed-up of the hosting emulator's, and `fsevents` ships built. CI and the jobs install the same way. The
+repository's own `npm run …` scripts still run; npm skips `pre…` and `post…` scripts around them, and none of the
+four projects has one. The scripts in `scripts/` install with `--ignore-scripts` either way. If a package someday
+needs its script, run it for that package alone, in that project: `npm rebuild <package> --ignore-scripts=false`.
+Undo with `npm config delete ignore-scripts`.
+
+## Sign-up limit per IP (Firebase Auth)
+
+Firebase Auth allows 100 new accounts an hour from one IP address by default. Spoil Not has a few testers, so a
+lower limit slows anyone creating accounts in bulk (DESIGN 12.2 control 2). In each project (spoilnot-prod and
+spoilnot-dev): Firebase console → **Authentication → Settings → Sign-up quota** → set the number of sign-ups per IP
+address per hour to **10** and save. Google describes this setting as a temporary change with a start time and a
+duration. If the page only lets you raise the limit, or only for a few days, leave it at the default and say so;
+DECISIONS then records that it wasn't possible. The tests use the emulator, which has no such limit.
