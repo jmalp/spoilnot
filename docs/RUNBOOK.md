@@ -976,9 +976,8 @@ Undo with `npm config delete ignore-scripts`.
 
 ## Sign-up limit per IP (Firebase Auth)
 
-Firebase Auth allows 100 new accounts an hour from one IP address by default. Spoil Not has a few testers, so a
-lower limit slows anyone creating accounts in bulk (DESIGN 12.2 control 2). In each project (spoilnot-prod and
-spoilnot-dev): Firebase console → **Authentication → Settings → Sign-up quota** → set the number of sign-ups per IP
-address per hour to **10** and save. Google describes this setting as a temporary change with a start time and a
-duration. If the page only lets you raise the limit, or only for a few days, leave it at the default and say so;
-DECISIONS then records that it wasn't possible. The tests use the emulator, which has no such limit.
+Firebase Auth allows 100 new accounts an hour from one IP address by default, and it stays there. S6 planned 10, to
+slow anyone creating accounts in bulk (DESIGN 12.2 control 2), but the console's **Authentication → Settings →
+Sign-up quota** changes it only temporarily, for up to 7 days, after which it goes back to 100. So the owner left it
+at the default (DECISIONS 2026-11-26). The rules still cap what any account can store, and the free plan's daily
+quotas cap what a burst of accounts can cost.

@@ -118,15 +118,17 @@ Status on 2026-10-18: all done. 1 ✅ (sign-in checked on the beta), 2 ✅, 3 �
    "Email enumeration protection" is on. (Both projects.)
 4. **GitHub account**: two-factor authentication on (github.com/settings/security).
 
-Added 2026-11-25 (review batch S6), open until the owner has done them, in this order:
+Added 2026-11-25 (review batch S6), in this order:
 
 5. **Workload identity** (RUNBOOK, How the jobs get their keys, "Set up workload identity"): the APIs, the pool and
    provider, `export-job` and `restore-job`, the Workload Identity User grants, the repository variables, a dry run
    of each job, then deleting the JSON keys and the two key secrets. If Google asks for a billing account, stop and
    use one key per job instead (the next section there).
-6. **npm on the Mac**: `npm config set ignore-scripts true` (RUNBOOK, npm on the owner's Mac).
-7. **Sign-up limit per IP**: 10 an hour in both projects, if the console allows a lasting lower limit (RUNBOOK,
-   Sign-up limit per IP).
+6. **npm on the Mac**: `npm config set ignore-scripts true` (RUNBOOK, npm on the owner's Mac). Done 2026-11-26.
+7. **Sign-up limit per IP**: not possible. The console lowers it only temporarily, for up to 7 days, so it stays at
+   Firebase's 100 an hour (DECISIONS 2026-11-26).
+
+Step 5 is optional and open: until the owner sets it up, the jobs sign in with today's keys.
 
 ## Sign-off
 

@@ -737,7 +737,10 @@ automatic new code on Remove member (DECISIONS 2026-11-25, DESIGN 17).
   - **The owner's steps,** in order (RUNBOOK, How the jobs get their keys): the APIs, the pool and provider, the two
     new service accounts and the Workload Identity User grants, the repository variables, a dry run of each job, then
     deleting the old keys and secrets (or one key per job, if Google asks for billing); `ignore-scripts` on the Mac;
-    the sign-up limit per IP in both projects. Open.
+    the sign-up limit per IP in both projects.
+  - **Status (2026-11-26):** `ignore-scripts` is on (owner, 2026-11-26). The sign-up limit is not possible: the
+    console lowers it only for up to 7 days (DECISIONS 2026-11-26). Workload identity is optional and open; the jobs
+    keep today's keys until the owner sets it up.
 
 ## After the fixes
 
